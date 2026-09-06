@@ -60,24 +60,30 @@ A copy is an asset. There is no separate copy entity.
 | Field | Purpose |
 | --- | --- |
 | `digital_item` | The holding it realizes (exactly one) |
-| `role` | Seed value within one of the four classes |
+| `roles` | One or more seed values, within the four classes (spec-01 §5.5) |
 | `location` | Where the bytes are, as a storage-layer reference |
 | `size` | Octets |
 | `digest` | Cryptographic content digest, per §5.1 |
+| `digest_algorithm` | The algorithm producing `digest`, per §5.1 |
 | `format` | Identified format, per §6 |
 | `part_sequence` | Nullable; only for multi-part digital items (spec-01 §12.1) |
 | `verified_at` | Last successful verification, nullable |
 | `verification_interval` | How often this asset must be verified |
 
-### 3.3 Original and derived-copy coupling
+### 3.3 Original and normalized-copy coupling
 
-spec-01 §13.2 couples them: deleting the original SHOULD delete the derived
-playback copy, because the copy is then unsupported by anything the household
-can prove it held.
+spec-01 §13.2 couples them: deleting the acquired original MUST delete the
+normalized copy, because the copy is then unsupported by anything the household
+can prove it held. The one exception is §4.3's discard, where the original was
+deliberately replaced by a recompression verified against it; there the
+recompression assumes the Acquired role and nothing remains to couple to.
 
 This coupling runs one way only. Deleting a normalized copy MUST NOT delete the
 acquired original, and MUST be permitted — a normalized copy is regenerable from
 the original by definition.
+
+Where normalization was the identity, one asset carries both roles (spec-01 §5.5)
+and there is nothing to couple: the two rules describe the same row.
 
 ---
 
@@ -85,18 +91,26 @@ the original by definition.
 
 ### 4.1 What it is for
 
-Normalization produces a standardized copy so that playback does not depend on
-the format the household happened to acquire, and so that one standard path
-serves many acquisition formats.
+Normalization produces the standardized master so that analysis, playback and
+preservation do not each depend on the format the household happened to acquire,
+and so that one standard path serves many acquisition formats. The standard
+format for each media class is a registry (spec-01 §17).
 
-### 4.2 The essence rule
+### 4.2 The fidelity rule
 
-spec-01 §13.3 is normative and absolute: **normalization changes the container,
-not the essence.** Re-encoding lossy essence during normalization MUST be
-rejected.
+spec-01 §13.3 is normative: **normalization MUST NOT reduce fidelity.** Within
+that bound it MAY re-encode, so converting a camera raw capture or a lossless
+recording in one codec into the standard codec for its media class is
+normalization and is accepted.
 
-Where only a lossy record exists, that lossy record is the normalized master.
-There is no quality to recover and re-encoding only compounds generation loss.
+Re-encoding lossy essence MUST be rejected. Where only a lossy record exists,
+that lossy record is already the normalized master, and the same asset carries
+both roles. There is no quality to recover and re-encoding only compounds
+generation loss.
+
+A lossy rendition made for a client to play is not normalization at all. It is a
+transcode under spec-01 §13.6: produced on demand, retained only as a Derived
+asset, never backed up.
 
 The excluded case worth naming, because it looks like an improvement: converting
 JPEG to PNG loses no visual information, since PNG stores decoded pixels exactly,
@@ -124,11 +138,18 @@ about to rely on it.*
 ### 4.4 Format selection
 
 spec-01 §13.6 makes transcoding on-demand and forbids pre-generation, which puts
-sustained real-time transcoding on the critical path for playback. The
-standardized format SHOULD therefore be chosen for direct-play compatibility
-with the clients the household actually uses, not solely for archival
-properties. An archival format that every client must transcode away from
-converts a storage decision into a per-session CPU cost.
+sustained real-time transcoding on the critical path for playback.
+
+The standardized format is nonetheless chosen for fidelity and longevity, not for
+direct-play compatibility. Serving transcodes routinely as a result, and the cost
+is accepted at one household's concurrency: the storage decision outlives every
+client that exists today, and choosing it to suit them trades a permanent
+property for a temporary convenience.
+
+What follows is a capacity obligation rather than a format one. Implementations
+SHOULD be able to serve the household's realistic concurrency, and the registry
+SHOULD NOT adopt a standard format whose decode alone cannot keep pace with
+real-time playback on the deployment's hardware.
 
 ---
 
@@ -287,8 +308,9 @@ than building one per media type.
 
 ## 9. Conformance
 
-1. An asset references exactly one digital item and carries a role in one of the
-   four classes.
+1. An asset references exactly one digital item and carries at least one role
+   within the four classes; an asset carrying both Acquired and Normalized is
+   accepted.
 2. An asset whose last successful verification exceeds its interval is reported
    as unverified.
 3. An asset that has never been verified is reported as unverified.
@@ -296,11 +318,13 @@ than building one per media type.
    found nothing wrong.
 5. A digest mismatch is recorded and surfaced, and does not overwrite or
    re-derive the asset.
-6. Normalization that re-encodes lossy essence is rejected.
+6. Normalization that re-encodes lossy essence is rejected; normalization that
+   re-encodes lossless essence into the standard codec is accepted.
 7. Discarding an acquired original in favour of a reversibly recompressed form is
    rejected unless reconstruction has been verified against the original's digest.
 8. Deleting a normalized copy is permitted and leaves the acquired original
-   intact; deleting the original removes the derived playback copy.
+   intact; deleting the original removes the normalized copy, except after a §4.3
+   discard.
 9. Every asset carries a format identified from its bytes, not its filename.
 10. Derived assets and derived annotations are excluded from backup; the catalog
     is included.

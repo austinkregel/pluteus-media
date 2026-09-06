@@ -89,7 +89,7 @@ Every annotation MUST be exactly one of:
 | | Authored | Derived |
 | --- | --- | --- |
 | Produced by | A principal, or an agent acting through one | Code |
-| Provenance carries | An assigner (spec-01 §7.3) | A derivation (§4) |
+| Provenance carries | A principal, and optionally an agent (§3.4) | A derivation (§4) |
 | Regenerable | No | Yes, by construction |
 | Backed up (spec-01 §13.7) | **MUST** | MUST NOT consume backup capacity |
 | Superseded automatically | Never (§5.3) | By a newer derivation of the same tool |
@@ -121,6 +121,22 @@ derivation changes, at no cost.
 Derived annotations MAY target derived addresses. A segment embedding legitimately
 targets a segment boundary, because both are outputs of the same derivation and
 are discarded together.
+
+### 3.4 Authored provenance
+
+An authored annotation MUST record the principal that produced it, by the local
+identifier of spec-06 §3.1. This is REQUIRED and is not nullable.
+
+It MAY additionally record an LRM agent on whose behalf the assertion was made —
+a relative identifying faces through a member's login. That agent is OPTIONAL,
+and its absence means the principal asserted on its own behalf.
+
+The nullable assigner of spec-01 §7.3 does not apply here. There a null assigner
+denotes the household's shared vocabulary, which is a sound default for a name;
+an assertion about a photograph has an author, and recording "the household" in
+its place discards the provenance the annotation exists to carry. spec-06
+guarantees that a principal with no linked agent is fully functional, so an agent
+cannot be required in its stead.
 
 ---
 
@@ -308,8 +324,9 @@ Superseding does not purge. See §5.2.
 
 ## 9. Conformance
 
-1. An annotation carries exactly one of an assigner or a derivation, never both
-   and never neither.
+1. An annotation carries exactly one of a principal or a derivation, never both
+   and never neither. An authored annotation by a principal with no linked agent
+   is accepted.
 2. An authored annotation targeting a derived address is rejected.
 3. Re-running a segmenting derivation at a new version does not change which
    region any authored annotation refers to.

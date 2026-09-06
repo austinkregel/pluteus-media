@@ -142,6 +142,18 @@ Every entity MUST have a primary identifier that is a UUID version 7 [RFC9562].
 Identifiers MUST be immutable. Identifiers MUST NOT be reused after deletion.
 Identifiers MUST NOT encode semantic content.
 
+The primary identifier is itself a nomen (§7.1), of the scheme reserved for it,
+and satisfies LRM-R13's lower bound for every res without a stored appellation
+row. LRM-R13's scope note provides for this directly: where instances are
+assigned an internal identifier, which is itself a nomen of a specific type, the
+relationship is implicit in the system design. Implementations MUST NOT require
+a stored nomen for a res that has no name, and MUST NOT mint a placeholder one.
+
+This is what keeps §7's obligations proportionate. Assets, reified addresses and
+annotations are res (§5.5, §8.2, [spec-02] §3.1) and vastly outnumber the
+entities a person names; requiring an appellation row for each would double the
+largest tables in the system to store nothing.
+
 ### 4.2 Seeded identifiers
 
 Entities delivered as seed data (§7.5) MUST carry UUIDv7 values minted when the
@@ -192,6 +204,19 @@ carrying the content of a manifestation, which MAY be altered after acquisition
 by added rights statements, annotations, or degradations of the octet stream.
 
 Substantially all holdings in this system are digital items.
+
+A digital item MUST carry exactly one manifestation. A manifestation MAY be
+carried by zero or more digital items; zero denotes a manifestation the
+household describes but holds no file for, and implementations MUST represent it
+rather than reject it.
+
+No relationship exists between digital item and item. Where a digital item has a
+physical carrier, that carrier is recorded as an asset location (§5.5) and not as
+an exemplar.
+
+LRM-R4's lower bound is therefore not enforced. LRM §2.2 permits an
+implementation to omit item-level structure for a given instance, and a
+manifestation embodied only in digital items has no physical exemplar to record.
 
 Implementations MUST NOT treat each acquired file as a distinct singleton
 manifestation. LRM §5.3 states directly that doing so is impractical and does
@@ -258,15 +283,24 @@ item: no instance is simultaneously an asset and any of those. LRM §5.2 require
 disjointness of every entity not related by an isA hierarchy, and this extension
 respects it.
 
-Every asset MUST carry a role. Roles are seed data (§7.5, §17). At minimum the
-registry distinguishes:
+Every asset MUST carry at least one role. Roles are seed data (§7.5, §17). At
+minimum the registry distinguishes:
 
 | Role class | Backed up (§13.7) | Examples |
 | --- | --- | --- |
 | Acquired | Yes | the original as received (§13.2) |
-| Normalized | Yes | the standardized master and playback copy (§13.3) |
+| Normalized | Yes | the standardized master (§13.3) |
 | Redundant | — | the backup copy (§13.5) |
-| Derived | No | thumbnail, waveform, sprite sheet, machine transcript |
+| Derived | No | thumbnail, waveform, sprite sheet, machine transcript, retained transcode (§13.6) |
+
+An asset MAY carry more than one role where they coincide on one byte sequence.
+A file acquired already in the standard format is both Acquired and Normalized,
+and normalization writes no second copy; so is a lossy record, which §13.3 makes
+its own normalized master. Implementations MUST NOT duplicate bytes to give each
+role an asset of its own.
+
+A playback rendition is not a role class. It is a transcode produced on demand
+(§13.6), retained only as a Derived asset if at all.
 
 **Derived assets MUST NOT be modelled as digital items.** A thumbnail carries no
 manifestation content of its own; it is a regenerable projection of one. This is
@@ -279,8 +313,9 @@ is realized by one asset per stored file, and those assets carry a part sequence
 (§12.1).
 
 A copy is an asset bearing a role. It is neither a distinct entity type nor a
-set of fields on some other entity, and the original and the playback copy are
-two assets of one digital item.
+set of fields on some other entity, and the acquired original and the
+standardized master are two assets of one digital item where they differ, and
+one asset bearing both roles where they do not.
 
 ---
 
@@ -301,10 +336,17 @@ The following are REQUIRED:
 | LRM-R4 Manifestation is exemplified by Item | 1 to M |
 | LRM-R13 Res has appellation Nomen | 1 to M |
 | LRM-R17 Nomen is derivation of Nomen | M to 1 |
+| Manifestation is carried by Digital item (§5.2) | 1 to M |
+
+The final row is this system's extension and carries no LRM relationship number.
+Neither its lower bound nor LRM-R4's is enforced: a manifestation may be
+described with no physical exemplar and no file held, for the reason given in
+§5.2. Both upper bounds bind, and both M-to-1 sides bind absolutely.
 
 LRM-R3 is the only many-to-many among the four structural entities. An
 expression MUST realize exactly one work. An item MUST exemplify exactly one
-manifestation. A nomen MUST be the appellation of exactly one res.
+manifestation. A digital item MUST carry exactly one manifestation. A nomen MUST
+be the appellation of exactly one res.
 
 ### 6.2 Existence constraints
 
@@ -454,7 +496,7 @@ profile MUST resolve to the same nomen across calls, or the same item will appea
 under different labels between page loads.
 
 Resolution MUST always return a nomen. The terminal fallback is the nomen with a
-null assigner.
+null assigner where one exists, and the primary identifier (§4.1) otherwise.
 
 Resolution applies to output only. It MUST NOT be assumed to constrain query
 paths; how search treats the set of nomens is an application decision made per
@@ -493,11 +535,17 @@ states its own category examples are not intended as controlled vocabularies,
 and this document follows that.
 
 Where a household has already created something a later release ships as a seed,
-the two rows MUST be linked via LRM-R15 (`is equivalent to`) and MUST NOT be
-merged. Merging requires either mutating the seeded row, which §7.5 forbids, or
+there are two res for one thing. They MUST be linked and MUST NOT be merged.
+Merging requires either mutating the seeded row, which this section forbids, or
 destroying the local row, which discards the household's own provenance and
-assigner. Both rows persist; resolution (§7.4) prefers the local one under the
-same rule that makes a correction outrank a shipped name.
+assigner. Both persist, and resolution (§7.4) prefers names carried by the local
+one under the rule that makes a correction outrank a shipped name.
+
+The link is an association refining LRM-R1, whose type is a registry entry
+(§17). LRM-R15 does not reach this case: it relates two nomens that are
+appellations of one res, and LRM gives it as a shortcut for exactly that path,
+so it cannot span two. LRM-R15 does apply where §7.3 uses it, since a personal
+name and the household name it migrated into name the same res.
 
 ---
 
@@ -694,12 +742,19 @@ The identity key from an OIDC provider is the `(iss, sub)` composite. `sub` is
 unique only within an issuer, so `sub` alone MUST NOT be used.
 
 If the issuer URL changes through provider migration, realm rename, or a move off
-a hosted provider, the composite changes and prior history no longer resolves
-through it. For a single stable provider this exposure is accepted.
+a hosted provider, the composite changes. Because every reference is to the local
+identifier and never to the composite, this is repaired by mapping the new
+composite to the existing principal rather than by creating a new one.
+[spec-06] §3.3 is normative.
 
 A principal MAY link to the LRM person it corresponds to. A person who appears in
 household media and assigns names to things but holds no login is an agent and
 not a principal; implementations MUST support this case.
+
+Every principal carries a role, which determines what it may do. The role set is
+seed data (§17); the permissions each role carries are normative in [spec-06] §6.
+Not every principal is a person: the deployment itself acts as one, and it is the
+holder of operations that belong to no household member.
 
 ### 10.2 Household
 
@@ -711,8 +766,7 @@ work, able to assign nomens. LRM-E8 names families explicitly. As an application
 concept it is the deployment and trust boundary, which LRM §2.1 places outside
 the model.
 
-The two are maintained through different paths, so drift between them is a known
-risk to be managed rather than a reason to collapse them.
+The two are maintained through different paths.
 
 They are not reconciled, because nothing is duplicated across them: the
 collective agent holds naming and creation relations, the trust boundary holds
@@ -810,22 +864,27 @@ moved.
 
 ### 13.1 Assets and modification
 
-Normalization to a standard format is performed to prevent asset and data
-duplication.
+Normalization to a standard format is performed so that playback, analysis and
+preservation do not each depend on whichever format the household happened to
+acquire.
 
 Modifications to a playable copy MUST remain with that copy. They MUST NOT
 propagate to the original.
 
-A copy is an asset bearing a role (§5.5). The original and the playback copy are
-two assets of one digital item, not two entities and not two states of one.
+A copy is an asset bearing a role (§5.5). The acquired original and the
+standardized master are two assets of one digital item, not two entities and not
+two states of one.
 
 ### 13.2 Originals
 
 The original is retained as proof of ownership, including where it is compressed
-or in a different format from the standardized copy.
+or in a different format from the standardized master.
 
-If the original is deleted, the derived copy SHOULD also be deleted, since it
-would otherwise be out of sync.
+If the acquired original is deleted, the normalized copy MUST also be deleted,
+since nothing remains to support it. This does not apply where the original was
+discarded under [spec-03] §4.3 in favour of a recompression verified reversible
+against it: there the recompression assumes the Acquired role, and no original
+remains to couple to.
 
 Reversibility verification retains a role in exactly one circumstance: where a
 normalization claims reversibility and the acquired original is to be discarded
@@ -833,16 +892,31 @@ in favour of the recompressed form. [spec-03] §4.3 is normative.
 
 ### 13.3 Normalization
 
-Where only a lossy record exists, that lossy record becomes the normalized
-master. Normalization changes the container, not the essence.
+Normalization produces the standardized master: one designated format per media
+class, so that analysis, playback and preservation read one format rather than
+every format the household has ever acquired. The standard format for each media
+class is a registry (§17).
 
-Implementations MUST NOT re-encode lossy essence during normalization.
+Normalization MUST NOT reduce fidelity. Within that bound it MAY re-encode.
+Converting a camera raw capture, or a lossless recording in one codec to the
+standard lossless codec, is normalization: nothing is discarded, and the result
+is exactly as recoverable as its input.
 
-JPEG-to-PNG conversion is specifically excluded. PNG stores decoded pixels
-exactly, so no visual information is lost, but the ability to reproduce the
-original file is lost and the result is typically three to ten times larger.
-[JPEG-XL] lossless recompression achieves the intent: bit-exact reversible to the
-original JPEG and roughly 20% smaller.
+Implementations MUST NOT re-encode lossy essence. Where only a lossy record
+exists it is already the normalized master, whatever its format; re-encoding it
+compounds generation loss to no purpose, because there is no fidelity left to
+preserve.
+
+JPEG-to-PNG conversion is excluded by that rule. PNG stores decoded pixels
+exactly, so no visual information is lost, but the essence is lossy, the ability
+to reproduce the original file is lost, and the result is typically three to ten
+times larger. [JPEG-XL] lossless recompression achieves the intent: bit-exact
+reversible to the original JPEG and roughly 20% smaller.
+
+Normalization is not transcoding. A rendition produced for a client to play —
+lossy, lower bitrate, resampled, rescaled — is a transcode governed by §13.6. It
+is produced on demand, it is never the normalized master, and it is never backed
+up.
 
 ### 13.4 Detection over recovery
 
@@ -853,8 +927,8 @@ Detection is therefore the requirement. Two distinct concerns:
 
 **Corruption.** Per-asset checksums, verified on a schedule. This catches bit rot
 regardless of the storage layer. Verification MUST be a scheduled operation with
-recorded outcomes, not an operator convention. An asset whose last verification
-exceeds its interval MUST be reported as unverified.
+recorded outcomes, not an operator convention. An asset whose last successful
+verification exceeds its interval MUST be reported as unverified.
 
 **Format risk.** Identification of files in formats losing decoder support. An
 intact file in a dead codec is equally lost. [PRONOM] is the established registry,
@@ -865,8 +939,8 @@ copy (§13.5) and on operational practice.
 
 ### 13.5 Storage topology
 
-Primary storage holds the original and the read or playback copy. A backup NAS
-holds a further copy; its size and location are unconstrained.
+Primary storage holds the acquired original and the standardized master. A backup
+NAS holds a further copy; its size and location are unconstrained.
 
 All data sits on RAID arrays, so drive failure is not something the application
 reasons about. Two gaps follow, and implementations MUST account for them:
@@ -877,9 +951,9 @@ nor repaired and can be propagated into a rebuild. Detection is the job of §13.
 RAID does not protect against deletion or ransomware. That is the backup copy's
 purpose.
 
-The original and the playback copy share a failure domain and are coupled under
-§13.2, so this is two independent copies rather than three. Whether the backup is
-on-site determines whether site loss is covered.
+The acquired original and the standardized master share a failure domain and are
+coupled under §13.2, so this is two independent copies rather than three. Whether
+the backup is on-site determines whether site loss is covered.
 
 A checksumming filesystem — ZFS, Btrfs, or erasure-coded object storage — is
 preferred where available and would make application-level checksums redundant at
@@ -890,6 +964,10 @@ the primary tier, though not on copies that leave it. No such store is assumed.
 Transcoding for playback is performed on demand when content is accessed.
 Transcodes MUST NOT be pre-generated: transcoding MUST be triggered by an actual
 request for the content, never by ingest, by a schedule, or in anticipation.
+
+This section governs playback renditions only. Other derived assets — thumbnails,
+waveforms, sprite sheets — MAY be generated at ingest; they are not transcodes,
+and §5.5 governs them.
 
 Retaining the output of an on-demand transcode is permitted, subject to all of:
 it is a derived asset (§5.5) and therefore never backed up (§13.7); it is never
@@ -903,18 +981,24 @@ transcoding of high-bitrate video is nonetheless a capacity constraint, and
 concurrent sessions multiply it, since a transcode is per-session and the
 selected track (§8.6) is an input to it.
 
-The standard format SHOULD therefore be chosen for direct-play compatibility with
-intended clients, not solely for archival properties.
+The standardized master (§13.3) is nonetheless chosen for fidelity and longevity,
+not for direct-play compatibility. Serving therefore transcodes routinely rather
+than exceptionally, and that cost is accepted: at one household's concurrency the
+CPU time is available, whereas choosing the archival format to suit the clients
+of the moment trades a permanent property for a temporary convenience.
 
 ### 13.7 Backup scope
 
 Anything regenerable from a master and a recipe is expendable and MUST NOT
 consume backup capacity: thumbnails, waveform data, parsed and cropped images,
-machine-generated transcripts. These are regenerated or refetched after loss.
+machine-generated transcripts, retained transcodes. These are regenerated or
+refetched after loss.
 
-Originals, standardized copies, human-generated annotations, and events are not
-regenerable and MUST be backed up. A relative's identification of who appears in a
-photograph is among the least replaceable data in the system.
+Acquired originals, standardized masters, human-generated annotations, events,
+and the catalog itself — every entity, relationship, and nomen — are not
+regenerable and MUST be backed up. A relative's identification of who appears in
+a photograph is among the least replaceable data in the system, and the catalog
+is what makes every backed-up file more than an unnamed byte sequence.
 
 ---
 
@@ -922,8 +1006,11 @@ photograph is among the least replaceable data in the system.
 
 ### 14.1 Recycle bin
 
-Deletion places an entity in a recycle bin for 30 days. Principals MAY restore
-from the bin, or force deletion by emptying it.
+Deletion places an entity in a recycle bin for 30 days. A principal MAY restore
+anything in the bin, and MAY force deletion of its own deletions by emptying
+them. Emptying another principal's deletions is an administrative operation
+([spec-06] §6), because it destroys the window that makes the bin a safety net
+rather than a confirmation dialog.
 
 ### 14.2 HTTP semantics
 
@@ -949,6 +1036,28 @@ annotations are purged with the target, authored annotations are retained as
 orphans and MUST render.
 
 **OPEN:** post-window behaviour with respect to propagation convergence.
+
+### 14.3 Recycling, purge, and bytes
+
+Recycling is a catalog state and nothing further. It MUST NOT transform, move, or
+remove any stored byte sequence. An asset's bytes are retained unchanged for the
+whole of the window, which is what makes restoration exact rather than
+approximate.
+
+Recycling cascades downward through the structural chain — work to expression to
+manifestation to digital item to asset — as one grouped operation with one
+restoration, and MUST NOT cascade upward. A res's nomens travel with it. The
+copies coupled by §13.2 recycle and restore together.
+
+Purge is permanent. At purge the bytes are removed from primary storage, and a
+tombstone MUST be retained indefinitely recording the identifier, the entity
+class, and the time of purge. §4.1's prohibition on identifier reuse and §14.2's
+continued 410 both depend on that record; without it neither can be honoured.
+
+Purge does not reach the backup copy, which [spec-03] §10 requires be unwritable
+by the credentials that reach primary storage. Those bytes persist until backup
+rotation retires them, and implementations MUST NOT represent purge as
+guaranteeing their destruction.
 
 ---
 
@@ -984,7 +1093,7 @@ and languages may differ.
 11. No title column exists on work, expression, manifestation, or item.
 12. A nomen with a null language round-trips and renders.
 13. Resolution returns a nomen for every res, including one with only a
-    null-assigner nomen.
+    null-assigner nomen and one with no stored nomen at all.
 14. Resolution called twice with the same res and profile returns the same nomen.
 15. Replacing the entire seed set preserves every locally created nomen and every
     correction to a seeded name.
@@ -1009,9 +1118,13 @@ and languages may differ.
 
 **Integrity and lifecycle**
 
-24. An asset whose last verification exceeds its interval is reported unverified.
-25. Normalization that re-encodes lossy essence is rejected.
-26. Deleting an original deletes its derived playback copy.
+24. An asset whose last successful verification exceeds its interval is reported
+    unverified.
+25. Normalizing a lossy acquisition writes no second copy: the acquired asset
+    carries the Normalized role. Normalizing a lossless acquisition into the
+    standard codec is accepted, and re-encoding lossy essence is rejected.
+26. Deleting an acquired original deletes its normalized copy, except where that
+    original was discarded under [spec-03] §4.3.
 27. A recycled entity returns 410 with `Cache-Control: no-store` and a problem
     type distinguishing it from a purged entity.
 28. A restored entity is reachable at its original identifier.
@@ -1025,10 +1138,17 @@ and languages may differ.
     and does not create a manifestation or digital item.
 32. Deleting every asset of a digital item preserves that item's arrangement
     within its aggregate.
-33. Transcoding triggered at ingest rather than by a request is rejected;
-    retaining the output of a requested transcode is accepted.
+33. No transcode output exists for content that has never been requested;
+    retaining the output of a requested transcode is accepted, and a thumbnail
+    generated at ingest is accepted.
 34. A locally created row and a later release's seed for the same concept both
     persist and are linked, and resolution prefers the local one.
+35. A digital item referencing two manifestations is rejected; a manifestation
+    carried by no digital item is accepted and renders.
+36. Recycling an asset leaves its stored bytes byte-identical, and restoring it
+    returns those same bytes.
+37. Purging an entity removes its bytes from primary storage and retains a
+    tombstone that prevents its identifier being reused.
 
 ---
 
@@ -1065,6 +1185,12 @@ here:
 - Asset roles (§5.5); the four role classes in §5.5 are normative, the values within them are seed data
 - Selector dimension names beyond those supplied by [MEDIA-FRAGS] (§9.1)
 - External identifier schemes (§4.3)
+- Association refinement types for LRM-R1, including the link between a local
+  res and a seeded res for the same thing (§7.5)
+- The standardized master format per media class (§13.3)
+- Annotation body types, feature names, and feature groups ([spec-02] §6.1, §6.4)
+- Principal roles (§10.1); the role set is seed data, but the permissions each
+  role carries are normative in [spec-06] §6, so adding one is a release
 
 ---
 

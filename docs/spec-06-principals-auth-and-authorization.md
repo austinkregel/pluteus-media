@@ -75,7 +75,19 @@ issuer preserves the principal's events — is satisfied by this and by nothing
 else.
 
 Adding a mapping is a privileged operation: it grants whoever holds the new
-external identity the full history of that principal.
+external identity the full history of that principal. Two paths exist, and they
+differ in who is still able to authenticate.
+
+A principal that can still authenticate through an existing mapping MAY add
+another to itself. This is the ordinary case, performed before a migration, and
+it needs no administrator.
+
+A principal that cannot — the issuer is already gone — depends on an
+Administrator (§6.1), because the operation cannot be authorized by someone who
+can no longer prove who they are. An implementation MUST NOT allow a Member to
+add a mapping to a principal other than itself; that would let any member attach
+their own identity to another's principal and read their consumption history,
+which §6.3 forbids and which no audit record afterwards can undo.
 
 ### 3.4 Principals and LRM agents
 
@@ -161,10 +173,21 @@ naming it later is an ordinary nomen creation.
 
 ### 6.1 Principal classes
 
-| Class | May |
+Every principal carries exactly one role. The role set is seed data
+(spec-01 §17); the permissions below are normative, so adding a role is a
+release rather than a configuration change.
+
+| Role | May |
 | --- | --- |
-| **Member** | Read and write the catalog; read and write their own consumption data; manage their own devices |
+| **System** | Deployment configuration, seed loading, backup configuration, scheduled maintenance. Holds no consumption data and MUST NOT be a playback subject |
+| **Administrator** | Everything a member may, and: create and retire principals; admit and remove members; issue and revoke guest grants; add an external identity mapping to any principal (§3.3); revoke any principal's device; empty another principal's deletions (spec-01 §14.1) |
+| **Member** | Read and write the catalog; read and write their own consumption data; manage their own devices; add an external identity mapping to themselves while an existing mapping still authenticates |
 | **Guest** | Read what they have been granted; accumulate their own consumption data; write nothing to the catalog |
+
+The System role is not a person. It is the deployment acting on itself, it is
+never reached through the authentication path of §3, and no human principal may
+assume it. It exists so that operations belonging to the deployment rather than
+to any household member have a holder that cannot log in.
 
 Guests exist because spec-01 §9.3 anticipates a deep link shared with a relative
 given access. A guest is a principal — their playback is attributable and their
@@ -177,16 +200,25 @@ here.
 
 ### 6.2 Members are peers over the catalog
 
-Members are not further distinguished. There is no owner, no administrator over
-catalog content, and no per-entity ownership.
+Members are not further distinguished **over catalog content**. There is no owner
+of a work, no per-entity ownership, and no member whose catalog writes outrank
+another's. An Administrator holds no additional authority over the catalog; every
+row in §6.1's Administrator column acts on principals, devices, and grants, not
+on what the household holds.
 
 The justification is the trust boundary itself: a household of a few people who
 already share physical access to the storage does not benefit from modelling
 internal distrust, and the recycle bin (spec-01 §14) is the safety net against
 mistakes rather than a permission system.
 
-This is a deliberate simplification and is reversible: adding distinctions later
-is additive, since every write already records the principal that made it.
+The distinction that does exist is drawn where the peer model cannot express the
+operation at all. Adding an identity mapping, admitting a member, or revoking
+another person's device are not catalog writes and have no peer reading: someone
+must hold them, and §6.1 says who.
+
+Every catalog write MUST record the acting principal. This is what makes the peer
+model recoverable rather than merely permissive — the bin bounds the damage in
+time, and the write record says who did it.
 
 ### 6.3 Consumption data is not shared
 
@@ -216,6 +248,31 @@ makes household naming shared by construction, and §11.2, which makes
 consumption private. That question is open in spec-02 and is not resolved by
 this document; §6.3 governs events, not annotations.
 
+### 6.5 Bootstrap
+
+A deployment begins with no principals, and the authentication path of §3 cannot
+create one: it maps an external identity onto a principal that already exists.
+The first Administrator is therefore established through an onboarding exchange
+that MUST require evidence of host access — a one-time secret written to the
+deployment's console or filesystem at first start — and that MUST become
+unreachable once any principal exists.
+
+The System principal is minted by the deployment at the same moment and carries
+no external identity mapping, which is what makes §6.1's prohibition on assuming
+it enforceable rather than advisory.
+
+### 6.6 Privileged operations are audited
+
+Every operation in §6.1's Administrator row MUST write an audit record naming the
+acting principal, the affected principal, the operation, and the time. The record
+MUST be written whether the operation succeeded or failed.
+
+Audit records are not consumption events. §6.3's prohibition does not apply to
+them, and MUST NOT be read as preventing an Administrator from seeing that
+another principal's identity mapping was changed — concealing that would defeat
+the reason the record exists. An audit record MUST NOT carry what a principal
+consumed.
+
 ---
 
 ## 7. Conformance
@@ -238,6 +295,19 @@ this document; §6.3 governs events, not annotations.
 10. Principal A cannot observe principal B's events through any endpoint,
     including resumption lists, play counts, recommendations, and household
     aggregates.
+11. A Member is refused when adding an external identity mapping to a principal
+    other than itself, and accepted when adding one to itself while an existing
+    mapping still authenticates.
+12. Onboarding establishes the first Administrator only on evidence of host
+    access, and is unreachable once any principal exists.
+13. The System principal has no external identity mapping and cannot be reached
+    through the authentication path of §3.
+14. Every operation in §6.1's Administrator row writes an audit record naming the
+    acting principal, the affected principal, the operation, and the time,
+    including when the operation fails.
+15. Every catalog write records the acting principal.
+16. An audit record readable by an Administrator carries no indication of what
+    any principal consumed.
 
 ---
 
@@ -245,7 +315,11 @@ this document; §6.3 governs events, not annotations.
 
 §3.3's re-mapping operation grants full historical access to whoever controls
 the new external identity. It is the highest-value operation in this
-specification and MUST be treated as such.
+specification, it is held by the Administrator role alone when the affected
+principal can no longer authenticate, and every use of it is audited (§6.6).
+Neither control prevents an Administrator from using it against another
+principal; they make the use visible after the fact. A household that needs it
+prevented rather than recorded needs a distinction this document does not draw.
 
 The device authorization grant (§4) issues credentials to a device on the basis
 of a code displayed on it. A device that leaves the household — sold, lent,
