@@ -109,6 +109,22 @@ defmodule Pluteus.LifecycleTest do
       assert Catalog.arrangement_of(album.id, track.id) == nil
     end
 
+    test "a whole leaves its parts, which are works in their own right", %{ada: ada} do
+      {:ok, %{work: tales}} = Catalog.create_work("The Canterbury Tales")
+      {:ok, %{work: knights_tale}} = Catalog.create_work("The Knight's Tale")
+      {:ok, _} = Catalog.add_work_part(tales.id, knights_tale.id)
+
+      {:ok, recycling} = Lifecycle.recycle(tales.id, ada.id)
+      refute knights_tale.id in Lifecycle.contents(recycling.id)
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      assert {:live, _res} = Lifecycle.state(knights_tale.id)
+
+      assert Repo.all(from w in Pluteus.Catalog.WorkPart, where: w.part_id == ^knights_tale.id) ==
+               []
+    end
+
     test "a personal name keeps its assigner when the assigner is purged", %{ada: ada} do
       %{grandmother: grandmother, child: child, childs_own: childs_own} =
         Pluteus.CatalogFixtures.kin_term!()
