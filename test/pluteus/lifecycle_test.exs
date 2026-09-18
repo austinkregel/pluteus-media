@@ -7,6 +7,9 @@ defmodule Pluteus.LifecycleTest do
   use Pluteus.DataCase, async: true
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Association
+  alias Pluteus.Catalog.Profile
+  alias Pluteus.Catalog.Resolution
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
 
@@ -236,6 +239,56 @@ defmodule Pluteus.LifecycleTest do
       for res <- [context.album, context.track, context.song] do
         assert {:live, _res} = Lifecycle.state(res.id)
       end
+    end
+  end
+
+  describe "§14 and resolution" do
+    setup do
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
+
+      {:ok, typo} =
+        Catalog.create_nomen(%{res_id: work.id, nomen_string: "Teh Dig", language: "en"})
+
+      %{work: work, typo: typo}
+    end
+
+    test "a name deleted on its own is no longer shown", %{ada: ada, work: work, typo: typo} do
+      assert Resolution.resolve(work.id, %Profile{language: "en"}).nomen_string == "Teh Dig"
+
+      {:ok, _} = Lifecycle.recycle(typo.id, ada.id)
+
+      assert Resolution.resolve(work.id, %Profile{language: "en"}).nomen_string == "The Dig"
+    end
+
+    test "and is shown again once restored", %{ada: ada, work: work, typo: typo} do
+      {:ok, recycling} = Lifecycle.recycle(typo.id, ada.id)
+      {:ok, _} = Lifecycle.restore(recycling.id)
+
+      assert Resolution.resolve(work.id, %Profile{language: "en"}).nomen_string == "Teh Dig"
+    end
+
+    test "a res in the bin is still labelled by its own names", %{ada: ada, work: work} do
+      {:ok, _} = Lifecycle.recycle(work.id, ada.id)
+
+      assert Resolution.resolve(work.id, %Profile{language: "en"}).nomen_string == "Teh Dig"
+    end
+
+    test "a seed answers for itself while the household's row is in the bin", %{ada: ada} do
+      {:ok, %{res: local}} = Catalog.create_named_res(:place, "Grandma's house")
+
+      {:ok, %{res: seeded}} =
+        Catalog.create_named_res(:place, %{
+          nomen_string: "Kregel Residence, Grand Rapids",
+          provenance: :seeded
+        })
+
+      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing())
+      assert Resolution.resolve(seeded.id, %Profile{}).nomen_string == "Grandma's house"
+
+      {:ok, _} = Lifecycle.recycle(local.id, ada.id)
+
+      assert Resolution.resolve(seeded.id, %Profile{}).nomen_string ==
+               "Kregel Residence, Grand Rapids"
     end
   end
 

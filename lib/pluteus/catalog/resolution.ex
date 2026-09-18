@@ -14,6 +14,11 @@ defmodule Pluteus.Catalog.Resolution do
   household row and the seed a later release ships for the same concept answer
   alike, and the local name wins by the rule that makes a correction outrank a
   shipped name.
+
+  A name deleted on its own is not shown (§14). A name that went into the
+  recycle bin with the res it names still is, because the bin has to label what
+  it holds. The same holds across a §7.5 link: while one of the pair is in the
+  bin, the other answers for itself.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -21,6 +26,7 @@ defmodule Pluteus.Catalog.Resolution do
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Repo
 
   defmodule NoNomenError do
@@ -100,29 +106,53 @@ defmodule Pluteus.Catalog.Resolution do
           select: {a.subject_id, a.object_id}
       )
 
+    involved = Enum.uniq(res_ids ++ Enum.flat_map(links, &Tuple.to_list/1))
+    bin = recyclings_holding(involved)
+
     Map.new(res_ids, fn res_id ->
       linked =
         for {subject_id, object_id} <- links,
             res_id in [subject_id, object_id],
             other <- [subject_id, object_id],
             other != res_id,
+            Map.get(bin, other) in [nil, Map.get(bin, res_id)],
             do: other
 
       {res_id, [res_id | linked]}
     end)
   end
 
+  defp recyclings_holding(res_ids) do
+    Map.new(
+      Repo.all(
+        from r in RecycledRes,
+          where: r.res_id in ^res_ids,
+          select: {r.res_id, r.recycling_id}
+      )
+    )
+  end
+
+  defp visible(res_ids, profile) do
+    from(n in Nomen,
+      left_join: own in RecycledRes,
+      on: own.res_id == n.id,
+      left_join: holder in RecycledRes,
+      on: holder.res_id == n.res_id,
+      where: n.res_id in ^res_ids,
+      where: is_nil(own.res_id) or own.recycling_id == holder.recycling_id
+    )
+    |> assigned_for(profile)
+  end
+
   # A profile naming no assigner sees household names only. The two clauses are
   # separate because SQL equality against NULL is never true, so one query
   # cannot serve both cases.
-  defp visible(res_ids, %Profile{assigner_id: nil}) do
-    from n in Nomen, where: n.res_id in ^res_ids and is_nil(n.assigner_id)
+  defp assigned_for(query, %Profile{assigner_id: nil}) do
+    from n in query, where: is_nil(n.assigner_id)
   end
 
-  defp visible(res_ids, %Profile{assigner_id: assigner_id}) do
-    from n in Nomen,
-      where: n.res_id in ^res_ids,
-      where: is_nil(n.assigner_id) or n.assigner_id == ^assigner_id
+  defp assigned_for(query, %Profile{assigner_id: assigner_id}) do
+    from n in query, where: is_nil(n.assigner_id) or n.assigner_id == ^assigner_id
   end
 
   # Lower sorts first. Every component is decided by data already on the row, so
