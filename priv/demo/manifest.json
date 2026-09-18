@@ -1,0 +1,235 @@
+{
+  "entries": [
+    {
+      "path": "chopin/Preludes, Op. 28 - No. 1 'Reunion'.flac",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Preludes%2C%20Op.%2028%20-%20No.%201%20%27Reunion%27.flac",
+      "sha256": "39eba2e7d67c8fd4af341503b2891cccf7cdba40747644b48fb8cf4f835924b6",
+      "published_sha1": "ac126845ea69ac98fe125448394fca13051d9cf0",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "Real FLAC with Vorbis comments, embedded cover art and a track number; groups with the other tracks into one release by album and album artist."
+    },
+    {
+      "path": "chopin/Preludes, Op. 28 - No. 5 'Uncertainty'.flac",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Preludes%2C%20Op.%2028%20-%20No.%205%20%27Uncertainty%27.flac",
+      "sha256": "8e861ae30011319808bb3377dbe1cec210c17ffef96b5b0712c2f135a938a460",
+      "published_sha1": "420065867fc7ac367a804572fb7e98ebd09863ef",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "A second track of the same release."
+    },
+    {
+      "path": "chopin/Preludes, Op. 28 - No. 7 'The Polish dancer'.flac",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Preludes%2C%20Op.%2028%20-%20No.%207%20%27The%20Polish%20dancer%27.flac",
+      "sha256": "95c84af3d15800c779177e7c3356ede62b8f7597065eb896b9e775ea8f49a01c",
+      "published_sha1": "5d78d5cb2b48d4e9c21fc28ca33edff2ca6a8dca",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "A third track; its MP3 copy below lands on the same position."
+    },
+    {
+      "path": "chopin/Preludes, Op. 28 - No. 10 'The night moth'.flac",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Preludes%2C%20Op.%2028%20-%20No.%2010%20%27The%20night%20moth%27.flac",
+      "sha256": "fe2340bb15d04f8dca43520a121aef0006318f1b925d1afda3be413afc349c5b",
+      "published_sha1": "244a531f9635be7f5c9255736e7b62160f1f8fbd",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "Its tags (\"no. 14\", track 64) disagree with its file name: placement goes by the tags."
+    },
+    {
+      "path": "chopin/Bourrée No. 2 in G Major, B. 160b2.flac",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Bourre%CC%81e%20No.%202%20in%20G%20Major%2C%20B.%20160b2.flac",
+      "sha256": "dd566019dbde29c1ccb5d77926f5b94b23efcb97158021c5b81dc136bdd98e79",
+      "published_sha1": "acff6e9cc7bf6e88178338d76863b7e9bc1000ef",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "24-bit, 48 kHz FLAC with no track number, and a file name in decomposed Unicode: placed in the release without a position."
+    },
+    {
+      "path": "chopin/Preludes, Op. 28 - No. 7 'The Polish dancer'.mp3",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Preludes%2C%20Op.%2028%20-%20No.%207%20%27The%20Polish%20dancer%27.mp3",
+      "sha256": "e088c857af30335e81bd1ae3cf8a2aa2b545aaf697daecb6ecc4c1f7efbe9559",
+      "published_sha1": "205695dab3c2ccb23470f0fe7dd648e41aa26bd8",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "The Internet Archive's lossy copy of the FLAC above: same release, same track number, so placement records a position-taken finding rather than guessing."
+    },
+    {
+      "path": "chopin/Chopin Project - Musopen.pdf",
+      "url": "https://archive.org/download/musopen-chopin-complete-works-flac/Chopin%20Project%20-%20Musopen.pdf",
+      "sha256": "210f89cc2b2671da9ec58092f53e02cc31bfa49a8c5b8de6d1aa55a20a9f34ac",
+      "published_sha1": "33e1aaf35ff81c7479767751d0693a0d9c6e92cd",
+      "source": "https://archive.org/details/musopen-chopin-complete-works-flac",
+      "licence": "CC0 1.0",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "credit": "Musopen, The Complete Works of Frédéric Chopin (2015); performers as tagged",
+      "demonstrates": "A real PDF booklet, identified by PRONOM, placed as a document."
+    },
+    {
+      "path": "film/DuckandC1951_512kb.mp4",
+      "url": "https://archive.org/download/DuckandC1951/DuckandC1951_512kb.mp4",
+      "sha256": "ab0a244f9705792c8b24e9ab1e1f85a7d8ea0c3c1b8cbf8810271e608b6578b6",
+      "published_sha1": "d7e727bd30b3bf8d444f9c724221f86312b5cea8",
+      "source": "https://archive.org/details/DuckandC1951",
+      "licence": "Public domain",
+      "licence_url": "http://creativecommons.org/licenses/publicdomain/",
+      "credit": "Archer Productions for the Federal Civil Defense Administration (1951), Prelinger Archives",
+      "demonstrates": "A 9-minute film with real lossy video and audio: placed as a container with a track address per stream, analysed per audio stream."
+    },
+    {
+      "path": "film/DuckandC1951.asr.srt",
+      "url": "https://archive.org/download/DuckandC1951/DuckandC1951.asr.srt",
+      "sha256": "5b80f3da58a40d5c1515cf57ca80772607720171cd2e85086aed9652f046d68a",
+      "published_sha1": "b59d3428af0dae766ec416bb231da85a21de407a",
+      "source": "https://archive.org/details/DuckandC1951",
+      "licence": "Public domain",
+      "licence_url": "http://creativecommons.org/licenses/publicdomain/",
+      "credit": "Archer Productions for the Federal Civil Defense Administration (1951), Prelinger Archives",
+      "demonstrates": "A standalone subtitle file: identified as text with a subtitle stream."
+    },
+    {
+      "path": "books/Pride and Prejudice.epub",
+      "url": "https://www.gutenberg.org/ebooks/1342.epub.noimages",
+      "sha256": "c25cf3d9ad4d41147ecc6947debcf981a961fd6b69a4219d9892af50b934c8bb",
+      "published_sha1": null,
+      "source": "https://www.gutenberg.org/ebooks/1342",
+      "licence": "Public domain in the USA",
+      "licence_url": "https://www.gutenberg.org/policy/license.html",
+      "credit": "Jane Austen, Pride and Prejudice (1813); Project Gutenberg eBook #1342",
+      "demonstrates": "A real EPUB, identified by PRONOM, placed as a document."
+    },
+    {
+      "path": "books/Pride and Prejudice.txt",
+      "url": "https://www.gutenberg.org/ebooks/1342.txt.utf-8",
+      "sha256": "3f6bb9d6f78e0293b56acd4714dd68cb7d6d1d293402031ce9d5a216bcaf9d75",
+      "published_sha1": null,
+      "source": "https://www.gutenberg.org/ebooks/1342",
+      "licence": "Public domain in the USA",
+      "licence_url": "https://www.gutenberg.org/policy/license.html",
+      "credit": "Jane Austen, Pride and Prejudice (1813); Project Gutenberg eBook #1342",
+      "demonstrates": "The same text as plain UTF-8: another manifestation of one expression, for a person to link."
+    },
+    {
+      "path": "letters/Letter from George Washington to New York Governor George Clinton MET 100192.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Letter_from_George_Washington_to_New_York_Governor_George_Clinton_MET_100192.jpg",
+      "sha256": "0fb356c58e8a966c1f6a608fd6f438c26bcb158eb25c5e9949683af74e44aa4d",
+      "published_sha1": "e2a4f84d57a09a2ea54dc0b7c5c9295f3254f4ef",
+      "source": "https://commons.wikimedia.org/wiki/File%3ALetter_from_George_Washington_to_New_York_Governor_George_Clinton_MET_100192.jpg",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "credit": "George Washington / Tench Tilghman",
+      "demonstrates": "An old black-and-white photograph of a letter. With the colour scan below, the demonstration of deciding two scans are the same expression."
+    },
+    {
+      "path": "letters/Letter from George Washington to New York Governor George Clinton MET LC-35 52-002.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/13/Letter_from_George_Washington_to_New_York_Governor_George_Clinton_MET_LC-35_52-002.jpg",
+      "sha256": "72753db07d645cc3689630a3a317ee248a376a4a4dd5b9e6678d71ee8c26f24c",
+      "published_sha1": "bc865adc39c31ac152deb3453caf4824657d44b8",
+      "source": "https://commons.wikimedia.org/wiki/File%3ALetter_from_George_Washington_to_New_York_Governor_George_Clinton_MET_LC-35_52-002.jpg",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "credit": "George Washington / Tench Tilghman",
+      "demonstrates": "A later colour scan of the same letter: a second, better scan."
+    },
+    {
+      "path": "letters/George Washington to Anthony Whiting, 3 March 1793 (4661e3d3-ed6b-4b3f-aa6f-99cc744d60f2).jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/40/George_Washington_to_Anthony_Whiting%2C_3_March_1793_%284661e3d3-ed6b-4b3f-aa6f-99cc744d60f2%29.jpg",
+      "sha256": "c553d2bcf942b78ef87520eb5cd8a12d3e5fd3be9578e2c5a930281c19741bb1",
+      "published_sha1": "951426ef1e8f647dabc8054a08523cebfe0d1b42",
+      "source": "https://commons.wikimedia.org/wiki/File%3AGeorge_Washington_to_Anthony_Whiting%2C_3_March_1793_%284661e3d3-ed6b-4b3f-aa6f-99cc744d60f2%29.jpg",
+      "licence": "Public domain",
+      "licence_url": null,
+      "credit": "George Washington (1732-1799)",
+      "demonstrates": "One scan of a letter. With the file below, the demonstration of deciding two files are the same holding: one image, encoded twice."
+    },
+    {
+      "path": "letters/George Washington to Anthony Whiting, 3 March 1793 (LONG 18683) (e7a426de-2ad6-4d57-878d-40af79407a61).jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/fd/George_Washington_to_Anthony_Whiting%2C_3_March_1793_%28LONG_18683%29_%28e7a426de-2ad6-4d57-878d-40af79407a61%29.jpg",
+      "sha256": "a7773029bf971f4ab0fe4ada41074b17c10ebc7ed843000d5e574012a1c22abc",
+      "published_sha1": "9cd64d835ff95e8cae1001a6e0d9d7f65df4f582",
+      "source": "https://commons.wikimedia.org/wiki/File%3AGeorge_Washington_to_Anthony_Whiting%2C_3_March_1793_%28LONG_18683%29_%28e7a426de-2ad6-4d57-878d-40af79407a61%29.jpg",
+      "licence": "Public domain",
+      "licence_url": null,
+      "credit": "George Washington",
+      "demonstrates": "The same scan encoded again: different bytes, same image."
+    },
+    {
+      "path": "letters/Letter from George Washington to New York City, page 1.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/70/Letter_from_George_Washington_to_New_York_City%2C_page_1.jpg",
+      "sha256": "d6073c4eda49ce1327faf77767f6d7dd651136cd7e74d8bdfc55d653dd7ebeab",
+      "published_sha1": "cf200360db0319b8ab9bdc71ad04505e54b0644c",
+      "source": "https://commons.wikimedia.org/wiki/File%3ALetter_from_George_Washington_to_New_York_City%2C_page_1.jpg",
+      "licence": "Public domain",
+      "licence_url": null,
+      "credit": "George Washington",
+      "demonstrates": "Page one of a two-page letter."
+    },
+    {
+      "path": "letters/Letter from George Washington to New York City, page 2.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/ba/Letter_from_George_Washington_to_New_York_City%2C_page_2.jpg",
+      "sha256": "da898806b511c00bd4f8fc0db44e3e4e855e05f71e09fbafc5afdc9d86158491",
+      "published_sha1": "ff4fea89df16b14e375b52c5637c58bda004e9e0",
+      "source": "https://commons.wikimedia.org/wiki/File%3ALetter_from_George_Washington_to_New_York_City%2C_page_2.jpg",
+      "licence": "Public domain",
+      "licence_url": null,
+      "credit": "George Washington",
+      "demonstrates": "Page two: two files, one letter, for a person to join."
+    },
+    {
+      "path": "photos/1998 Pontiac Grand Prix, front left, 4-5-2021.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/1998_Pontiac_Grand_Prix%2C_front_left%2C_4-5-2021.jpg",
+      "sha256": "7aeb58724229fd7b95e18e17423053af127edb82484ddf948bbce498f9927adc",
+      "published_sha1": "1aa7568bbfddbaecadd7986001d7ad1f7487ab7d",
+      "source": "https://commons.wikimedia.org/wiki/File%3A1998_Pontiac_Grand_Prix%2C_front_left%2C_4-5-2021.jpg",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "credit": "BlueCrabRedCrab",
+      "demonstrates": "A phone photograph with EXIF."
+    },
+    {
+      "path": "photos/! Russisch-Orthodoxe Kirche (Dresden) Glockenturm.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/bf/%21_Russisch-Orthodoxe_Kirche_%28Dresden%29_Glockenturm.jpg",
+      "sha256": "461339a79b83ec3efa58502ac9246a9329fe04d8c0532e00b3ff150d9d6e2cd3",
+      "published_sha1": "c99a0313c6455ae1742eb55da45ebb67f0076400",
+      "source": "https://commons.wikimedia.org/wiki/File%3A%21_Russisch-Orthodoxe_Kirche_%28Dresden%29_Glockenturm.jpg",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "credit": "Frze",
+      "demonstrates": "A compact-camera photograph with EXIF."
+    },
+    {
+      "path": "photos/A pink flower.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/2/2d/%22A_pink_flower%22.jpg",
+      "sha256": "3d637bd19e767ccb293eaa1637b32780690e861839ea43aa4d50e96899bc644a",
+      "published_sha1": "27a2dc8da1b86ce5150c37314756fa3d485ea02a",
+      "source": "https://commons.wikimedia.org/wiki/File%3A%22A_pink_flower%22.jpg",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "credit": "Omar García",
+      "demonstrates": "A phone photograph whose name carries quotation marks on its source."
+    },
+    {
+      "path": "photos/!Khwa ttu 1.jpg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/b7/%21Khwa_ttu_1.jpg",
+      "sha256": "8cee1c78fda021a0822cb3383d986ecc66574fe16d8508ee940bdcdc69268cf6",
+      "published_sha1": "8791f80db8721f715af21fa1c98dbeedf0849067",
+      "source": "https://commons.wikimedia.org/wiki/File%3A%21Khwa_ttu_1.jpg",
+      "licence": "CC0",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "credit": "Axxter99",
+      "demonstrates": "A photograph stored rotated, EXIF orientation 6, and identified by PRONOM as EXIF JPEG rather than JFIF."
+    }
+  ]
+}

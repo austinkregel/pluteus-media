@@ -69,6 +69,22 @@ storage mounted read-only and no database credentials.
 Everything runs in containers; [CLAUDE.md](CLAUDE.md) states the working
 constraints and the commands.
 
+### Demo corpus
+
+`mix pluteus.demo.seed` fetches 21 real, openly licensed files into the inbox,
+for demonstrating what ingest does with media nobody made for a test: Musopen's
+CC0 Chopin recordings with their real tags, a public-domain civil-defence film,
+Pride and Prejudice as EPUB and plain text, scans of George Washington's
+letters, and CC0 camera photographs. Some are there because they are awkward:
+two scans of one letter, one image encoded twice, a lossy copy of a lossless
+track, a file name in decomposed Unicode, a photograph stored rotated.
+
+[priv/demo/manifest.json](priv/demo/manifest.json) lists each file's source,
+licence, credit, pinned SHA-256, and what it demonstrates. The media are
+downloaded into a cache and never committed.
+
+    docker compose run --rm app mix pluteus.demo.seed
+
 ## Research notes
 
 [docs/notes/](docs/notes/) — non-normative background: protocol survey, Elixir
