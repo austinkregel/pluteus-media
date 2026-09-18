@@ -20,10 +20,18 @@ defmodule PluteusWeb.Router do
     get "/", PageController, :home
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", PluteusWeb do
-  #   pipe_through :api
-  # end
+  # §9.1's entity URIs. The kind is fixed by the path, so an identifier
+  # belonging to another kind is not found here rather than redirected.
+  scope "/", PluteusWeb do
+    pipe_through :api
+
+    get "/works/:id", EntityController, :show, assigns: %{kind: :work}
+    get "/expressions/:id", EntityController, :show, assigns: %{kind: :expression}
+    get "/manifestations/:id", EntityController, :show, assigns: %{kind: :manifestation}
+    get "/items/:id", EntityController, :show, assigns: %{kind: :item}
+    get "/digital-items/:id", EntityController, :show, assigns: %{kind: :digital_item}
+    get "/assets/:id", EntityController, :show, assigns: %{kind: :asset}
+  end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:pluteus, :dev_routes) do

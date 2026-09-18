@@ -134,31 +134,26 @@ defmodule Pluteus.Assets do
   end
 
   @doc """
-  Deletes one asset, and the normalized copy it supports.
+  The normalized copies an asset supports (spec-01 §13.2).
 
-  spec-01 §13.2 couples them: with the acquired original gone, nothing remains
-  to support the copy made from it. The coupling runs one way — deleting a
-  normalized copy leaves the original standing, because the copy is regenerable
-  from it by definition.
+  Only an acquired original supports anything: with it gone, nothing remains to
+  prove the household held what the copy was made from. The coupling runs one
+  way. A normalized copy supports nothing, because it is regenerable from the
+  original by definition.
 
-  Where one asset holds both roles there is nothing to couple to, and the
-  §4.3 case where a verified-reversible recompression assumed the Acquired role
-  is exactly that asset.
+  An asset that itself carries the Acquired role is never coupled to another's
+  deletion: it is its own support. That is the spec-03 §4.3 case, where a
+  verified-reversible recompression assumes the Acquired role so the original
+  can be discarded, and discarding it must leave the recompression standing.
   """
-  @spec delete(Ecto.UUID.t()) :: [Ecto.UUID.t()]
-  def delete(asset_id) do
-    coupled = coupled_to(asset_id)
-
-    {_count, _} = Repo.delete_all(from a in Asset, where: a.id in ^[asset_id | coupled])
-
-    [asset_id | coupled]
-  end
-
-  defp coupled_to(asset_id) do
+  @spec coupled_to(Ecto.UUID.t()) :: [Ecto.UUID.t()]
+  def coupled_to(asset_id) do
     asset = Repo.get!(Asset, asset_id)
-    classes = role_classes_of(asset_id)
 
-    if :acquired in classes do
+    if :acquired in role_classes_of(asset_id) do
+      self_supporting =
+        from r in AssetRole, where: r.role_class == :acquired, select: r.asset_id
+
       Repo.all(
         from a in Asset,
           join: r in AssetRole,
@@ -166,6 +161,7 @@ defmodule Pluteus.Assets do
           where: a.digital_item_id == ^asset.digital_item_id,
           where: r.role_class == :normalized,
           where: a.id != ^asset_id,
+          where: a.id not in subquery(self_supporting),
           select: a.id,
           distinct: true
       )

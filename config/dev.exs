@@ -65,6 +65,8 @@ config :pluteus, PluteusWeb.Endpoint,
     ]
   ]
 
+config :pluteus, Pluteus.Storage, root: Path.expand("../storage", __DIR__)
+
 # Enable dev routes for dashboard and mailbox
 config :pluteus, dev_routes: true
 

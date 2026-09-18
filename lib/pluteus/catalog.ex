@@ -283,15 +283,6 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
-  Removes every stored copy of a digital item, leaving the holding itself.
-  """
-  @spec delete_assets_of(Ecto.UUID.t()) :: non_neg_integer()
-  def delete_assets_of(digital_item_id) do
-    {count, _} = Repo.delete_all(from a in Asset, where: a.digital_item_id == ^digital_item_id)
-    count
-  end
-
-  @doc """
   Records an association between two res, refined by type (LRM-R1).
 
   §7.5's link between a household row and a seed for the same concept is one of

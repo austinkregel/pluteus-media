@@ -69,5 +69,6 @@ defmodule Pluteus.Catalog.Res do
     |> cast(attrs, [:id, :kind])
     |> validate_required([:kind])
     |> check_constraint(:kind, name: :kind_must_be_known)
+    |> unique_constraint(:id, name: :res_pkey)
   end
 end

@@ -57,6 +57,15 @@ if config_env() == :prod do
 
   config :pluteus, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  storage_root =
+    System.get_env("STORAGE_ROOT") ||
+      raise """
+      environment variable STORAGE_ROOT is missing.
+      It names the directory primary storage writes asset bytes under.
+      """
+
+  config :pluteus, Pluteus.Storage, root: storage_root
+
   config :pluteus, PluteusWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

@@ -37,3 +37,7 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Stored bytes live under the repository's ignored tmp directory, which the
+# container sees through the bind mount.
+config :pluteus, Pluteus.Storage, root: Path.expand("../tmp/storage/test", __DIR__)

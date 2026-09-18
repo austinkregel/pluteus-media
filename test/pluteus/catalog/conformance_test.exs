@@ -32,9 +32,12 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Events
   alias Pluteus.Events.Event
   alias Pluteus.Events.ResumePosition
+  alias Pluteus.Lifecycle
+  alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Principals
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
+  alias Pluteus.Storage
 
   describe "1. Every entity returns a UUIDv7 primary identifier" do
     test "for a res of every kind the model defines" do
@@ -1074,16 +1077,23 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "the copy goes with the original that supported it" do
       %{acquired: acquired, normalized: normalized} = an_original_and_its_master()
 
-      deleted = Assets.delete(acquired.id)
+      recycling = recycle!(acquired.id)
 
-      assert Enum.sort(deleted) == Enum.sort([acquired.id, normalized.id])
+      assert Enum.sort(assets_in(recycling)) == Enum.sort([acquired.id, normalized.id])
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
       assert Catalog.assets_of(acquired.digital_item_id) == []
     end
 
     test "the coupling runs one way: deleting the copy leaves the original" do
       %{acquired: acquired, normalized: normalized} = an_original_and_its_master()
 
-      assert Assets.delete(normalized.id) == [normalized.id]
+      recycling = recycle!(normalized.id)
+      assert assets_in(recycling) == [normalized.id]
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
       assert [remaining] = Catalog.assets_of(acquired.digital_item_id)
       assert remaining.id == acquired.id
     end
@@ -1092,20 +1102,28 @@ defmodule Pluteus.Catalog.ConformanceTest do
       asset = a_stored_scan(%{essence: :lossy, format: "fmt/134"})
       {:ok, _} = Assets.adopt_as_normalized(asset.id, "standardized-master")
 
-      assert Assets.delete(asset.id) == [asset.id]
+      assert assets_in(recycle!(asset.id)) == [asset.id]
     end
 
-    test "a recompression that assumed the Acquired role leaves no original behind" do
-      %{acquired: acquired, normalized: normalized} = an_original_and_its_master()
+    test "except where the original was discarded under spec-03 §4.3" do
+      %{acquired: acquired, normalized: recompression} = an_original_and_its_master()
+      {:ok, _} = Assets.add_role(recompression.id, :acquired, "jpeg-xl-recompression")
 
-      {:ok, _} = Assets.add_role(normalized.id, :acquired, "jpeg-xl-recompression")
-      assert Assets.delete(acquired.id) == [acquired.id, normalized.id]
+      recycling = recycle!(acquired.id)
+
+      assert assets_in(recycling) == [acquired.id]
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      assert [standing] = Catalog.assets_of(acquired.digital_item_id)
+      assert standing.id == recompression.id
+      assert Assets.role_classes_of(recompression.id) == [:acquired, :normalized]
     end
 
-    test "deleting an asset takes its roles with it" do
+    test "purging an asset takes its roles with it" do
       %{acquired: acquired} = an_original_and_its_master()
 
-      Assets.delete(acquired.id)
+      purge!(acquired.id)
 
       assert Assets.roles_of(acquired.id) == []
     end
@@ -1169,10 +1187,12 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "losing every copy does not remove the holding" do
       %{digital_item: digital_item} = a_scanned_letter()
 
-      {:ok, _} =
+      {:ok, %{asset: asset}} =
         Catalog.create_asset(digital_item.id, a_scan(), "1943-04-12.tiff")
 
-      assert Catalog.delete_assets_of(digital_item.id) == 1
+      purge!(asset.id)
+
+      assert Catalog.assets_of(digital_item.id) == []
       assert %DigitalItem{} = Repo.get(DigitalItem, digital_item.id)
     end
   end
@@ -1221,15 +1241,16 @@ defmodule Pluteus.Catalog.ConformanceTest do
       assert Catalog.arrange(album.id, track.id, 3) == 1
       assert Catalog.arrangement_of(album.id, track.id) == 3
 
-      {:ok, _} =
+      {:ok, %{asset: asset}} =
         Catalog.create_asset(
           digital_item.id,
           a_scan(%{location: "/music/album/03.flac"}),
           "03.flac"
         )
 
-      assert Catalog.delete_assets_of(digital_item.id) == 1
+      purge!(asset.id)
 
+      assert Catalog.assets_of(digital_item.id) == []
       assert Catalog.arrangement_of(album.id, track.id) == 3
     end
 
@@ -1237,6 +1258,87 @@ defmodule Pluteus.Catalog.ConformanceTest do
       refute :arrangement in Asset.__schema__(:fields)
       refute :role_class in Asset.__schema__(:fields)
       assert :part_sequence in Asset.__schema__(:fields)
+    end
+  end
+
+  describe "36. Recycling an asset leaves its bytes byte-identical; restoring returns them" do
+    test "the bytes in the bin are the bytes that went in" do
+      %{asset: asset, bytes: bytes} = a_letter_on_disk()
+
+      recycle!(asset.id)
+
+      assert Storage.read(asset.location) == bytes
+      assert sha256(Storage.read(asset.location)) == asset.digest
+    end
+
+    test "and restoring hands back those same bytes at the same location" do
+      %{asset: asset, bytes: bytes} = a_letter_on_disk()
+
+      recycling = recycle!(asset.id)
+      {:ok, _restored} = Lifecycle.restore(recycling.id)
+
+      assert {:live, _res} = Lifecycle.state(asset.id)
+      assert Repo.get(Asset, asset.id).location == asset.location
+      assert Storage.read(asset.location) == bytes
+    end
+
+    test "recycling the whole work moves no byte of any asset below it" do
+      %{asset: asset, bytes: bytes, work: work} = a_letter_on_disk()
+
+      recycling = recycle!(work.id)
+
+      assert asset.id in Lifecycle.contents(recycling.id)
+      assert Storage.read(asset.location) == bytes
+    end
+  end
+
+  describe "37. Purging removes the bytes and leaves a tombstone that blocks reuse" do
+    test "the bytes are gone from primary storage" do
+      %{asset: asset} = a_letter_on_disk()
+
+      %{bytes_not_removed: []} = purge!(asset.id)
+
+      refute Storage.exists?(asset.location)
+    end
+
+    test "the tombstone records the identifier, the class and the time of purge" do
+      %{asset: asset} = a_letter_on_disk()
+      now = DateTime.utc_now()
+
+      recycling = recycle!(asset.id)
+      {:ok, _} = Lifecycle.purge(recycling, now)
+
+      assert %Tombstone{kind: :asset, purged_at: ^now} = Repo.get(Tombstone, asset.id)
+      assert {:purged, %Res{kind: :asset}, _tombstone} = Lifecycle.state(asset.id)
+    end
+
+    test "the identifier cannot be minted again" do
+      %{asset: asset} = a_letter_on_disk()
+      purge!(asset.id)
+
+      assert {:error, changeset} = Catalog.create_res(%{id: asset.id, kind: :asset})
+      assert %{id: [_ | _]} = errors_on(changeset)
+    end
+
+    test "the asset's own row goes, while history recorded against the work stays" do
+      %{asset: asset, work: work} = a_letter_on_disk()
+      {:ok, principal} = Principals.create_principal(%{role: "member"})
+      {:ok, event} = Events.record(principal.id, work.id, "read")
+
+      purge!(work.id)
+
+      assert Repo.get(Asset, asset.id) == nil
+      assert Repo.get(Work, work.id) == nil
+      assert [%Event{id: id}] = Events.for_principal(principal.id)
+      assert id == event.id
+    end
+
+    test "a byte sequence that could not be removed is reported, not swallowed" do
+      %{asset: asset} = a_letter_on_disk()
+      :ok = Storage.delete(asset.location)
+
+      assert %{bytes_not_removed: [{location, :enoent}]} = purge!(asset.id)
+      assert location == asset.location
     end
   end
 
@@ -1431,6 +1533,48 @@ defmodule Pluteus.Catalog.ConformanceTest do
     |> Repo.all()
     |> Enum.map(& &1.id)
     |> Enum.sort()
+  end
+
+  # A scanned letter whose bytes are really in primary storage, under a location
+  # no other test writes to.
+  defp a_letter_on_disk do
+    {:ok, %{work: work, manifestation: manifestation}} =
+      Catalog.create_work("Letter from Ada, 12 April 1943")
+
+    {:ok, %{digital_item: digital_item}} =
+      Catalog.create_digital_item(manifestation.id, "Letter from Ada, 12 April 1943")
+
+    bytes = :crypto.strong_rand_bytes(4096)
+    location = "letters/#{System.unique_integer([:positive])}/1943-04-12.tiff"
+    :ok = Storage.put(location, bytes)
+    on_exit(fn -> Storage.delete(location) end)
+
+    {:ok, %{asset: asset}} =
+      Catalog.create_asset(
+        digital_item.id,
+        a_scan(%{location: location, size: byte_size(bytes), digest: sha256(bytes)}),
+        "1943-04-12.tiff"
+      )
+
+    %{work: work, asset: asset, bytes: bytes}
+  end
+
+  defp sha256(bytes), do: :sha256 |> :crypto.hash(bytes) |> Base.encode16(case: :lower)
+
+  defp recycle!(res_id) do
+    {:ok, principal} = Principals.create_principal(%{role: "member"})
+    {:ok, recycling} = Lifecycle.recycle(res_id, principal.id)
+    recycling
+  end
+
+  defp purge!(res_id) do
+    {:ok, result} = res_id |> recycle!() |> Lifecycle.purge(DateTime.utc_now())
+    result
+  end
+
+  defp assets_in(recycling) do
+    ids = Lifecycle.contents(recycling.id)
+    Repo.all(from a in Asset, where: a.id in ^ids, select: a.id)
   end
 
   # One stored file, with everything spec-03 §3.2 requires recorded about it.

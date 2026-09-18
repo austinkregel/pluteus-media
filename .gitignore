@@ -35,3 +35,6 @@ pluteus-*.tar
 npm-debug.log
 /assets/node_modules/
 
+
+# Primary storage for asset bytes in development.
+/storage/
