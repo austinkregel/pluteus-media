@@ -19,6 +19,14 @@ defmodule Pluteus.Catalog.Address do
   The columns are the whole of §8.4's permitted basis. Byte offsets, frame
   numbers and absolute pixel coordinates are forbidden there because none of
   them survives a re-encode, and there is no column here that could hold one.
+
+  A `track` selector names one stream of a container by what survives
+  normalization: its kind, language, disposition and channel layout, and its
+  ordinal among streams alike in all four. Neither the stream's index in the
+  container nor its codec has a column, since normalization may change both.
+  A reified track address is itself a coordinate space, and a temporal or
+  spatiotemporal selector may target it to address a region of that stream
+  alone.
   """
 
   use Ecto.Schema
@@ -27,20 +35,23 @@ defmodule Pluteus.Catalog.Address do
 
   alias Pluteus.Catalog.Res
 
-  @selector_types ~w(temporal spatial spatiotemporal text_position text_quote page)a
+  @selector_types ~w(temporal spatial spatiotemporal text_position text_quote page track)a
 
   @text_units ~w(character word)a
 
   @content ~w(expression manifestation item digital_item)a
   @carrier ~w(manifestation item digital_item)a
 
+  @stream_kinds ~w(audio video subtitle)a
+
   @levels %{
-    temporal: @content,
-    spatiotemporal: @content,
+    temporal: @content ++ [:address],
+    spatiotemporal: @content ++ [:address],
     text_position: @content,
     text_quote: @content,
     spatial: @carrier,
-    page: @carrier
+    page: @carrier,
+    track: @carrier
   }
 
   @castable ~w(
@@ -50,6 +61,7 @@ defmodule Pluteus.Catalog.Address do
     text_unit start_offset end_offset
     quote_exact quote_prefix quote_suffix
     page_number
+    stream_kind stream_language stream_disposition stream_channel_layout stream_ordinal
   )a
 
   @primary_key {:id, UUIDv7, autogenerate: false}
@@ -79,6 +91,12 @@ defmodule Pluteus.Catalog.Address do
 
     field :page_number, :integer
 
+    field :stream_kind, Ecto.Enum, values: @stream_kinds
+    field :stream_language, :string
+    field :stream_disposition, {:array, :string}
+    field :stream_channel_layout, :string
+    field :stream_ordinal, :integer
+
     field :derivation_id, UUIDv7
 
     timestamps(type: :utc_datetime_usec)
@@ -101,7 +119,11 @@ defmodule Pluteus.Catalog.Address do
   Duration is an expression attribute, so a temporal selector against a work
   addresses nothing definite wherever two cuts of differing runtime exist.
   Resolution differs per scan and pagination differs per edition, which bounds
-  spatial and page selectors at manifestation.
+  spatial and page selectors at manifestation. A stream exists only in a
+  container, so a track selector is bounded there too.
+
+  A temporal or spatiotemporal selector may also target an address, and the
+  database accepts it only where that address is a track.
   """
   @spec valid_levels(atom()) :: [atom()]
   def valid_levels(selector_type), do: Map.fetch!(@levels, selector_type)
@@ -124,11 +146,13 @@ defmodule Pluteus.Catalog.Address do
   def unit(%__MODULE__{selector_type: :text_position, text_unit: text_unit}), do: text_unit
   def unit(%__MODULE__{selector_type: :spatial}), do: nil
   def unit(%__MODULE__{selector_type: :text_quote}), do: nil
+  def unit(%__MODULE__{selector_type: :track}), do: nil
 
   def changeset(address, attrs) do
     address
     |> cast(attrs, @castable)
     |> validate_required([:id, :target_id, :target_kind, :selector_type])
+    |> canonical_disposition()
     |> validate_level()
     |> check_constraint(:selector_type, name: :selector_type_must_be_known)
     |> check_constraint(:target_kind, name: :selector_is_valid_at_target_level)
@@ -143,9 +167,23 @@ defmodule Pluteus.Catalog.Address do
     |> check_constraint(:width_percent, name: :spatial_region_lies_within_the_frame)
     |> check_constraint(:page_number, name: :page_number_is_positive)
     |> check_constraint(:quote_prefix, name: :quote_context_accompanies_a_quote)
+    |> check_constraint(:selector_type, name: :track_columns_match_selector_type)
+    |> check_constraint(:stream_kind, name: :stream_kind_must_be_known)
+    |> check_constraint(:stream_ordinal, name: :stream_ordinal_is_positive)
+    |> check_constraint(:target_id, name: :address_targets_a_track)
+    |> unique_constraint([:target_id, :stream_kind], name: :addresses_one_per_stream_index)
     |> foreign_key_constraint(:id)
     |> foreign_key_constraint(:target_id)
     |> foreign_key_constraint(:derivation_id)
+  end
+
+  # A disposition is a set of flags. Stored sorted and without repeats, one set
+  # has one representation, which the one-address-per-stream index relies on.
+  defp canonical_disposition(changeset) do
+    case get_change(changeset, :stream_disposition) do
+      nil -> changeset
+      flags -> put_change(changeset, :stream_disposition, flags |> Enum.uniq() |> Enum.sort())
+    end
   end
 
   defp validate_level(changeset) do

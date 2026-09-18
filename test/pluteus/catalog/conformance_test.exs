@@ -29,6 +29,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Catalog.Seeds
   alias Pluteus.Catalog.Work
   alias Pluteus.CatalogFixtures
+  alias Pluteus.Dedup
   alias Pluteus.Events
   alias Pluteus.Events.Event
   alias Pluteus.Events.ResumePosition
@@ -286,6 +287,22 @@ defmodule Pluteus.Catalog.ConformanceTest do
       assert [%Expression{id: only}] = Catalog.expressions_of(work.id)
       assert only == expression.id
     end
+
+    test "a scan first placed as a work of its own resolves to the same outcome", %{
+      actor: actor
+    } do
+      {:ok, %{work: work, manifestation: first}} = Catalog.create_work("Odyssey")
+      {:ok, %{work: stray, manifestation: second}} = Catalog.create_work("Odyssey, rescan")
+
+      {:ok, candidate} = Dedup.propose(first.id, second.id, actor.id)
+      {:ok, _} = Dedup.decide(candidate.id, :same_expression, actor.id)
+
+      assert {:recycled, _, _} = Lifecycle.state(stray.id)
+      assert [%Expression{id: only}] = Catalog.expressions_of(work.id)
+      assert [_, _] = Catalog.manifestations_of(only)
+      assert [_] = Catalog.expressions_in(first.id)
+      assert Catalog.expressions_in(second.id) == Catalog.expressions_in(first.id)
+    end
   end
 
   describe "11. No title column exists on work, expression, manifestation, or item" do
@@ -513,7 +530,9 @@ defmodule Pluteus.Catalog.ConformanceTest do
       permitted =
         ~w(id target_id target_kind selector_type start_ms end_ms x_percent y_percent
            width_percent height_percent text_unit start_offset end_offset quote_exact
-           quote_prefix quote_suffix page_number derivation_id inserted_at updated_at)a
+           quote_prefix quote_suffix page_number stream_kind stream_language
+           stream_disposition stream_channel_layout stream_ordinal derivation_id
+           inserted_at updated_at)a
 
       assert Enum.sort(Address.__schema__(:fields)) == Enum.sort(permitted)
     end
@@ -1054,7 +1073,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "re-encoding lossy essence is rejected" do
       asset = a_stored_scan(%{essence: :lossy})
 
-      assert {:error, :source, :lossy_essence_must_not_be_re_encoded, _changes} =
+      assert {:error, :source, {:only_lossless_essence_is_re_encoded, :lossy}, _changes} =
                Assets.normalize(
                  asset.id,
                  a_scan(%{location: "/masters/1943-04-12.flac", roles: []}),

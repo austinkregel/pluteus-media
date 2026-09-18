@@ -24,6 +24,7 @@ defmodule Pluteus.Backup do
 
   @whole ~w(
     res nomens works expressions manifestations items embodiments work_parts
+    manifestation_parts
     aggregations digital_items extents associations principals
     principal_identities events resume_positions recyclings recycled_res
     tombstones reconstructions duplicate_candidates schema_migrations

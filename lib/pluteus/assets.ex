@@ -58,9 +58,11 @@ defmodule Pluteus.Assets do
   @doc """
   Writes the standardized master produced from a lossless acquisition.
 
-  Refuses a lossy source. spec-03 §4.2 forbids re-encoding lossy essence: there
-  is no fidelity left to preserve, and the result is a generation worse than
-  what it replaced.
+  Refuses any source whose essence is not lossless. spec-03 §4.2 forbids
+  re-encoding lossy essence: there is no fidelity left to preserve, and the
+  result is a generation worse than what it replaced. spec-04 §5.2 extends the
+  refusal to essence that is unknown or not applicable, neither of which is
+  known to have fidelity a re-encode would keep.
   """
   @spec normalize(Ecto.UUID.t(), map(), String.t() | map()) ::
           {:ok, map()} | {:error, atom(), term(), map()}
@@ -268,6 +270,10 @@ defmodule Pluteus.Assets do
   deletion: it is its own support. That is the spec-03 §4.3 case, where a
   verified-reversible recompression assumes the Acquired role so the original
   can be discarded, and discarding it must leave the recompression standing.
+
+  Where a digital item is realized by parts, the coupling is per part: disc
+  two's original supports disc two's normalized copy and not disc one's
+  (spec-04 §7).
   """
   @spec coupled_to(Ecto.UUID.t()) :: [Ecto.UUID.t()]
   def coupled_to(asset_id) do
@@ -282,6 +288,7 @@ defmodule Pluteus.Assets do
           join: r in AssetRole,
           on: r.asset_id == a.id,
           where: a.digital_item_id == ^asset.digital_item_id,
+          where: fragment("? IS NOT DISTINCT FROM ?", a.part_sequence, ^asset.part_sequence),
           where: r.role_class == :normalized,
           where: a.id != ^asset_id,
           where: a.id not in subquery(self_supporting),
@@ -298,11 +305,11 @@ defmodule Pluteus.Assets do
       nil ->
         {:error, :no_such_asset}
 
-      %Asset{essence: :lossy} ->
-        {:error, :lossy_essence_must_not_be_re_encoded}
-
-      %Asset{} = asset ->
+      %Asset{essence: :lossless} = asset ->
         {:ok, asset}
+
+      %Asset{essence: essence} ->
+        {:error, {:only_lossless_essence_is_re_encoded, essence}}
     end
   end
 

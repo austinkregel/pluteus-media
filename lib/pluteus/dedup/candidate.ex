@@ -12,8 +12,8 @@ defmodule Pluteus.Dedup.Candidate do
 
   import Ecto.Changeset
 
-  @signals ~w(digest perceptual external_identifier)a
-  @decisions ~w(same_holding distinct)a
+  @signals ~w(digest perceptual external_identifier member)a
+  @decisions ~w(same_holding same_expression distinct)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -22,6 +22,7 @@ defmodule Pluteus.Dedup.Candidate do
     field :right_id, UUIDv7
     field :signal, Ecto.Enum, values: @signals
     field :detected_at, :utc_datetime_usec
+    field :raised_by, UUIDv7
     field :decision, Ecto.Enum, values: @decisions
     field :decided_by, UUIDv7
     field :decided_at, :utc_datetime_usec
@@ -30,6 +31,23 @@ defmodule Pluteus.Dedup.Candidate do
   end
 
   @type t :: %__MODULE__{}
+
+  @doc """
+  A pair a member proposes, which no signal found.
+  """
+  def proposal_changeset(candidate, attrs) do
+    candidate
+    |> cast(attrs, [:left_id, :right_id, :signal, :detected_at, :raised_by])
+    |> validate_required([:left_id, :right_id, :signal, :detected_at, :raised_by])
+    |> check_constraint(:left_id, name: :pair_is_ordered)
+    |> check_constraint(:raised_by, name: :a_member_candidate_names_its_member)
+    |> unique_constraint([:left_id, :right_id, :signal],
+      name: :duplicate_candidates_left_id_right_id_signal_index
+    )
+    |> foreign_key_constraint(:left_id)
+    |> foreign_key_constraint(:right_id)
+    |> foreign_key_constraint(:raised_by)
+  end
 
   def decision_changeset(candidate, attrs) do
     candidate

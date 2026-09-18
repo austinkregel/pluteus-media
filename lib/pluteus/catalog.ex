@@ -31,6 +31,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Item
   alias Pluteus.Catalog.Manifestation
+  alias Pluteus.Catalog.ManifestationPart
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
@@ -440,6 +441,40 @@ defmodule Pluteus.Catalog do
     %WorkPart{}
     |> WorkPart.changeset(%{whole_id: whole_id, part_id: part_id})
     |> Repo.insert()
+  end
+
+  @doc """
+  Records that one manifestation is a component of another (LRM-R26), at a
+  position within it where the whole is ordered.
+
+  A position already taken in the whole is refused at commit.
+  """
+  @spec add_manifestation_part(Ecto.UUID.t(), Ecto.UUID.t(), pos_integer() | nil) ::
+          {:ok, ManifestationPart.t()} | {:error, Ecto.Changeset.t()}
+  def add_manifestation_part(whole_id, part_id, position) do
+    %ManifestationPart{}
+    |> ManifestationPart.changeset(%{whole_id: whole_id, part_id: part_id, position: position})
+    |> Repo.insert()
+  end
+
+  @doc """
+  The parts of a manifestation, in position order.
+  """
+  @spec parts_of(Ecto.UUID.t()) :: [ManifestationPart.t()]
+  def parts_of(whole_id) do
+    Repo.all(
+      from p in ManifestationPart,
+        where: p.whole_id == ^whole_id,
+        order_by: [asc_nulls_last: p.position, asc: p.part_id]
+    )
+  end
+
+  @doc """
+  The manifestations a manifestation is a part of.
+  """
+  @spec wholes_of(Ecto.UUID.t()) :: [ManifestationPart.t()]
+  def wholes_of(part_id) do
+    Repo.all(from p in ManifestationPart, where: p.part_id == ^part_id)
   end
 
   @doc """

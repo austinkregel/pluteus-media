@@ -14,14 +14,22 @@ defmodule Pluteus.Dedup do
   Two of §8.2's three signals are detected: a shared digest and a shared
   external identifier. Perceptual hashing is not, since nothing here computes
   one; the signal is accepted so that candidates from it can be recorded once
-  something does.
+  something does. A member may propose a pair no signal found, as two scans of
+  one letter, which differ in every byte, require.
   """
 
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
+  alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Embodiment
+  alias Pluteus.Catalog.Expression
+  alias Pluteus.Catalog.Manifestation
   alias Pluteus.Catalog.Nomen
+  alias Pluteus.Catalog.Res
   alias Pluteus.Dedup.Candidate
+  alias Pluteus.Lifecycle
   alias Pluteus.Repo
 
   @doc """
@@ -53,23 +61,145 @@ defmodule Pluteus.Dedup do
   end
 
   @doc """
+  Records a pair a member proposes, which no signal found (§8.3).
+
+  The pair is stored in identifier order whichever way round it is given.
+  """
+  @spec propose(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, Candidate.t()} | {:error, Ecto.Changeset.t()}
+  def propose(one_id, other_id, principal_id, now \\ DateTime.utc_now()) do
+    [left_id, right_id] = Enum.sort([one_id, other_id])
+
+    %Candidate{}
+    |> Candidate.proposal_changeset(%{
+      left_id: left_id,
+      right_id: right_id,
+      signal: :member,
+      detected_at: now,
+      raised_by: principal_id
+    })
+    |> Repo.insert()
+  end
+
+  @doc """
   Records a person's decision about one pair.
 
   `:same_holding` records that the two are one holding; bringing them under one
   manifestation is a catalog operation performed separately, and never the
   deletion of an asset (§8.3).
+
+  `:same_expression` is carried out with the decision, in one transaction. The
+  pair names two digital items or two manifestations, and the later of the two
+  — the one whose identifier was minted second — has its manifestation moved
+  under the earlier one's expression. Whichever of the work and expression it
+  was placed under are left holding nothing are recycled, attributed to the
+  deciding principal, so one work remains.
   """
-  @spec decide(Ecto.UUID.t(), :same_holding | :distinct, Ecto.UUID.t(), DateTime.t()) ::
-          {:ok, Candidate.t()} | {:error, Ecto.Changeset.t()}
+  @spec decide(
+          Ecto.UUID.t(),
+          :same_holding | :same_expression | :distinct,
+          Ecto.UUID.t(),
+          DateTime.t()
+        ) :: {:ok, Candidate.t()} | {:error, term()}
   def decide(candidate_id, decision, principal_id, now \\ DateTime.utc_now()) do
-    Candidate
-    |> Repo.get!(candidate_id)
+    candidate = Repo.get!(Candidate, candidate_id)
+
+    Repo.transaction(fn ->
+      decided = record_decision(candidate, decision, principal_id, now)
+      carry_out(decision, candidate, principal_id, now)
+      decided
+    end)
+  end
+
+  defp record_decision(candidate, decision, principal_id, now) do
+    candidate
     |> Candidate.decision_changeset(%{
       decision: decision,
       decided_by: principal_id,
       decided_at: now
     })
     |> Repo.update()
+    |> case do
+      {:ok, decided} -> decided
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end
+
+  defp carry_out(:same_expression, candidate, principal_id, now) do
+    case resolve_same_expression(candidate, principal_id, now) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp carry_out(_decision, _candidate, _principal_id, _now), do: :ok
+
+  defp resolve_same_expression(
+         %Candidate{left_id: first_id, right_id: second_id},
+         principal_id,
+         now
+       ) do
+    first = manifestation_of!(first_id)
+    second = manifestation_of!(second_id)
+
+    case Catalog.expressions_in(first) do
+      [kept] -> move_under(second, kept.id, principal_id, now)
+      [] -> {:error, :first_embodies_no_expression}
+      [_ | _] -> {:error, :first_embodies_several_expressions}
+    end
+  end
+
+  defp move_under(manifestation_id, expression_id, principal_id, now) do
+    left = Catalog.expressions_in(manifestation_id) |> Enum.reject(&(&1.id == expression_id))
+
+    {:ok, _} = Catalog.embody(expression_id, manifestation_id)
+
+    {_count, _} =
+      Repo.delete_all(
+        from e in Embodiment,
+          where: e.manifestation_id == ^manifestation_id,
+          where: e.expression_id in ^Enum.map(left, & &1.id)
+      )
+
+    left
+    |> Enum.filter(&(Catalog.manifestations_of(&1.id) == []))
+    |> recycle_emptied(principal_id, now)
+  end
+
+  # An expression left with no manifestation goes; its work goes with it when
+  # it was the work's only expression, and recycling the work takes the
+  # expression along.
+  defp recycle_emptied(expressions, principal_id, now) do
+    work_ids = expressions |> Enum.map(& &1.work_id) |> Enum.uniq()
+
+    expression_counts =
+      Map.new(
+        Repo.all(
+          from e in Expression,
+            where: e.work_id in ^work_ids,
+            group_by: e.work_id,
+            select: {e.work_id, count(e.id)}
+        )
+      )
+
+    expressions
+    |> Enum.map(fn expression ->
+      if expression_counts[expression.work_id] == 1, do: expression.work_id, else: expression.id
+    end)
+    |> Enum.uniq()
+    |> Enum.reduce_while(:ok, fn res_id, :ok ->
+      case Lifecycle.recycle(res_id, principal_id, now: now) do
+        {:ok, _recycling} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {res_id, reason}}}
+      end
+    end)
+  end
+
+  defp manifestation_of!(res_id) do
+    case Repo.get!(Res, res_id) do
+      %Res{kind: :manifestation} -> Repo.get!(Manifestation, res_id).id
+      %Res{kind: :digital_item} -> Repo.get!(DigitalItem, res_id).manifestation_id
+    end
   end
 
   @doc """

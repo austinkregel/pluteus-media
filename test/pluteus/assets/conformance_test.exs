@@ -128,8 +128,19 @@ defmodule Pluteus.Assets.ConformanceTest do
     test "lossy is refused", %{letter: letter} do
       lossy = stored!(letter.id, essence: :lossy)
 
-      assert {:error, :source, :lossy_essence_must_not_be_re_encoded, _} =
+      assert {:error, :source, {:only_lossless_essence_is_re_encoded, :lossy}, _} =
                Assets.normalize(lossy.id, attrs(roles: []), "1943-04-12.jxl")
+    end
+
+    test "unknown and not-applicable essence are refused as lossy is", %{letter: letter} do
+      for essence <- [:unknown, :not_applicable] do
+        asset = stored!(letter.id, essence: essence)
+
+        assert {:error, :source, {:only_lossless_essence_is_re_encoded, ^essence}, _} =
+                 Assets.normalize(asset.id, attrs(roles: []), "1943-04-12.jxl")
+
+        assert Asset.normalization_plan(asset) == :adopt
+      end
     end
 
     test "lossless is accepted", %{letter: letter} do
@@ -229,6 +240,30 @@ defmodule Pluteus.Assets.ConformanceTest do
       {:ok, recycling} = Lifecycle.recycle(original.id, principal.id)
 
       assert copy.id in Lifecycle.contents(recycling.id)
+    end
+  end
+
+  describe "8, per part. An original supports the copy of its own part and no other" do
+    test "disc two's original takes disc two's copy and leaves disc one's", context do
+      [disc_one, disc_two] =
+        for part <- [1, 2] do
+          original = stored!(context.letter.id, part_sequence: part)
+
+          copy =
+            stored!(context.letter.id,
+              part_sequence: part,
+              roles: [normalized: "standardized-master"]
+            )
+
+          %{original: original, copy: copy}
+        end
+
+      assert Assets.coupled_to(disc_two.original.id) == [disc_two.copy.id]
+
+      {:ok, recycling} = Lifecycle.recycle(disc_two.original.id, context.principal.id)
+
+      assert disc_two.copy.id in Lifecycle.contents(recycling.id)
+      refute disc_one.copy.id in Lifecycle.contents(recycling.id)
     end
   end
 
@@ -372,6 +407,80 @@ defmodule Pluteus.Assets.ConformanceTest do
     end
   end
 
+  describe "12, from a member. A pair no signal found is proposed and decided by a person" do
+    setup %{letter: letter, principal: principal} do
+      {:ok, %{work: rescan_work, expression: rescan_expression, manifestation: rescan}} =
+        Catalog.create_work("Letter from Ada, rescanned")
+
+      {:ok, %{digital_item: rescan_item}} =
+        Catalog.create_digital_item(rescan.id, "Letter from Ada, rescanned")
+
+      stored!(letter.id, bytes: StorageFixtures.png("first scan"))
+      stored!(rescan_item.id, bytes: StorageFixtures.png("second scan"))
+
+      {:ok, candidate} = Dedup.propose(rescan_item.id, letter.id, principal.id)
+
+      %{
+        candidate: candidate,
+        rescan: rescan,
+        rescan_work: rescan_work,
+        rescan_expression: rescan_expression
+      }
+    end
+
+    test "detection finds nothing, and the proposal names who raised it", context do
+      assert Dedup.detect() == 0
+      assert context.candidate.signal == :member
+      assert context.candidate.raised_by == context.principal.id
+    end
+
+    test "a member's candidate with no member named is refused by the database", context do
+      now = DateTime.utc_now()
+      [left_id, right_id] = Enum.sort([context.letter.id, context.manifestation.id])
+
+      assert_raise Postgrex.Error, ~r/a_member_candidate_names_its_member/, fn ->
+        Repo.insert_all("duplicate_candidates", [
+          %{
+            id: Ecto.UUID.dump!(UUIDv7.generate()),
+            left_id: Ecto.UUID.dump!(left_id),
+            right_id: Ecto.UUID.dump!(right_id),
+            signal: "member",
+            detected_at: now,
+            inserted_at: now,
+            updated_at: now
+          }
+        ])
+      end
+    end
+
+    test "same expression moves the rescan under the first and recycles what it emptied",
+         context do
+      [first_expression] = Catalog.expressions_in(context.manifestation.id)
+
+      assert {:ok, %{decision: :same_expression}} =
+               Dedup.decide(context.candidate.id, :same_expression, context.principal.id)
+
+      assert [%{id: moved_under}] = Catalog.expressions_in(context.rescan.id)
+      assert moved_under == first_expression.id
+      assert [_, _] = Catalog.manifestations_of(first_expression.id)
+
+      assert {:recycled, _, recycling} = Lifecycle.state(context.rescan_work.id)
+      assert context.rescan_expression.id in Lifecycle.contents(recycling.id)
+      assert {:live, _} = Lifecycle.state(context.rescan.id)
+    end
+
+    test "a work with another expression keeps it, and only the emptied one goes", context do
+      {:ok, %{expression: reading}} =
+        Catalog.add_expression(context.rescan_work.id, "Letter from Ada, read aloud")
+
+      {:ok, _} = Dedup.decide(context.candidate.id, :same_expression, context.principal.id)
+
+      assert {:live, _} = Lifecycle.state(context.rescan_work.id)
+      assert {:live, _} = Lifecycle.state(reading.id)
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan_expression.id)
+    end
+  end
+
   defp attrs(overrides \\ []) do
     file_name = Keyword.get(overrides, :file_name, "1943-04-12.tiff")
     bytes = Keyword.get(overrides, :bytes, StorageFixtures.png("#{System.unique_integer()}"))
@@ -384,6 +493,7 @@ defmodule Pluteus.Assets.ConformanceTest do
     %{
       location: StorageFixtures.stored!(file_name, bytes),
       essence: Keyword.get(overrides, :essence, :lossless),
+      part_sequence: Keyword.get(overrides, :part_sequence),
       verification_interval_seconds: 90 * 86_400,
       roles: roles
     }

@@ -26,6 +26,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Catalog.Extent
   alias Pluteus.Catalog.Item
   alias Pluteus.Catalog.Manifestation
+  alias Pluteus.Catalog.ManifestationPart
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Verification
@@ -402,6 +403,8 @@ defmodule Pluteus.Lifecycle do
           where: a.aggregating_expression_id in ^ids or a.aggregated_expression_id in ^ids
         ),
       work_parts: from(w in WorkPart, where: w.whole_id in ^ids or w.part_id in ^ids),
+      manifestation_parts:
+        from(p in ManifestationPart, where: p.whole_id in ^ids or p.part_id in ^ids),
       manifestations: from(m in Manifestation, where: m.id in ^ids),
       expressions: from(e in Expression, where: e.id in ^ids),
       work_creators: from(c in WorkCreator, where: c.work_id in ^ids),

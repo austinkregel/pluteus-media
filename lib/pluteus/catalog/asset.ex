@@ -10,9 +10,12 @@ defmodule Pluteus.Catalog.Asset do
   Roles live in their own table, because §5.5 lets one byte sequence play
   several and forbids storing it twice so that each may have a row.
 
-  `essence` records whether the bytes have already discarded information.
-  spec-03 §4.2 turns on it: a lossy record is its own normalized master, and
-  re-encoding it compounds generation loss to no purpose.
+  `essence` records whether the bytes have already discarded information
+  (spec-04 §5.2). Only lossless essence is ever re-encoded. A lossy record is its
+  own normalized master, since re-encoding it compounds generation loss to no
+  purpose; so is one whose essence is unknown, since that is the only choice
+  that cannot lose fidelity whatever it turns out to be; and so is one with no
+  content streams, whose essence is not applicable.
 
   `location` is not a name. It says where the bytes are filed; the name the
   bytes arrived under is a nomen (§7), and normalization changes the one while
@@ -26,7 +29,7 @@ defmodule Pluteus.Catalog.Asset do
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Catalog.DigitalItem
 
-  @essences ~w(lossy lossless)a
+  @essences ~w(lossy lossless unknown not_applicable)a
 
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
@@ -60,13 +63,16 @@ defmodule Pluteus.Catalog.Asset do
   Whether normalizing this asset may write a second one.
 
   spec-03 §4.2: a lossless acquisition is re-encoded into the standard codec for
-  its media class, which produces a second asset. A lossy acquisition is already
+  its media class, which produces a second asset. Every other essence is already
   the normalized master whatever its format, so normalization adopts it in place
-  and writes nothing.
+  and writes nothing (spec-04 §7).
   """
   @spec normalization_plan(t()) :: :adopt | :re_encode
-  def normalization_plan(%__MODULE__{essence: :lossy}), do: :adopt
   def normalization_plan(%__MODULE__{essence: :lossless}), do: :re_encode
+
+  def normalization_plan(%__MODULE__{essence: essence})
+      when essence in [:lossy, :unknown, :not_applicable],
+      do: :adopt
 
   def changeset(asset, attrs) do
     asset

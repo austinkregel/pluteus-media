@@ -1116,7 +1116,8 @@ Aggregation (§5.3) is not parentage — the aggregating work holds selection an
 arrangement criteria and contains nothing — so recycling an album leaves its
 tracks, and purge removes only the aggregation link.
 
-Whole-part (LRM-R18) does not cascade either. A part is a work in its own right,
+Whole-part does not cascade either, between works (LRM-R18) or between
+manifestations (LRM-R26). A part is a work or manifestation in its own right,
 which may be realized and published apart from any whole, so recycling a whole
 leaves its parts, and purge removes only the whole-part link.
 
