@@ -67,7 +67,7 @@ A copy is an asset. There is no separate copy entity.
 | `digest` | Cryptographic content digest, per §5.1 |
 | `digest_algorithm` | The algorithm producing `digest`, per §5.1 |
 | `format` | Identified format, per §6 |
-| `essence` | Lossy, lossless, or unknown, per [spec-04] §5.2. Unknown is never re-encoded |
+| `essence` | Lossy, lossless, unknown, or not applicable, per [spec-04] §5.2. Only lossless is ever re-encoded |
 | `part_sequence` | Nullable; only for multi-part digital items (spec-01 §12.1) |
 | `verified_at` | Last successful verification, nullable |
 | `verification_interval` | How often this asset must be verified |
@@ -314,8 +314,8 @@ and not the deletion of an asset. Assets are deleted only by the rules in §3.3.
 
 Where the household decides two holdings are manifestations of one expression —
 a second scan of a letter already catalogued — the resolution moves the second's
-manifestation under the first's expression. The second holding's own work and
-expression are then left with no manifestation, as spec-01 §6.2 permits.
+manifestation under the first's expression, and recycles whichever of the work
+and expression the second was placed under are left holding nothing.
 
 ### 8.4 Across media types
 

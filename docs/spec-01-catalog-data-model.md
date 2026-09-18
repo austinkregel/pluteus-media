@@ -669,6 +669,11 @@ meaningless where two cuts of differing runtime exist.
 `page` because pagination differs per edition. `track` names a stream of one
 container, which exists only at manifestation and below.
 
+A `track` selector identifies its stream by kind, language, disposition and
+channel layout, with an ordinal among streams alike in all four. It MUST NOT
+identify a stream by its index in the container or by its codec, since
+normalization may reorder and re-encode streams ([spec-04] §6.5).
+
 A reified `track` address is itself a coordinate space: a `temporal` or
 `spatiotemporal` selector MAY target one, addressing a region of that stream
 alone. This is how a region of the French audio in a container carrying French
@@ -1269,8 +1274,9 @@ here:
 - Association refinement types for LRM-R1, including the link between a local
   res and a seeded res for the same thing (§7.5)
 - The standardized master format per media class (§13.3)
-- Codecs and their essence: lossy, lossless, or decided by the stream's
-  parameters for codecs with both modes ([spec-04] §5.2)
+- Codecs and formats and their essence: lossy, lossless, not applicable, or,
+  for codecs with both modes, decided by the stream's parameters ([spec-04]
+  §5.2)
 - Companion file patterns, and the names and patterns an inbox never acquires
   ([spec-04] §4.1, §4.6)
 - Annotation body types, feature names, and feature groups ([spec-02] §6.1, §6.4)

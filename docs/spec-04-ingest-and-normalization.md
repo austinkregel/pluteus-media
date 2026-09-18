@@ -135,27 +135,30 @@ Acquisition proceeds in this order:
 
 1. Mint the identifier, derive the location from it (§4.5), and write the
    acquisition record with the inbox path and the location, before any byte
-   moves.
+   moves. At most one acquisition in progress holds a given inbox path.
 2. Place the bytes at the location. Within one filesystem this is a rename.
    Across filesystems it is a copy, digested and compared with the source.
 3. Measure and identify the bytes where they now lie (§5).
 4. Where the bytes were copied, remove the inbox file.
 
 Because the record precedes the move, every interruption leaves a state the
-next pass recognizes and completes:
+next pass recognizes:
 
 | Found | Meaning | Next pass |
 | --- | --- | --- |
 | Record, inbox file, nothing at the location | interrupted before the move | moves the file |
-| Record, inbox file, a partial copy at the location | interrupted during a copy | discards the partial copy and copies again |
-| Record, bytes at the location, no inbox file | moved or copied and removed, not yet identified | identifies the bytes |
-| Bytes under primary storage whose identifier has no record | cannot arise from this order | reported as a finding, never deleted |
+| Record, inbox file, bytes at the location | interrupted during or after a copy | compares digests: where identical it continues from identification; otherwise it discards the bytes at the location and copies again |
+| Record, bytes at the location, no inbox file | moved, or copied and removed; not yet identified | identifies the bytes |
+| Record, no inbox file, nothing at the location | the file left the inbox by other means before it was moved | records a finding against the record |
+| Bytes under primary storage whose identifier has no record | cannot arise from this order | records a finding, and deletes nothing |
 
 ### 4.4 Idempotency
 
 An inbox file whose digest equals that of an acquisition recorded from the same
-inbox path is already acquired. It MUST be removed from the inbox and MUST NOT
-produce a second acquisition.
+inbox path, and whose holding is still live, is already acquired. It MUST be
+removed from the inbox and MUST NOT produce a second acquisition. Where that
+holding has since been recycled or purged, the file is a new acquisition: the
+household is bringing back something it deleted.
 
 A file whose digest equals an acquisition from a different path is a new
 acquisition, and a candidate for spec-03 §8. Acquisition does not decide it is a
@@ -224,28 +227,35 @@ regenerates them from the asset.
 ### 5.2 Essence
 
 Essence — whether bytes have already discarded information — belongs to a
-stream, and is decided per stream.
+stream, and is decided per content stream. A content stream carries the media
+itself. Streams that accompany it are not counted: embedded cover art, data
+streams, timecode tracks, and attached files such as fonts.
 
-The codec registry (spec-01 §17) maps each codec to lossy, to lossless, or to
-*by parameter* for codecs with both modes: WebP, JPEG XL, JPEG 2000 and HEVC
-among them. For a by-parameter codec the stream's essence is read from the
-probed parameters that distinguish the modes. Where the codec is not in the
-registry, or its distinguishing parameters are not in the probe, the stream's
-essence is **unknown**.
+The registry (spec-01 §17) maps each codec to lossy, to lossless, or to *by
+parameter* for codecs with both modes: WebP, JPEG XL, JPEG 2000 and HEVC among
+them. For a by-parameter codec the stream's essence is read from the probed
+parameters that distinguish the modes. Where the codec is not in the registry,
+or its distinguishing parameters are not in the probe, the stream's essence is
+**unknown**.
 
-The file's essence follows from its streams:
+The file's essence follows from its content streams:
 
-| Streams | File essence |
+| Content streams | File essence |
 | --- | --- |
-| any stream lossy | lossy |
-| every stream lossless | lossless |
+| none | not applicable |
+| any lossy | lossy |
+| every one lossless | lossless |
 | otherwise | unknown |
 
-Unknown is recorded as unknown, never as lossy or lossless. An asset of unknown
-essence is never re-encoded: normalization adopts it as its own master, the only
-choice that cannot lose fidelity whatever the essence turns out to be. When the
-registry learns more, the assets of unknown essence are found by query and
-identified again.
+A file in which the probe finds no streams at all — a PDF, a plain text file —
+takes its essence from its format instead, through the same registry, which maps
+a format to lossy, lossless or not applicable, and gives unknown where it has no
+entry.
+
+Unknown is recorded as unknown, never as lossy or lossless; not applicable is
+recorded as such, never as a vacuous lossless. Neither is ever re-encoded (§7).
+When the registry learns more, the assets of unknown essence are found by query
+and identified again.
 
 ### 5.3 Media class
 
@@ -268,6 +278,12 @@ No asset exists before its digital item does. The same transaction records the
 placement on the acquisition record and turns its probe output into derived
 annotations on the manifestation. The asset's verification interval (spec-03
 §3.2) is the one the deployment configures for its broad class.
+
+Placement of a file waits until its inbox directory has settled: until no file
+in the directory is still being written or awaiting identification. A
+directory's companions are thereby identified before its media are placed, so a
+cue sheet or an `.nfo` is read as evidence rather than arriving after the
+decision it bears on.
 
 Placement MUST NOT treat each acquired file as a singleton manifestation of its
 own work (spec-01 §5.2). Files that are one release are placed as one release
@@ -331,36 +347,52 @@ until matching (spec-05) or a person links them.
 
 #### Grouping tracks into a release
 
-A track joins a release when their release evidence agrees:
+A track's release is decided by its grouping key:
 
-1. Where a track carries an external release identifier, such as a MusicBrainz
-   release identifier, the release is the one bearing it.
-2. Otherwise, the release is the one whose album title and album artist equal
-   the track's, and whose release date and total disc count equal the track's
-   where both carry them. A field is compared only where both sides carry it: a
-   missing date neither matches nor contradicts another. A track carrying no
-   album title or no album artist falls to rule 3.
-3. A track with no album evidence is a release of its own.
+1. Where the track carries an external release identifier, such as a
+   MusicBrainz release identifier, the key is that identifier.
+2. Otherwise, where it carries an album title and an album artist, the key is
+   the album title, album artist, release date and total disc count, compared
+   exactly. A missing field is a value of its own: it equals another missing
+   field and nothing else, so a track lacking a date and a track bearing one are
+   placed in different releases.
+3. A track with neither is a release of its own.
 
-Untagged files — a plain WAV rip carries no album evidence at all — therefore
-each become a release of their own. That is accepted knowingly: a split release
-is corrected by joining it, whereas two releases wrongly merged must first be
+The key depends only on the track's own evidence, never on which tracks arrived
+first, so placing the same files in any order yields the same releases.
+Untagged files — a plain WAV rip carries no album evidence at all — each become
+a release of their own, and a track whose date is missing where its siblings'
+are present is split from them. Both are accepted knowingly: a split release is
+corrected by joining it, whereas two releases wrongly merged must first be
 noticed.
 
-The inbox directory is not release evidence. Files dropped loose at the inbox
-root, or two releases fed through one directory at different times, are grouped
-only by what they say about themselves.
+The inbox directory is not release evidence (§4.6).
 
-Files settle one at a time, so a release arrives piecemeal. Placement MUST join
-a track to a release placed earlier when their evidence agrees. The key each
-release was grouped by is recorded by ingest, outside the catalog, so that a
-later track can find the release, and so that a member's renaming of the release
-does not change which tracks join it.
+Files settle one at a time, so a release arrives piecemeal, and placement joins
+a track to the release already holding its key. The key is recorded by ingest,
+outside the catalog, and is unique: two tracks with one key placed at the same
+moment cannot create two releases, and a member's renaming of the release does
+not change which tracks join it.
+
+Placement does not guess. A track whose evidence names two different releases —
+its external identifier one and its tags another — and a track whose medium and
+track position are already taken in its release, are each recorded as a finding
+and left unplaced until a person decides.
+
+#### A release in one file
+
+A release ripped to a single file with a cue sheet beside it is one digital item
+carrying the release manifestation. Its tracks are still track manifestations,
+positioned within their medium as above, but no digital item carries them. Each
+track's extent within the file is a temporal address on the release
+manifestation, taken from the cue sheet and linked to its track manifestation by
+an association refining LRM-R1. Analysing a track reads that extent of the
+release's file.
 
 ### 6.5 Film and television
 
 Per Annex A §A.2–A.3. A container is not demultiplexed (spec-01 §5.3). Its
-streams are placed as expressions by what distinguishes them:
+content streams (§5.2) are placed as expressions by what distinguishes them:
 
 | Streams | Placed as |
 | --- | --- |
@@ -368,9 +400,13 @@ streams are placed as expressions by what distinguishes them:
 | in different languages, spoken or subtitled | parallel expressions of the film |
 | marked by the container as commentary | an expression of a work of its own, the commentary, embodied in the same manifestation as an augmentation (spec-01 §5.3) |
 
-Every stream is addressed within the manifestation by a `track` selector
-(spec-01 §8.3), whichever expression it belongs to, so a 5.1 mix and its
-downmix are still told apart where analysis needs them to be.
+Placement creates a `track` address (spec-01 §8.3) for each content stream,
+whichever expression it belongs to, so a 5.1 mix and its downmix are told apart
+wherever analysis needs them to be. The address identifies its stream by kind,
+language, disposition and channel layout, with an ordinal among streams alike in
+all four. It never identifies a stream by its index in the container or by its
+codec: normalization may reorder streams and re-encode them, and the address
+must still name the same one afterwards.
 
 ### 6.6 Photographs and home video
 
@@ -383,8 +419,11 @@ A scan is placed as a manifestation of a work and expression of its own.
 Placement cannot tell from the bytes that two scans are of one object: the scans
 differ in digest, and nothing here computes a perceptual hash. That two scans are
 of one object is a member's decision: the member raises the pair as a
-deduplication candidate and decides it as *same expression* (spec-03 §8.3). Carrying it out moves the second scan's manifestation under the
-first scan's expression, which is spec-01 conformance criterion 10's outcome.
+deduplication candidate and decides it as *same expression* (spec-03 §8.3).
+Resolving it moves the second scan's manifestation under the first scan's
+expression and recycles whichever of the work and expression the second scan
+was placed under are left holding nothing. One work remains, which is spec-01 conformance
+criterion 10's outcome.
 
 ### 6.8 Documents and ebooks
 
@@ -401,24 +440,32 @@ acquisition changes nothing.
 
 Normalization runs once placement is complete, and is governed by spec-03 §4.
 
-Where the registry names no standard format for a broad class (spec-01 §17), the
-acquired asset is the master: it is adopted in place and nothing is re-encoded.
+An asset whose essence is lossy, unknown or not applicable (§5.2) is adopted as
+its own master: it takes the Normalized role and nothing is re-encoded. So is a
+lossless asset of a broad class for which the registry names no standard format
+(spec-01 §17).
 
-When the registry's standard format for a class changes, the lossless holdings
-of that class are normalized again. The new master takes the Normalized role and
-the previous normalized asset is recycled, which spec-03 §3.3 permits since it
-is regenerable from the original. A previous master that is also the Acquired
-asset is left as it is.
+The Normalized role is held by one asset per digital item, or per part where a
+digital item is realized by parts. When the registry's standard format for a
+class changes, the lossless holdings of that class are normalized again and the
+new master takes the role. A previous normalized asset that is not also the
+Acquired asset is recycled, as spec-03 §3.3 permits for a copy regenerable from
+the original. A previous master that is the Acquired asset — adopted while no
+standard format was named — gives up the Normalized role and keeps the Acquired
+role.
 
 ---
 
 ## 8. Analysis
 
-### 8.1 What analysis reads, runs over and targets
+### 8.1 What analysis runs over, reads and targets
 
-Analysis runs over a **manifestation**. It is the derivation's input (spec-02
-§4.1), so re-analysing after a master is replaced supersedes the earlier results
-for that manifestation rather than leaving both standing.
+Analysis of a whole manifestation runs over the manifestation; analysis of one
+stream runs over that stream's `track` address (§6.5). That is the derivation's
+input (spec-02 §4.1). Re-analysing after a master is replaced therefore
+supersedes the earlier results for the same manifestation or stream rather than
+leaving both standing, and the French and English audio of one container are
+never taken for re-runs of each other.
 
 It reads the normalized master of one digital item carrying the manifestation:
 the manifestation's analysis source, which ingest records and which is the
@@ -426,16 +473,11 @@ earliest placed digital item until a member names another. The asset read is
 recorded in the derivation's parameters, and naming a different source makes the
 manifestation due for analysis again.
 
-A derived annotation targets the manifestation or an address on it. Two
-manifestations of one expression — a remaster, a second scan — differ in timing
-and in pixels, and a measurement of one is not a measurement of the other.
-spec-02 §3.3's association between an authored annotation on an expression and
-the derived regions covering it spans the manifestations embodying that
-expression.
-
-A stream of a multi-stream container is analysed as the stream it is: its
-derived annotations target the `track` address of that stream, and a region
-within the stream is addressed on the track address (spec-01 §8.5).
+A derived annotation targets its input or an address on it. Two manifestations
+of one expression — a remaster, a second scan — differ in timing and in pixels,
+and a measurement of one is not a measurement of the other. spec-02 §3.3's
+association between an authored annotation on an expression and the derived
+regions covering it spans the manifestations embodying that expression.
 
 ### 8.2 Tools
 
@@ -444,7 +486,7 @@ from the start, side by side:
 
 | Family | Runs | Provides |
 | --- | --- | --- |
-| **Native** | In the deployment, on the BEAM | Short-time Fourier and mel spectra from `nx_signal`; MFCC once a discrete cosine transform is added from `evision`, which is not yet a dependency; chroma from the short-time spectrum and loudness, which are code to write over those |
+| **Native** | In the deployment, on the BEAM | Short-time Fourier and mel spectra, MFCC, chroma from the short-time spectrum, loudness |
 | **Sidecar** | A separate service | What it cannot: constant-Q chroma and the key, mode and harmony features built on it, beat and onset tracking, acoustic fingerprinting |
 
 They are different tools, so neither supersedes the other (spec-02 §5.2). Where
@@ -491,10 +533,13 @@ not skip the item silently, and it does not retry indefinitely.
 | **Permanent** | Undecodable bytes, a file too short to analyse, an unsupported codec | Recorded, not retried |
 | **Transient** | A timeout, a tool unavailable, resources exhausted | Retried a bounded number of times with backoff; exhaustion is recorded as a failure |
 
-A failure is recorded against what the stage was working on: the acquisition
-record for acquisition, identification and placement — an unreadable inbox file
-has no asset, but it has a record from the first step of §4.3 — and the
-manifestation, tool and tool version for analysis.
+A failure is recorded against what the stage was working on:
+
+| Stage | Recorded against |
+| --- | --- |
+| Acquire, identify, place | the acquisition record, which exists from the first step of §4.3, so an unreadable inbox file has one |
+| Normalize | the digital item |
+| Analyse | the input, the tool and the tool's version |
 
 The query for due work excludes anything with a recorded failure at the stage's
 current tool version. A failure stops being recorded, and the item becomes due
@@ -519,52 +564,73 @@ place.
    symbolic links are never acquired and never removed, and are reported; a file
    with more than one hard link is copied, not renamed.
 4. An interruption at any step of §4.3 is completed by the next pass without
-   losing the bytes and without a second acquisition.
-5. An asset's location does not change when the holding is renamed or re-placed.
-6. A companion is recognized before a category is decided: a cover image is
+   losing the bytes and without a second acquisition; a record whose file left
+   the inbox before it moved is recorded as a finding; no two acquisitions in
+   progress hold one inbox path.
+5. A file dropped again while its holding is live is removed from the inbox and
+   not acquired again; dropped after its holding was recycled or purged, it is a
+   new acquisition.
+6. An asset's location does not change when the holding is renamed or re-placed.
+7. A companion is recognized before a category is decided: a cover image is
    never categorized as a photograph, nor lyrics as a document.
-7. A companion is linked to what its directory's files were placed as, whichever
+8. A directory's media are placed only once every file in the directory is
+   settled and identified.
+9. A companion is linked to what its directory's files were placed as, whichever
    arrives first; lyrics sharing a file's base name link to that track; a
    companion whose directory produced more than one release is not linked and is
    recorded as a finding.
-8. Removing a companion does not remove the described holding's normalized
-   master.
-9. Placement writes a holding's work, expression, manifestation, digital item and
-   asset in one transaction, and no asset exists without its digital item.
-10. Names and categories placement writes carry automatic provenance; a member's
+10. Removing a companion does not remove the described holding's normalized
+    master.
+11. Placement writes a holding's work, expression, manifestation, digital item
+    and asset in one transaction, and no asset exists without its digital item.
+12. Names and categories placement writes carry automatic provenance; a member's
     correction outranks them and survives placement running again.
-11. Two tracks of one release are placed as track manifestations positioned
+13. Two tracks of one release are placed as track manifestations positioned
     within a medium, which is positioned within the release; the aggregation
     carries no arrangement.
-12. A track arriving after its release was placed joins that release.
-13. Two files in one inbox directory whose release evidence disagrees are not
-    placed in one release; a field one track lacks neither joins nor separates
-    it.
-14. In a multi-stream container, streams differing only in channel layout or
+14. The same files placed in any order yield the same releases; a missing field
+    equals only another missing field; a track arriving after its release was
+    placed joins it.
+15. Two concurrent placements of tracks with one grouping key create one release.
+16. A track whose evidence names two releases, or whose position is already taken
+    in its release, is recorded as a finding and not placed.
+17. A release in one file with a cue sheet is one digital item carrying the
+    release manifestation, and each track is a track manifestation located by a
+    temporal address on it.
+18. In a multi-stream container, streams differing only in channel layout or
     encoding are one expression, streams in different languages are parallel
-    expressions, a commentary stream is an expression of a work of its own, and
-    each stream's analysis targets that stream's `track` address.
-15. A file with a lossy stream is lossy; essence that cannot be determined is
-    recorded as unknown and is never re-encoded.
-16. Analysis runs over a manifestation, reads the normalized master of its
-    analysis source, and records which asset it read.
-17. The native and sidecar tools' measurements of one manifestation both stand,
-    each naming its own tool and version.
-18. A tool response carrying a positional vector, or a schema version the
+    expressions, and a commentary stream is an expression of a work of its own.
+19. Every content stream has a `track` address that names the same stream after
+    normalization reorders or re-encodes the container's streams.
+20. Essence counts content streams only; a file with a lossy content stream is
+    lossy; a file with no content streams is not applicable; a file with no
+    streams takes its essence from its format; unknown and not applicable are
+    recorded as such and never re-encoded.
+21. Per-stream analysis runs over the stream's `track` address and
+    whole-manifestation analysis over the manifestation; analysis reads the
+    normalized master of the analysis source and records which asset it read.
+22. The native and sidecar tools' measurements of one input both stand, each
+    naming its own tool and version.
+23. A tool response carrying a positional vector, or a schema version the
     deployment does not know, is refused.
-19. A tool reporting a new version makes the manifestations it analysed earlier
-    due for re-analysis before any has been analysed at the new version.
-20. A permanent failure is recorded and excluded from due work until a person
+24. A tool reporting a new version makes the inputs it analysed earlier due for
+    re-analysis before any has been analysed at the new version.
+25. A permanent failure is recorded and excluded from due work until a person
     clears it or the tool's version changes; a transient failure is retried a
     bounded number of times and its exhaustion is recorded.
-21. A failure to acquire an inbox file is recorded against its acquisition
-    record.
-22. Emptying the job queue loses no work: the stages find everything unfinished
+26. Failures are recorded against the acquisition record for acquisition,
+    identification and placement, against the digital item for normalization,
+    and against the input, tool and version for analysis.
+27. Emptying the job queue loses no work: the stages find everything unfinished
     from recorded state.
-23. Changing a class's standard format leaves one Normalized asset per digital
-    item.
-24. Every catalog write ingest makes is attributed to the System principal.
-25. The sidecar holds no database credentials and cannot write to primary
+28. One asset per digital item, or per part, holds the Normalized role; changing
+    a class's standard format recycles a previous copy, and takes the role from a
+    previous master that is the Acquired asset without recycling it.
+29. Resolving two scans as the same expression leaves one work, and recycles
+    the work and expression the second scan was placed under where they are left
+    holding nothing.
+30. Every catalog write ingest makes is attributed to the System principal.
+31. The sidecar holds no database credentials and cannot write to primary
     storage.
 
 ---
