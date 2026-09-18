@@ -23,13 +23,20 @@ LRM settles most of the commercial cases. The household cases it does not.
 | --- | --- | --- |
 | Work | the composition | composer / songwriter |
 | Expression | one recorded performance or mix | performing artist |
-| Manifestation | the release it appeared on | label |
-| Digital item | the ripped FLAC | — |
+| Manifestation | the track as released, a part of the release (LRM-R26) | label |
+| Manifestation | the release the track appeared on | label |
+| Digital item | the ripped FLAC for one track | — |
 | Asset | stored bytes, `acquired` + `normalized` roles | — |
 
+A digital item carries one manifestation, and a release embodies every track's
+recording, so a file carrying the release manifestation would not say which
+track it holds. Each track is therefore a manifestation of its own, embodying
+its recording and forming a part of the release manifestation.
+
 MusicBrainz is already WEMI-shaped, so external identifiers land cleanly:
-work MBID → work, recording MBID → expression, release MBID → manifestation.
-Recording this mapping is what makes spec-05's matching tractable.
+work MBID → work, recording MBID → expression, track MBID → track
+manifestation, release MBID → release manifestation. Recording this mapping is
+what makes spec-05's matching tractable.
 
 **An album is an aggregate**, not a whole-part structure. Per spec-01 §5.3 the
 aggregating work holds only selection and arrangement; aggregation happens at

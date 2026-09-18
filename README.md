@@ -4,7 +4,8 @@ A self-hosted media system for one household: catalog, preservation, and
 consumption in one application. Music, video, documents, photographs, scanned
 correspondence, ebooks, and home recordings — anything the household holds.
 
-**Status:** specification. No implementation yet.
+**Status:** specification, with an implementation of specs 01, 02, 03 and 06 in
+this repository.
 
 ## The specification series
 
@@ -13,13 +14,13 @@ dependency. Everything else builds on it.
 
 | Spec | Covers | Status |
 |---|---|---|
-| [01 — Catalog Data Model](docs/spec-01-catalog-data-model.md) | Identifiers, IFLA LRM entities, assets, nomens, addressing, principals, preservation, deletion. 34 conformance criteria. | Draft, amended |
+| [01 — Catalog Data Model](docs/spec-01-catalog-data-model.md) | Identifiers, IFLA LRM entities, assets, nomens, addressing, principals, preservation, deletion. 37 conformance criteria. | Draft, amended |
 | [01 Annex A — Worked WEMI Mappings](docs/spec-01-annex-a-wemi-mappings.md) | §5–6 applied to seven media classes. Non-normative. | Draft |
 | [02 — Annotations and Derived Data](docs/spec-02-annotations-and-derived-data.md) | Bodies attached to §8 addresses. Provenance, model versioning, supersession. The one abstraction spanning audio segments, video scenes, document chunks, OCR words, face tags. | Draft |
 | [03 — Assets, Storage and Preservation](docs/spec-03-assets-storage-and-preservation.md) | Normalization, checksum scheduling, format risk, backup scope, dedupe. | Draft |
-| 04 — Ingest and Normalization | watch → identify → normalize → extract → annotate. Idempotency and resumability. | Not started |
+| [04 — Ingest and Normalization](docs/spec-04-ingest-and-normalization.md) | Acquisition from an inbox, identification, placement per media class, normalization, analysis by native and sidecar tools. Idempotency and resumability. | Draft |
 | 05 — Metadata Acquisition and Matching | External identifier nomens. MusicBrainz, TMDB, AcoustID. Correction beats automatic. | Not started |
-| [06 — Principals, Auth and Authorization](docs/spec-06-principals-auth-and-authorization.md) | OIDC, device grant, household boundary, per-principal scoping. | Draft |
+| [06 — Principals, Auth and Authorization](docs/spec-06-principals-auth-and-authorization.md) | Principals and roles, identity from a forward-authenticating proxy, household boundary, per-principal scoping, audit. | Draft |
 | 07 — Wire Protocol | Native API plus an OpenSubsonic compatibility surface. Change notification. | Not started |
 | 08 — Playback and Transcode Negotiation | Sessions, direct play / remux / transcode, track selection. | Not started |
 | 09 — Search, Ranking and Recommendation | Feature vectors, taste modelling, playlist generation and sequencing. | Not started |
@@ -56,9 +57,13 @@ principal, and no principal's consumption is visible to another.
 
 ## Implementation
 
-One Phoenix application, one PostgreSQL database, Ecto as sole schema owner,
-with separate release profiles for web, worker, and inference. spec-01 §15's
-conformance criteria are the test suite.
+**Pluteus** — one Phoenix application, one PostgreSQL database, Ecto as sole
+schema owner. Each specification's conformance criteria are its test suite:
+spec-01 is met except criterion 33, which waits on spec-08; spec-02, spec-03 and
+spec-06 are met in full.
+
+Everything runs in containers; [CLAUDE.md](CLAUDE.md) states the working
+constraints and the commands.
 
 ## Research notes
 

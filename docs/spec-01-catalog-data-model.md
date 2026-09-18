@@ -1251,6 +1251,7 @@ here:
 - Association refinement types for LRM-R1, including the link between a local
   res and a seeded res for the same thing (§7.5)
 - The standardized master format per media class (§13.3)
+- Codecs and the essence each produces, lossy or lossless ([spec-04] §5)
 - Annotation body types, feature names, and feature groups ([spec-02] §6.1, §6.4)
 - Principal roles (§10.1); the role set is seed data, but the permissions each
   role carries are normative in [spec-06] §6, so adding one is a release
