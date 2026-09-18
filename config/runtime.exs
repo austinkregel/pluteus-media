@@ -75,6 +75,15 @@ if config_env() == :prod do
 
   config :pluteus, Pluteus.Ingest, inbox: inbox
 
+  sidecar_url =
+    System.get_env("SIDECAR_URL") ||
+      raise """
+      environment variable SIDECAR_URL is missing.
+      It is where the analysing sidecar listens, such as http://sidecar:8000.
+      """
+
+  config :pluteus, Pluteus.Analysis.Sidecar, url: sidecar_url
+
   forward_auth_issuer =
     System.get_env("FORWARD_AUTH_ISSUER") ||
       raise """

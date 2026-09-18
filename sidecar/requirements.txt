@@ -1,0 +1,6 @@
+librosa==1.0.0
+numpy==2.5.3
+scipy==1.18.1
+numba==0.67.0
+fastapi==0.141.1
+uvicorn==0.53.0

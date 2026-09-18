@@ -19,6 +19,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      sidecar:
+        condition: service_healthy
     # Host 4100 because 4000 is held by homelab-iab. The container still
     # serves on Phoenix's default 4000 internally.
     ports:
@@ -32,6 +34,40 @@ services:
       - build:/app/_build
     stdin_open: true
     tty: true
+    networks:
+      - default
+      - analysis
+
+  # spec-04 §8.3 and §11. The analysing sidecar holds no database credentials
+  # and sits on an internal network shared only with the app, so it reaches
+  # neither the database nor anything outside. It
+  # reads storage through read-only mounts at the paths the app uses, and its
+  # own filesystem is read-only apart from a tmpfs for scratch.
+  sidecar:
+    build:
+      context: ./sidecar
+    environment:
+      ALLOWED_ROOTS: /app/storage:/app/tmp/storage
+    volumes:
+      - ./storage:/app/storage:ro
+      - ./tmp/storage:/app/tmp/storage:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - analysis
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/describe')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+networks:
+  default:
+  # Internal: nothing on it routes beyond the containers attached, so the
+  # sidecar reaches the app and nothing else, not the host's network.
+  analysis:
+    internal: true
 
 volumes:
   pgdata:

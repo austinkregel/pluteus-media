@@ -278,16 +278,14 @@ defmodule Pluteus.AnalysisTest do
       ingest!(inbox, %{"a.flac" => media!(:flac), "b.flac" => media!(:flac, frequency: 600)})
 
       :ok = perform_job(ScheduleAnalysis, %{})
-      queued = Enum.map(all_enqueued(worker: AnalyseInput), & &1.args["input_id"]) |> Enum.sort()
+      queued = queued_analyses()
 
       Repo.delete_all("oban_jobs")
 
       :ok = perform_job(ScheduleAnalysis, %{})
 
-      assert Enum.sort(Enum.map(all_enqueued(worker: AnalyseInput), & &1.args["input_id"])) ==
-               queued
-
-      assert [_, _] = queued
+      assert queued_analyses() == queued
+      assert length(queued) == 2 * length(Analysis.tools())
     end
 
     test "every ingest stage finds unfinished work without a job", %{inbox: inbox} do
@@ -320,6 +318,12 @@ defmodule Pluteus.AnalysisTest do
 
     [_, integrated] = Regex.run(~r/Integrated loudness:\s+I:\s+(-?[0-9.]+) LUFS/, output)
     String.to_float(integrated)
+  end
+
+  defp queued_analyses do
+    all_enqueued(worker: AnalyseInput)
+    |> Enum.map(&{&1.args["tool"], &1.args["input_id"]})
+    |> Enum.sort()
   end
 
   defp manifestation_of(acquisition),

@@ -53,8 +53,12 @@ config :pluteus, Pluteus.Ingest,
 # spec-04 §8. The deriving tools that run, and the wire schema versions a tool
 # response may carry.
 config :pluteus, Pluteus.Analysis,
-  tools: [Pluteus.Analysis.Native],
+  tools: [Pluteus.Analysis.Native, Pluteus.Analysis.Sidecar],
   schema_versions: [1]
+
+# Beat tracking and constant-Q analysis of a long recording take a while; the
+# timeout bounds one request, and a timeout is a transient failure.
+config :pluteus, Pluteus.Analysis.Sidecar, url: "http://sidecar:8000", timeout_ms: 600_000
 
 # Identity arrives from a reverse proxy running forward auth. The subject is
 # the email address the provider sends, which is not stable across an email
