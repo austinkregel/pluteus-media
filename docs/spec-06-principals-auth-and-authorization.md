@@ -192,7 +192,7 @@ release rather than a configuration change.
 
 | Role | May |
 | --- | --- |
-| **System** | Deployment configuration, seed loading, backup configuration, scheduled maintenance. Holds no consumption data and MUST NOT be a playback subject |
+| **System** | Deployment configuration, seed loading, backup configuration, scheduled maintenance, and the catalog writes of the deployment's own processes: ingest, placement, analysis and purge. Holds no consumption data and MUST NOT be a playback subject |
 | **Administrator** | Everything a member may, and: make a principal an Administrator or a Member; retire a principal; add an external identity mapping to any principal (§3.3); revoke any principal's device; empty another principal's deletions (spec-01 §14.1) |
 | **Member** | Read and write the catalog; read and write their own consumption data; manage their own devices; add an external identity mapping to themselves while an existing mapping still authenticates |
 

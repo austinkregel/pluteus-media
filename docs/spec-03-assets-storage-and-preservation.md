@@ -67,6 +67,7 @@ A copy is an asset. There is no separate copy entity.
 | `digest` | Cryptographic content digest, per §5.1 |
 | `digest_algorithm` | The algorithm producing `digest`, per §5.1 |
 | `format` | Identified format, per §6 |
+| `essence` | Lossy, lossless, or unknown, per [spec-04] §5.2. Unknown is never re-encoded |
 | `part_sequence` | Nullable; only for multi-part digital items (spec-01 §12.1) |
 | `verified_at` | Last successful verification, nullable |
 | `verification_interval` | How often this asset must be verified |
@@ -86,6 +87,9 @@ recompression assumes the Acquired role and nothing remains to couple to.
 This coupling runs one way only. Deleting a normalized copy MUST NOT delete the
 acquired original, and MUST be permitted — a normalized copy is regenerable from
 the original by definition.
+
+Where a digital item is realized by parts (spec-01 §5.5), coupling is per part:
+an acquired part supports only the normalized copy of the same part.
 
 Where normalization was the identity, one asset carries both roles (spec-01 §5.5)
 and there is nothing to couple: the two rules describe the same row.
@@ -303,6 +307,11 @@ automatic detection run.
 Where the household confirms two digital items are the same holding, the
 resolution is a catalog operation — merging holdings under one manifestation —
 and not the deletion of an asset. Assets are deleted only by the rules in §3.3.
+
+Where the household decides two holdings are manifestations of one expression —
+a second scan of a letter already catalogued — the resolution moves the second's
+manifestation under the first's expression. The second holding's own work and
+expression are then left with no manifestation, as spec-01 §6.2 permits.
 
 ### 8.4 Across media types
 

@@ -619,6 +619,7 @@ Selectors are a typed closed set. The initial set:
 | `text_position` | A character or word offset range |
 | `text_quote` | A text anchor with surrounding context |
 | `page` | A page in a paginated resource |
+| `track` | One stream of a multi-stream container |
 
 Adding a capability later MUST be a new selector type rather than a re-encoding
 of existing ones. Volumetric and point-cloud media are anticipated.
@@ -658,9 +659,16 @@ meaningless where two cuts of differing runtime exist.
 | `text_position`, `text_quote` | Expression and below |
 | `spatial` | Manifestation and below |
 | `page` | Manifestation and below |
+| `track` | Manifestation and below |
 
 `spatial` is bounded at manifestation because resolution differs per scan, and
-`page` because pagination differs per edition.
+`page` because pagination differs per edition. `track` names a stream of one
+container, which exists only at manifestation and below.
+
+A reified `track` address is itself a coordinate space: a `temporal` or
+`spatiotemporal` selector MAY target one, addressing a region of that stream
+alone. This is how a region of the French audio in a container carrying French
+and English is told apart from the same region of the English.
 
 Text offsets MUST record what they are an offset into. For a scanned book,
 character positions address a derived OCR transcript rather than the object, so a
@@ -1251,7 +1259,8 @@ here:
 - Association refinement types for LRM-R1, including the link between a local
   res and a seeded res for the same thing (§7.5)
 - The standardized master format per media class (§13.3)
-- Codecs and the essence each produces, lossy or lossless ([spec-04] §5)
+- Codecs and their essence: lossy, lossless, or decided by the stream's
+  parameters for codecs with both modes ([spec-04] §5.2)
 - Annotation body types, feature names, and feature groups ([spec-02] §6.1, §6.4)
 - Principal roles (§10.1); the role set is seed data, but the permissions each
   role carries are normative in [spec-06] §6, so adding one is a release

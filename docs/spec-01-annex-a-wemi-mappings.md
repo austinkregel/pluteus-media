@@ -23,7 +23,8 @@ LRM settles most of the commercial cases. The household cases it does not.
 | --- | --- | --- |
 | Work | the composition | composer / songwriter |
 | Expression | one recorded performance or mix | performing artist |
-| Manifestation | the track as released, a part of the release (LRM-R26) | label |
+| Manifestation | the track as released, a part of a medium (LRM-R26) | label |
+| Manifestation | the medium, a disc or side, a part of the release (LRM-R26) | label |
 | Manifestation | the release the track appeared on | label |
 | Digital item | the ripped FLAC for one track | — |
 | Asset | stored bytes, `acquired` + `normalized` roles | — |
@@ -31,7 +32,9 @@ LRM settles most of the commercial cases. The household cases it does not.
 A digital item carries one manifestation, and a release embodies every track's
 recording, so a file carrying the release manifestation would not say which
 track it holds. Each track is therefore a manifestation of its own, embodying
-its recording and forming a part of the release manifestation.
+its recording and forming a part of a medium, which forms a part of the
+release. Order is the position at each level: a track's within its medium and a
+medium's within the release.
 
 MusicBrainz is already WEMI-shaped, so external identifiers land cleanly:
 work MBID → work, recording MBID → expression, track MBID → track
