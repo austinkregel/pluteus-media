@@ -207,13 +207,18 @@ defmodule Pluteus.Lifecycle do
       Repo.all(from(t in Tombstone, select: t.res_id))
   end
 
-  # §14.3's chain: work, expression, manifestation, digital item, asset. Items
-  # sit below manifestation beside digital items, and go with it.
+  # §14.3: a res goes with a parent that is its only one. Addresses are
+  # gathered after the structure because a cue's parent may be anything the
+  # structural pass took, and nomens last because every res taken carries its
+  # own.
   defp closure(%Res{id: id, kind: kind}) do
     structural = [id | below(kind, [id])]
     assets = Repo.all(from a in Asset, where: a.id in ^structural, select: a.id)
     coupled = Enum.flat_map(assets, &Assets.coupled_to/1)
     held = Enum.uniq(structural ++ coupled)
+
+    addressed = Repo.all(from a in Address, where: a.target_id in ^held, select: a.id)
+    held = Enum.uniq(held ++ addressed)
 
     Enum.uniq(held ++ Repo.all(from n in Nomen, where: n.res_id in ^held, select: n.id))
   end
@@ -248,7 +253,8 @@ defmodule Pluteus.Lifecycle do
 
   # A manifestation embodying several expressions goes only when every one of
   # them does. Deleting the Italian dub of a film must not take the container
-  # that also carries the original audio.
+  # that also carries the original audio; the container is unlinked from the dub
+  # at purge instead.
   defp wholly_embodied_by(expression_ids) do
     going = MapSet.new(expression_ids)
 

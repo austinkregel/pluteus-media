@@ -1067,10 +1067,27 @@ remove any stored byte sequence. An asset's bytes are retained unchanged for the
 whole of the window, which is what makes restoration exact rather than
 approximate.
 
-Recycling cascades downward through the structural chain — work to expression to
-manifestation to digital item to asset — as one grouped operation with one
-restoration, and MUST NOT cascade upward. A res's nomens travel with it. The
-copies coupled by §13.2 recycle and restore together.
+Recycling cascades downward as one grouped operation with one restoration, and
+MUST NOT cascade upward. A res recycles with a parent that is its only one: an
+expression with its work, an item and a digital item with their manifestation,
+an asset with its digital item, and a reified address (§8.2) with the res it
+addresses. A res's nomens travel with it, and the copies coupled by §13.2 recycle
+and restore together.
+
+A child with another parent that is not being recycled stays, and is unlinked
+from the one that is. A manifestation embodying several expressions (§5.3)
+therefore recycles with them only when every one of them recycles: deleting a
+dub leaves the container that also carries the original audio. The link is
+retained through the window, so that restoration is exact, and removed at purge.
+
+Aggregation (§5.3) is not parentage — the aggregating work holds selection and
+arrangement criteria and contains nothing — so recycling an album leaves its
+tracks, and purge removes only the aggregation link.
+
+References that record who or what a res was rather than what it contains — a
+nomen's assigner, a principal's person, events, resume positions — neither
+cascade nor unlink. They continue to name the purged identifier, which the
+tombstone keeps from being reused.
 
 Purge is permanent. At purge the bytes are removed from primary storage, and a
 tombstone MUST be retained indefinitely recording the identifier, the entity

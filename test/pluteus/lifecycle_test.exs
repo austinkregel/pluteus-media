@@ -52,6 +52,77 @@ defmodule Pluteus.LifecycleTest do
       refute container.id in Lifecycle.contents(recycling.id)
     end
 
+    test "an item and a digital item go with their only manifestation", %{ada: ada} do
+      {:ok, %{manifestation: manifestation}} = Catalog.create_work("Middlemarch")
+      {:ok, %{item: item}} = Catalog.create_item(manifestation.id, "Ada's copy")
+
+      {:ok, %{digital_item: digital_item}} =
+        Catalog.create_digital_item(manifestation.id, "middlemarch.epub")
+
+      {:ok, recycling} = Lifecycle.recycle(manifestation.id, ada.id)
+      held = Lifecycle.contents(recycling.id)
+
+      assert item.id in held
+      assert digital_item.id in held
+    end
+
+    test "a subtitle cue goes with the expression it addresses", %{ada: ada} do
+      {:ok, %{work: work, expression: expression}} = Catalog.create_work("The Dig")
+
+      {:ok, %{address: cue}} =
+        Catalog.create_address(expression.id, %{
+          selector_type: :temporal,
+          start_ms: 140_000,
+          end_ms: 148_000
+        })
+
+      {:ok, recycling} = Lifecycle.recycle(work.id, ada.id)
+
+      assert cue.id in Lifecycle.contents(recycling.id)
+    end
+
+    test "the container a dub shared is unlinked from it at purge", %{ada: ada} do
+      {:ok, %{work: work, expression: original, manifestation: container}} =
+        Catalog.create_work("The Dig")
+
+      {:ok, %{expression: dub}} = Catalog.add_expression(work.id, "The Dig, Italian dub")
+      {:ok, _} = Catalog.embody(dub.id, container.id)
+
+      {:ok, recycling} = Lifecycle.recycle(dub.id, ada.id)
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      assert {:live, _res} = Lifecycle.state(container.id)
+      assert Enum.map(Catalog.expressions_in(container.id), & &1.id) == [original.id]
+    end
+
+    test "an album's tracks are not its children", %{ada: ada} do
+      {:ok, %{expression: album}} = Catalog.create_work("Kind of Blue")
+      {:ok, %{expression: track}} = Catalog.create_work("So What")
+      {:ok, _} = Catalog.aggregate(album.id, track.id)
+
+      {:ok, recycling} = Lifecycle.recycle(album.id, ada.id)
+      refute track.id in Lifecycle.contents(recycling.id)
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      assert {:live, _res} = Lifecycle.state(track.id)
+      assert Catalog.arrangement_of(album.id, track.id) == nil
+    end
+
+    test "a personal name keeps its assigner when the assigner is purged", %{ada: ada} do
+      %{grandmother: grandmother, child: child, childs_own: childs_own} =
+        Pluteus.CatalogFixtures.kin_term!()
+
+      {:ok, recycling} = Lifecycle.recycle(child.id, ada.id)
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      name = Catalog.get_nomen(childs_own.id)
+
+      assert name.res_id == grandmother.id
+      assert name.assigner_id == child.id
+      assert {:purged, _res, _tombstone} = Lifecycle.state(child.id)
+    end
+
     test "something already in the bin stays with the deletion that put it there", %{ada: ada} do
       {:ok, %{work: work, expression: expression}} = Catalog.create_work("The Dig")
 
