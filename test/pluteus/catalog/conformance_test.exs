@@ -948,7 +948,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
 
     test "the deployment acts as a principal and corresponds to nobody" do
-      {:ok, deployment} = Principals.create_principal(%{role: "deployment"})
+      {:ok, deployment} = Principals.create_principal(%{role: "system"})
 
       assert is_nil(deployment.person_id)
       assert is_nil(deployment.person_kind)

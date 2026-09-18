@@ -19,7 +19,10 @@ defmodule Pluteus.WorkersTest do
   alias Pluteus.Workers.ScheduleVerification
   alias Pluteus.Workers.VerifyAsset
 
+  # A purge is a catalog write made by the deployment itself, so these tests run
+  # as a deployment that has been onboarded and has its System principal.
   setup do
+    {:ok, _system} = Principals.create_principal(%{role: "system"})
     {:ok, principal} = Principals.create_principal(%{role: "member"})
     %{principal: principal}
   end

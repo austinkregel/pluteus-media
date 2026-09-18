@@ -13,6 +13,7 @@ defmodule Pluteus.Application do
       {DNSCluster, query: Application.get_env(:pluteus, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pluteus.PubSub},
       {Oban, Application.fetch_env!(:pluteus, Oban)},
+      onboarding(),
       # Start to serve requests, typically the last entry
       PluteusWeb.Endpoint
     ]
@@ -21,6 +22,14 @@ defmodule Pluteus.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Pluteus.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # A deployment with no principals writes a one-time onboarding secret to the
+  # console once the database is reachable (spec-06 §6.5).
+  defp onboarding do
+    if Application.fetch_env!(:pluteus, :announce_onboarding),
+      do: Supervisor.child_spec({Task, &Pluteus.Onboarding.announce/0}, restart: :temporary),
+      else: Supervisor.child_spec({Task, fn -> :ok end}, restart: :temporary)
   end
 
   # Tell Phoenix to update the endpoint configuration

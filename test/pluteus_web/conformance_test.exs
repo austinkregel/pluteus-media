@@ -11,11 +11,22 @@ defmodule PluteusWeb.ConformanceTest do
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
 
-  setup do
+  @viewer "ada@household.test"
+
+  setup %{conn: conn} do
     {:ok, principal} = Principals.create_principal(%{role: "member"})
+    {:ok, _} = Principals.bind_identity(principal.id, issuer(), @viewer)
     {:ok, %{work: work, expression: expression}} = Catalog.create_work("The Dig")
-    %{principal: principal, work: work, expression: expression}
+
+    %{
+      conn: through_proxy(conn, @viewer),
+      principal: principal,
+      work: work,
+      expression: expression
+    }
   end
+
+  defp viewer, do: through_proxy(build_conn(), @viewer)
 
   describe "27. A recycled entity returns 410 with no-store and a type distinct from purged" do
     test "a live entity is served", %{conn: conn, work: work} do
@@ -50,7 +61,7 @@ defmodule PluteusWeb.ConformanceTest do
       principal: principal
     } do
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
-      recycled = get(build_conn(), "/works/#{work.id}")
+      recycled = get(viewer(), "/works/#{work.id}")
 
       {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
       purged = get(conn, "/works/#{work.id}")
@@ -79,7 +90,7 @@ defmodule PluteusWeb.ConformanceTest do
 
     test "an expression's identifier names no work", %{conn: conn, expression: expression} do
       assert get(conn, "/works/#{expression.id}").status == 404
-      assert get(build_conn(), "/expressions/#{expression.id}").status == 200
+      assert get(viewer(), "/expressions/#{expression.id}").status == 200
     end
   end
 
@@ -90,7 +101,7 @@ defmodule PluteusWeb.ConformanceTest do
       principal: principal
     } do
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
-      assert get(build_conn(), "/works/#{work.id}").status == 410
+      assert get(viewer(), "/works/#{work.id}").status == 410
 
       {:ok, _} = Lifecycle.restore(recycling.id)
 
@@ -105,7 +116,7 @@ defmodule PluteusWeb.ConformanceTest do
       principal: principal
     } do
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
-      assert get(build_conn(), "/expressions/#{expression.id}").status == 410
+      assert get(viewer(), "/expressions/#{expression.id}").status == 410
 
       {:ok, _} = Lifecycle.restore(recycling.id)
 

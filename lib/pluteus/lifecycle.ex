@@ -30,6 +30,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Verification
   alias Pluteus.Catalog.Work
+  alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Recycling
@@ -132,6 +133,14 @@ defmodule Pluteus.Lifecycle do
       %Recycling{recycled_by: ^principal_id} = recycling -> purge(recycling, now)
       %Recycling{} -> {:error, :not_this_principals_deletion}
     end
+  end
+
+  @doc """
+  Whether any recycling's window has closed.
+  """
+  @spec expired?(DateTime.t()) :: boolean()
+  def expired?(now \\ DateTime.utc_now()) do
+    Repo.exists?(from r in Recycling, where: r.purge_after <= ^now)
   end
 
   @doc """
@@ -395,6 +404,7 @@ defmodule Pluteus.Lifecycle do
       work_parts: from(w in WorkPart, where: w.whole_id in ^ids or w.part_id in ^ids),
       manifestations: from(m in Manifestation, where: m.id in ^ids),
       expressions: from(e in Expression, where: e.id in ^ids),
+      work_creators: from(c in WorkCreator, where: c.work_id in ^ids),
       works: from(w in Work, where: w.id in ^ids),
       extents: from(x in Extent, where: x.res_id in ^ids),
       addresses: from(a in Address, where: a.id in ^ids),

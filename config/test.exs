@@ -44,3 +44,9 @@ config :pluteus, Pluteus.Storage, root: Path.expand("../tmp/storage/test", __DIR
 
 # Jobs are inserted but not run, so a test drives each one explicitly.
 config :pluteus, Oban, testing: :manual
+
+config :pluteus, PluteusWeb.ForwardAuth,
+  issuer: "https://auth.test",
+  secret: "test-proxy-secret"
+
+config :pluteus, announce_onboarding: false

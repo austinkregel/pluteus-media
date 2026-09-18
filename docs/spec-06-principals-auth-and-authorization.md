@@ -61,6 +61,19 @@ unique only within an issuer, so `sub` alone MUST NOT be used as a key.
 A principal MAY hold more than one external identity mapping, which is the
 mechanism by which §3.3 is repaired.
 
+The subject SHOULD be stable for the life of the external account. An email
+address is not. Where the provider supplies only an email, a changed address
+arrives as an identity mapped to no principal and needs a re-mapping (§3.3), and
+an address the provider reassigns to another person maps that person onto the
+previous holder's principal and history. A deployment keying on email accepts
+both.
+
+Where the identity is asserted by a reverse proxy performing forward
+authentication rather than obtained by the implementation itself, the
+implementation MUST establish that a request came through that proxy before
+reading the assertion. Headers that reached it any other way could have been
+set by anyone able to reach it.
+
 ### 3.3 Issuer change
 
 spec-01 §10.1 records the exposure: if the issuer URL changes through provider
@@ -241,12 +254,10 @@ assuming that an aggregate anonymizes.
 A household of two makes almost any aggregate re-identifying. Implementations
 MUST NOT rely on aggregation as a privacy mechanism at household scale.
 
-### 6.4 Authored annotations are not settled here
+### 6.4 Authored annotations are household-visible
 
-spec-02 §10 records that authored annotations sit between spec-01 §7.3, which
-makes household naming shared by construction, and §11.2, which makes
-consumption private. That question is open in spec-02 and is not resolved by
-this document; §6.3 governs events, not annotations.
+spec-02 §10 makes authored annotations visible to the household, as names are
+under spec-01 §7.3. §6.3 governs consumption events, not annotations.
 
 ### 6.5 Bootstrap
 

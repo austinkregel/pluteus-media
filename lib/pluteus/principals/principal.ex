@@ -28,16 +28,29 @@ defmodule Pluteus.Principals.Principal do
     belongs_to :person, Res, define_field: false
     field :person_id, UUIDv7
     field :person_kind, Ecto.Enum, values: Res.kinds()
+    field :retired_at, :utc_datetime_usec
 
     timestamps(type: :utc_datetime_usec)
   end
 
   @type t :: %__MODULE__{}
 
+  @roles ~w(system administrator member guest)
+
+  @doc """
+  The roles spec-06 §6.1 defines. Their permissions are normative, so the set
+  changes only with a release.
+  """
+  @spec roles() :: [String.t()]
+  def roles, do: @roles
+
   def changeset(principal, attrs) do
     principal
     |> cast(attrs, [:id, :role, :person_id, :person_kind])
     |> validate_required([:role])
+    |> validate_inclusion(:role, @roles)
+    |> check_constraint(:role, name: :role_must_be_known)
+    |> unique_constraint(:role, name: :principals_one_system_index)
     |> check_constraint(:person_id, name: :person_link_is_whole)
     |> check_constraint(:person_kind, name: :principal_stands_for_a_person)
     |> unique_constraint(:person_id)

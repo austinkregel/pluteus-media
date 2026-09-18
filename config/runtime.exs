@@ -66,6 +66,28 @@ if config_env() == :prod do
 
   config :pluteus, Pluteus.Storage, root: storage_root
 
+  forward_auth_issuer =
+    System.get_env("FORWARD_AUTH_ISSUER") ||
+      raise """
+      environment variable FORWARD_AUTH_ISSUER is missing.
+      It is the identity provider's canonical URL, the issuer half of every
+      (issuer, subject) identity.
+      """
+
+  forward_auth_secret =
+    System.get_env("FORWARD_AUTH_PROXY_SECRET") ||
+      raise """
+      environment variable FORWARD_AUTH_PROXY_SECRET is missing.
+      The reverse proxy injects it on every request it forwards; without it no
+      request can be told apart from one that bypassed the proxy.
+      """
+
+  config :pluteus, PluteusWeb.ForwardAuth,
+    issuer: forward_auth_issuer,
+    secret: forward_auth_secret
+
+  config :pluteus, announce_onboarding: true
+
   config :pluteus, PluteusWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

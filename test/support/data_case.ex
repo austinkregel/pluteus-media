@@ -24,13 +24,29 @@ defmodule Pluteus.DataCase do
   end
 
   setup tags do
-    Pluteus.DataCase.setup_sandbox(tags)
-    :ok
+    {:ok, Pluteus.DataCase.setup_sandbox(tags)}
   end
 
+  @doc """
+  Checks out a sandboxed connection and, unless the test is tagged `:no_actor`,
+  attributes its catalog writes to a member.
+
+  spec-06 §6.2 has the database refuse any catalog write with no acting
+  principal, so a test that writes to the catalog needs one. A test about
+  attribution sets its own with `Pluteus.Actor.as/2`; one that needs no
+  principals to exist at all, such as onboarding, is tagged `:no_actor`.
+  """
   def setup_sandbox(tags) do
     pid = Sandbox.start_owner!(Pluteus.Repo, shared: not tags[:async])
     on_exit(fn -> Sandbox.stop_owner(pid) end)
+
+    if tags[:no_actor], do: [], else: [actor: act_as_member()]
+  end
+
+  defp act_as_member do
+    {:ok, member} = Pluteus.Principals.create_principal(%{role: "member"})
+    :ok = Pluteus.Actor.set(member.id)
+    member
   end
 
   @doc """

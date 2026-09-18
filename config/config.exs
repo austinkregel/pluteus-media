@@ -27,6 +27,14 @@ config :pluteus, Oban,
     ]
   ]
 
+# Identity arrives from a reverse proxy running forward auth. The subject is
+# the email address the provider sends, which is not stable across an email
+# change; spec-06 §3.2 records the consequence. Header names are lowercase, as
+# Plug holds them.
+config :pluteus, PluteusWeb.ForwardAuth,
+  subject_header: "x-authentik-email",
+  secret_header: "x-pluteus-proxy-secret"
+
 # Configure the endpoint
 config :pluteus, PluteusWeb.Endpoint,
   url: [host: "localhost"],

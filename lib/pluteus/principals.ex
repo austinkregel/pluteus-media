@@ -12,6 +12,7 @@ defmodule Pluteus.Principals do
 
   alias Ecto.Multi
   alias Pluteus.Catalog.Res
+  alias Pluteus.Principals.Device
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
@@ -83,6 +84,41 @@ defmodule Pluteus.Principals do
 
   @spec get_principal(Ecto.UUID.t()) :: Principal.t() | nil
   def get_principal(id), do: Repo.get(Principal, id)
+
+  @doc """
+  The deployment's own principal, minted at onboarding (spec-06 §6.5).
+  Raises before onboarding, when there is none: whatever asked has nothing to
+  act as.
+  """
+  @spec system!() :: Principal.t()
+  def system!, do: Repo.get_by!(Principal, role: "system")
+
+  @doc """
+  Whether an `(issuer, subject)` pair currently authenticates as the principal.
+  """
+  @spec authenticates_as?({String.t(), String.t()}, Ecto.UUID.t()) :: boolean()
+  def authenticates_as?({issuer, subject}, principal_id) do
+    case principal_for(issuer, subject) do
+      %Principal{id: ^principal_id} -> true
+      _other -> false
+    end
+  end
+
+  @doc """
+  Binds a device to a principal (spec-06 §4).
+  """
+  @spec bind_device(Ecto.UUID.t(), String.t(), DateTime.t()) ::
+          {:ok, Device.t()} | {:error, Ecto.Changeset.t()}
+  def bind_device(principal_id, label, now \\ DateTime.utc_now()) do
+    %Device{}
+    |> Device.changeset(%{principal_id: principal_id, label: label, bound_at: now})
+    |> Repo.insert()
+  end
+
+  @spec devices_of(Ecto.UUID.t()) :: [Device.t()]
+  def devices_of(principal_id) do
+    Repo.all(from d in Device, where: d.principal_id == ^principal_id, order_by: d.bound_at)
+  end
 
   @doc """
   Every `(issuer, subject)` pair bound to a principal.

@@ -34,6 +34,7 @@ defmodule Pluteus.Principals.Identity do
     |> cast(attrs, [:id, :principal_id, :issuer, :subject])
     |> validate_required([:principal_id, :issuer, :subject])
     |> unique_constraint([:issuer, :subject])
+    |> check_constraint(:principal_id, name: :system_has_no_identity)
     |> foreign_key_constraint(:principal_id)
   end
 end

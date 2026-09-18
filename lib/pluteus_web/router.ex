@@ -12,12 +12,24 @@ defmodule PluteusWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug PluteusWeb.ForwardAuth
+  end
+
+  pipeline :onboarding do
+    plug :accepts, ["json"]
+    plug PluteusWeb.ForwardAuth, require_principal: false
   end
 
   scope "/", PluteusWeb do
     pipe_through :browser
 
     get "/", PageController, :home
+  end
+
+  scope "/", PluteusWeb do
+    pipe_through :onboarding
+
+    post "/onboarding", OnboardingController, :create
   end
 
   # §9.1's entity URIs. The kind is fixed by the path, so an identifier

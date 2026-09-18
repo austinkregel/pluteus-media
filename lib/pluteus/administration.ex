@@ -1,0 +1,215 @@
+defmodule Pluteus.Administration do
+  @moduledoc """
+  The operations spec-06 §6.1 reserves for an Administrator, and the one it
+  grants a Member over itself.
+
+  None of these is a catalog write. Each acts on principals, devices or grants,
+  and each writes an audit record naming the actor, the affected principal, the
+  operation and the time, whether it succeeded, was refused, or raised
+  (spec-06 §6.6). A raised error is recorded and then raised again, never
+  swallowed.
+  """
+
+  import Ecto.Query, only: [from: 2]
+
+  alias Pluteus.Administration.AuditRecord
+  alias Pluteus.Authorization
+  alias Pluteus.Lifecycle
+  alias Pluteus.Lifecycle.Recycling
+  alias Pluteus.Principals
+  alias Pluteus.Principals.Device
+  alias Pluteus.Principals.GuestGrant
+  alias Pluteus.Principals.Principal
+  alias Pluteus.Repo
+
+  @doc """
+  Admits a principal: a member, a guest, or another administrator.
+  """
+  @spec create_principal(Principal.t(), map()) :: {:ok, Principal.t()} | {:error, term()}
+  def create_principal(%Principal{} = actor, attrs) do
+    audited(actor, "create_principal", nil, fn ->
+      with :ok <- permit(actor, :create_principal) do
+        Principals.create_principal(attrs)
+      end
+    end)
+  end
+
+  @doc """
+  Removes a principal from the trust boundary. The principal is kept, retired,
+  so its events and the catalog writes it made stay attributable.
+  """
+  @spec retire_principal(Principal.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, Principal.t()} | {:error, term()}
+  def retire_principal(%Principal{} = actor, principal_id, now \\ DateTime.utc_now()) do
+    audited(actor, "retire_principal", principal_id, fn ->
+      with :ok <- permit(actor, :retire_principal) do
+        Principal
+        |> Repo.get!(principal_id)
+        |> Ecto.Changeset.change(retired_at: now)
+        |> Repo.update()
+      end
+    end)
+  end
+
+  @doc """
+  Lets a guest read one res.
+  """
+  @spec grant_guest(Principal.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, GuestGrant.t()} | {:error, term()}
+  def grant_guest(%Principal{} = actor, guest_id, res_id, now \\ DateTime.utc_now()) do
+    audited(actor, "grant_guest", guest_id, fn ->
+      with :ok <- permit(actor, :grant_guest),
+           %Principal{role: "guest"} <- Repo.get!(Principal, guest_id) do
+        Repo.insert(%GuestGrant{
+          principal_id: guest_id,
+          res_id: res_id,
+          granted_by: actor.id,
+          granted_at: now
+        })
+      else
+        %Principal{} -> {:error, :not_a_guest}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  @spec revoke_guest_grant(Principal.t(), Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def revoke_guest_grant(%Principal{} = actor, guest_id, res_id) do
+    audited(actor, "revoke_guest_grant", guest_id, fn ->
+      with :ok <- permit(actor, :revoke_guest_grant) do
+        {count, _} =
+          Repo.delete_all(
+            from g in GuestGrant, where: g.principal_id == ^guest_id and g.res_id == ^res_id
+          )
+
+        {:ok, count}
+      end
+    end)
+  end
+
+  @doc """
+  Maps a further `(issuer, subject)` onto a principal (spec-06 §3.3).
+
+  This grants whoever holds the new identity the principal's whole history, so
+  who may do it is narrow. An Administrator may map onto anyone. A Member may
+  map onto itself only while it is authenticated, now, through a mapping it
+  already has — the case of preparing for a provider migration. Nobody else may.
+  `authenticated_as` is the identity the actor's current request arrived under.
+  """
+  @spec add_identity(
+          Principal.t(),
+          Ecto.UUID.t(),
+          {String.t(), String.t()},
+          {String.t(), String.t()}
+        ) ::
+          {:ok, term()} | {:error, term()}
+  def add_identity(%Principal{} = actor, principal_id, {issuer, subject}, authenticated_as) do
+    audited(actor, "add_identity", principal_id, fn ->
+      with :ok <- permit_identity(actor, principal_id, authenticated_as) do
+        Principals.bind_identity(principal_id, issuer, subject)
+      end
+    end)
+  end
+
+  @doc """
+  Revokes a device. A principal may revoke its own; an Administrator anyone's.
+  """
+  @spec revoke_device(Principal.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, Device.t()} | {:error, term()}
+  def revoke_device(%Principal{} = actor, device_id, now \\ DateTime.utc_now()) do
+    device = Repo.get!(Device, device_id)
+
+    audited(actor, "revoke_device", device.principal_id, fn ->
+      with :ok <- permit_device(actor, device) do
+        device
+        |> Device.changeset(%{revoked_at: now, revoked_by: actor.id})
+        |> Repo.update()
+      end
+    end)
+  end
+
+  @doc """
+  Empties another principal's deletion before its window closes. It destroys
+  the window that makes the recycle bin a safety net, which is why only an
+  Administrator may (spec-01 §14.1).
+  """
+  @spec empty_deletion(Principal.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, map()} | {:error, term()}
+  def empty_deletion(%Principal{} = actor, recycling_id, now \\ DateTime.utc_now()) do
+    recycling = Repo.get!(Recycling, recycling_id)
+
+    audited(actor, "empty_deletion", recycling.recycled_by, fn ->
+      with :ok <- permit(actor, :empty_anothers_deletion) do
+        Lifecycle.purge(recycling, now)
+      end
+    end)
+  end
+
+  @doc """
+  Every audit record, most recent first.
+  """
+  @spec audit_trail() :: [AuditRecord.t()]
+  def audit_trail do
+    Repo.all(from a in AuditRecord, order_by: [desc: a.occurred_at, desc: a.inserted_at])
+  end
+
+  defp permit(actor, power) do
+    if Authorization.may?(actor, power), do: :ok, else: {:error, :not_permitted}
+  end
+
+  defp permit_identity(%Principal{} = actor, principal_id, authenticated_as) do
+    cond do
+      Authorization.may?(actor, :add_identity_to_another) ->
+        :ok
+
+      actor.role == "member" and actor.id == principal_id and
+          Principals.authenticates_as?(authenticated_as, actor.id) ->
+        :ok
+
+      true ->
+        {:error, :not_permitted}
+    end
+  end
+
+  defp permit_device(%Principal{id: id}, %Device{principal_id: id}), do: :ok
+  defp permit_device(actor, _device), do: permit(actor, :revoke_anothers_device)
+
+  # The record is written after the operation, outside its transaction, so a
+  # failure that rolled the operation back is still recorded. A raise is
+  # recorded and raised again.
+  defp audited(actor, operation, subject_id, fun) do
+    result =
+      try do
+        fun.()
+      rescue
+        exception ->
+          record!(actor, operation, subject_id, "raised: " <> Exception.message(exception))
+          reraise exception, __STACKTRACE__
+      end
+
+    case result do
+      {:ok, %Principal{id: created}} when is_nil(subject_id) ->
+        record!(actor, operation, created, nil)
+
+      {:ok, _value} ->
+        record!(actor, operation, subject_id, nil)
+
+      {:error, reason} ->
+        record!(actor, operation, subject_id, inspect(reason))
+    end
+
+    result
+  end
+
+  defp record!(actor, operation, subject_id, reason) do
+    Repo.insert!(%AuditRecord{
+      actor_id: actor.id,
+      subject_id: subject_id,
+      operation: operation,
+      outcome: if(is_nil(reason), do: :succeeded, else: :failed),
+      reason: reason,
+      occurred_at: DateTime.utc_now()
+    })
+  end
+end

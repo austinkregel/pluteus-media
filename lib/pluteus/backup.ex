@@ -27,6 +27,7 @@ defmodule Pluteus.Backup do
     aggregations digital_items extents associations principals
     principal_identities events resume_positions recyclings recycled_res
     tombstones reconstructions duplicate_candidates schema_migrations
+    trust_boundary devices guest_grants audit_records catalog_writes work_creators
   )
 
   @selected ~w(assets asset_roles verifications addresses annotations)

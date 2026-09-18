@@ -67,6 +67,12 @@ config :pluteus, PluteusWeb.Endpoint,
 
 config :pluteus, Pluteus.Storage, root: Path.expand("../storage", __DIR__)
 
+config :pluteus, PluteusWeb.ForwardAuth,
+  issuer: "http://localhost",
+  secret: "development-proxy-secret"
+
+config :pluteus, announce_onboarding: true
+
 # Enable dev routes for dashboard and mailbox
 config :pluteus, dev_routes: true
 

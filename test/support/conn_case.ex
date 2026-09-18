@@ -24,7 +24,27 @@ defmodule PluteusWeb.ConnCase do
   end
 
   setup tags do
-    Pluteus.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+    {:ok, [conn: Phoenix.ConnTest.build_conn()] ++ Pluteus.DataCase.setup_sandbox(tags)}
   end
+
+  @doc """
+  A request as the authenticating proxy forwards it: carrying the proxy's
+  secret and the identity the provider vouched for.
+  """
+  def through_proxy(conn, subject) do
+    config = Application.fetch_env!(:pluteus, PluteusWeb.ForwardAuth)
+
+    conn
+    |> Plug.Conn.put_req_header(
+      Keyword.fetch!(config, :secret_header),
+      Keyword.fetch!(config, :secret)
+    )
+    |> Plug.Conn.put_req_header(Keyword.fetch!(config, :subject_header), subject)
+  end
+
+  @doc """
+  The issuer the proxy's identities come from, as configured.
+  """
+  def issuer,
+    do: Keyword.fetch!(Application.fetch_env!(:pluteus, PluteusWeb.ForwardAuth), :issuer)
 end

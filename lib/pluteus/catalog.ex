@@ -34,6 +34,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
+  alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
   alias Pluteus.Formats
   alias Pluteus.Repo
@@ -301,6 +302,29 @@ defmodule Pluteus.Catalog do
   @spec assets_of(Ecto.UUID.t()) :: [Asset.t()]
   def assets_of(digital_item_id) do
     Repo.all(from a in Asset, where: a.digital_item_id == ^digital_item_id)
+  end
+
+  @doc """
+  Credits an agent as a creator of a work (LRM-R5). The agent is a person or a
+  collective agent; whether it holds a login does not enter into it.
+  """
+  @spec credit_creator(Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, WorkCreator.t()} | {:error, term()}
+  def credit_creator(work_id, agent_id) do
+    case Repo.get(Res, agent_id) do
+      nil ->
+        {:error, :no_such_agent}
+
+      %Res{kind: kind} ->
+        %WorkCreator{}
+        |> WorkCreator.changeset(%{work_id: work_id, agent_id: agent_id, agent_kind: kind})
+        |> Repo.insert()
+    end
+  end
+
+  @spec creators_of(Ecto.UUID.t()) :: [Ecto.UUID.t()]
+  def creators_of(work_id) do
+    Repo.all(from c in WorkCreator, where: c.work_id == ^work_id, select: c.agent_id)
   end
 
   @doc """
