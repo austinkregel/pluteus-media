@@ -1,0 +1,41 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      db:
+        condition: service_healthy
+    # Host 4100 because 4000 is held by homelab-iab. The container still
+    # serves on Phoenix's default 4000 internally.
+    ports:
+      - "4100:4000"
+    volumes:
+      - .:/app
+      # deps and _build are named volumes rather than bind mounts: artifacts
+      # compiled against the host's OTP and library paths are not valid inside
+      # the image, and sharing one directory between the two corrupts both.
+      - deps:/app/deps
+      - build:/app/_build
+    stdin_open: true
+    tty: true
+
+volumes:
+  pgdata:
+  deps:
+  build:
+  homelab-media-linuxserver-plex-music:
+    external: true

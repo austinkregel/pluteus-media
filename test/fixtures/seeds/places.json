@@ -1,0 +1,36 @@
+[
+  {
+    "id": "01a06ddf-9f40-793c-9b87-6af90e5df151",
+    "kind": "place",
+    "nomens": [
+      {
+        "id": "01a06ddf-9f43-7e2f-896a-3ec229bd334d",
+        "nomen_string": "Reykjavík",
+        "language": "is"
+      },
+      {
+        "id": "01a06ddf-9f43-7228-986f-5f51c7664c3e",
+        "nomen_string": "Reykjavik",
+        "script_conversion": "unicode-nfd-strip"
+      }
+    ]
+  },
+  {
+    "id": "01a06ddf-9f43-7d91-bfa5-b50c42c3202b",
+    "kind": "time_span",
+    "nomens": [
+      {
+        "id": "01a06ddf-9f44-7a10-9c3e-2b8f0d7e1c55",
+        "nomen_string": "1 March 2015",
+        "scheme": "gregorian",
+        "language": "en"
+      },
+      {
+        "id": "01a06ddf-9f44-7bb2-84d1-6c0a9f3e2d47",
+        "nomen_string": "10 Adar 5775",
+        "scheme": "hebrew",
+        "language": "he"
+      }
+    ]
+  }
+]
