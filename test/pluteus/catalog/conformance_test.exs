@@ -38,6 +38,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
   alias Pluteus.Storage
+  alias Pluteus.StorageFixtures
 
   describe "1. Every entity returns a UUIDv7 primary identifier" do
     test "for a res of every kind the model defines" do
@@ -1020,7 +1021,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
 
   describe "25. Normalizing a lossy acquisition writes no second copy" do
     test "the lossy acquisition carries the Normalized role itself" do
-      asset = a_stored_scan(%{essence: :lossy, format: "fmt/134"})
+      asset = a_stored_scan(%{essence: :lossy})
 
       assert Asset.normalization_plan(asset) == :adopt
 
@@ -1040,7 +1041,6 @@ defmodule Pluteus.Catalog.ConformanceTest do
                  asset.id,
                  a_scan(%{
                    location: "/masters/1943-04-12.jxl",
-                   format: "fmt/1600",
                    roles: []
                  }),
                  "1943-04-12.jxl"
@@ -1052,7 +1052,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
 
     test "re-encoding lossy essence is rejected" do
-      asset = a_stored_scan(%{essence: :lossy, format: "fmt/134"})
+      asset = a_stored_scan(%{essence: :lossy})
 
       assert {:error, :source, :lossy_essence_must_not_be_re_encoded, _changes} =
                Assets.normalize(
@@ -1065,7 +1065,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
 
     test "one byte sequence bearing two roles is one row, not two" do
-      asset = a_stored_scan(%{essence: :lossy, format: "fmt/134"})
+      asset = a_stored_scan(%{essence: :lossy})
       {:ok, _} = Assets.adopt_as_normalized(asset.id, "standardized-master")
 
       assert [_, _] = Assets.roles_of(asset.id)
@@ -1099,7 +1099,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
 
     test "where one asset holds both roles there is nothing to couple to" do
-      asset = a_stored_scan(%{essence: :lossy, format: "fmt/134"})
+      asset = a_stored_scan(%{essence: :lossy})
       {:ok, _} = Assets.adopt_as_normalized(asset.id, "standardized-master")
 
       assert assets_in(recycle!(asset.id)) == [asset.id]
@@ -1544,19 +1544,11 @@ defmodule Pluteus.Catalog.ConformanceTest do
     {:ok, %{digital_item: digital_item}} =
       Catalog.create_digital_item(manifestation.id, "Letter from Ada, 12 April 1943")
 
-    bytes = :crypto.strong_rand_bytes(4096)
-    location = "letters/#{System.unique_integer([:positive])}/1943-04-12.tiff"
-    :ok = Storage.put(location, bytes)
-    on_exit(fn -> Storage.delete(location) end)
+    attrs = a_scan()
 
-    {:ok, %{asset: asset}} =
-      Catalog.create_asset(
-        digital_item.id,
-        a_scan(%{location: location, size: byte_size(bytes), digest: sha256(bytes)}),
-        "1943-04-12.tiff"
-      )
+    {:ok, %{asset: asset}} = Catalog.create_asset(digital_item.id, attrs, "1943-04-12.tiff")
 
-    %{work: work, asset: asset, bytes: bytes}
+    %{work: work, asset: asset, bytes: Storage.read(attrs.location)}
   end
 
   defp sha256(bytes), do: :sha256 |> :crypto.hash(bytes) |> Base.encode16(case: :lower)
@@ -1594,7 +1586,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     {:ok, %{normalized: normalized}} =
       Assets.normalize(
         acquired.id,
-        a_scan(%{location: "/masters/1943-04-12.jxl", format: "fmt/1600", roles: []}),
+        a_scan(%{location: "/masters/1943-04-12.jxl", roles: []}),
         "1943-04-12.jxl"
       )
 
@@ -1604,14 +1596,18 @@ defmodule Pluteus.Catalog.ConformanceTest do
   defp days_ago(days), do: DateTime.add(DateTime.utc_now(), -days * 24 * 60 * 60, :second)
 
   # What spec-03 §3.2 requires an asset to record, for a scan of a letter.
+  #
+  # The bytes are really written, since an asset's size, digest and format are
+  # read from them. A location given in `overrides` supplies the file name; the
+  # directory is always fresh.
   defp a_scan(overrides \\ %{}) do
+    {requested, overrides} = Map.pop(overrides, :location, "letters/1943-04-12.tiff")
+    file_name = Path.basename(requested)
+    location = StorageFixtures.stored!(file_name, StorageFixtures.png(file_name))
+
     Map.merge(
       %{
-        location: "/archive/letters/1943-04-12.tiff",
-        size: 48_204_800,
-        digest: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
-        digest_algorithm: "sha-256",
-        format: "fmt/353",
+        location: location,
         essence: :lossless,
         verification_interval_seconds: 90 * 24 * 60 * 60,
         roles: [%{role_class: :acquired, role: "original-scan"}]

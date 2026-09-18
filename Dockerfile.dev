@@ -8,6 +8,22 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential git inotify-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# Siegfried identifies formats against PRONOM from the bytes themselves
+# (spec-03 §6). Debian does not package it, so the upstream release is fetched
+# by exact version and refused unless its digest matches.
+ARG SIEGFRIED_VERSION=1.11.8
+ARG SIEGFRIED_SHA256=667a61c80a9e0249b54c463c63d6a87b2c1da75f3e0dc126e648f15663d43ae9
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSL -o /tmp/siegfried.deb \
+       "https://github.com/richardlehane/siegfried/releases/download/v${SIEGFRIED_VERSION}/siegfried_${SIEGFRIED_VERSION}-1_amd64.deb" \
+    && echo "${SIEGFRIED_SHA256}  /tmp/siegfried.deb" | sha256sum -c - \
+    && apt-get install -y --no-install-recommends /tmp/siegfried.deb \
+    && rm /tmp/siegfried.deb \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app

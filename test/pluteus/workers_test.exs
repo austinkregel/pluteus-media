@@ -10,9 +10,11 @@ defmodule Pluteus.WorkersTest do
 
   alias Pluteus.Assets
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Asset
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
   alias Pluteus.Storage
+  alias Pluteus.StorageFixtures
   alias Pluteus.Workers.PurgeExpired
   alias Pluteus.Workers.ScheduleVerification
   alias Pluteus.Workers.VerifyAsset
@@ -71,7 +73,11 @@ defmodule Pluteus.WorkersTest do
     end
 
     test "a digest in an algorithm nothing can compute is a defect, and raises" do
-      asset = a_letter_on_disk(%{digest_algorithm: "md4-of-my-own-devising"})
+      asset = a_letter_on_disk()
+
+      Repo.update_all(from(a in Asset, where: a.id == ^asset.id),
+        set: [digest_algorithm: "md4-of-my-own-devising"]
+      )
 
       assert_raise ArgumentError, fn -> Assets.verify(asset.id) end
     end
@@ -139,32 +145,21 @@ defmodule Pluteus.WorkersTest do
 
   defp ids(assets), do: Enum.map(assets, & &1.id)
 
-  defp a_letter_on_disk(overrides \\ %{}) do
+  defp a_letter_on_disk do
     {:ok, %{manifestation: manifestation}} =
       Catalog.create_work("Letter from Ada, 12 April 1943")
 
     {:ok, %{digital_item: digital_item}} =
       Catalog.create_digital_item(manifestation.id, "Letter from Ada, 12 April 1943")
 
-    bytes = :crypto.strong_rand_bytes(4096)
-    location = "letters/#{System.unique_integer([:positive])}/1943-04-12.tiff"
-    :ok = Storage.put(location, bytes)
-    on_exit(fn -> Storage.delete(location) end)
+    location = StorageFixtures.stored!("1943-04-12.tiff", StorageFixtures.png("letter"))
 
-    attrs =
-      Map.merge(
-        %{
-          location: location,
-          size: byte_size(bytes),
-          digest: :sha256 |> :crypto.hash(bytes) |> Base.encode16(case: :lower),
-          digest_algorithm: "sha-256",
-          format: "fmt/353",
-          essence: :lossless,
-          verification_interval_seconds: 90 * 86_400,
-          roles: [%{role_class: :acquired, role: "original-scan"}]
-        },
-        overrides
-      )
+    attrs = %{
+      location: location,
+      essence: :lossless,
+      verification_interval_seconds: 90 * 86_400,
+      roles: [%{role_class: :acquired, role: "original-scan"}]
+    }
 
     {:ok, %{asset: asset}} = Catalog.create_asset(digital_item.id, attrs, "1943-04-12.tiff")
     asset

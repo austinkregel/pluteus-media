@@ -1,0 +1,78 @@
+defmodule Pluteus.Backup do
+  @moduledoc """
+  What a backup must hold, and what it must not spend capacity on (spec-01
+  §13.7, spec-03 §7).
+
+  The division is regenerability. Acquired originals, normalized masters,
+  authored annotations, events and the catalog itself cannot be recomputed from
+  anything else the household keeps; derived assets and derived annotations can,
+  from a master and a recipe. The catalog is the easiest thing to leave out,
+  because it is not a media file, and the only thing that makes the media files
+  more than a directory of unnamed bytes.
+
+  Every table is classified here. A table missing from the classification is a
+  test failure, so a new one cannot be left out of the backup by oversight.
+  """
+
+  import Ecto.Query, only: [from: 2]
+
+  alias Pluteus.Annotations.Annotation
+  alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Asset
+  alias Pluteus.Catalog.AssetRole
+  alias Pluteus.Catalog.Verification
+
+  @whole ~w(
+    res nomens works expressions manifestations items embodiments work_parts
+    aggregations digital_items extents associations principals
+    principal_identities events resume_positions recyclings recycled_res
+    tombstones reconstructions duplicate_candidates schema_migrations
+  )
+
+  @selected ~w(assets asset_roles verifications addresses annotations)
+
+  # Provenance of derived data goes with the derived data. The job queue is
+  # operational state, rebuilt by the schedule.
+  @excluded ~w(tool_versions derivations oban_jobs oban_peers)
+
+  @doc """
+  Every table, classified as backed up whole, backed up in part, or excluded.
+  """
+  @spec classification() :: %{String.t() => :whole | :selected | :excluded}
+  def classification do
+    Map.new(
+      Enum.map(@whole, &{&1, :whole}) ++
+        Enum.map(@selected, &{&1, :selected}) ++ Enum.map(@excluded, &{&1, :excluded})
+    )
+  end
+
+  @doc """
+  The rows of a partly backed-up table that the backup holds.
+  """
+  @spec selection(String.t()) :: Ecto.Query.t()
+  def selection("assets"), do: backed_up_assets()
+
+  def selection("asset_roles") do
+    from r in AssetRole, where: r.asset_id in subquery(backed_up_asset_ids())
+  end
+
+  def selection("verifications") do
+    from v in Verification, where: v.asset_id in subquery(backed_up_asset_ids())
+  end
+
+  def selection("addresses"), do: from(a in Address, where: is_nil(a.derivation_id))
+  def selection("annotations"), do: from(a in Annotation, where: not is_nil(a.principal_id))
+
+  # A redundant copy is itself the backup, and a derived one is regenerable, so
+  # only the acquired and normalized classes are copied.
+  defp backed_up_assets do
+    from a in Asset, where: a.id in subquery(backed_up_asset_ids())
+  end
+
+  defp backed_up_asset_ids do
+    from r in AssetRole,
+      where: r.role_class in [:acquired, :normalized],
+      distinct: true,
+      select: r.asset_id
+  end
+end

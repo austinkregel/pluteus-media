@@ -67,6 +67,18 @@ defmodule Pluteus.Storage do
     end
   end
 
+  @doc """
+  What an asset records about the bytes at a location: their size and their
+  digest, taken now, from the bytes themselves (spec-03 §5.1).
+  """
+  @spec measure(String.t()) :: {:ok, map()} | {:error, term()}
+  def measure(location) do
+    with {:ok, %File.Stat{size: size}} <- File.stat(path(location)),
+         {:ok, digest} <- digest(location, :sha256) do
+      {:ok, %{size: size, digest: digest, digest_algorithm: "sha-256"}}
+    end
+  end
+
   @spec exists?(String.t()) :: boolean()
   def exists?(location), do: location |> path() |> File.exists?()
 

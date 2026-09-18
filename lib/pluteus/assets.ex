@@ -15,7 +15,9 @@ defmodule Pluteus.Assets do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
+  alias Pluteus.Catalog.Reconstruction
   alias Pluteus.Catalog.Verification
+  alias Pluteus.Lifecycle
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -139,6 +141,92 @@ defmodule Pluteus.Assets do
 
   defp algorithm!(other) do
     raise ArgumentError, "no digest algorithm #{inspect(other)} is supported"
+  end
+
+  @doc """
+  Every asset whose most recent check found something wrong: a mismatch, or
+  bytes that could not be read.
+
+  This is not the unverified list. spec-03 §5.3 keeps the two apart: unverified
+  means the household does not currently know, and a finding means it does.
+  """
+  @spec findings() :: [map()]
+  def findings do
+    from(v in Verification,
+      distinct: v.asset_id,
+      order_by: [desc: v.occurred_at, desc: v.inserted_at],
+      select: %{asset_id: v.asset_id, outcome: v.outcome, occurred_at: v.occurred_at}
+    )
+    |> Repo.all()
+    |> Enum.reject(&(&1.outcome == :verified))
+  end
+
+  @doc """
+  Discards an acquired original in favour of a recompression that reproduces it
+  (spec-03 §4.3).
+
+  `reconstructed` is the location of bytes rebuilt from the recompression. Their
+  digest is computed here and must equal the original's; a digest supplied by
+  whatever did the rebuilding would be the codec's claim, which §4.3 forbids
+  relying on. On a match the evidence is recorded, the recompression assumes the
+  Acquired role, and the original goes to the recycle bin — alone, because an
+  asset holding the Acquired role is its own support. On any mismatch nothing
+  changes.
+  """
+  @spec discard_original(Ecto.UUID.t(), Ecto.UUID.t(), String.t(), Ecto.UUID.t()) ::
+          {:ok, Pluteus.Lifecycle.Recycling.t()} | {:error, term()}
+  def discard_original(original_id, recompression_id, reconstructed, principal_id) do
+    original = Repo.get!(Asset, original_id)
+    recompression = Repo.get!(Asset, recompression_id)
+    algorithm = algorithm!(original.digest_algorithm)
+
+    with :ok <- one_holding(original, recompression),
+         :ok <- acquired(original),
+         {:ok, digest} <- reconstruction_digest(reconstructed, algorithm),
+         :ok <- reproduces(digest, original) do
+      Repo.transaction(fn -> commit_discard(original, recompression, digest, principal_id) end)
+    end
+  end
+
+  defp commit_discard(original, recompression, digest, principal_id) do
+    {:ok, _} =
+      %Reconstruction{}
+      |> Reconstruction.changeset(%{
+        original_id: original.id,
+        recompression_id: recompression.id,
+        digest: digest,
+        digest_algorithm: original.digest_algorithm,
+        verified_by: principal_id,
+        verified_at: DateTime.utc_now()
+      })
+      |> Repo.insert()
+
+    {:ok, _} = add_role(recompression.id, :acquired, "reversible-recompression")
+
+    case Lifecycle.recycle(original.id, principal_id) do
+      {:ok, recycling} -> recycling
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp one_holding(%Asset{digital_item_id: same}, %Asset{digital_item_id: same}), do: :ok
+  defp one_holding(_original, _recompression), do: {:error, :not_one_holding}
+
+  defp acquired(%Asset{id: id}) do
+    if :acquired in role_classes_of(id), do: :ok, else: {:error, :original_is_not_acquired}
+  end
+
+  defp reconstruction_digest(location, algorithm) do
+    case Storage.digest(location, algorithm) do
+      {:ok, digest} -> {:ok, digest}
+      {:error, reason} -> {:error, {:reconstruction_unreadable, reason}}
+    end
+  end
+
+  defp reproduces(digest, %Asset{digest: expected}) do
+    if digest == String.downcase(expected),
+      do: :ok,
+      else: {:error, :reconstruction_does_not_match}
   end
 
   @spec verifications_of(Ecto.UUID.t()) :: [Verification.t()]

@@ -35,7 +35,11 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
   alias Pluteus.Catalog.WorkPart
+  alias Pluteus.Formats
   alias Pluteus.Repo
+  alias Pluteus.Storage
+
+  @measured ~w(size digest digest_algorithm format)a
 
   @doc """
   Inserts a res.
@@ -256,22 +260,39 @@ defmodule Pluteus.Catalog do
   The name is the one the bytes arrived under, which `location` does not record:
   a path says where a file is filed, not what it was called when it turned up,
   and normalization overwrites the second while changing the first.
+
+  The bytes must already be at `location`. Size, digest and format are taken
+  from them here and cannot be supplied: a digest a caller asserts is a claim,
+  and spec-03 §5.1 records what was actually read.
   """
   @spec create_asset(Ecto.UUID.t(), map(), String.t() | map()) ::
           {:ok, map()} | {:error, atom(), term(), map()}
   def create_asset(digital_item_id, attrs, name) do
+    case Map.keys(attrs) -- (Map.keys(attrs) -- @measured) do
+      [] ->
+        :ok
+
+      supplied ->
+        raise ArgumentError, "#{inspect(supplied)} are read from the bytes, not supplied"
+    end
+
     {roles, attrs} = Map.pop(attrs, :roles, [])
 
-    Multi.new()
-    |> insert_entity(
-      :asset,
-      :asset,
-      Asset,
-      Map.put(attrs, :digital_item_id, digital_item_id)
-    )
-    |> name_step(:asset, name)
-    |> role_steps(roles)
-    |> Repo.transaction()
+    with {:ok, measured} <- Storage.measure(attrs.location),
+         {:ok, format} <- Formats.identify(attrs.location) do
+      attrs =
+        attrs
+        |> Map.merge(measured)
+        |> Map.merge(%{format: format, digital_item_id: digital_item_id})
+
+      Multi.new()
+      |> insert_entity(:asset, :asset, Asset, attrs)
+      |> name_step(:asset, name)
+      |> role_steps(roles)
+      |> Repo.transaction()
+    else
+      {:error, reason} -> {:error, :bytes, reason, %{}}
+    end
   end
 
   @doc """

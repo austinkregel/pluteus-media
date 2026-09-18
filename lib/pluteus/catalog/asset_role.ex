@@ -41,11 +41,12 @@ defmodule Pluteus.Catalog.AssetRole do
   Whether a role in this class is worth backup capacity (§13.7).
 
   Derived assets are regenerable from a master and a recipe, so their loss costs
-  the time to rebuild them and nothing else.
+  the time to rebuild them and nothing else. A redundant copy is the backup, and
+  copying it again protects nothing.
   """
   @spec backed_up?(atom()) :: boolean()
-  def backed_up?(:derived), do: false
-  def backed_up?(role_class) when role_class in @role_classes, do: true
+  def backed_up?(role_class) when role_class in [:acquired, :normalized], do: true
+  def backed_up?(role_class) when role_class in [:redundant, :derived], do: false
 
   def changeset(asset_role, attrs) do
     asset_role

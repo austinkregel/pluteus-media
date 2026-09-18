@@ -71,6 +71,10 @@ A copy is an asset. There is no separate copy entity.
 | `verified_at` | Last successful verification, nullable |
 | `verification_interval` | How often this asset must be verified |
 
+`size`, `digest`, `digest_algorithm` and `format` are read from the bytes when the
+asset is recorded and MUST NOT be accepted from the caller. A digest supplied
+alongside the bytes is a claim about them; the record is of what was read.
+
 ### 3.3 Original and normalized-copy coupling
 
 spec-01 §13.2 couples them: deleting the acquired original MUST delete the
@@ -216,7 +220,10 @@ corrupt one. Format risk is a separate concern from bit-level integrity and MUST
 be tracked separately.
 
 Every asset MUST carry an identified format, determined by inspecting the bytes
-rather than by trusting a filename extension.
+rather than by trusting a filename extension. A match on the extension alone is
+not an identification: such a file, and one no signature recognizes, is recorded
+as `UNKNOWN`, which keeps it visible in a report of holdings by format rather
+than filed under a format its bytes were never shown to have.
 
 Identification SHOULD resolve to a registry entry rather than a local string, so
 that risk assessments published against the registry apply. [PRONOM] is the
