@@ -41,10 +41,12 @@ work MBID → work, recording MBID → expression, track MBID → track
 manifestation, release MBID → release manifestation. Recording this mapping is
 what makes spec-05's matching tractable.
 
-**An album is an aggregate**, not a whole-part structure. Per spec-01 §5.3 the
-aggregating work holds only selection and arrangement; aggregation happens at
-expression level via LRM-R25. Track order is arrangement on that relation
-(§12.1), never on an asset.
+**An album is an aggregate** at work and expression level, not a whole-part
+structure: per spec-01 §5.3 the aggregating work holds only selection and
+arrangement, and aggregation happens at expression level via LRM-R25. The
+release, as a manifestation, does have parts — media and tracks, through
+LRM-R26 — and track order is the positions on those (spec-01 §12.1), never on
+an asset and never repeated on the aggregation.
 
 Covers and remixes follow §6.4: a cover is a new work via LRM-R22; a nightcore
 or sped-up edit is a new expression via LRM-R24.

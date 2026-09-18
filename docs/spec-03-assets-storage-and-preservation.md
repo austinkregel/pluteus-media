@@ -299,6 +299,10 @@ household may have deliberate reasons for both.
 Deduplication MUST produce candidate pairs for a person to resolve. It MUST NOT
 merge, delete, or re-point references automatically.
 
+A candidate is raised by one of §8.2's signals or by a member, who MAY propose a
+pair no signal found — two scans of one letter differ in every byte. A decision
+is one of: *same holding*, *same expression*, or *distinct*.
+
 This follows spec-01 §7.5's pattern, where an automatic match and a human
 correction are separate rows and the correction wins by preference rather than by
 overwriting. A resolved duplicate decision MUST NOT be overturned by a later

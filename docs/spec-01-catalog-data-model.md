@@ -548,6 +548,10 @@ match and the correction are separate rows, and the correction wins by
 preference. A user correction MUST NOT be overwritten by subsequent automatic
 matching.
 
+It applies to categories (§17) as well. A category assigned automatically — by
+ingest, or by matching — and a member's correction of it are separate records
+carrying their provenance, and the correction wins by the same preference.
+
 **All controlled vocabularies in this system are seed data, not specification.**
 This includes category values, event types, asset roles, association refinements
 (§6.3), and representative expression attribute selections (§6.5). LRM §4.2.3
@@ -868,7 +872,13 @@ selection and arrangement the essence of an aggregating work, so the ordinal
 belongs on the relationship that expresses the aggregation — LRM-R25 at
 expression level for aggregates (§5.3), LRM-R26 at manifestation level for
 serials and other whole-part structures (§5.4). Arrangement MUST NOT be stored
-on an asset. It is a property of the holding, not of any stored copy, and it
+on an asset.
+
+Where an aggregate is released as a structured manifestation — a release made of
+media made of tracks — its order is the positions on those LRM-R26 relations,
+and the LRM-R25 aggregation carries none, since a second copy of the order could
+only drift from the first. LRM-R25's arrangement orders an aggregate with no
+such structure, such as a sequence the household composes. It is a property of the holding, not of any stored copy, and it
 survives the loss of every copy.
 
 **Part sequence** is a preservation fact: disc 2 of a two-disc rip, the second
@@ -1261,6 +1271,8 @@ here:
 - The standardized master format per media class (§13.3)
 - Codecs and their essence: lossy, lossless, or decided by the stream's
   parameters for codecs with both modes ([spec-04] §5.2)
+- Companion file patterns, and the names and patterns an inbox never acquires
+  ([spec-04] §4.1, §4.6)
 - Annotation body types, feature names, and feature groups ([spec-02] §6.1, §6.4)
 - Principal roles (§10.1); the role set is seed data, but the permissions each
   role carries are normative in [spec-06] §6, so adding one is a release

@@ -89,6 +89,22 @@ modification time changed within the settle interval is still being written and
 MUST NOT be acquired yet. Acquiring a half-copied file records bytes that were
 never the file.
 
+Some files in an inbox are not holdings: operating-system metadata such as
+`.DS_Store`, `Thumbs.db`, `desktop.ini`, AppleDouble `._` files and a NAS's
+`@eaDir` directories, and downloads still in progress under a temporary name
+such as `.part` or `.crdownload`. They are recognized by a registry of names and
+patterns (spec-01 §17), and are never acquired and never removed. A stalled
+partial download that stops changing is exactly the file the settle interval
+alone would acquire.
+
+A symbolic link is not acquired: moving it moves the link and not the bytes, and
+following it could read outside the inbox. A file with more than one hard link
+is copied and never renamed, and only the inbox's link is removed afterwards,
+since the bytes remain reachable, and changeable, through the other.
+
+Each of these is reported, so the household can see what the inbox is holding
+back.
+
 ### 4.2 The acquisition record
 
 Between arriving and being placed, a file has no place in the catalog: an asset
@@ -154,20 +170,41 @@ nomen; where it sat in the inbox is on its acquisition record.
 
 ### 4.6 Companion files
 
-Every file in the inbox is acquired as a holding of its own, including a file
-that describes another: synchronized lyrics, a cover image, a cue sheet, an
-`.nfo`. None of them is an asset of the media it describes. A digital item's
-assets are copies of one content (spec-01 §5.5), and making a cover image an
-Acquired asset of a track would make it the original the track's normalized
+A companion is a file that describes another: a cover image, synchronized
+lyrics, a cue sheet, an `.nfo`. It is recognized as one at identification,
+before any category is decided, by its name and format against a registry of
+companion patterns (spec-01 §17) — `cover.*`, `folder.*`, `*.lrc`, `*.cue`,
+`*.nfo` among them — so that album art never reaches placement as a photograph,
+nor lyrics as a document.
+
+A companion is acquired as a holding of its own, whose category is its companion
+kind — cover art, lyrics, cue sheet, description — and never its broad class's
+default (§6.3). It is not an asset of the media it describes. A digital item's
+assets are copies of one content (spec-01 §5.5), and a cover image made an
+Acquired asset of a track would become the original the track's normalized
 master depends on (spec-03 §3.3).
 
-A companion is related to the holding it describes by an association refining
-LRM-R1 (spec-01 §7.5), whose type names the relation: cover art of a release,
-lyrics of a recording, a cue sheet of a medium. Its content is then read into
-what it describes by a deriving tool: synchronized lyrics become derived
-temporal annotations on the track manifestation (spec-02), and a cue sheet or
-`.nfo` becomes evidence for placement. The companion itself is kept, since it
-cannot be regenerated.
+A companion finds what it describes through the inbox directory it arrived in,
+which is the only link an untagged `cover.jpg` has to its album. The directory is
+on its acquisition record, and the link is made once both the companion and a
+holding acquired from the same directory are placed, in whichever order they
+arrive:
+
+| Companion | Describes |
+| --- | --- |
+| lyrics sharing a media file's base name | the track manifestation placed from that file |
+| any other companion | the release placed from the directory's files |
+
+Where a directory's files were placed into more than one release, a
+directory-level companion is not linked, and the ambiguity is recorded as a
+finding for a person. The directory is evidence for this link and for nothing
+else; it does not group tracks into releases (§6.4).
+
+The link is an association refining LRM-R1 (spec-01 §7.5) whose type names the
+relation. A deriving tool then reads the companion into what it describes:
+synchronized lyrics become derived temporal annotations on the track
+manifestation (spec-02), and a cue sheet or `.nfo` becomes evidence for
+placement. The companion itself is kept, since it cannot be regenerated.
 
 ---
 
@@ -212,9 +249,10 @@ identified again.
 
 ### 5.3 Media class
 
-Identification decides the broad media class from the format and the streams:
-audio, video, image, or text. It is recorded on the acquisition record and
-routes placement (§6) and normalization (§7). The finer category a holding
+Identification decides the broad media class: companion, when the file matches
+a companion pattern (§4.6), which is decided first; otherwise audio, video,
+image or text, from the format and the streams. It is recorded on the
+acquisition record and routes placement (§6) and normalization (§7). The finer category a holding
 belongs to — film, television episode or home video; photograph or scan — is
 placement's decision (§6.3), since bytes alone do not carry it.
 
@@ -228,7 +266,8 @@ Placement writes a holding's work, expression, manifestation, digital item and
 asset in one transaction, with the asset taking the acquisition's identifier.
 No asset exists before its digital item does. The same transaction records the
 placement on the acquisition record and turns its probe output into derived
-annotations on the manifestation.
+annotations on the manifestation. The asset's verification interval (spec-03
+§3.2) is the one the deployment configures for its broad class.
 
 Placement MUST NOT treat each acquired file as a singleton manifestation of its
 own work (spec-01 §5.2). Files that are one release are placed as one release
@@ -255,6 +294,7 @@ from the broad class:
 
 | Broad class | Category without evidence |
 | --- | --- |
+| companion | its companion kind (§4.6) |
 | audio | music recording |
 | video | home video |
 | image | photograph |
@@ -295,9 +335,17 @@ A track joins a release when their release evidence agrees:
 
 1. Where a track carries an external release identifier, such as a MusicBrainz
    release identifier, the release is the one bearing it.
-2. Otherwise, the release is the one whose album title, album artist, release
-   date and total disc count all equal the track's.
+2. Otherwise, the release is the one whose album title and album artist equal
+   the track's, and whose release date and total disc count equal the track's
+   where both carry them. A field is compared only where both sides carry it: a
+   missing date neither matches nor contradicts another. A track carrying no
+   album title or no album artist falls to rule 3.
 3. A track with no album evidence is a release of its own.
+
+Untagged files — a plain WAV rip carries no album evidence at all — therefore
+each become a release of their own. That is accepted knowingly: a split release
+is corrected by joining it, whereas two releases wrongly merged must first be
+noticed.
 
 The inbox directory is not release evidence. Files dropped loose at the inbox
 root, or two releases fed through one directory at different times, are grouped
@@ -311,10 +359,18 @@ does not change which tracks join it.
 
 ### 6.5 Film and television
 
-Per Annex A §A.2–A.3. A container with several audio or subtitle streams
-embodies parallel expressions, one per stream, and MUST NOT be demultiplexed
-(spec-01 §5.3). A stream is addressed within the manifestation by a `track`
-selector (spec-01 §8.3).
+Per Annex A §A.2–A.3. A container is not demultiplexed (spec-01 §5.3). Its
+streams are placed as expressions by what distinguishes them:
+
+| Streams | Placed as |
+| --- | --- |
+| differing only in channel layout or encoding — a 5.1 mix and its stereo downmix in one language | one expression |
+| in different languages, spoken or subtitled | parallel expressions of the film |
+| marked by the container as commentary | an expression of a work of its own, the commentary, embodied in the same manifestation as an augmentation (spec-01 §5.3) |
+
+Every stream is addressed within the manifestation by a `track` selector
+(spec-01 §8.3), whichever expression it belongs to, so a 5.1 mix and its
+downmix are still told apart where analysis needs them to be.
 
 ### 6.6 Photographs and home video
 
@@ -326,9 +382,8 @@ One work, one expression, one manifestation, one digital item (Annex A §A.4,
 A scan is placed as a manifestation of a work and expression of its own.
 Placement cannot tell from the bytes that two scans are of one object: the scans
 differ in digest, and nothing here computes a perceptual hash. That two scans are
-of one object is a member's decision, recorded as a deduplication decision that
-the second scan is a further manifestation of the first's expression
-(spec-03 §8.3). Carrying it out moves the second scan's manifestation under the
+of one object is a member's decision: the member raises the pair as a
+deduplication candidate and decides it as *same expression* (spec-03 §8.3). Carrying it out moves the second scan's manifestation under the
 first scan's expression, which is spec-01 conformance criterion 10's outcome.
 
 ### 6.8 Documents and ebooks
@@ -389,7 +444,7 @@ from the start, side by side:
 
 | Family | Runs | Provides |
 | --- | --- | --- |
-| **Native** | In the deployment, on the BEAM | What the Elixir ecosystem can compute: short-time Fourier and mel spectra, MFCC through a discrete cosine transform, chroma from the short-time spectrum, loudness |
+| **Native** | In the deployment, on the BEAM | Short-time Fourier and mel spectra from `nx_signal`; MFCC once a discrete cosine transform is added from `evision`, which is not yet a dependency; chroma from the short-time spectrum and loudness, which are code to write over those |
 | **Sidecar** | A separate service | What it cannot: constant-Q chroma and the key, mode and harmony features built on it, beat and onset tracking, acoustic fingerprinting |
 
 They are different tools, so neither supersedes the other (spec-02 §5.2). Where
@@ -460,45 +515,56 @@ place.
    acquisition's and whose nomen is the name it arrived under.
 2. A file whose size or modification time changed within the settle interval is
    not acquired.
-3. An interruption at any step of §4.3 is completed by the next pass without
+3. Operating-system metadata, partial downloads under a temporary name, and
+   symbolic links are never acquired and never removed, and are reported; a file
+   with more than one hard link is copied, not renamed.
+4. An interruption at any step of §4.3 is completed by the next pass without
    losing the bytes and without a second acquisition.
-4. An asset's location does not change when the holding is renamed or re-placed.
-5. Placement writes a holding's work, expression, manifestation, digital item and
+5. An asset's location does not change when the holding is renamed or re-placed.
+6. A companion is recognized before a category is decided: a cover image is
+   never categorized as a photograph, nor lyrics as a document.
+7. A companion is linked to what its directory's files were placed as, whichever
+   arrives first; lyrics sharing a file's base name link to that track; a
+   companion whose directory produced more than one release is not linked and is
+   recorded as a finding.
+8. Removing a companion does not remove the described holding's normalized
+   master.
+9. Placement writes a holding's work, expression, manifestation, digital item and
    asset in one transaction, and no asset exists without its digital item.
-6. Names and categories placement writes carry automatic provenance; a member's
-   correction outranks them and survives placement running again.
-7. Two tracks of one release are placed as track manifestations positioned within
-   a medium, which is positioned within the release; neither is a singleton
-   manifestation of its own work.
-8. A track arriving after its release was placed joins that release.
-9. Two files in one inbox directory whose release evidence disagrees are not
-   placed in one release.
-10. A container with several audio streams is placed as parallel expressions of
-    one manifestation, is not demultiplexed, and each stream's analysis targets
-    that stream's `track` address.
-11. A file with a lossy stream is lossy; essence that cannot be determined is
+10. Names and categories placement writes carry automatic provenance; a member's
+    correction outranks them and survives placement running again.
+11. Two tracks of one release are placed as track manifestations positioned
+    within a medium, which is positioned within the release; the aggregation
+    carries no arrangement.
+12. A track arriving after its release was placed joins that release.
+13. Two files in one inbox directory whose release evidence disagrees are not
+    placed in one release; a field one track lacks neither joins nor separates
+    it.
+14. In a multi-stream container, streams differing only in channel layout or
+    encoding are one expression, streams in different languages are parallel
+    expressions, a commentary stream is an expression of a work of its own, and
+    each stream's analysis targets that stream's `track` address.
+15. A file with a lossy stream is lossy; essence that cannot be determined is
     recorded as unknown and is never re-encoded.
-12. Analysis runs over a manifestation, reads the normalized master of one
-    digital item carrying it, and records which asset it read.
-13. The native and sidecar tools' measurements of one recording both stand, each
-    naming its own tool and version.
-14. A tool response carrying a positional vector, or a schema version the
+16. Analysis runs over a manifestation, reads the normalized master of its
+    analysis source, and records which asset it read.
+17. The native and sidecar tools' measurements of one manifestation both stand,
+    each naming its own tool and version.
+18. A tool response carrying a positional vector, or a schema version the
     deployment does not know, is refused.
-15. A tool reporting a new version makes the manifestations it analysed earlier
+19. A tool reporting a new version makes the manifestations it analysed earlier
     due for re-analysis before any has been analysed at the new version.
-16. A permanent failure is recorded and excluded from due work until a person
+20. A permanent failure is recorded and excluded from due work until a person
     clears it or the tool's version changes; a transient failure is retried a
     bounded number of times and its exhaustion is recorded.
-17. A failure to acquire an inbox file is recorded against its acquisition
+21. A failure to acquire an inbox file is recorded against its acquisition
     record.
-18. Emptying the job queue loses no work: the stages find everything unfinished
+22. Emptying the job queue loses no work: the stages find everything unfinished
     from recorded state.
-19. A companion file is a holding of its own, related to what it describes;
-    removing it does not remove the described holding's normalized master.
-20. Changing a class's standard format leaves one Normalized asset per digital
+23. Changing a class's standard format leaves one Normalized asset per digital
     item.
-21. Every catalog write ingest makes is attributed to the System principal.
-22. The sidecar holds no database credentials and cannot write to primary
+24. Every catalog write ingest makes is attributed to the System principal.
+25. The sidecar holds no database credentials and cannot write to primary
     storage.
 
 ---
@@ -507,9 +573,13 @@ place.
 
 Everything in the inbox is untrusted input. Probing, identification and analysis
 parse arbitrary bytes, and parsers of media formats have a long history of
-exploitable defects. Tools SHOULD run with bounded time and memory and without
-access to anything they do not read, which the sidecar's read-only mount and
-absent credentials provide for it.
+exploitable defects.
+
+The sidecar reads storage read-only and holds no credentials. Probing and
+identification SHOULD run with the same isolation. Where they run within the
+deployment, as child processes of the application holding its database
+credentials, a parser defect reaches everything the deployment can reach. Every
+tool SHOULD run with bounded time and memory.
 
 Moving files out of the inbox means the deployment deletes from a directory the
 household writes to. It removes an inbox file only once the acquisition record
