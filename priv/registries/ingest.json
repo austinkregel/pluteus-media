@@ -105,7 +105,8 @@
     "audio": "music_recording",
     "video": "home_video",
     "image": "photograph",
-    "text": "document"
+    "text": "document",
+    "release": "album"
   },
   "standard_formats": {
     "audio": {"codec": "flac", "extension": "flac", "format": "fmt/279"}

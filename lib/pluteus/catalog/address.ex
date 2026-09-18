@@ -21,7 +21,7 @@ defmodule Pluteus.Catalog.Address do
   them survives a re-encode, and there is no column here that could hold one.
 
   A `track` selector names one stream of a container by what survives
-  normalization: its kind, language, disposition and channel layout, and its
+  normalization: its kind, language, disposition and channel count, and its
   ordinal among streams alike in all four. Neither the stream's index in the
   container nor its codec has a column, since normalization may change both.
   A reified track address is itself a coordinate space, and a temporal or
@@ -61,7 +61,7 @@ defmodule Pluteus.Catalog.Address do
     text_unit start_offset end_offset
     quote_exact quote_prefix quote_suffix
     page_number
-    stream_kind stream_language stream_disposition stream_channel_layout stream_ordinal
+    stream_kind stream_language stream_disposition stream_channels stream_ordinal
   )a
 
   @primary_key {:id, UUIDv7, autogenerate: false}
@@ -94,7 +94,7 @@ defmodule Pluteus.Catalog.Address do
     field :stream_kind, Ecto.Enum, values: @stream_kinds
     field :stream_language, :string
     field :stream_disposition, {:array, :string}
-    field :stream_channel_layout, :string
+    field :stream_channels, :integer
     field :stream_ordinal, :integer
 
     field :derivation_id, UUIDv7
@@ -170,6 +170,7 @@ defmodule Pluteus.Catalog.Address do
     |> check_constraint(:selector_type, name: :track_columns_match_selector_type)
     |> check_constraint(:stream_kind, name: :stream_kind_must_be_known)
     |> check_constraint(:stream_ordinal, name: :stream_ordinal_is_positive)
+    |> check_constraint(:stream_channels, name: :stream_channels_is_positive)
     |> check_constraint(:target_id, name: :address_targets_a_track)
     |> unique_constraint([:target_id, :stream_kind], name: :addresses_one_per_stream_index)
     |> foreign_key_constraint(:id)

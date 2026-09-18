@@ -23,6 +23,7 @@ config :pluteus, Oban,
       # spec-04 §3: each stage is scheduled work finding its own due items.
       {"* * * * *", Pluteus.Workers.AcquireFromInbox},
       {"* * * * *", Pluteus.Workers.IdentifyAcquisitions},
+      {"* * * * *", Pluteus.Workers.PlaceAcquisitions},
       {"30 4 * * *", Pluteus.Workers.FindStrayBytes},
       # spec-03 §5.2: verification is scheduled, not incidental.
       {"0 * * * *", Pluteus.Workers.ScheduleVerification},
@@ -34,7 +35,18 @@ config :pluteus, Oban,
 # spec-04 §4.1. A file is acquired once its size and modification time have
 # held for the settle interval; a minute outlasts the pauses of a slow network
 # copy without leaving a finished file waiting long.
-config :pluteus, Pluteus.Ingest, settle_seconds: 60
+#
+# spec-03 §3.2: each asset is verified at the interval configured for its
+# broad class.
+config :pluteus, Pluteus.Ingest,
+  settle_seconds: 60,
+  verification_interval_seconds: %{
+    audio: 90 * 86_400,
+    video: 90 * 86_400,
+    image: 90 * 86_400,
+    text: 90 * 86_400,
+    companion: 90 * 86_400
+  }
 
 # Identity arrives from a reverse proxy running forward auth. The subject is
 # the email address the provider sends, which is not stable across an email

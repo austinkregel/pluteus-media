@@ -26,6 +26,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Catalog.Association
+  alias Pluteus.Catalog.Category
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
@@ -198,6 +199,50 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
+  Adds a further expression to an existing work, embodied in a manifestation
+  that already exists: a dub carried by the container that also carries the
+  original audio.
+  """
+  @spec add_expression_embodied_in(Ecto.UUID.t(), Ecto.UUID.t(), String.t() | map()) ::
+          {:ok, map()} | {:error, atom(), term(), map()}
+  def add_expression_embodied_in(work_id, manifestation_id, name) do
+    Multi.new()
+    |> insert_entity(:expression, :expression, Expression, %{work_id: work_id})
+    |> name_step(:expression, name)
+    |> Multi.insert(:embodiment, fn %{expression: expression} ->
+      Embodiment.changeset(%Embodiment{}, %{
+        expression_id: expression.id,
+        manifestation_id: manifestation_id
+      })
+    end)
+    |> Repo.transaction()
+  end
+
+  @doc """
+  Brings a work and its first expression into existence embodied in a
+  manifestation that already exists: a commentary carried in a film's
+  container (§5.3).
+  """
+  @spec create_work_embodied_in(Ecto.UUID.t(), String.t() | map()) ::
+          {:ok, map()} | {:error, atom(), term(), map()}
+  def create_work_embodied_in(manifestation_id, name) do
+    Multi.new()
+    |> insert_entity(:work, :work, Work, %{})
+    |> name_step(:work, name)
+    |> insert_entity(:expression, :expression, Expression, fn %{work: work} ->
+      %{work_id: work.id}
+    end)
+    |> name_step(:expression, name)
+    |> Multi.insert(:embodiment, fn %{expression: expression} ->
+      Embodiment.changeset(%Embodiment{}, %{
+        expression_id: expression.id,
+        manifestation_id: manifestation_id
+      })
+    end)
+    |> Repo.transaction()
+  end
+
+  @doc """
   Adds a further manifestation embodying an existing expression.
 
   A second, better scan of an original is this: a new manifestation under the
@@ -266,6 +311,9 @@ defmodule Pluteus.Catalog do
   The bytes must already be at `location`. Size, digest and format are taken
   from them here and cannot be supplied: a digest a caller asserts is a claim,
   and spec-03 §5.1 records what was actually read.
+
+  `:id` may be supplied where the identifier was minted before the asset
+  existed, as an acquisition's is (spec-04 §4.2).
   """
   @spec create_asset(Ecto.UUID.t(), map(), String.t() | map()) ::
           {:ok, map()} | {:error, atom(), term(), map()}
@@ -296,6 +344,40 @@ defmodule Pluteus.Catalog do
       {:error, reason} -> {:error, :bytes, reason, %{}}
     end
   end
+
+  @doc """
+  Records a res's value in a categorization scheme, under one provenance.
+  """
+  @spec categorize(Ecto.UUID.t(), String.t(), String.t(), atom()) ::
+          {:ok, Category.t()} | {:error, Ecto.Changeset.t()}
+  def categorize(res_id, scheme, value, provenance) do
+    %Category{}
+    |> Category.changeset(%{res_id: res_id, scheme: scheme, value: value, provenance: provenance})
+    |> Repo.insert()
+  end
+
+  @doc """
+  A res's category in a scheme: a member's correction over an automatic
+  assignment over a seeded one (§7.5), or nil where it has none.
+  """
+  @spec category_of(Ecto.UUID.t(), String.t()) :: String.t() | nil
+  def category_of(res_id, scheme) do
+    from(c in Category, where: c.res_id == ^res_id and c.scheme == ^scheme)
+    |> Repo.all()
+    |> Enum.min_by(
+      &Enum.find_index(Nomen.provenance_rank(), fn p -> p == &1.provenance end),
+      fn ->
+        nil
+      end
+    )
+    |> case do
+      nil -> nil
+      %Category{value: value} -> value
+    end
+  end
+
+  @spec categories_of(Ecto.UUID.t()) :: [Category.t()]
+  def categories_of(res_id), do: Repo.all(from c in Category, where: c.res_id == ^res_id)
 
   @doc """
   Every asset holding a copy of the given digital item.
@@ -610,9 +692,10 @@ defmodule Pluteus.Catalog do
 
   defp insert_entity(multi, name, kind, schema, attrs) do
     res_key = :"#{name}_res"
+    id = if is_map(attrs), do: Map.get(attrs, :id)
 
     multi
-    |> Multi.insert(res_key, Res.changeset(%Res{}, %{kind: kind}))
+    |> Multi.insert(res_key, Res.changeset(%Res{}, %{kind: kind, id: id}))
     |> Multi.insert(name, fn changes ->
       base = if is_function(attrs, 1), do: attrs.(changes), else: attrs
       id = Map.fetch!(changes, res_key).id

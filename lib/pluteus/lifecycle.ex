@@ -20,6 +20,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
+  alias Pluteus.Catalog.Category
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
@@ -410,6 +411,7 @@ defmodule Pluteus.Lifecycle do
       work_creators: from(c in WorkCreator, where: c.work_id in ^ids),
       works: from(w in Work, where: w.id in ^ids),
       extents: from(x in Extent, where: x.res_id in ^ids),
+      categories: from(c in Category, where: c.res_id in ^ids),
       addresses: from(a in Address, where: a.id in ^ids),
       nomens: from(n in Nomen, where: n.id in ^ids)
     ]

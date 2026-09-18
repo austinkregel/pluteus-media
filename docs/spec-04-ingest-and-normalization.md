@@ -374,10 +374,13 @@ outside the catalog, and is unique: two tracks with one key placed at the same
 moment cannot create two releases, and a member's renaming of the release does
 not change which tracks join it.
 
-Placement does not guess. A track whose evidence names two different releases —
-its external identifier one and its tags another — and a track whose medium and
-track position are already taken in its release, are each recorded as a finding
-and left unplaced until a person decides.
+Placement does not guess. A track whose own evidence names two different
+releases — two differing external release identifiers, as a file tagged by two
+taggers can carry — and a track whose medium and track position are already
+taken in its release, are each recorded as a finding and left unplaced until a
+person decides. Where a track carries an external release identifier its tags
+are not compared with other tracks' for this, since whether they disagree would
+depend on which track was placed first.
 
 #### A release in one file
 
@@ -403,10 +406,13 @@ content streams (§5.2) are placed as expressions by what distinguishes them:
 Placement creates a `track` address (spec-01 §8.3) for each content stream,
 whichever expression it belongs to, so a 5.1 mix and its downmix are told apart
 wherever analysis needs them to be. The address identifies its stream by kind,
-language, disposition and channel layout, with an ordinal among streams alike in
-all four. It never identifies a stream by its index in the container or by its
-codec: normalization may reorder streams and re-encode them, and the address
-must still name the same one afterwards.
+language, disposition and channel count, with an ordinal among streams alike in
+all four. It never identifies a stream by its index in the container, its codec,
+or the name its codec gives the channel layout: normalization may reorder
+streams and re-encode them, a layout one codec calls `5.1(side)` another calls
+`5.1` and PCM leaves unnamed, and the address must still name the same stream
+afterwards. Nor does the default flag enter into it, since a muxer sets it
+freely.
 
 ### 6.6 Photographs and home video
 
@@ -592,8 +598,9 @@ place.
     equals only another missing field; a track arriving after its release was
     placed joins it.
 15. Two concurrent placements of tracks with one grouping key create one release.
-16. A track whose evidence names two releases, or whose position is already taken
-    in its release, is recorded as a finding and not placed.
+16. A track whose own evidence carries two different release identifiers, or
+    whose position is already taken in its release, is recorded as a finding and
+    not placed.
 17. A release in one file with a cue sheet is one digital item carrying the
     release manifestation, and each track is a track manifestation located by a
     temporal address on it.

@@ -92,8 +92,11 @@ defmodule Pluteus.IngestFixtures do
       `art: true` embeds a JPEG as cover art
     * `:mp3` — lossy audio
     * `:wav` — PCM audio
-    * `:film` — a Matroska container: lossy H.264 video, Russian FLAC audio
-      and an English AAC commentary
+    * `:film` — a Matroska container of lossy H.264 video and the audio
+      streams `audio:` lists as `{language, codec, disposition}`; by default
+      Russian FLAC and an English AAC commentary
+    * `:film_remuxed` — the default `:film` remuxed with its streams in
+      reverse order and its audio re-encoded to PCM, as a normalization might
     * `:ffv1` — lossless video with no audio
     * `:x264_444` — H.264 in the High 4:4:4 Predictive profile, which has a
       lossless mode the probe cannot see
@@ -117,6 +120,7 @@ defmodule Pluteus.IngestFixtures do
   defp output_name(:mp3), do: "out.mp3"
   defp output_name(:wav), do: "out.wav"
   defp output_name(:film), do: "out.mkv"
+  defp output_name(:film_remuxed), do: "out.mkv"
   defp output_name(:ffv1), do: "out.mkv"
   defp output_name(:x264_444), do: "out.mkv"
   defp output_name(:png), do: "out.png"
@@ -141,14 +145,36 @@ defmodule Pluteus.IngestFixtures do
 
   defp args(:wav, opts, _dir), do: tone(opts)
 
-  defp args(:film, _opts, _dir) do
+  defp args(:film, opts, _dir) do
+    audio = Keyword.get(opts, :audio, [{"rus", "flac", nil}, {"eng", "aac", "comment"}])
+
+    inputs =
+      audio
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {_stream, index} ->
+        ["-f", "lavfi", "-i", "sine=frequency=#{300 + index * 100}:duration=1"]
+      end)
+
+    maps = Enum.flat_map(0..length(audio), &["-map", "#{&1}"])
+
+    streams =
+      audio
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {{language, codec, disposition}, index} ->
+        ["-c:a:#{index}", codec, "-metadata:s:a:#{index}", "language=#{language}"] ++
+          ["-disposition:a:#{index}", disposition || "0"]
+      end)
+
     moving() ++
-      ["-f", "lavfi", "-i", "sine=frequency=440:duration=1"] ++
-      ["-f", "lavfi", "-i", "sine=frequency=300:duration=1"] ++
-      ["-map", "0", "-map", "1", "-map", "2"] ++
-      ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a:0", "flac", "-c:a:1", "aac"] ++
-      ["-metadata:s:a:0", "language=rus", "-metadata:s:a:1", "language=eng"] ++
-      ["-disposition:a:1", "comment", "-shortest"]
+      inputs ++ maps ++ ["-c:v", "libx264", "-pix_fmt", "yuv420p"] ++ streams ++ ["-shortest"]
+  end
+
+  defp args(:film_remuxed, _opts, dir) do
+    film = Path.join(dir, "film.mkv")
+    ffmpeg!(args(:film, [], dir) ++ [film])
+
+    ["-i", film, "-map", "0:2", "-map", "0:1", "-map", "0:0", "-c:v", "copy", "-c:a", "pcm_s16le"] ++
+      ["-disposition:a:0", "comment", "-disposition:a:1", "default"]
   end
 
   defp args(:ffv1, _opts, _dir), do: moving() ++ ["-c:v", "ffv1"]
@@ -158,7 +184,8 @@ defmodule Pluteus.IngestFixtures do
 
   defp tone(opts) do
     frequency = Keyword.get(opts, :frequency, 440)
-    ["-f", "lavfi", "-i", "sine=frequency=#{frequency}:duration=2"]
+    duration = Keyword.get(opts, :duration, 2)
+    ["-f", "lavfi", "-i", "sine=frequency=#{frequency}:duration=#{duration}"]
   end
 
   defp moving, do: ["-f", "lavfi", "-i", "testsrc=duration=1:size=64x48:rate=5"]

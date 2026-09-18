@@ -670,9 +670,11 @@ meaningless where two cuts of differing runtime exist.
 container, which exists only at manifestation and below.
 
 A `track` selector identifies its stream by kind, language, disposition and
-channel layout, with an ordinal among streams alike in all four. It MUST NOT
-identify a stream by its index in the container or by its codec, since
-normalization may reorder and re-encode streams ([spec-04] §6.5).
+channel count, with an ordinal among streams alike in all four. It MUST NOT
+identify a stream by its index in the container, its codec, or the name its
+codec gives the channel layout, since normalization may reorder and re-encode
+streams and the same six channels are named differently by different codecs
+([spec-04] §6.5).
 
 A reified `track` address is itself a coordinate space: a `temporal` or
 `spatiotemporal` selector MAY target one, addressing a region of that stream

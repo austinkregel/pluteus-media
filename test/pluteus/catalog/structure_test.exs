@@ -60,11 +60,12 @@ defmodule Pluteus.Catalog.StructureTest do
       assert %{target_id: [_]} = errors_on(changeset)
     end
 
-    test "a stream is never named by its index in the container or its codec" do
+    test "a stream is never named by its index, its codec or its layout's name" do
       fields = Address.__schema__(:fields)
 
-      refute Enum.any?(fields, &(&1 |> Atom.to_string() |> String.contains?("index")))
-      refute Enum.any?(fields, &(&1 |> Atom.to_string() |> String.contains?("codec")))
+      for unstable <- ["index", "codec", "layout"] do
+        refute Enum.any?(fields, &(&1 |> Atom.to_string() |> String.contains?(unstable)))
+      end
     end
 
     test "one stream has one address, whatever order its disposition flags came in", context do
@@ -181,7 +182,7 @@ defmodule Pluteus.Catalog.StructureTest do
       stream_kind: :audio,
       stream_language: "rus",
       stream_disposition: ["default"],
-      stream_channel_layout: "stereo",
+      stream_channels: 2,
       stream_ordinal: 1
     }
   end

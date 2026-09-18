@@ -86,6 +86,7 @@ defmodule Pluteus.Ingest.Identify do
         "codec" => stream["codec_name"],
         "language" => language(stream),
         "disposition" => disposition(stream),
+        "channels" => stream["channels"],
         "channel_layout" => stream["channel_layout"],
         "content" => content,
         "essence" => if(content, do: Atom.to_string(Registry.stream_essence(stream)))
