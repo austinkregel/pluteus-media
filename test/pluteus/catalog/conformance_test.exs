@@ -512,7 +512,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       permitted =
         ~w(id target_id target_kind selector_type start_ms end_ms x_percent y_percent
            width_percent height_percent text_unit start_offset end_offset quote_exact
-           quote_prefix quote_suffix page_number inserted_at updated_at)a
+           quote_prefix quote_suffix page_number derivation_id inserted_at updated_at)a
 
       assert Enum.sort(Address.__schema__(:fields)) == Enum.sort(permitted)
     end

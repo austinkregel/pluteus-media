@@ -15,6 +15,7 @@ defmodule Pluteus.Lifecycle do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Multi
+  alias Pluteus.Annotations.Annotation
   alias Pluteus.Assets
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Aggregation
@@ -227,18 +228,43 @@ defmodule Pluteus.Lifecycle do
 
   # §14.3: a res goes with a parent that is its only one. Addresses are
   # gathered after the structure because a cue's parent may be anything the
-  # structural pass took, and nomens last because every res taken carries its
-  # own.
+  # structural pass took; derived annotations after the addresses, because a
+  # segment embedding targets a segment; nomens last, because every res taken
+  # carries its own.
+  #
+  # Nothing authored is taken. spec-02 §8.1 keeps an authored annotation when
+  # its target goes, so the address it is anchored to stays with it: without
+  # it, "two minutes fourteen seconds in" would be lost along with the file.
   defp closure(%Res{id: id, kind: kind}) do
     structural = [id | below(kind, [id])]
     assets = Repo.all(from a in Asset, where: a.id in ^structural, select: a.id)
     coupled = Enum.flat_map(assets, &Assets.coupled_to/1)
     held = Enum.uniq(structural ++ coupled)
 
-    addressed = Repo.all(from a in Address, where: a.target_id in ^held, select: a.id)
+    addressed =
+      Repo.all(
+        from a in Address,
+          where: a.target_id in ^held,
+          where: a.id not in subquery(authored_anchors()),
+          select: a.id
+      )
+
     held = Enum.uniq(held ++ addressed)
 
+    derived =
+      Repo.all(
+        from n in Annotation,
+          where: n.target_id in ^held and not is_nil(n.derivation_id),
+          select: n.id
+      )
+
+    held = Enum.uniq(held ++ derived)
+
     Enum.uniq(held ++ Repo.all(from n in Nomen, where: n.res_id in ^held, select: n.id))
+  end
+
+  defp authored_anchors do
+    from n in Annotation, where: not is_nil(n.principal_id), select: n.target_id
   end
 
   # Repeats until an aggregate selects nothing further, so a box set takes its
@@ -355,6 +381,7 @@ defmodule Pluteus.Lifecycle do
   # already gone. The res rows themselves are kept as tombstones.
   defp delete_structure(multi, ids) do
     [
+      annotations: from(n in Annotation, where: n.id in ^ids),
       verifications: from(v in Verification, where: v.asset_id in ^ids),
       assets: from(a in Asset, where: a.id in ^ids),
       digital_items: from(d in DigitalItem, where: d.id in ^ids),

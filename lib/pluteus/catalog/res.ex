@@ -29,6 +29,7 @@ defmodule Pluteus.Catalog.Res do
     place
     time_span
     address
+    annotation
   )a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -53,10 +54,12 @@ defmodule Pluteus.Catalog.Res do
 
   A nomen is itself a res, so requiring every res to be named would require
   every name to be named. A reified address is identified by the region it
-  selects, and a household holds one per subtitle cue.
+  selects, and a household holds one per subtitle cue. An annotation is
+  identified by its target, body and provenance, and derived ones outnumber
+  every other row; a name for one would restate its tool and body type.
   """
   @spec unnamed_kinds() :: [atom()]
-  def unnamed_kinds, do: ~w(nomen address)a
+  def unnamed_kinds, do: ~w(nomen address annotation)a
 
   @doc """
   Builds a changeset for a res.

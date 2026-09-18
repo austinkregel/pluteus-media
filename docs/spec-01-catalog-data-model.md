@@ -343,12 +343,16 @@ Neither its lower bound nor LRM-R4's is enforced: a manifestation may be
 described with no physical exemplar and no file held, for the reason given in
 §5.2. Both upper bounds bind, and both M-to-1 sides bind absolutely.
 
-LRM-R13's lower bound is enforced, with two exemptions. A nomen is itself a res
-(§7.1), so requiring every res to carry a nomen would require every name to be
-named, and so on without end. A reified address (§8.2) is identified by the
+LRM-R13's lower bound is enforced, with three exemptions. A nomen is itself a
+res (§7.1), so requiring every res to carry a nomen would require every name to
+be named, and so on without end. A reified address (§8.2) is identified by the
 region it selects; a household holds one per subtitle cue, scene boundary and
 OCR word position, and a name for each would restate the selector and say
-nothing further. Every other kind MUST carry at least one nomen.
+nothing further. An annotation ([spec-02] §3.1) is identified by its target,
+body and provenance; derived annotations outnumber every other row class by
+orders of magnitude, and a name for one would restate its tool and body type.
+Every other kind MUST carry at least one nomen. The exempt kinds remain
+nameable.
 
 LRM-R3 is the only many-to-many among the four structural entities. An
 expression MUST realize exactly one work. An item MUST exemplify exactly one
@@ -1070,9 +1074,14 @@ approximate.
 Recycling cascades downward as one grouped operation with one restoration, and
 MUST NOT cascade upward. A res recycles with a parent that is its only one: an
 expression with its work, an item and a digital item with their manifestation,
-an asset with its digital item, and a reified address (§8.2) with the res it
-addresses. A res's nomens travel with it, and the copies coupled by §13.2 recycle
-and restore together.
+an asset with its digital item, a reified address (§8.2) with the res it
+addresses, and a derived annotation ([spec-02] §3.2) with what it targets. A
+res's nomens travel with it, and the copies coupled by §13.2 recycle and restore
+together.
+
+Nothing authored is taken. An authored annotation outlives its target
+([spec-02] §8.1), and so does the address it is anchored to: without that
+address the annotation would no longer say what it was about.
 
 A child with another parent that is not being recycled stays, and is unlinked
 from the one that is. A manifestation embodying several expressions (§5.3)

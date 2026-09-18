@@ -166,6 +166,7 @@ A derivation MUST record:
 | `tool` | Which deriving component — a named extractor, model, or analyser |
 | `version` | Its numerical identity, per §4.2 |
 | `parameters` | The settings materially affecting output |
+| `input` | The res the tool ran over |
 | `derived_at` | [RFC3339] UTC |
 
 ### 4.2 One mechanism, not two
@@ -187,6 +188,10 @@ own build, not a semantic version chosen by hand.
 
 The obligation this discharges: *re-derive everything produced before version X*
 must be a query, not archaeology.
+
+Because a version distinguishes builds rather than ranking them, version strings
+carry no order. Versions of one tool are ordered by when the system first
+records each, and that order is what "newer" (§5.2) and "before version X" mean.
 
 ### 4.3 Determinism is not assumed
 
@@ -214,6 +219,10 @@ not comparable across versions of one tool, and are in general not calibrated.
 | Same tool, same version | The later replaces the earlier; this is a re-run |
 | Different tools | Neither supersedes. Both stand. |
 | Derived vs. authored | Never. See §5.3. |
+
+A derivation is compared only with derivations of the same tool over the same
+input (§4.1). Re-segmenting one recording supersedes that recording's earlier
+segmentation and nothing else.
 
 Where two tools both produce a body of the same kind — two OCR engines over one
 scan — both annotations persist and selection among them is a query concern,
@@ -300,8 +309,8 @@ storage layer cannot represent them.
 
 ### 8.1 When a target is purged
 
-spec-01 §14.1 left the fate of annotations whose target has been purged open.
-The two classes diverge:
+spec-01 §14.2 defers the fate of annotations whose target has been purged to
+this section. The two classes diverge:
 
 **Derived annotations MUST be purged with their target.** They are regenerable
 from a resource that no longer exists, which makes them neither regenerable nor
@@ -310,7 +319,8 @@ meaningful.
 **Authored annotations MUST be retained.** They are not regenerable, spec-01
 §13.7 requires them to be backed up, and the assertion a person made retains
 value independent of whether the household still holds the thing it was about.
-An authored annotation whose target is purged is an orphan by design.
+An authored annotation whose target is purged is an orphan by design, and the
+address it is anchored to is retained with it (spec-01 §14.3).
 
 Implementations MUST be able to present an orphaned authored annotation —
 including what it targeted, by identifier — and MUST NOT treat the dangling
@@ -347,17 +357,15 @@ Superseding does not purge. See §5.2.
 
 ## 10. Security considerations
 
-Authored annotations are personal in the sense of spec-01 §11.2: a face tag or a
-highlight reveals what a principal was doing and what they think. Implementations
-SHOULD treat authored annotation visibility as a household-scoping question and
-resolve it deliberately, noting that spec-01 §7.3 already makes household naming
-shared by construction while §11.2 makes consumption events private. Annotations
-sit between those two rules and are not settled by either.
+Authored annotations are household-visible, as names are under spec-01 §7.3:
+what one principal asserts about a photograph or a passage, the household sees.
+They are not scoped to their author the way consumption events are under
+spec-01 §11.2.
 
-**OPEN:** whether authored annotations are household-visible like nomens or
-principal-scoped like events. The face-tag case argues for shared; the reading
-highlight argues for private. It may depend on body type, which would make it a
-property of the body type registry rather than a single rule.
+Authored annotations are personal all the same — a face tag or a highlight
+reveals what a principal was doing and what they think — and this makes them,
+after naming, the second case in which a personal contribution is visible to
+the household by default.
 
 ---
 

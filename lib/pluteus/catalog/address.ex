@@ -12,6 +12,10 @@ defmodule Pluteus.Catalog.Address do
   reification REQUIRED wherever something must reference the region durably,
   which is every case that reaches storage.
 
+  An address a derivation produced — a segment boundary, a detected scene —
+  carries that derivation. spec-02 §3.3 forbids anchoring anything authored to
+  one, because re-running the derivation moves it.
+
   The columns are the whole of §8.4's permitted basis. Byte offsets, frame
   numbers and absolute pixel coordinates are forbidden there because none of
   them survives a re-encode, and there is no column here that could hold one.
@@ -40,7 +44,7 @@ defmodule Pluteus.Catalog.Address do
   }
 
   @castable ~w(
-    id target_id target_kind selector_type
+    id target_id target_kind selector_type derivation_id
     start_ms end_ms
     x_percent y_percent width_percent height_percent
     text_unit start_offset end_offset
@@ -74,6 +78,8 @@ defmodule Pluteus.Catalog.Address do
     field :quote_suffix, :string
 
     field :page_number, :integer
+
+    field :derivation_id, UUIDv7
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -139,6 +145,7 @@ defmodule Pluteus.Catalog.Address do
     |> check_constraint(:quote_prefix, name: :quote_context_accompanies_a_quote)
     |> foreign_key_constraint(:id)
     |> foreign_key_constraint(:target_id)
+    |> foreign_key_constraint(:derivation_id)
   end
 
   defp validate_level(changeset) do
