@@ -33,6 +33,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.Item
   alias Pluteus.Catalog.Manifestation
   alias Pluteus.Catalog.ManifestationPart
+  alias Pluteus.Catalog.Measurement
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
@@ -314,6 +315,11 @@ defmodule Pluteus.Catalog do
 
   `:id` may be supplied where the identifier was minted before the asset
   existed, as an acquisition's is (spec-04 §4.2).
+
+  `:measurement` may be supplied in place of reading the bytes here: a
+  `Measurement` that `measure/1` took of the same location. A caller about to
+  write in a transaction measures first, so the transaction is not held open
+  for as long as a large file takes to read.
   """
   @spec create_asset(Ecto.UUID.t(), map(), String.t() | map()) ::
           {:ok, map()} | {:error, atom(), term(), map()}
@@ -327,21 +333,46 @@ defmodule Pluteus.Catalog do
     end
 
     {roles, attrs} = Map.pop(attrs, :roles, [])
+    {measurement, attrs} = Map.pop(attrs, :measurement)
 
-    with {:ok, measured} <- Storage.measure(attrs.location),
-         {:ok, format} <- Formats.identify(attrs.location) do
-      attrs =
-        attrs
-        |> Map.merge(measured)
-        |> Map.merge(%{format: format, digital_item_id: digital_item_id})
+    case measurement_of(measurement, attrs.location) do
+      {:ok, %Measurement{} = measured} ->
+        attrs =
+          Map.merge(attrs, %{
+            size: measured.size,
+            digest: measured.digest,
+            digest_algorithm: measured.digest_algorithm,
+            format: measured.format,
+            digital_item_id: digital_item_id
+          })
 
-      Multi.new()
-      |> insert_entity(:asset, :asset, Asset, attrs)
-      |> name_step(:asset, name)
-      |> role_steps(roles)
-      |> Repo.transaction()
-    else
-      {:error, reason} -> {:error, :bytes, reason, %{}}
+        Multi.new()
+        |> insert_entity(:asset, :asset, Asset, attrs)
+        |> name_step(:asset, name)
+        |> role_steps(roles)
+        |> Repo.transaction()
+
+      {:error, reason} ->
+        {:error, :bytes, reason, %{}}
+    end
+  end
+
+  defp measurement_of(nil, location), do: measure(location)
+
+  defp measurement_of(%Measurement{location: location} = measured, location), do: {:ok, measured}
+
+  defp measurement_of(%Measurement{location: other}, location) do
+    raise ArgumentError, "a measurement of #{inspect(other)} is not one of #{inspect(location)}"
+  end
+
+  @doc """
+  Reads the size, digest and format of the bytes at a location.
+  """
+  @spec measure(String.t()) :: {:ok, Measurement.t()} | {:error, term()}
+  def measure(location) do
+    with {:ok, measured} <- Storage.measure(location),
+         {:ok, format} <- Formats.identify(location) do
+      {:ok, struct!(Measurement, Map.merge(measured, %{location: location, format: format}))}
     end
   end
 

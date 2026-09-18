@@ -14,7 +14,9 @@ defmodule Pluteus.Workers.PlaceAcquisitions do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    :pluteus |> Application.fetch_env!(Ingest) |> Keyword.fetch!(:inbox) |> Place.place_due()
-    :ok
+    outcomes =
+      :pluteus |> Application.fetch_env!(Ingest) |> Keyword.fetch!(:inbox) |> Place.place_due()
+
+    if Ingest.crashed?(outcomes), do: {:error, :items_crashed_see_findings}, else: :ok
   end
 end

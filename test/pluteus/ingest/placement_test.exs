@@ -265,6 +265,22 @@ defmodule Pluteus.Ingest.PlacementTest do
       assert %Acquisition{state: :identified} = Ingest.get_acquisition!(id)
     end
 
+    test "one holding that crashes is a finding, and the pass places the rest", %{inbox: inbox} do
+      drop!(inbox, "holiday/IMG_0001.png", media!(:png))
+      drop!(inbox, "holiday/IMG_0002.jpg", media!(:jpeg))
+      [broken_id, sound_id] = inbox |> acquire_settled!(@t0) |> acquired() |> Enum.sort()
+      broken = Ingest.get_acquisition!(broken_id)
+      :ok = Storage.put(broken.location, StorageFixtures.png("not what was identified"))
+
+      assert [{^broken_id, {:crashed, message}}, {^sound_id, :placed}] = Place.place_due(inbox)
+      assert message =~ "changed after they were identified"
+
+      assert [%{stage: :place, kind: "crashed", permanent: false}] =
+               Ingest.findings_for_acquisition(broken_id)
+
+      assert Place.place_due(inbox) == []
+    end
+
     test "every placed asset realizes a digital item carrying a manifestation", %{inbox: inbox} do
       placed =
         ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png), "notes.txt" => "a note\n"})

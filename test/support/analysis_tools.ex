@@ -66,6 +66,17 @@ defmodule Pluteus.AnalysisTools do
     def analyse(_request), do: {:error, :permanent, :undecodable_bytes}
   end
 
+  defmodule Raising do
+    @moduledoc "Raises instead of answering."
+    @behaviour Pluteus.Analysis.Tool
+
+    @impl true
+    def describe, do: {:ok, %{name: "raising-tool", version: "1", schema_version: 1}}
+
+    @impl true
+    def analyse(_request), do: raise("the tool fell over")
+  end
+
   defmodule Unavailable do
     @moduledoc "Answers its description and then times out on every analysis."
     @behaviour Pluteus.Analysis.Tool

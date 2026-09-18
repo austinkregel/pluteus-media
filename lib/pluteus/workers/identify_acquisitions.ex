@@ -16,7 +16,8 @@ defmodule Pluteus.Workers.IdentifyAcquisitions do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    Ingest.identify_due()
-    :ok
+    if Ingest.crashed?(Ingest.identify_due()),
+      do: {:error, :items_crashed_see_findings},
+      else: :ok
   end
 end

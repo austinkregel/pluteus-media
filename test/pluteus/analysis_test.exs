@@ -69,6 +69,51 @@ defmodule Pluteus.AnalysisTest do
       assert m["loudness_lufs"] - m["rms_dbfs"] > 3.0
     end
 
+    test "samples fed in chunks measure the same as all at once" do
+      samples = for n <- 0..30_000, do: 0.2 * :math.sin(2 * :math.pi() * 523.25 * n / 22_050)
+      chunks = Enum.chunk_every(samples, 1_777)
+
+      whole =
+        Map.merge(Signal.spectral(samples, 22_050), Signal.loudness(samples))
+
+      streamed_spectral =
+        chunks
+        |> Enum.reduce(Signal.new_spectral(22_050), &Signal.feed_spectral(&2, &1))
+        |> Signal.finish_spectral()
+
+      streamed_loudness =
+        chunks
+        |> Enum.reduce(Signal.new_loudness(), &Signal.feed_loudness(&2, &1))
+        |> Signal.finish_loudness()
+
+      streamed = Map.merge(streamed_spectral, streamed_loudness)
+
+      assert Map.keys(streamed) == Map.keys(whole)
+      for {name, value} <- whole, do: assert_in_delta(streamed[name], value, 1.0e-9, name)
+    end
+
+    test "a float split across two chunks of decoded output is carried, not lost" do
+      bytes = for x <- [0.25, -0.5, 0.75], into: <<>>, do: <<x::float-32-little>>
+      <<first::binary-size(5), second::binary>> = bytes
+
+      {head, carry} = Native.samples(<<>>, first)
+      {tail, rest} = Native.samples(carry, second)
+
+      assert head ++ tail == [0.25, -0.5, 0.75]
+      assert rest == <<>>
+    end
+
+    test "gated loudness of bursts agrees with ffmpeg's EBU R128 meter", %{inbox: inbox} do
+      bursts = media!(:bursts)
+      [tone] = ingest!(inbox, %{"bursts.flac" => bursts})
+      [input] = Analysis.inputs()
+      master = Normalize.master_of(tone.digital_item_id)
+
+      {:ok, %{"measurements" => m}} = Native.analyse(Analysis.request(master, input))
+
+      assert_in_delta m["loudness_lufs"], ebur128(master.location), 0.2
+    end
+
     test "loudness is absent for silence rather than invented" do
       assert Signal.loudness(List.duplicate(0.0, 48_000)) == %{}
       assert Signal.level(List.duplicate(0.0, 100)) == %{}
@@ -252,6 +297,35 @@ defmodule Pluteus.AnalysisTest do
 
       {:ok, _} = Ingest.clear_finding(finding.id, actor.id)
       assert [_] = Analysis.due("strict-tool", "1")
+    end
+
+    test "a tool that raises on its last attempt is recorded, and the exception kept",
+         %{inbox: inbox} do
+      ingest!(inbox, %{"a.flac" => media!(:flac)})
+      [input] = Analysis.inputs()
+
+      args = %{
+        tool: Atom.to_string(AnalysisTools.Raising),
+        version: "1",
+        input_id: input.input_id
+      }
+
+      assert_raise RuntimeError, "the tool fell over", fn ->
+        perform_job(AnalyseInput, args, attempt: 1)
+      end
+
+      assert Ingest.open_findings() == []
+
+      assert_raise RuntimeError, "the tool fell over", fn ->
+        perform_job(AnalyseInput, args, attempt: 4)
+      end
+
+      assert [%{kind: "crashed", input_id: input_id, detail: %{"reason" => reason}}] =
+               Ingest.open_findings()
+
+      assert input_id == input.input_id
+      assert reason =~ "the tool fell over"
+      assert Analysis.due("raising-tool", "1") == []
     end
 
     test "a transient failure is retried, and its exhaustion recorded", %{inbox: inbox} do

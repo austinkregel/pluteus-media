@@ -76,7 +76,10 @@ defmodule Pluteus.Ingest.Place do
     )
     |> Repo.all()
     |> Enum.filter(&directory_settled?(inbox, &1.inbox_directory))
-    |> Enum.map(&{&1.id, place(&1)})
+    |> Enum.map(fn acquisition ->
+      {acquisition.id,
+       Ingest.isolated(:place, %{acquisition_id: acquisition.id}, fn -> place(acquisition) end)}
+    end)
   end
 
   @doc """
@@ -117,7 +120,18 @@ defmodule Pluteus.Ingest.Place do
   @spec place(Acquisition.t()) :: :placed | :finding | :already_placed
   def place(%Acquisition{state: :placed}), do: :already_placed
 
+  # The bytes are read before the transaction opens, since reading a large file
+  # takes as long as the file is large, and a transaction is not held open for
+  # it. They must still be the bytes that were identified.
   def place(%Acquisition{state: :identified} = acquisition) do
+    {:ok, measurement} = Catalog.measure(acquisition.location)
+
+    if measurement.digest != acquisition.digest do
+      raise "the bytes of #{acquisition.id} changed after they were identified"
+    end
+
+    acquisition = %{acquisition | measurement: measurement}
+
     outcome =
       Actor.as(Principals.system!().id, fn ->
         case place_by_class(acquisition) do
@@ -156,22 +170,19 @@ defmodule Pluteus.Ingest.Place do
     {:ok, %{digital_item: digital_item}} =
       Catalog.create_digital_item(manifestation_id, automatic(title(acquisition)))
 
-    {:ok, %{asset: asset}} =
+    {:ok, %{asset: _asset}} =
       Catalog.create_asset(
         digital_item.id,
         %{
           id: acquisition.id,
           location: acquisition.location,
+          measurement: acquisition.measurement,
           essence: acquisition.essence,
           verification_interval_seconds: verification_interval(acquisition.media_class),
           roles: [%{role_class: :acquired, role: "original"}]
         },
         automatic(Path.basename(acquisition.inbox_path))
       )
-
-    if asset.digest != acquisition.digest do
-      raise "the bytes of #{acquisition.id} changed after they were identified"
-    end
 
     record_probe(acquisition, manifestation_id)
     record_analysis_source(manifestation_id, digital_item.id)

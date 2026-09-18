@@ -40,9 +40,9 @@ services:
 
   # spec-04 §8.3 and §11. The analysing sidecar holds no database credentials
   # and sits on an internal network shared only with the app, so it reaches
-  # neither the database nor anything outside. It
-  # reads storage through read-only mounts at the paths the app uses, and its
-  # own filesystem is read-only apart from a tmpfs for scratch.
+  # neither the database nor anything outside. It reads storage through
+  # read-only mounts at the paths the app uses, and its own filesystem is
+  # read-only apart from a tmpfs for scratch.
   sidecar:
     build:
       context: ./sidecar

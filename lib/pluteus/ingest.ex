@@ -163,6 +163,39 @@ defmodule Pluteus.Ingest do
     |> Repo.update()
   end
 
+  @doc """
+  Runs one item's work for a stage. An exception is recorded as a finding
+  against the item, with the exception and where it was raised, and returned
+  as `{:crashed, message}`, so one item that cannot be handled neither stops a
+  pass over the others nor comes due again until a person clears it. The
+  caller reports the crash in its own result, which fails the pass's job.
+  """
+  @spec isolated(atom(), map(), (-> result)) :: result | {:crashed, String.t()}
+        when result: term()
+  def isolated(stage, subject, fun) do
+    fun.()
+  rescue
+    exception ->
+      message = Exception.format(:error, exception, __STACKTRACE__)
+
+      record_finding(
+        Map.merge(subject, %{
+          stage: stage,
+          kind: "crashed",
+          permanent: false,
+          detail: %{exception: message}
+        })
+      )
+
+      {:crashed, message}
+  end
+
+  @doc """
+  Whether any outcome in a pass is a crash.
+  """
+  @spec crashed?(Enumerable.t()) :: boolean()
+  def crashed?(outcomes), do: Enum.any?(outcomes, &match?({_item, {:crashed, _}}, &1))
+
   @spec record_finding(map()) :: Finding.t()
   def record_finding(attrs) do
     attrs = Map.put_new(attrs, :recorded_at, DateTime.utc_now())
@@ -252,15 +285,22 @@ defmodule Pluteus.Ingest do
   # §4.4: the same bytes dropped again at the same path, while what they became
   # is still held, are already acquired. Once that holding is recycled or
   # purged, the household is bringing back something it deleted.
+  # A file that cannot be read cannot be judged the same as anything. It is
+  # acquired like any other, so that its failure is recorded against a record
+  # (§9) rather than raised before one exists.
   defp already_acquired?(relative, source) do
-    {:ok, digest} = Storage.digest_file(source, :sha256)
+    case Storage.digest_file(source, :sha256) do
+      {:ok, digest} ->
+        from(a in Acquisition,
+          where: a.inbox_path == ^relative and a.digest == ^digest,
+          where: a.state in [:stored, :identified, :placed]
+        )
+        |> Repo.all()
+        |> Enum.any?(&holding_live?/1)
 
-    from(a in Acquisition,
-      where: a.inbox_path == ^relative and a.digest == ^digest,
-      where: a.state in [:stored, :identified, :placed]
-    )
-    |> Repo.all()
-    |> Enum.any?(&holding_live?/1)
+      {:error, _unreadable} ->
+        false
+    end
   end
 
   defp holding_live?(%Acquisition{state: :placed, digital_item_id: digital_item_id}),
@@ -278,8 +318,15 @@ defmodule Pluteus.Ingest do
 
     Repo.delete_all(from s in Sighting, where: s.inbox_path == ^relative)
 
-    {:acquired, place_bytes(acquisition, source, stat)}
+    {:acquired,
+     isolated(:acquire, %{acquisition_id: acquisition.id}, fn ->
+       place_bytes(acquisition, source, stat)
+     end)
+     |> tag_crash(acquisition.id)}
   end
+
+  defp tag_crash({:crashed, message}, id), do: {id, {:crashed, message}}
+  defp tag_crash(outcome, _id), do: outcome
 
   # A file with another hard link is copied: renaming it would leave the bytes
   # reachable, and changeable, through the other link. A rename across file
@@ -339,6 +386,10 @@ defmodule Pluteus.Ingest do
   defp identify_and_report(acquisition), do: {acquisition.id, acquisition.state}
 
   defp identify(acquisition) do
+    isolated(:identify, %{acquisition_id: acquisition.id}, fn -> identify_now(acquisition) end)
+  end
+
+  defp identify_now(acquisition) do
     case Identify.identify(acquisition) do
       {:ok, identified} ->
         acquisition |> Acquisition.identified_changeset(identified) |> Repo.update!()
@@ -360,10 +411,27 @@ defmodule Pluteus.Ingest do
   # --- Recovery (§4.3) ------------------------------------------------------------
 
   defp in_progress do
-    Repo.all(from a in Acquisition, where: is_nil(a.inbox_released_at), order_by: a.id)
+    blocked =
+      from f in Finding,
+        where: f.stage == :acquire and is_nil(f.cleared_at) and not is_nil(f.acquisition_id),
+        select: f.acquisition_id
+
+    Repo.all(
+      from a in Acquisition,
+        where: is_nil(a.inbox_released_at),
+        where: a.id not in subquery(blocked),
+        order_by: a.id
+    )
   end
 
   defp recover(acquisition, inbox, now) do
+    {acquisition.id,
+     isolated(:acquire, %{acquisition_id: acquisition.id}, fn ->
+       recover_now(acquisition, inbox, now)
+     end)}
+  end
+
+  defp recover_now(acquisition, inbox, now) do
     source = Path.join(inbox, acquisition.inbox_path)
     at_source = match?({:ok, %File.Stat{type: :regular}}, File.lstat(source))
     at_location = Storage.exists?(acquisition.location)
@@ -383,7 +451,10 @@ defmodule Pluteus.Ingest do
           vanished(acquisition, now)
       end
 
-    {acquisition.id, outcome}
+    case outcome do
+      {_id, result} -> result
+      result -> result
+    end
   end
 
   defp resume_copy(acquisition, source) do

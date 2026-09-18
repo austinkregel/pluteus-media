@@ -22,6 +22,7 @@ defmodule Pluteus.Ingest.Normalize do
 
   alias Pluteus.Actor
   alias Pluteus.Assets
+  alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Ingest
@@ -58,7 +59,10 @@ defmodule Pluteus.Ingest.Normalize do
     |> Enum.map(&{&1, standard_format.(&1.media_class)})
     |> Enum.filter(fn {acquisition, standard} -> due?(acquisition, standard) end)
     |> Enum.map(fn {acquisition, standard} ->
-      {acquisition.digital_item_id, normalize(acquisition, standard)}
+      {acquisition.digital_item_id,
+       Ingest.isolated(:normalize, %{digital_item_id: acquisition.digital_item_id}, fn ->
+         normalize(acquisition, standard)
+       end)}
     end)
   end
 
@@ -124,7 +128,8 @@ defmodule Pluteus.Ingest.Normalize do
     location = Ingest.location_for(id)
 
     with :ok <- encode(original.location, location, standard),
-         :ok <- same_content(original.location, location, acquisition.media_class) do
+         :ok <- same_content(original.location, location, acquisition.media_class),
+         {:ok, measurement} <- measure(location) do
       Actor.as(Principals.system!().id, fn ->
         {:ok, _} =
           Assets.normalize(
@@ -132,6 +137,7 @@ defmodule Pluteus.Ingest.Normalize do
             %{
               id: id,
               location: location,
+              measurement: measurement,
               verification_interval_seconds: original.verification_interval_seconds,
               role: "standardized-master"
             },
@@ -176,6 +182,14 @@ defmodule Pluteus.Ingest.Normalize do
     else
       {:ok, _} = Lifecycle.recycle(id, Principals.system!().id)
       :ok
+    end
+  end
+
+  # The master is read before the transaction that records it opens.
+  defp measure(location) do
+    case Catalog.measure(location) do
+      {:ok, measurement} -> {:ok, measurement}
+      {:error, reason} -> {:error, "master_unreadable", %{reason: inspect(reason)}}
     end
   end
 

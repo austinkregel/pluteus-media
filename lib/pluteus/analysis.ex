@@ -18,6 +18,7 @@ defmodule Pluteus.Analysis do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Actor
   alias Pluteus.Analysis.Source
   alias Pluteus.Annotations
   alias Pluteus.Annotations.Derivation
@@ -33,6 +34,7 @@ defmodule Pluteus.Analysis do
   alias Pluteus.Ingest.Probe
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
+  alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -211,6 +213,13 @@ defmodule Pluteus.Analysis do
     do: fail(name, version, input, "transient_failure_exhausted", false, reason, :failed)
 
   @doc """
+  Records that a tool raised on its last attempt at an input.
+  """
+  @spec crashed(map(), input(), String.t()) :: :failed
+  def crashed(%{name: name, version: version}, input, message),
+    do: fail(name, version, input, "crashed", false, message, :failed)
+
+  @doc """
   What a tool response must be: a known schema version and measurements by
   name, each a number or a string. A list anywhere is a positional vector, whose
   meaning depends on an order the response does not carry, and is refused.
@@ -284,29 +293,33 @@ defmodule Pluteus.Analysis do
     end
   end
 
+  # The tool has run by now, outside any transaction; recording what it measured
+  # is the only part that writes, and it is the deployment's own write.
   defp record(name, version, input, master, measurements) do
-    {:ok, derivation} =
-      Annotations.record_derivation(%{
-        tool: name,
-        version: version,
-        input_id: input.input_id,
-        parameters: %{
-          "asset" => master.id,
-          "start_ms" => input.start_ms,
-          "end_ms" => input.end_ms
-        },
-        derived_at: DateTime.utc_now()
-      })
+    Actor.as(Principals.system!().id, fn ->
+      {:ok, derivation} =
+        Annotations.record_derivation(%{
+          tool: name,
+          version: version,
+          input_id: input.input_id,
+          parameters: %{
+            "asset" => master.id,
+            "start_ms" => input.start_ms,
+            "end_ms" => input.end_ms
+          },
+          derived_at: DateTime.utc_now()
+        })
 
-    {:ok, _} =
-      Annotations.annotate(%{
-        target_id: input.input_id,
-        body_type: "measurements",
-        body: measurements,
-        derivation_id: derivation.id
-      })
+      {:ok, _} =
+        Annotations.annotate(%{
+          target_id: input.input_id,
+          body_type: "measurements",
+          body: measurements,
+          derivation_id: derivation.id
+        })
 
-    {:ok, derivation}
+      {:ok, derivation}
+    end)
   end
 
   defp fail(name, version, input, kind, permanent, reason, outcome) do

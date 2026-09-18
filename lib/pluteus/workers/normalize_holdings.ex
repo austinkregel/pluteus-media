@@ -9,11 +9,13 @@ defmodule Pluteus.Workers.NormalizeHoldings do
     max_attempts: 1,
     unique: [states: :incomplete, period: :infinity]
 
+  alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    Normalize.normalize_due()
-    :ok
+    if Ingest.crashed?(Normalize.normalize_due()),
+      do: {:error, :items_crashed_see_findings},
+      else: :ok
   end
 end

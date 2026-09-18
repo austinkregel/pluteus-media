@@ -48,6 +48,10 @@ defmodule Pluteus.Ingest.Acquisition do
 
     belongs_to :digital_item, DigitalItem
 
+    # What placement read from the stored bytes just before writing the holding.
+    # Never persisted: the measured fields above are the record's.
+    field :measurement, :any, virtual: true
+
     timestamps(type: :utc_datetime_usec)
   end
 

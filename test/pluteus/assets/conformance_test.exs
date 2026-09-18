@@ -286,6 +286,26 @@ defmodule Pluteus.Assets.ConformanceTest do
       end
     end
 
+    test "a measurement taken of other bytes is refused", %{letter: letter} do
+      {:ok, elsewhere} =
+        Catalog.measure(StorageFixtures.stored!("other.png", StorageFixtures.png("other")))
+
+      assert_raise ArgumentError, ~r/is not one of/, fn ->
+        Catalog.create_asset(letter.id, Map.put(attrs(), :measurement, elsewhere), "letter.tiff")
+      end
+    end
+
+    test "a measurement taken of the same bytes stands in for reading them", %{letter: letter} do
+      attrs = attrs()
+      {:ok, measurement} = Catalog.measure(attrs.location)
+
+      {:ok, %{asset: asset}} =
+        Catalog.create_asset(letter.id, Map.put(attrs, :measurement, measurement), "letter.tiff")
+
+      assert {asset.size, asset.digest, asset.format} ==
+               {measurement.size, measurement.digest, measurement.format}
+    end
+
     test "size and digest are read too", %{letter: letter} do
       bytes = StorageFixtures.png("measured")
       asset = stored!(letter.id, bytes: bytes)

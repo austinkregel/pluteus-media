@@ -16,7 +16,13 @@ defmodule Pluteus.Workers.AcquireFromInbox do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    :pluteus |> Application.fetch_env!(Ingest) |> Keyword.fetch!(:inbox) |> Ingest.acquire()
-    :ok
+    report =
+      :pluteus |> Application.fetch_env!(Ingest) |> Keyword.fetch!(:inbox) |> Ingest.acquire()
+
+    acquired = for {_path, {:acquired, outcome}} <- report.files, do: outcome
+
+    if Ingest.crashed?(report.recovered ++ acquired),
+      do: {:error, :items_crashed_see_findings},
+      else: :ok
   end
 end

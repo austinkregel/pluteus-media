@@ -91,6 +91,7 @@ defmodule Pluteus.IngestFixtures do
     * `:flac` — two seconds of tone; `tags:` become container tags, and
       `art: true` embeds a JPEG as cover art
     * `:mp3` — lossy audio
+    * `:bursts` — a tone in short bursts separated by silence
     * `:wav` — PCM audio
     * `:film` — a Matroska container of lossy H.264 video and the audio
       streams `audio:` lists as `{language, codec, disposition}`; by default
@@ -117,6 +118,7 @@ defmodule Pluteus.IngestFixtures do
   end
 
   defp output_name(:flac), do: "out.flac"
+  defp output_name(:bursts), do: "out.flac"
   defp output_name(:mp3), do: "out.mp3"
   defp output_name(:wav), do: "out.wav"
   defp output_name(:film), do: "out.mkv"
@@ -142,6 +144,14 @@ defmodule Pluteus.IngestFixtures do
   end
 
   defp args(:mp3, opts, _dir), do: tone(opts) ++ ["-c:a", "libmp3lame"]
+
+  # A 1 kHz tone in 120 ms bursts once a second for 5.3 seconds. Gating blocks
+  # that overlap by 75% measure it about 1 LU quieter than blocks that do not,
+  # so the overlap BS.1770 requires shows in the result.
+  defp args(:bursts, _opts, _dir) do
+    expression = "0.4*sin(2*PI*1000*t)*lt(mod(t,1.0),0.12)"
+    ["-f", "lavfi", "-i", "aevalsrc=exprs='#{expression}':s=48000:d=5.3"]
+  end
 
   defp args(:wav, opts, _dir), do: tone(opts)
 
