@@ -1,0 +1,191 @@
+defmodule Pluteus.IngestFixtures do
+  @moduledoc """
+  Inboxes, real media, and passes over them.
+
+  Every test gets an inbox of its own, and every byte an acquisition moves into
+  primary storage is removed when the test exits. Media are made by ffmpeg from
+  its own test sources, so a file has the codecs, streams, dispositions and tags
+  the test names and nothing borrowed.
+  """
+
+  import ExUnit.Callbacks, only: [on_exit: 1]
+
+  alias Pluteus.Ingest
+  alias Pluteus.Storage
+
+  @settle 60
+
+  @doc """
+  A fresh, empty inbox, removed when the test exits.
+  """
+  @spec inbox!() :: Path.t()
+  def inbox! do
+    inbox =
+      :pluteus
+      |> Application.fetch_env!(Pluteus.Ingest)
+      |> Keyword.fetch!(:inbox)
+      |> Path.join("t#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(inbox)
+    on_exit(fn -> File.rm_rf!(inbox) end)
+    inbox
+  end
+
+  @doc """
+  Writes bytes into the inbox at a relative path.
+  """
+  @spec drop!(Path.t(), String.t(), binary()) :: Path.t()
+  def drop!(inbox, relative, bytes) do
+    path = Path.join(inbox, relative)
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, bytes)
+    path
+  end
+
+  @doc """
+  Two passes a settle interval apart, so every file already in the inbox is
+  seen once and then acquired. Returns the second pass's report.
+  """
+  @spec acquire_settled!(Path.t(), DateTime.t()) :: map()
+  def acquire_settled!(inbox, from \\ DateTime.utc_now()) do
+    first = pass!(inbox, from)
+    second = pass!(inbox, DateTime.add(from, @settle, :second))
+    %{second | files: first.files ++ second.files, recovered: first.recovered ++ second.recovered}
+  end
+
+  @doc """
+  One pass over the inbox at a given moment. Bytes it moves are removed when
+  the test exits.
+  """
+  @spec pass!(Path.t(), DateTime.t()) :: map()
+  def pass!(inbox, now) do
+    report = Ingest.acquire(inbox, now: now, settle_seconds: @settle)
+
+    for {_path, {:acquired, {id, _outcome}}} <- report.files do
+      cleanup(id)
+    end
+
+    report
+  end
+
+  @doc """
+  The acquisition identifiers a report says were created.
+  """
+  @spec acquired(map()) :: [Ecto.UUID.t()]
+  def acquired(report), do: for({_path, {:acquired, {id, _}}} <- report.files, do: id)
+
+  @doc """
+  Removes an identifier's bytes when the test exits.
+  """
+  @spec cleanup(Ecto.UUID.t()) :: :ok
+  def cleanup(id) do
+    location = Ingest.location_for(id)
+    on_exit(fn -> Storage.delete(location) end)
+  end
+
+  @doc """
+  The bytes of a media file made by ffmpeg.
+
+  Recipes:
+
+    * `:flac` — two seconds of tone; `tags:` become container tags, and
+      `art: true` embeds a JPEG as cover art
+    * `:mp3` — lossy audio
+    * `:wav` — PCM audio
+    * `:film` — a Matroska container: lossy H.264 video, Russian FLAC audio
+      and an English AAC commentary
+    * `:ffv1` — lossless video with no audio
+    * `:x264_444` — H.264 in the High 4:4:4 Predictive profile, which has a
+      lossless mode the probe cannot see
+    * `:png`, `:jpeg` — one still frame
+  """
+  @spec media!(atom(), keyword()) :: binary()
+  def media!(recipe, opts \\ []) do
+    dir = Path.join(System.tmp_dir!(), "pluteus-media-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+
+    try do
+      out = Path.join(dir, output_name(recipe))
+      ffmpeg!(args(recipe, opts, dir) ++ [out])
+      File.read!(out)
+    after
+      File.rm_rf!(dir)
+    end
+  end
+
+  defp output_name(:flac), do: "out.flac"
+  defp output_name(:mp3), do: "out.mp3"
+  defp output_name(:wav), do: "out.wav"
+  defp output_name(:film), do: "out.mkv"
+  defp output_name(:ffv1), do: "out.mkv"
+  defp output_name(:x264_444), do: "out.mkv"
+  defp output_name(:png), do: "out.png"
+  defp output_name(:jpeg), do: "out.jpg"
+
+  defp args(:flac, opts, dir) do
+    art =
+      if opts[:art] do
+        art = Path.join(dir, "art.jpg")
+        ffmpeg!(still() ++ [art])
+
+        ["-i", art, "-map", "0", "-map", "1", "-c:a", "flac", "-c:v", "copy"] ++
+          ["-disposition:v", "attached_pic"]
+      else
+        []
+      end
+
+    tone(opts) ++ art ++ tags(opts[:tags] || %{})
+  end
+
+  defp args(:mp3, opts, _dir), do: tone(opts) ++ ["-c:a", "libmp3lame"]
+
+  defp args(:wav, opts, _dir), do: tone(opts)
+
+  defp args(:film, _opts, _dir) do
+    moving() ++
+      ["-f", "lavfi", "-i", "sine=frequency=440:duration=1"] ++
+      ["-f", "lavfi", "-i", "sine=frequency=300:duration=1"] ++
+      ["-map", "0", "-map", "1", "-map", "2"] ++
+      ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a:0", "flac", "-c:a:1", "aac"] ++
+      ["-metadata:s:a:0", "language=rus", "-metadata:s:a:1", "language=eng"] ++
+      ["-disposition:a:1", "comment", "-shortest"]
+  end
+
+  defp args(:ffv1, _opts, _dir), do: moving() ++ ["-c:v", "ffv1"]
+  defp args(:x264_444, _opts, _dir), do: moving() ++ ["-c:v", "libx264", "-pix_fmt", "yuv444p"]
+  defp args(:png, _opts, _dir), do: still()
+  defp args(:jpeg, _opts, _dir), do: still()
+
+  defp tone(opts) do
+    frequency = Keyword.get(opts, :frequency, 440)
+    ["-f", "lavfi", "-i", "sine=frequency=#{frequency}:duration=2"]
+  end
+
+  defp moving, do: ["-f", "lavfi", "-i", "testsrc=duration=1:size=64x48:rate=5"]
+  defp still, do: ["-f", "lavfi", "-i", "testsrc=size=64x48", "-frames:v", "1"]
+
+  defp tags(tags),
+    do: Enum.flat_map(tags, fn {key, value} -> ["-metadata", "#{key}=#{value}"] end)
+
+  defp ffmpeg!(args) do
+    case System.cmd("ffmpeg", ["-loglevel", "error", "-y" | args], stderr_to_stdout: true) do
+      {_output, 0} -> :ok
+      {output, status} -> raise "ffmpeg exited #{status}: #{output}"
+    end
+  end
+
+  @doc """
+  A one-page PDF, written by hand.
+  """
+  @spec pdf() :: binary()
+  def pdf do
+    """
+    %PDF-1.4
+    1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+    2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+    3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 10 10]>>endobj
+    trailer<</Root 1 0 R>>
+    %%EOF
+    """
+  end
+end

@@ -67,6 +67,8 @@ config :pluteus, PluteusWeb.Endpoint,
 
 config :pluteus, Pluteus.Storage, root: Path.expand("../storage", __DIR__)
 
+config :pluteus, Pluteus.Ingest, inbox: Path.expand("../inbox", __DIR__)
+
 config :pluteus, PluteusWeb.ForwardAuth,
   issuer: "http://localhost",
   secret: "development-proxy-secret"

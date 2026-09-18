@@ -17,15 +17,24 @@ config :pluteus,
 config :pluteus, Oban,
   engine: Oban.Engines.Basic,
   repo: Pluteus.Repo,
-  queues: [integrity: 2, lifecycle: 1],
+  queues: [integrity: 2, lifecycle: 1, ingest: 1],
   cron: [
     crontab: [
+      # spec-04 §3: each stage is scheduled work finding its own due items.
+      {"* * * * *", Pluteus.Workers.AcquireFromInbox},
+      {"* * * * *", Pluteus.Workers.IdentifyAcquisitions},
+      {"30 4 * * *", Pluteus.Workers.FindStrayBytes},
       # spec-03 §5.2: verification is scheduled, not incidental.
       {"0 * * * *", Pluteus.Workers.ScheduleVerification},
       # spec-01 §14.1: the recycle-bin window closes on its own.
       {"0 3 * * *", Pluteus.Workers.PurgeExpired}
     ]
   ]
+
+# spec-04 §4.1. A file is acquired once its size and modification time have
+# held for the settle interval; a minute outlasts the pauses of a slow network
+# copy without leaving a finished file waiting long.
+config :pluteus, Pluteus.Ingest, settle_seconds: 60
 
 # Identity arrives from a reverse proxy running forward auth. The subject is
 # the email address the provider sends, which is not stable across an email

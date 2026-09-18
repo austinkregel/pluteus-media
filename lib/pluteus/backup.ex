@@ -29,13 +29,15 @@ defmodule Pluteus.Backup do
     principal_identities events resume_positions recyclings recycled_res
     tombstones reconstructions duplicate_candidates schema_migrations
     trust_boundary devices audit_records catalog_writes work_creators
+    acquisitions ingest_findings
   )
 
   @selected ~w(assets asset_roles verifications addresses annotations)
 
   # Provenance of derived data goes with the derived data. The job queue is
-  # operational state, rebuilt by the schedule.
-  @excluded ~w(tool_versions derivations oban_jobs oban_peers)
+  # operational state, rebuilt by the schedule, and so are inbox sightings,
+  # which the next pass over the inbox takes again.
+  @excluded ~w(tool_versions derivations oban_jobs oban_peers inbox_sightings)
 
   @doc """
   Every table, classified as backed up whole, backed up in part, or excluded.

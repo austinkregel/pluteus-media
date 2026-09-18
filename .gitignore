@@ -38,3 +38,6 @@ npm-debug.log
 
 # Primary storage for asset bytes in development.
 /storage/
+
+# The inbox files are dropped into for acquisition in development.
+/inbox/

@@ -42,6 +42,8 @@ config :phoenix,
 # container sees through the bind mount.
 config :pluteus, Pluteus.Storage, root: Path.expand("../tmp/storage/test", __DIR__)
 
+config :pluteus, Pluteus.Ingest, inbox: Path.expand("../tmp/inbox/test", __DIR__)
+
 # Jobs are inserted but not run, so a test drives each one explicitly.
 config :pluteus, Oban, testing: :manual
 

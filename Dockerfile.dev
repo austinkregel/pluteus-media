@@ -24,6 +24,13 @@ RUN apt-get update \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
+# ffprobe reads a container's streams, codecs, dispositions and tags, which
+# identification decides essence and media class from (spec-04 §5). ffmpeg is
+# the normalizing encoder and builds the media the tests ingest.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app

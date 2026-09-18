@@ -47,8 +47,15 @@ defmodule Pluteus.Storage do
   records unreadable as an outcome in its own right, distinct from a mismatch.
   """
   @spec digest(String.t(), :crypto.hash_algorithm()) :: {:ok, String.t()} | {:error, term()}
-  def digest(location, algorithm) do
-    case File.open(path(location), [:read, :binary]) do
+  def digest(location, algorithm), do: location |> path() |> digest_file(algorithm)
+
+  @doc """
+  The digest of a file anywhere, as lowercase hex. Acquisition uses it on an
+  inbox file, before its bytes are in primary storage.
+  """
+  @spec digest_file(Path.t(), :crypto.hash_algorithm()) :: {:ok, String.t()} | {:error, term()}
+  def digest_file(file, algorithm) do
+    case File.open(file, [:read, :binary]) do
       {:ok, device} ->
         result = hash_chunks(device, :crypto.hash_init(algorithm))
         :ok = File.close(device)
@@ -77,6 +84,29 @@ defmodule Pluteus.Storage do
          {:ok, digest} <- digest(location, :sha256) do
       {:ok, %{size: size, digest: digest, digest_algorithm: "sha-256"}}
     end
+  end
+
+  @doc """
+  Moves a file from outside primary storage to a location by renaming it.
+
+  Returns the file system's answer, so a caller can tell a rename across file
+  systems (`:exdev`), which must become a copy, from any other failure.
+  """
+  @spec rename_in(Path.t(), String.t()) :: :ok | {:error, File.posix()}
+  def rename_in(source, location) do
+    target = path(location)
+    File.mkdir_p!(Path.dirname(target))
+    File.rename(source, target)
+  end
+
+  @doc """
+  Copies a file from outside primary storage to a location, leaving the source.
+  """
+  @spec copy_in(Path.t(), String.t()) :: :ok
+  def copy_in(source, location) do
+    target = path(location)
+    File.mkdir_p!(Path.dirname(target))
+    File.cp!(source, target)
   end
 
   @spec exists?(String.t()) :: boolean()

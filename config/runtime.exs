@@ -66,6 +66,15 @@ if config_env() == :prod do
 
   config :pluteus, Pluteus.Storage, root: storage_root
 
+  inbox =
+    System.get_env("INBOX") ||
+      raise """
+      environment variable INBOX is missing.
+      It names the directory the household drops files into for acquisition.
+      """
+
+  config :pluteus, Pluteus.Ingest, inbox: inbox
+
   forward_auth_issuer =
     System.get_env("FORWARD_AUTH_ISSUER") ||
       raise """
