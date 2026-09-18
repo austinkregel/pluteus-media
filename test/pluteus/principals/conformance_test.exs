@@ -11,7 +11,6 @@ defmodule Pluteus.Principals.ConformanceTest do
   alias Pluteus.Administration.AuditRecord
   alias Pluteus.Annotations
   alias Pluteus.Annotations.Annotation
-  alias Pluteus.Authorization
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Profile
   alias Pluteus.Events
@@ -178,32 +177,27 @@ defmodule Pluteus.Principals.ConformanceTest do
     end
   end
 
-  describe "9. A guest reads what it was granted, keeps its own events, and writes nothing" do
-    setup %{admin: admin, work: work} do
-      {:ok, guest} = Administration.create_principal(admin, %{role: "guest"})
-      {:ok, _} = Administration.grant_guest(admin, guest.id, work.id)
-      %{guest: guest}
+  describe "9. Whoever the provider admits is served as a Member on their first request" do
+    test "an identity arriving for the first time becomes a member" do
+      assert Principals.principal_for(@issuer, "cousin@elsewhere.test") == nil
+
+      principal = Principals.admit(@issuer, "cousin@elsewhere.test")
+
+      assert principal.role == "member"
+      assert Principals.principal_for(@issuer, "cousin@elsewhere.test").id == principal.id
     end
 
-    test "it reads the granted work and nothing else", %{guest: guest, work: work} do
-      {:ok, %{work: other}} = Catalog.create_work("Middlemarch")
-
-      assert Authorization.may_read?(guest, work.id)
-      refute Authorization.may_read?(guest, other.id)
+    test "arriving again is the same principal, not another", %{ada: ada} do
+      assert Principals.admit(@issuer, "ada@household.test").id == ada.id
     end
 
-    test "its playback is its own", %{guest: guest, work: work} do
-      assert {:ok, _} = Events.record(guest.id, work.id, "played")
-      assert [_] = Events.for_principal(guest.id)
-    end
+    test "a retired principal stays retired though the provider still admits it", %{
+      admin: admin,
+      bo: bo
+    } do
+      {:ok, _} = Administration.retire_principal(admin, bo.id)
 
-    test "the database refuses its catalog writes", %{guest: guest} do
-      error =
-        assert_raise Postgrex.Error, fn ->
-          Actor.as(guest.id, fn -> Catalog.create_work("Uncle Rob's cut") end)
-        end
-
-      assert error.postgres.message =~ "may not write to the catalog"
+      refute is_nil(Principals.admit(@issuer, "bo@household.test").retired_at)
     end
   end
 
@@ -288,9 +282,7 @@ defmodule Pluteus.Principals.ConformanceTest do
       bo: bo,
       work: work
     } do
-      {:ok, guest} = Administration.create_principal(admin, %{role: "guest"})
-      {:ok, _} = Administration.grant_guest(admin, guest.id, work.id)
-      {:ok, _} = Administration.revoke_guest_grant(admin, guest.id, work.id)
+      {:ok, _} = Administration.set_role(admin, bo.id, "administrator")
 
       {:ok, _} =
         Administration.add_identity(
@@ -309,19 +301,18 @@ defmodule Pluteus.Principals.ConformanceTest do
       trail = Administration.audit_trail()
 
       for {operation, subject} <- [
-            {"create_principal", guest.id},
-            {"grant_guest", guest.id},
-            {"revoke_guest_grant", guest.id},
+            {"set_role", bo.id},
             {"add_identity", bo.id},
             {"revoke_device", ada.id},
             {"empty_deletion", ada.id},
             {"retire_principal", bo.id}
           ] do
-        assert %AuditRecord{outcome: :succeeded, occurred_at: %DateTime{}} =
-                 Enum.find(trail, &(&1.operation == operation and &1.subject_id == subject)),
+        record = Enum.find(trail, &(&1.operation == operation and &1.subject_id == subject))
+
+        assert %AuditRecord{outcome: :succeeded, occurred_at: %DateTime{}} = record,
                "no record of #{operation}"
 
-        assert Enum.find(trail, &(&1.operation == operation)).actor_id == admin.id
+        assert record.actor_id == admin.id
       end
     end
 
@@ -332,6 +323,16 @@ defmodule Pluteus.Principals.ConformanceTest do
                Enum.filter(Administration.audit_trail(), &(&1.actor_id == ada.id))
 
       assert subject == bo.id
+    end
+
+    test "the System role is never assigned, and that refusal is recorded too", %{
+      admin: admin,
+      bo: bo
+    } do
+      assert {:error, :role_not_assignable} = Administration.set_role(admin, bo.id, "system")
+
+      assert [%AuditRecord{operation: "set_role", outcome: :failed}] =
+               Enum.filter(Administration.audit_trail(), &(&1.subject_id == bo.id))
     end
   end
 

@@ -14,12 +14,15 @@ defmodule PluteusWeb.ForwardAuth do
   Without it the identity headers are not read at all.
 
   The identity is the `(issuer, subject)` pair of spec-06 §3.2. The issuer is
-  the configured provider; the subject is read from the configured header. An
-  identity mapped to no principal is refused: this path maps identities onto
-  existing principals and never creates one (§6.5).
+  the configured provider; the subject is read from the configured header.
 
-  Pass `require_principal: false` for the one route that runs before any
-  principal exists, onboarding.
+  The provider has already decided the person may use the deployment — that is
+  what its letting the request through means — so an identity arriving for the
+  first time becomes a Member (§6.1). A principal an Administrator has retired
+  is refused even so.
+
+  Pass `require_principal: false` for onboarding, which reads the identity and
+  decides for itself what to make of it.
   """
 
   @behaviour Plug
@@ -68,10 +71,7 @@ defmodule PluteusWeb.ForwardAuth do
   end
 
   defp attach_principal(conn, {issuer, subject}) do
-    case Principals.principal_for(issuer, subject) do
-      nil ->
-        refuse(conn, 403, "unknown-identity", "this identity is not mapped to any principal")
-
+    case Principals.admit(issuer, subject) do
       %Principal{retired_at: retired} when not is_nil(retired) ->
         refuse(conn, 403, "retired", "this principal has been removed from the household")
 

@@ -35,7 +35,7 @@ defmodule Pluteus.Principals.Principal do
 
   @type t :: %__MODULE__{}
 
-  @roles ~w(system administrator member guest)
+  @roles ~w(system administrator member)
 
   @doc """
   The roles spec-06 §6.1 defines. Their permissions are normative, so the set

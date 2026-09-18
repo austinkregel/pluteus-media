@@ -3,7 +3,7 @@ defmodule Pluteus.Administration do
   The operations spec-06 §6.1 reserves for an Administrator, and the one it
   grants a Member over itself.
 
-  None of these is a catalog write. Each acts on principals, devices or grants,
+  None of these is a catalog write. Each acts on principals or devices,
   and each writes an audit record naming the actor, the affected principal, the
   operation and the time, whether it succeeded, was refused, or raised
   (spec-06 §6.6). A raised error is recorded and then raised again, never
@@ -18,18 +18,26 @@ defmodule Pluteus.Administration do
   alias Pluteus.Lifecycle.Recycling
   alias Pluteus.Principals
   alias Pluteus.Principals.Device
-  alias Pluteus.Principals.GuestGrant
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
 
   @doc """
-  Admits a principal: a member, a guest, or another administrator.
+  Makes a principal an Administrator or a Member.
+
+  The identity provider decides who is a member at all; this decides who among
+  them administers the deployment. The System role is the deployment's own and
+  is never assigned.
   """
-  @spec create_principal(Principal.t(), map()) :: {:ok, Principal.t()} | {:error, term()}
-  def create_principal(%Principal{} = actor, attrs) do
-    audited(actor, "create_principal", nil, fn ->
-      with :ok <- permit(actor, :create_principal) do
-        Principals.create_principal(attrs)
+  @spec set_role(Principal.t(), Ecto.UUID.t(), String.t()) ::
+          {:ok, Principal.t()} | {:error, term()}
+  def set_role(%Principal{} = actor, principal_id, role) do
+    audited(actor, "set_role", principal_id, fn ->
+      with :ok <- permit(actor, :set_role),
+           :ok <- assignable(role) do
+        Principal
+        |> Repo.get!(principal_id)
+        |> Principal.changeset(%{role: role})
+        |> Repo.update()
       end
     end)
   end
@@ -47,43 +55,6 @@ defmodule Pluteus.Administration do
         |> Repo.get!(principal_id)
         |> Ecto.Changeset.change(retired_at: now)
         |> Repo.update()
-      end
-    end)
-  end
-
-  @doc """
-  Lets a guest read one res.
-  """
-  @spec grant_guest(Principal.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
-          {:ok, GuestGrant.t()} | {:error, term()}
-  def grant_guest(%Principal{} = actor, guest_id, res_id, now \\ DateTime.utc_now()) do
-    audited(actor, "grant_guest", guest_id, fn ->
-      with :ok <- permit(actor, :grant_guest),
-           %Principal{role: "guest"} <- Repo.get!(Principal, guest_id) do
-        Repo.insert(%GuestGrant{
-          principal_id: guest_id,
-          res_id: res_id,
-          granted_by: actor.id,
-          granted_at: now
-        })
-      else
-        %Principal{} -> {:error, :not_a_guest}
-        {:error, reason} -> {:error, reason}
-      end
-    end)
-  end
-
-  @spec revoke_guest_grant(Principal.t(), Ecto.UUID.t(), Ecto.UUID.t()) ::
-          {:ok, non_neg_integer()} | {:error, term()}
-  def revoke_guest_grant(%Principal{} = actor, guest_id, res_id) do
-    audited(actor, "revoke_guest_grant", guest_id, fn ->
-      with :ok <- permit(actor, :revoke_guest_grant) do
-        {count, _} =
-          Repo.delete_all(
-            from g in GuestGrant, where: g.principal_id == ^guest_id and g.res_id == ^res_id
-          )
-
-        {:ok, count}
       end
     end)
   end
@@ -154,6 +125,9 @@ defmodule Pluteus.Administration do
     Repo.all(from a in AuditRecord, order_by: [desc: a.occurred_at, desc: a.inserted_at])
   end
 
+  defp assignable(role) when role in ["administrator", "member"], do: :ok
+  defp assignable(_role), do: {:error, :role_not_assignable}
+
   defp permit(actor, power) do
     if Authorization.may?(actor, power), do: :ok, else: {:error, :not_permitted}
   end
@@ -189,9 +163,6 @@ defmodule Pluteus.Administration do
       end
 
     case result do
-      {:ok, %Principal{id: created}} when is_nil(subject_id) ->
-        record!(actor, operation, created, nil)
-
       {:ok, _value} ->
         record!(actor, operation, subject_id, nil)
 

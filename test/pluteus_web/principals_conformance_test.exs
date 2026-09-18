@@ -1,7 +1,7 @@
 defmodule PluteusWeb.PrincipalsConformanceTest do
   @moduledoc """
   Conformance with spec-06 §7 for the criteria observed through the
-  authenticating proxy: identity, onboarding and guest reads.
+  authenticating proxy: identity, admission and onboarding.
   """
 
   use PluteusWeb.ConnCase, async: true
@@ -12,18 +12,18 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
   alias Pluteus.Principals
 
   describe "3. sub alone is never accepted: the proxy's identity is paired with its issuer" do
-    test "a principal mapped under another issuer is not reached", %{conn: conn} do
-      {:ok, principal} = Principals.create_principal(%{role: "member"})
+    test "a principal mapped under another issuer is not the one served", %{conn: conn} do
+      {:ok, elsewhere} = Principals.create_principal(%{role: "member"})
 
       {:ok, _} =
-        Principals.bind_identity(principal.id, "https://elsewhere.test", "ada@household.test")
+        Principals.bind_identity(elsewhere.id, "https://elsewhere.test", "ada@household.test")
 
       {:ok, %{work: work}} = Catalog.create_work("The Dig")
 
-      conn = get(through_proxy(conn, "ada@household.test"), "/works/#{work.id}")
+      assert get(through_proxy(conn, "ada@household.test"), "/works/#{work.id}").status == 200
 
-      assert conn.status == 403
-      assert Jason.decode!(conn.resp_body)["title"] == "unknown-identity"
+      served = Principals.principal_for(issuer(), "ada@household.test")
+      refute served.id == elsewhere.id
     end
   end
 
@@ -69,24 +69,18 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
     end
   end
 
-  describe "9. A guest reads what it was granted and nothing else" do
-    test "the granted work is served and another is not there", %{conn: conn} do
-      {:ok, admin} = Principals.create_principal(%{role: "administrator"})
-      {:ok, guest} = Administration.create_principal(admin, %{role: "guest"})
-      {:ok, _} = Principals.bind_identity(guest.id, issuer(), "cousin@elsewhere.test")
-      {:ok, %{work: granted}} = Catalog.create_work("The Dig")
-      {:ok, %{work: other}} = Catalog.create_work("Middlemarch")
-      {:ok, _} = Administration.grant_guest(admin, guest.id, granted.id)
+  describe "9. Whoever the provider admits is served as a Member on their first request" do
+    test "a cousin added to the household's team is let in without further admission", %{
+      conn: conn
+    } do
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
 
-      assert get(through_proxy(conn, "cousin@elsewhere.test"), "/works/#{granted.id}").status ==
-               200
-
-      assert get(through_proxy(build_conn(), "cousin@elsewhere.test"), "/works/#{other.id}").status ==
-               404
+      assert get(through_proxy(conn, "cousin@elsewhere.test"), "/works/#{work.id}").status == 200
+      assert Principals.principal_for(issuer(), "cousin@elsewhere.test").role == "member"
     end
   end
 
-  describe "12. Onboarding needs evidence of host access and closes once anyone exists" do
+  describe "12. Onboarding needs evidence of host access and closes once an Administrator exists" do
     @describetag :no_actor
 
     test "the console's secret makes the claimant the first Administrator", %{conn: conn} do
@@ -103,6 +97,19 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
       assert %{role: "system"} = Principals.system!()
     end
 
+    test "someone who arrived first as a member is promoted, not duplicated", %{conn: conn} do
+      member = Principals.admit(issuer(), "owner@household.test")
+      {:ok, secret} = Onboarding.prepare()
+
+      conn =
+        conn
+        |> through_proxy("owner@household.test")
+        |> post("/onboarding", %{"secret" => secret})
+
+      assert %{"administrator" => id} = json_response(conn, 201)
+      assert id == member.id
+    end
+
     test "any other secret is refused", %{conn: conn} do
       {:ok, _secret} = Onboarding.prepare()
 
@@ -115,7 +122,7 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
       refute Onboarding.onboarded?()
     end
 
-    test "once a principal exists it is not there at all", %{conn: conn} do
+    test "once an Administrator exists it is not there at all", %{conn: conn} do
       {:ok, secret} = Onboarding.prepare()
       {:ok, _} = Onboarding.claim(secret, {issuer(), "owner@household.test"})
 
@@ -132,14 +139,17 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
   describe "13. The System principal cannot be reached through the proxy" do
     @describetag :no_actor
 
-    test "no identity names it, so no request can act as it", %{conn: conn} do
+    test "no identity names it, so a request claiming to be it is someone else", %{conn: conn} do
       {:ok, secret} = Onboarding.prepare()
       {:ok, %{system: system}} = Onboarding.claim(secret, {issuer(), "owner@household.test"})
 
       assert Principals.identities_of(system.id) == []
 
-      conn = get(through_proxy(conn, "system"), "/works/#{Ecto.UUID.generate()}")
-      assert conn.status == 403
+      get(through_proxy(conn, "system"), "/works/#{Ecto.UUID.generate()}")
+
+      arrived = Principals.principal_for(issuer(), "system")
+      refute arrived.id == system.id
+      assert arrived.role == "member"
     end
   end
 end

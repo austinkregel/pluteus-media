@@ -4,9 +4,9 @@ defmodule Pluteus.Actor do
 
   spec-06 §6.2 requires every catalog write to record the acting principal. The
   database enforces it: each catalog table's trigger reads `pluteus.actor` for
-  the current transaction and refuses a write when it is unset, names a
-  principal that does not exist, or names a guest. Code therefore cannot forget
-  to attribute a write; it can only fail to make one.
+  the current transaction and refuses a write when it is unset or names a
+  principal that does not exist. Code therefore cannot forget to attribute a
+  write; it can only fail to make one.
   """
 
   alias Pluteus.Repo

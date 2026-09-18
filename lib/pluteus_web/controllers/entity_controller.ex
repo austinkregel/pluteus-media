@@ -12,7 +12,6 @@ defmodule PluteusWeb.EntityController do
 
   use PluteusWeb, :controller
 
-  alias Pluteus.Authorization
   alias Pluteus.Lifecycle
   alias PluteusWeb.Problem
 
@@ -20,17 +19,9 @@ defmodule PluteusWeb.EntityController do
     kind = conn.assigns.kind
 
     case Ecto.UUID.cast(id) do
-      {:ok, uuid} -> readable(conn, kind, uuid)
+      {:ok, uuid} -> respond(conn, kind, Lifecycle.state(uuid))
       :error -> not_found(conn)
     end
-  end
-
-  # A guest reads only what it was granted (spec-06 §6.1). Anything else is
-  # reported as absent, so a guest learns nothing about what else is held.
-  defp readable(conn, kind, uuid) do
-    if Authorization.may_read?(conn.assigns.principal, uuid),
-      do: respond(conn, kind, Lifecycle.state(uuid)),
-      else: not_found(conn)
   end
 
   defp respond(conn, kind, {:live, %{kind: kind} = res}) do

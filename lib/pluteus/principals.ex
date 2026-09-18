@@ -70,6 +70,47 @@ defmodule Pluteus.Principals do
   end
 
   @doc """
+  The principal an identity the provider has admitted belongs to, created as a
+  Member the first time the identity arrives (spec-06 §6.1).
+
+  Two first requests from one person can arrive together. The identity pair is
+  unique, so the second insert is refused, and the principal the first created
+  is the answer to both.
+  """
+  @spec admit(String.t(), String.t()) :: Principal.t()
+  def admit(issuer, subject) do
+    case principal_for(issuer, subject) do
+      %Principal{} = principal -> principal
+      nil -> first_arrival(issuer, subject)
+    end
+  end
+
+  defp first_arrival(issuer, subject) do
+    case Repo.transaction(fn -> create_member(issuer, subject) end) do
+      {:ok, principal} -> principal
+      {:error, :identity_taken} -> principal_for(issuer, subject)
+    end
+  end
+
+  defp create_member(issuer, subject) do
+    {:ok, principal} = create_principal(%{role: "member"})
+
+    case bind_identity(principal.id, issuer, subject) do
+      {:ok, _identity} ->
+        principal
+
+      {:error, changeset} ->
+        if taken?(changeset),
+          do: Repo.rollback(:identity_taken),
+          else: raise(Ecto.InvalidChangesetError, action: :insert, changeset: changeset)
+    end
+  end
+
+  defp taken?(%Ecto.Changeset{errors: errors}) do
+    Enum.any?(errors, fn {_field, {_message, opts}} -> opts[:constraint] == :unique end)
+  end
+
+  @doc """
   The principal a provider's `(issuer, subject)` pair names, if any.
   """
   @spec principal_for(String.t(), String.t()) :: Principal.t() | nil

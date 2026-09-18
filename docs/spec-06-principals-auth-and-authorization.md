@@ -193,31 +193,32 @@ release rather than a configuration change.
 | Role | May |
 | --- | --- |
 | **System** | Deployment configuration, seed loading, backup configuration, scheduled maintenance. Holds no consumption data and MUST NOT be a playback subject |
-| **Administrator** | Everything a member may, and: create and retire principals; admit and remove members; issue and revoke guest grants; add an external identity mapping to any principal (§3.3); revoke any principal's device; empty another principal's deletions (spec-01 §14.1) |
+| **Administrator** | Everything a member may, and: make a principal an Administrator or a Member; retire a principal; add an external identity mapping to any principal (§3.3); revoke any principal's device; empty another principal's deletions (spec-01 §14.1) |
 | **Member** | Read and write the catalog; read and write their own consumption data; manage their own devices; add an external identity mapping to themselves while an existing mapping still authenticates |
-| **Guest** | Read what they have been granted; accumulate their own consumption data; write nothing to the catalog |
 
 The System role is not a person. It is the deployment acting on itself, it is
 never reached through the authentication path of §3, and no human principal may
 assume it. It exists so that operations belonging to the deployment rather than
 to any household member have a holder that cannot log in.
 
-Guests exist because spec-01 §9.3 anticipates a deep link shared with a relative
-given access. A guest is a principal — their playback is attributable and their
-events are scoped like anyone's — but they are not part of the household in the
-sense of §5.
+Who may use the deployment at all is the identity provider's decision. A
+request the provider lets through (§3.2) is from someone it has admitted — for a
+forward-authentication provider, someone in a team entitled to this application
+— and the deployment does not ask again. An admitted identity mapped to no
+principal becomes a Member principal on its first request. A relative given
+access, the case spec-01 §9.3 anticipates, is added to the provider's team and
+is a Member like anyone else.
 
-**OPEN:** whether guest grants are per-entity, per-collection, or
-time-bounded. The mechanism is a spec-07 concern; that it must exist is settled
-here.
+An Administrator MAY retire a principal, which refuses it even while the
+provider still admits it.
 
 ### 6.2 Members are peers over the catalog
 
 Members are not further distinguished **over catalog content**. There is no owner
 of a work, no per-entity ownership, and no member whose catalog writes outrank
 another's. An Administrator holds no additional authority over the catalog; every
-row in §6.1's Administrator column acts on principals, devices, and grants, not
-on what the household holds.
+row in §6.1's Administrator column acts on principals and devices, not on what
+the household holds.
 
 The justification is the trust boundary itself: a household of a few people who
 already share physical access to the storage does not benefit from modelling
@@ -225,9 +226,9 @@ internal distrust, and the recycle bin (spec-01 §14) is the safety net against
 mistakes rather than a permission system.
 
 The distinction that does exist is drawn where the peer model cannot express the
-operation at all. Adding an identity mapping, admitting a member, or revoking
-another person's device are not catalog writes and have no peer reading: someone
-must hold them, and §6.1 says who.
+operation at all. Adding an identity mapping, making someone an Administrator,
+or revoking another person's device are not catalog writes and have no peer
+reading: someone must hold them, and §6.1 says who.
 
 Every catalog write MUST record the acting principal. This is what makes the peer
 model recoverable rather than merely permissive — the bin bounds the damage in
@@ -261,12 +262,13 @@ under spec-01 §7.3. §6.3 governs consumption events, not annotations.
 
 ### 6.5 Bootstrap
 
-A deployment begins with no principals, and the authentication path of §3 cannot
-create one: it maps an external identity onto a principal that already exists.
-The first Administrator is therefore established through an onboarding exchange
-that MUST require evidence of host access — a one-time secret written to the
-deployment's console or filesystem at first start — and that MUST become
-unreachable once any principal exists.
+The authentication path of §3 admits Members (§6.1); it cannot say who
+administers the deployment, since the identity provider does not. The first
+Administrator is therefore established through an onboarding exchange that MUST
+require evidence of host access — a one-time secret written to the deployment's
+console or filesystem at first start — and that MUST become unreachable once an
+Administrator exists. A claimant already admitted as a Member is made the
+Administrator rather than created again.
 
 The System principal is minted by the deployment at the same moment and carries
 no external identity mapping, which is what makes §6.1's prohibition on assuming
@@ -301,8 +303,9 @@ consumed.
    from the collective agent's nomens.
 8. Removing every member from the trust boundary leaves the collective agent
    creditable as the creator of the works it created.
-9. A guest can read granted content and accumulate their own events, and cannot
-   write to the catalog.
+9. An identity the provider admits is served as a Member on its first request
+   without an Administrator admitting it, and a retired principal is refused
+   while the provider still admits it.
 10. Principal A cannot observe principal B's events through any endpoint,
     including resumption lists, play counts, recommendations, and household
     aggregates.
@@ -310,7 +313,7 @@ consumed.
     other than itself, and accepted when adding one to itself while an existing
     mapping still authenticates.
 12. Onboarding establishes the first Administrator only on evidence of host
-    access, and is unreachable once any principal exists.
+    access, and is unreachable once an Administrator exists.
 13. The System principal has no external identity mapping and cannot be reached
     through the authentication path of §3.
 14. Every operation in §6.1's Administrator row writes an audit record naming the
