@@ -62,6 +62,7 @@ A copy is an asset. There is no separate copy entity.
 | `digital_item` | The holding it realizes (exactly one) |
 | `roles` | One or more seed values, within the four classes (spec-01 §5.5) |
 | `location` | Where the bytes are, as a storage-layer reference |
+| name | A nomen (spec-01 §7), which spec-01 §6.1 requires of every asset. For an acquired asset it is the name the bytes arrived under — evidence of provenance that `location` does not preserve, since normalization files the bytes anew |
 | `size` | Octets |
 | `digest` | Cryptographic content digest, per §5.1 |
 | `digest_algorithm` | The algorithm producing `digest`, per §5.1 |

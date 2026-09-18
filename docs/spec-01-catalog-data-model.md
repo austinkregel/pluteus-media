@@ -343,6 +343,13 @@ Neither its lower bound nor LRM-R4's is enforced: a manifestation may be
 described with no physical exemplar and no file held, for the reason given in
 §5.2. Both upper bounds bind, and both M-to-1 sides bind absolutely.
 
+LRM-R13's lower bound is enforced, with two exemptions. A nomen is itself a res
+(§7.1), so requiring every res to carry a nomen would require every name to be
+named, and so on without end. A reified address (§8.2) is identified by the
+region it selects; a household holds one per subtitle cue, scene boundary and
+OCR word position, and a name for each would restate the selector and say
+nothing further. Every other kind MUST carry at least one nomen.
+
 LRM-R3 is the only many-to-many among the four structural entities. An
 expression MUST realize exactly one work. An item MUST exemplify exactly one
 manifestation. A digital item MUST carry exactly one manifestation. A nomen MUST
@@ -361,6 +368,10 @@ last expression is deleted.
 Where enforced in a relational store, the constraint MUST be deferred to
 transaction commit, since the parent row must exist before a child can reference
 it.
+
+LRM-R13's lower bound (§6.1) is enforced the same way and for a further reason:
+§7.5 replaces the entire shipped name set on upgrade, and a perpetual invariant
+would refuse the removal of a shipped name from a res that carries no other.
 
 ### 6.3 Refinement
 
@@ -495,8 +506,13 @@ render boundary. It MUST NOT mutate. It MUST be deterministic: the same res and
 profile MUST resolve to the same nomen across calls, or the same item will appear
 under different labels between page loads.
 
-Resolution MUST always return a nomen. The terminal fallback is the nomen with a
-null assigner where one exists, and the primary identifier (§4.1) otherwise.
+Resolution MUST always return a nomen. Where several are visible, the terminal
+fallback is the nomen with a null assigner.
+
+There is no fallback to the primary identifier. §6.1 requires every res
+resolution is called on to carry at least one nomen, and a res exempt from that
+rule is not resolvable: resolution of one MUST fail rather than fabricate a
+label from an identifier that was never a name.
 
 Resolution applies to output only. It MUST NOT be assumed to constrain query
 paths; how search treats the set of nomens is an application decision made per
@@ -637,8 +653,10 @@ meaningless where two cuts of differing runtime exist.
 | `temporal`, `spatiotemporal` | Expression and below |
 | `text_position`, `text_quote` | Expression and below |
 | `spatial` | Manifestation and below |
+| `page` | Manifestation and below |
 
-`spatial` is bounded at manifestation because resolution differs per scan.
+`spatial` is bounded at manifestation because resolution differs per scan, and
+`page` because pagination differs per edition.
 
 Text offsets MUST record what they are an offset into. For a scanned book,
 character positions address a derived OCR transcript rather than the object, so a
@@ -681,8 +699,13 @@ An address serializes as a query string on the entity URI:
 ```
 /expressions/{uuid}?t=140,148
 /manifestations/{uuid}?xywh=percent:25,25,50,50
-/expressions/{uuid}?page=42&char=1200,1340
+/manifestations/{uuid}?page=42
+/expressions/{uuid}?char=1200,1340
 ```
+
+A link carries exactly one selector of one type (§8.3). `t` and `xywh` together
+are the one `spatiotemporal` selector; any other combination of dimensions names
+no type and MUST be rejected.
 
 [MEDIA-FRAGS] is adopted as the base grammar and supplies the `t`, `xywh`,
 `track`, and `id` dimensions. It has no form for text position, text quote, or
@@ -1093,7 +1116,8 @@ and languages may differ.
 11. No title column exists on work, expression, manifestation, or item.
 12. A nomen with a null language round-trips and renders.
 13. Resolution returns a nomen for every res, including one with only a
-    null-assigner nomen and one with no stored nomen at all.
+    null-assigner nomen. Resolution of a res exempt from LRM-R13 (§6.1) fails
+    rather than returning a fabricated label.
 14. Resolution called twice with the same res and profile returns the same nomen.
 15. Replacing the entire seed set preserves every locally created nomen and every
     correction to a seeded name.

@@ -1,7 +1,7 @@
 > **Non-normative.** Where this conflicts with
 > [spec-01](../spec-01-catalog-data-model.md), the specification governs.
 >
-> **Superseded here:** nothing. These tables remain current and are the most directly reusable material in this directory. They predate the preservation obligations of spec-01 §13.4, for which there are no entries — see the plan's package gaps.
+> **Superseded here:** nothing. The tables are the most directly reusable material in this directory. They carry no entries for the preservation obligations of spec-01 §13.4.
 
 # 04 — Elixir Package Reference
 
@@ -110,13 +110,20 @@ document ingest.
 
 | Package | Ver | Provides |
 |---|---|---|
-| `nx_signal` | 0.3.0 · 2026-03 | `stft`, `istft`, `stft_to_mel`, `mel_filters`, `fft_frequencies`, `as_windowed`, `overlap_and_add`, `czt`, `zoom_fft`. **Windows:** bartlett, blackman, hamming, hann, kaiser, rectangular, triangular. **Transforms:** `fft_nd`, `ifft_nd`. **Filters:** `firwin`, `wiener`, `median`. **PeakFinding:** `argrelextrema`, `argrelmax`, `argrelmin`. **Convolution:** `correlate`. **Waveforms:** `chirp`, `gaussian_pulse`, `polynomial_sweep`, `sawtooth`, `sinc`. |
+| `nx_signal` | 0.3.0 · 2026-03-09 | `stft`, `istft`, `stft_to_mel`, `mel_filters`, `fft_frequencies`, `as_windowed`, `overlap_and_add`. **Windows:** bartlett, blackman, hamming, hann, kaiser, rectangular, triangular. **Filters:** `firwin`, `wiener`, `median`. **PeakFinding:** `argrelextrema`, `argrelmax`, `argrelmin`. **Convolution:** `convolve`, `correlate`, `fftconvolve`. **Waveforms:** `chirp`, `gaussian_pulse`, `polynomial_sweep`, `sawtooth`, `sinc`, `square`, `unit_impulse`. |
+| `nx_audio` | 0.3.2 · 2026-09-02 | torchaudio-alike: `Spectrogram`, `MelSpectrogram`, `AmplitudeToDb`, `Resample` (sinc), μ-law. **No MFCC.** Solo maintainer, ~685 downloads, I/O shells out to the ffmpeg CLI. Read it, don't depend on it. |
+| `evision` | 1.0.0 | Precompiled OpenCV NIF. Supplies **`dct`/`idct` — orthonormal DCT-II**, `DCT_ROWS` for per-frame transforms. Bridged via `Evision.Mat.to_nx/2`. Also the image-side workhorse under spec-01 §13 and spec-03 §8.2. |
+
+> `czt` and `zoom_fft` exist on `nx_signal`'s `main` branch but are **not in the published
+> 0.3.0**, verified against the release docs. `NxSignal.Transforms.fft_nd`/`ifft_nd` are `@moduledoc false` — internal.
 
 **What `nx_signal` does NOT have** — verified absent from the entire Hex ecosystem, not just this
 package:
 
 - constant-Q transform / CQT / chroma / chromagram
-- MFCC / DCT / cepstral analysis
+- MFCC / cepstral analysis — but **DCT is available**: `Evision.dct`
+  is an orthonormal DCT-II, so MFCC is assemblable in-process as
+  `nx_signal` mel → log → `Evision.dct(DCT_ROWS)`, not original work
 - beat tracking, tempo detection, onset detection
 - chromaprint / AcoustID fingerprinting
 - any wrapper for aubio, Essentia, libXtract, or Rubber Band
@@ -149,11 +156,11 @@ video frames, and scanned documents, the visual analogue of chromaprint.
 | `exla` | 0.9 | XLA backend — CPU and CUDA compilation. | **Core** |
 | `scholar` | 0.4.x | **Traditional ML on Nx.** Clustering: `KMeans`, `DBSCAN`, `GaussianMixture`, `AffinityPropagation`, `Hierarchical`. Plus classification, regression, metrics, preprocessing, dimensionality reduction. GPU-ready, vectorizable, deployable via `Nx.Serving`. | **Core** |
 | `bumblebee` | 0.6.x | Pre-trained HF models in Axon: Whisper (ASR), CLIP, translation (M2M100/NLLB), text embedding, zero-shot classification, generation. | **Core** |
-| `ortex` | 0.1.x | **ONNX Runtime** via Rustler. CUDA / TensorRT / CoreML backends. Implements `Nx.Serving`. | **Core** |
+| `ortex` | 0.1.10 · **2024-11** | **ONNX Runtime** via Rustler. CUDA / TensorRT / CoreML backends. Implements `Nx.Serving`. ~22 months since last release, single maintainer — a maintenance risk for a package marked Core. | **Core** |
 | `axon` | 0.7 | Neural network definition — only if training something ourselves. | **Candidate** |
 | `explorer` | current | Polars-backed dataframes for exploratory work. | **Candidate** |
 | `pgvector` | 0.3 | Ecto + Postgrex support. Distances: `l2_distance`, `cosine_distance`, `max_inner_product`, `l1_distance`, `hamming_distance`, `jaccard_distance`. HNSW and IVFFlat index creation. Ships a hybrid-search (RRF) example. | **Core** |
-| `edifice` | 2026-02 | 186 neural network architectures for Nx/Axon (transformers, Mamba, diffusion). | **Watch** |
+| `edifice` | 2026-08 | 44 architectures across 14 families for Nx/Axon. Its audio models (Whisper, EnCodec, Wav2Vec2, VALL-E) **consume** log-mel spectrograms and do not compute them, so it does not help the DSP gap. | **Watch** |
 
 **`scholar` is the highest-value addition not currently in `document-sorter`.** It is the sklearn
 replacement, and it is what the *k*-component taste clustering and document clustering both need.
@@ -232,10 +239,22 @@ Not needed now; relevant if the Python sidecar is ever eliminated.
 
 | Project | Role |
 |---|---|
-| `bliss-rs` | Song analysis **for making playlists** — tempo, timbre, loudness, and distance between songs. Chroma extraction is a direct port of librosa's. Uses aubio bindings. **Already ships Python bindings**, so the FFI surface is proven and a Rustler NIF would be wrapping a working library rather than porting algorithms. |
+| `bliss-rs` | Publishes a **23-value** analysis vector — `Tempo`, `Zcr`, mean/std of spectral centroid, rolloff and flatness, mean/std of loudness, and `Chroma1`–`Chroma13`. Those chroma values are interval-class and triad proportions, **not a 12-bin chromagram**, so they are not a drop-in for chroma means/stds. Uses aubio for spectral/timbral work and a hand-port of librosa's chroma. Its public API exposes only the final vector — not the chromagram, CQT, or beat positions — so it cannot be called as a primitives library. Python and TypeScript bindings do exist, so the FFI surface is proven. GPL-3.0-only. |
 | `emo-audio` | Targets rough librosa parity: MFCCs, filterbank energies, spectral subband centroids. |
 | `nghe` | Rust OpenSubsonic server — reference implementation. In-memory transcoding via the ffmpeg C API, no ffmpeg binary or preconfigured profiles. |
 | `opensubsonic` (crate) | Async OpenSubsonic **client**, all ~80 v1.16.1 endpoints. Useful for integration testing our server. |
 
-A `Rustler` NIF over `bliss-rs` or aubio is the lowest-risk path to zero Python, and nothing like it
-exists on Hex — it would be a genuinely useful contribution.
+No BEAM binding to bliss, Essentia, libXtract, Vamp or Rubber Band exists on Hex, GitHub, GitLab
+or Codeberg. Of the ~25 repositories depending on `bliss-audio`, none targets the BEAM.
+
+The one exception is **[`lawik/s2l`](https://github.com/lawik/s2l)** — a C NIF that vendors aubio
+from source and links it statically via `elixir_make`, wiring up `aubio_tempo` (beat, BPM,
+confidence), `aubio_onset`, `aubio_pvoc` and `aubio_filterbank`, and shipping a Membrane sink. It is
+GPL-3.0, unpublished, zero stars, and seven commits made on one day in August 2026. The aubio calls
+are correct; adopting it means maintaining it.
+
+**The constant-Q transform is the one real wall.** No Elixir implementation exists anywhere, and
+aubio does not supply one — which is why bliss had to port librosa's chroma by hand. CQT gates 31 of
+the 107 dimensions: chroma means and stds, key/mode/key-strength, and the whole harmony group.
+Note that `chroma_stft` is an alternative to `chroma_cqt` that needs only an STFT; the downstream
+harmony features read the chroma matrix and are indifferent to how it was produced.

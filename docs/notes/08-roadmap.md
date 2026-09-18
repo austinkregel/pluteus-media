@@ -1,7 +1,7 @@
 > **Non-normative.** Where this conflicts with
 > [spec-01](../spec-01-catalog-data-model.md), the specification governs.
 >
-> **Superseded here:** the entire phase plan. The project is greenfield against spec-01, not a migration, so Phases 0–6 do not apply. **One item survives and is still time-sensitive:** the Phase 0 `extractor_version` backfill on the existing Python tables, without which that data cannot be validated on import.
+> **Superseded here:** the entire phase plan. The project is greenfield against spec-01, not a migration, so Phases 0–6 do not apply and the existing database is not an import source.
 
 # 08 — Roadmap
 
