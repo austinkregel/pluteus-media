@@ -12,8 +12,7 @@ defmodule Pluteus.Application do
       Pluteus.Repo,
       {DNSCluster, query: Application.get_env(:pluteus, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pluteus.PubSub},
-      # Start a worker by calling: Pluteus.Worker.start_link(arg)
-      # {Pluteus.Worker, arg},
+      {Oban, Application.fetch_env!(:pluteus, Oban)},
       # Start to serve requests, typically the last entry
       PluteusWeb.Endpoint
     ]

@@ -39,6 +39,34 @@ defmodule Pluteus.Storage do
   @spec read(String.t()) :: binary()
   def read(location), do: location |> path() |> File.read!()
 
+  @doc """
+  The digest of the bytes at a location, as lowercase hex.
+
+  Read in chunks, so a file larger than memory can be checked. A file that
+  cannot be opened or read returns the file system's reason: spec-03 §5.2
+  records unreadable as an outcome in its own right, distinct from a mismatch.
+  """
+  @spec digest(String.t(), :crypto.hash_algorithm()) :: {:ok, String.t()} | {:error, term()}
+  def digest(location, algorithm) do
+    case File.open(path(location), [:read, :binary]) do
+      {:ok, device} ->
+        result = hash_chunks(device, :crypto.hash_init(algorithm))
+        :ok = File.close(device)
+        result
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp hash_chunks(device, state) do
+    case IO.binread(device, 1_048_576) do
+      :eof -> {:ok, state |> :crypto.hash_final() |> Base.encode16(case: :lower)}
+      {:error, reason} -> {:error, reason}
+      chunk -> hash_chunks(device, :crypto.hash_update(state, chunk))
+    end
+  end
+
   @spec exists?(String.t()) :: boolean()
   def exists?(location), do: location |> path() |> File.exists?()
 

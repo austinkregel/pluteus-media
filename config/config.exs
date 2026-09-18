@@ -11,6 +11,22 @@ config :pluteus,
   ecto_repos: [Pluteus.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
+# Background work. Concurrency is set here and nowhere else: a worker never
+# spawns its own pool. Verification reads whole files, so two at a time keeps
+# the disks from thrashing while a pass over a large library still progresses.
+config :pluteus, Oban,
+  engine: Oban.Engines.Basic,
+  repo: Pluteus.Repo,
+  queues: [integrity: 2, lifecycle: 1],
+  cron: [
+    crontab: [
+      # spec-03 §5.2: verification is scheduled, not incidental.
+      {"0 * * * *", Pluteus.Workers.ScheduleVerification},
+      # spec-01 §14.1: the recycle-bin window closes on its own.
+      {"0 3 * * *", Pluteus.Workers.PurgeExpired}
+    ]
+  ]
+
 # Configure the endpoint
 config :pluteus, PluteusWeb.Endpoint,
   url: [host: "localhost"],

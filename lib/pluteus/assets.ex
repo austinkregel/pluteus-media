@@ -17,6 +17,7 @@ defmodule Pluteus.Assets do
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Catalog.Verification
   alias Pluteus.Repo
+  alias Pluteus.Storage
 
   @doc """
   Gives an asset a further role.
@@ -104,6 +105,40 @@ defmodule Pluteus.Assets do
       mark_verified(repo, asset_id, outcome, occurred_at)
     end)
     |> Repo.transaction()
+  end
+
+  @doc """
+  Reads an asset's bytes, compares them with the digest recorded for it, and
+  records the outcome.
+
+  An asset in the recycle bin is verified like any other: its bytes are kept
+  unchanged through the window so that restoring it is exact, and that promise
+  is only as good as the check behind it.
+
+  Raises for a digest algorithm this system cannot compute. A digest nothing can
+  check is not an unverified asset but an unverifiable one, and that is a
+  defect in the record, not an outcome of reading it.
+  """
+  @spec verify(Ecto.UUID.t(), DateTime.t()) :: {:ok, map()} | {:error, atom(), term(), map()}
+  def verify(asset_id, now \\ DateTime.utc_now()) do
+    asset = Repo.get!(Asset, asset_id)
+    expected = String.downcase(asset.digest)
+
+    outcome =
+      case Storage.digest(asset.location, algorithm!(asset.digest_algorithm)) do
+        {:ok, ^expected} -> :verified
+        {:ok, _other} -> :mismatched
+        {:error, _reason} -> :unreadable
+      end
+
+    record_verification(asset_id, outcome, now)
+  end
+
+  defp algorithm!("sha-256"), do: :sha256
+  defp algorithm!("sha-512"), do: :sha512
+
+  defp algorithm!(other) do
+    raise ArgumentError, "no digest algorithm #{inspect(other)} is supported"
   end
 
   @spec verifications_of(Ecto.UUID.t()) :: [Verification.t()]

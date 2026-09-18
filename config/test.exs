@@ -41,3 +41,6 @@ config :phoenix,
 # Stored bytes live under the repository's ignored tmp directory, which the
 # container sees through the bind mount.
 config :pluteus, Pluteus.Storage, root: Path.expand("../tmp/storage/test", __DIR__)
+
+# Jobs are inserted but not run, so a test drives each one explicitly.
+config :pluteus, Oban, testing: :manual

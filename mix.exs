@@ -65,6 +65,7 @@ defmodule Pluteus.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:uuidv7, "~> 1.0"},
+      {:oban, "~> 2.24"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false}
     ]
