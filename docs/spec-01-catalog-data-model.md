@@ -1084,6 +1084,15 @@ Aggregation (§5.3) is not parentage — the aggregating work holds selection an
 arrangement criteria and contains nothing — so recycling an album leaves its
 tracks, and purge removes only the aggregation link.
 
+A deletion MAY be extended to what an aggregate selects: deleting an album with
+its tracks. An aggregated expression then recycles with the aggregate when no
+other live aggregate selects it, so a track that also appears on a compilation
+stays. The extension applies recursively, so a box set takes the albums it
+selects and theirs. The work behind an aggregated expression recycles with it
+only when every expression of that work does, so a song with a live recording
+elsewhere keeps its work. This is the one case in which recycling reaches a work
+from below, and it does so only where nothing of the work would remain.
+
 References that record who or what a res was rather than what it contains — a
 nomen's assigner, a principal's person, events, resume positions — neither
 cascade nor unlink. They continue to name the purged identifier, which the

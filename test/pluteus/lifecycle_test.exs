@@ -145,6 +145,84 @@ defmodule Pluteus.LifecycleTest do
     end
   end
 
+  describe "§14.3, deleting an album with its tracks" do
+    setup do
+      {:ok, %{work: album_work, expression: album}} = Catalog.create_work("Kind of Blue")
+
+      {:ok, %{work: song, expression: track, manifestation: take}} =
+        Catalog.create_work("So What")
+
+      {:ok, _} = Catalog.aggregate(album.id, track.id)
+
+      %{album_work: album_work, album: album, song: song, track: track, take: take}
+    end
+
+    test "takes each track, its recording and the song", %{ada: ada} = context do
+      {:ok, recycling} =
+        Lifecycle.recycle(context.album_work.id, ada.id, with_aggregated: true)
+
+      held = Lifecycle.contents(recycling.id)
+
+      for res <- [context.album, context.track, context.take, context.song] do
+        assert res.id in held
+      end
+    end
+
+    test "leaves a track that a compilation also carries", %{ada: ada} = context do
+      {:ok, %{expression: compilation}} = Catalog.create_work("Jazz Essentials")
+      {:ok, _} = Catalog.aggregate(compilation.id, context.track.id)
+
+      {:ok, recycling} =
+        Lifecycle.recycle(context.album_work.id, ada.id, with_aggregated: true)
+
+      refute context.track.id in Lifecycle.contents(recycling.id)
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      assert {:live, _res} = Lifecycle.state(context.track.id)
+      assert Catalog.arrangement_of(compilation.id, context.track.id) == nil
+      assert Catalog.arrange(compilation.id, context.track.id, 1) == 1
+      assert Catalog.arrangement_of(compilation.id, context.track.id) == 1
+    end
+
+    test "keeps the song when a live recording of it is elsewhere", %{ada: ada} = context do
+      {:ok, %{expression: live}} = Catalog.add_expression(context.song.id, "So What, live 1960")
+
+      {:ok, recycling} =
+        Lifecycle.recycle(context.album_work.id, ada.id, with_aggregated: true)
+
+      held = Lifecycle.contents(recycling.id)
+
+      assert context.track.id in held
+      refute context.song.id in held
+      refute live.id in held
+    end
+
+    test "a box set takes its albums and their tracks", %{ada: ada} = context do
+      {:ok, %{work: box}} = Catalog.create_work("The Complete Columbia Recordings")
+      [box_expression] = Catalog.expressions_of(box.id)
+      {:ok, _} = Catalog.aggregate(box_expression.id, context.album.id)
+
+      {:ok, recycling} = Lifecycle.recycle(box.id, ada.id, with_aggregated: true)
+      held = Lifecycle.contents(recycling.id)
+
+      assert context.album.id in held
+      assert context.track.id in held
+      assert context.song.id in held
+    end
+
+    test "and one restoration brings all of it back", %{ada: ada} = context do
+      {:ok, recycling} =
+        Lifecycle.recycle(context.album_work.id, ada.id, with_aggregated: true)
+
+      {:ok, _} = Lifecycle.restore(recycling.id)
+
+      for res <- [context.album, context.track, context.song] do
+        assert {:live, _res} = Lifecycle.state(res.id)
+      end
+    end
+  end
+
   describe "§14.1, emptying the bin" do
     test "a principal may empty its own deletion", %{ada: ada} do
       {:ok, %{work: work}} = Catalog.create_work("The Dig")
@@ -167,8 +245,8 @@ defmodule Pluteus.LifecycleTest do
       {:ok, %{work: gone}} = Catalog.create_work("Middlemarch")
 
       now = DateTime.utc_now()
-      {:ok, _} = Lifecycle.recycle(kept.id, ada.id, DateTime.add(now, -29 * 86_400, :second))
-      {:ok, _} = Lifecycle.recycle(gone.id, ada.id, DateTime.add(now, -31 * 86_400, :second))
+      {:ok, _} = Lifecycle.recycle(kept.id, ada.id, now: DateTime.add(now, -29 * 86_400, :second))
+      {:ok, _} = Lifecycle.recycle(gone.id, ada.id, now: DateTime.add(now, -31 * 86_400, :second))
 
       Lifecycle.purge_expired(now)
 

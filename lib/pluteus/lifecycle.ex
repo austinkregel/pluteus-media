@@ -62,15 +62,30 @@ defmodule Pluteus.Lifecycle do
   The window is #{@window_days} days (§14.1). Anything below the res that is
   already in the bin stays with the deletion that put it there, so restoring
   this one does not undo that one.
+
+  Options:
+
+    * `:with_aggregated` — also take what an aggregate selects, so an album goes
+      with its tracks (§14.3). A track another live aggregate selects stays.
+    * `:now` — the moment of deletion, from which the window runs.
   """
-  @spec recycle(Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
+  @spec recycle(Ecto.UUID.t(), Ecto.UUID.t(), keyword()) ::
           {:ok, Recycling.t()} | {:error, atom()}
-  def recycle(res_id, principal_id, now \\ DateTime.utc_now()) do
+  def recycle(res_id, principal_id, opts \\ []) do
+    now = Keyword.get(opts, :now, DateTime.utc_now())
+
     case state(res_id) do
-      {:live, res} -> insert_recycling(res, principal_id, now)
-      {:recycled, _res, _recycling} -> {:error, :already_recycled}
-      {:purged, _res, _tombstone} -> {:error, :purged}
-      :absent -> {:error, :no_such_res}
+      {:live, res} ->
+        insert_recycling(res, principal_id, now, Keyword.get(opts, :with_aggregated, false))
+
+      {:recycled, _res, _recycling} ->
+        {:error, :already_recycled}
+
+      {:purged, _res, _tombstone} ->
+        {:error, :purged}
+
+      :absent ->
+        {:error, :no_such_res}
     end
   end
 
@@ -173,8 +188,11 @@ defmodule Pluteus.Lifecycle do
     end
   end
 
-  defp insert_recycling(%Res{} = res, principal_id, now) do
-    held = res |> closure() |> Enum.reject(&(&1 in unavailable()))
+  defp insert_recycling(%Res{} = res, principal_id, now, with_aggregated) do
+    unavailable = unavailable()
+    held = closure(res)
+    held = if with_aggregated, do: with_aggregated(held, unavailable), else: held
+    held = Enum.reject(held, &(&1 in unavailable))
 
     Multi.new()
     |> Multi.insert(
@@ -221,6 +239,59 @@ defmodule Pluteus.Lifecycle do
     held = Enum.uniq(held ++ addressed)
 
     Enum.uniq(held ++ Repo.all(from n in Nomen, where: n.res_id in ^held, select: n.id))
+  end
+
+  # Repeats until an aggregate selects nothing further, so a box set takes its
+  # albums and then their tracks. An expression another live aggregate selects
+  # is shared and stays. A work goes only when every expression it has is gone
+  # or going, which is the single place recycling reaches upward.
+  defp with_aggregated(held, unavailable) do
+    gone = MapSet.new(held ++ unavailable)
+
+    candidates =
+      from(a in Aggregation,
+        where: a.aggregating_expression_id in ^held,
+        select: a.aggregated_expression_id,
+        distinct: true
+      )
+      |> Repo.all()
+      |> Enum.reject(&(&1 in gone))
+
+    selections =
+      Repo.all(
+        from a in Aggregation,
+          where: a.aggregated_expression_id in ^candidates,
+          select: {a.aggregated_expression_id, a.aggregating_expression_id}
+      )
+
+    taken =
+      Enum.filter(candidates, fn candidate ->
+        selections
+        |> Enum.filter(fn {selected, _by} -> selected == candidate end)
+        |> Enum.all?(fn {_selected, by} -> by in gone end)
+      end)
+
+    case taken do
+      [] ->
+        held
+
+      _ ->
+        reach = Enum.uniq(taken ++ works_left_empty(taken, gone))
+        additions = Enum.flat_map(reach, &closure(Repo.get!(Res, &1)))
+        with_aggregated(Enum.uniq(held ++ additions), unavailable)
+    end
+  end
+
+  defp works_left_empty(expression_ids, gone) do
+    going = MapSet.union(gone, MapSet.new(expression_ids))
+
+    from(e in Expression, where: e.id in ^expression_ids, select: e.work_id, distinct: true)
+    |> Repo.all()
+    |> Enum.filter(fn work_id ->
+      from(e in Expression, where: e.work_id == ^work_id, select: e.id)
+      |> Repo.all()
+      |> Enum.all?(&(&1 in going))
+    end)
   end
 
   defp below(:work, work_ids) do
