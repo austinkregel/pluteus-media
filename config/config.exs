@@ -24,6 +24,7 @@ config :pluteus, Oban,
       {"* * * * *", Pluteus.Workers.AcquireFromInbox},
       {"* * * * *", Pluteus.Workers.IdentifyAcquisitions},
       {"* * * * *", Pluteus.Workers.PlaceAcquisitions},
+      {"* * * * *", Pluteus.Workers.NormalizeHoldings},
       {"30 4 * * *", Pluteus.Workers.FindStrayBytes},
       # spec-03 §5.2: verification is scheduled, not incidental.
       {"0 * * * *", Pluteus.Workers.ScheduleVerification},

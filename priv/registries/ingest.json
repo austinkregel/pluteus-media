@@ -109,6 +109,6 @@
     "release": "album"
   },
   "standard_formats": {
-    "audio": {"codec": "flac", "extension": "flac", "format": "fmt/279"}
+    "audio": {"codec": "flac", "muxer": "flac", "extension": "flac", "format": "fmt/279"}
   }
 }
