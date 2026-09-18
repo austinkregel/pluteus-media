@@ -17,7 +17,7 @@ config :pluteus,
 config :pluteus, Oban,
   engine: Oban.Engines.Basic,
   repo: Pluteus.Repo,
-  queues: [integrity: 2, lifecycle: 1, ingest: 1],
+  queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2],
   cron: [
     crontab: [
       # spec-04 §3: each stage is scheduled work finding its own due items.
@@ -25,6 +25,7 @@ config :pluteus, Oban,
       {"* * * * *", Pluteus.Workers.IdentifyAcquisitions},
       {"* * * * *", Pluteus.Workers.PlaceAcquisitions},
       {"* * * * *", Pluteus.Workers.NormalizeHoldings},
+      {"*/5 * * * *", Pluteus.Workers.ScheduleAnalysis},
       {"30 4 * * *", Pluteus.Workers.FindStrayBytes},
       # spec-03 §5.2: verification is scheduled, not incidental.
       {"0 * * * *", Pluteus.Workers.ScheduleVerification},
@@ -48,6 +49,12 @@ config :pluteus, Pluteus.Ingest,
     text: 90 * 86_400,
     companion: 90 * 86_400
   }
+
+# spec-04 §8. The deriving tools that run, and the wire schema versions a tool
+# response may carry.
+config :pluteus, Pluteus.Analysis,
+  tools: [Pluteus.Analysis.Native],
+  schema_versions: [1]
 
 # Identity arrives from a reverse proxy running forward auth. The subject is
 # the email address the provider sends, which is not stable across an email

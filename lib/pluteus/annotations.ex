@@ -61,6 +61,14 @@ defmodule Pluteus.Annotations do
   end
 
   @doc """
+  Records a tool's version the first time it is seen, before anything has been
+  derived at it, and returns it. spec-04 §8.4 makes a newly reported version
+  the moment everything analysed at an earlier one becomes due.
+  """
+  @spec record_tool_version(String.t(), String.t()) :: {:ok, ToolVersion.t()} | {:error, term()}
+  def record_tool_version(tool, version), do: tool_version(Repo, tool, version)
+
+  @doc """
   Records an address a derivation produced: a segment boundary, a detected
   scene, an OCR word position. Nothing authored may be anchored to one.
   """
