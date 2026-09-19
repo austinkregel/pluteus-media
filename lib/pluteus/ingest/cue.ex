@@ -3,6 +3,9 @@ defmodule Pluteus.Ingest.Cue do
   Reads a cue sheet: the file it describes, the release's title and performer,
   and where each track starts (spec-04 §6.4).
 
+  Text is returned in Unicode normal form C, so a `FILE` line matches the file
+  it names whichever form each was written in.
+
   Cue sheet time is minutes, seconds and frames of 1/75 second. A track starts
   at its `INDEX 01`; the pregap before it, `INDEX 00`, belongs to the track
   before, as players treat it.
@@ -26,6 +29,7 @@ defmodule Pluteus.Ingest.Cue do
   def parse(bytes) do
     bytes
     |> String.replace_prefix(<<0xEF, 0xBB, 0xBF>>, "")
+    |> String.normalize(:nfc)
     |> String.split(~r/\r?\n/)
     |> Enum.map(&String.trim/1)
     |> Enum.reduce(%{file: nil, title: nil, performer: nil, tracks: []}, &line/2)

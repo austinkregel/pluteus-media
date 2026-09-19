@@ -14,6 +14,10 @@ defmodule Pluteus.Ingest.Streams do
   A file's embedded tags, with keys lowercased: the container's, and those of
   its first audio stream, where Ogg and Opus keep them. The container's win
   where both carry a key.
+
+  Keys and values are in Unicode normal form C. Taggers differ in whether
+  "é" is one code point or "e" and a combining accent, and two files naming
+  one album must compare equal whichever wrote them.
   """
   @spec tags(map() | nil) :: map()
   def tags(nil), do: %{}
@@ -27,7 +31,9 @@ defmodule Pluteus.Ingest.Streams do
 
     stream_tags
     |> Map.merge(get_in(probe, ["format", "tags"]) || %{})
-    |> Map.new(fn {key, value} -> {String.downcase(key), value} end)
+    |> Map.new(fn {key, value} ->
+      {key |> String.downcase() |> String.normalize(:nfc), String.normalize(value, :nfc)}
+    end)
   end
 
   @doc """

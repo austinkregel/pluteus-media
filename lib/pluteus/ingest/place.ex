@@ -359,7 +359,7 @@ defmodule Pluteus.Ingest.Place do
   # --- A release in one file (§6.4) ------------------------------------------------
 
   defp cue_sheet_for(acquisition) do
-    file_name = Path.basename(acquisition.inbox_path)
+    file_name = acquisition.inbox_path |> Path.basename() |> String.normalize(:nfc)
 
     from(a in Acquisition,
       where: a.inbox_directory == ^acquisition.inbox_directory,
@@ -552,7 +552,10 @@ defmodule Pluteus.Ingest.Place do
   defp manifestation_of(acquisition),
     do: Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
 
-  defp base_name(inbox_path), do: inbox_path |> Path.basename() |> Path.rootname()
+  # Compared in normal form C: a lyrics file and its track are one name
+  # whether a filesystem stored it composed or decomposed.
+  defp base_name(inbox_path),
+    do: inbox_path |> Path.basename() |> Path.rootname() |> String.normalize(:nfc)
 
   # --- Common -----------------------------------------------------------------------
 

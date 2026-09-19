@@ -528,6 +528,83 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "names written in either Unicode form compare equal" do
+    # "Bourrée" with é as one code point, and as e with a combining accent, as
+    # macOS and the Internet Archive write file names.
+    @composed "Bourrée"
+    @decomposed "Bourrée"
+
+    test "a cue sheet finds its file whichever form each was written in", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Chopin/#{@decomposed}.flac" => media!(:flac, duration: 4),
+          "Chopin/album.cue" => """
+          FILE "#{@composed}.flac" WAVE
+            TRACK 01 AUDIO
+              INDEX 01 00:00:00
+            TRACK 02 AUDIO
+              INDEX 01 00:02:00
+          """
+        })
+
+      album = Enum.find(placed, &(&1.media_class == :audio))
+
+      assert [%{part_id: medium}] = Catalog.parts_of(manifestation_of(album))
+      assert [_, _] = Catalog.parts_of(medium)
+    end
+
+    test "a cue sheet written decomposed finds a file named composed", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Chopin/#{@composed}.flac" => media!(:flac, duration: 4),
+          "Chopin/album.cue" => """
+          FILE "#{@decomposed}.flac" WAVE
+            TRACK 01 AUDIO
+              INDEX 01 00:00:00
+          """
+        })
+
+      album = Enum.find(placed, &(&1.media_class == :audio))
+
+      assert [%{part_id: medium}] = Catalog.parts_of(manifestation_of(album))
+      assert [_] = Catalog.parts_of(medium)
+      assert Catalog.wholes_of(manifestation_of(album)) == []
+    end
+
+    test "lyrics link to their track whichever form each was written in", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Chopin/#{@composed}.flac" => media!(:flac, tags: album("Chopin", 1)),
+          "Chopin/#{@decomposed}.lrc" => "[00:01.00]la\n"
+        })
+
+      lyrics = Enum.find(placed, &(&1.companion_kind == "lyrics"))
+      track = Enum.find(placed, &(&1.media_class == :audio))
+
+      assert Catalog.associated(manifestation_of(lyrics), "lyrics-of") == [
+               manifestation_of(track)
+             ]
+    end
+
+    test "album tags from two taggers make one release", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "a.flac" =>
+            media!(:flac,
+              tags: %{"album" => @composed, "album_artist" => "Chopin", "track" => "1"}
+            ),
+          "b.flac" =>
+            media!(:flac,
+              frequency: 500,
+              tags: %{"album" => @decomposed, "album_artist" => "Chopin", "track" => "2"}
+            )
+        })
+
+      assert [one, two] = Enum.map(placed, &release_of/1)
+      assert one == two
+    end
+  end
+
   describe "18. Streams become one expression, parallel expressions, or a work of their own" do
     test "languages are parallel expressions; a commentary is a work of its own",
          %{inbox: inbox} do
