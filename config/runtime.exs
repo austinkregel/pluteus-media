@@ -84,6 +84,9 @@ if config_env() == :prod do
 
   config :pluteus, Pluteus.Analysis.Sidecar, url: sidecar_url
 
+  # Optional. Without it no MusicBrainz request is made and credits stay names.
+  config :pluteus, Pluteus.Ingest.MusicBrainz, contact: System.get_env("MUSICBRAINZ_CONTACT")
+
   forward_auth_issuer =
     System.get_env("FORWARD_AUTH_ISSUER") ||
       raise """

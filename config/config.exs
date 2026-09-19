@@ -29,6 +29,7 @@ config :pluteus, Oban,
       {"* * * * *", Pluteus.Workers.PlaceAcquisitions},
       {"* * * * *", Pluteus.Workers.NormalizeHoldings},
       {"*/5 * * * *", Pluteus.Workers.ScheduleAnalysis},
+      {"*/10 * * * *", Pluteus.Workers.ResolveCredits},
       {"30 4 * * *", Pluteus.Workers.FindStrayBytes},
       # spec-03 §5.2: verification is scheduled, not incidental.
       {"0 * * * *", Pluteus.Workers.ScheduleVerification},
@@ -62,6 +63,11 @@ config :pluteus, Pluteus.Analysis,
 # Beat tracking and constant-Q analysis of a long recording take a while; the
 # timeout bounds one request, and a timeout is a transient failure.
 config :pluteus, Pluteus.Analysis.Sidecar, url: "http://sidecar:8000", timeout_ms: 600_000
+
+# spec-04 §6.4. Credits are resolved against MusicBrainz only with a contact
+# for its User-Agent, which MusicBrainz requires. There is deliberately no
+# default: a deployment sets one, or makes no request.
+config :pluteus, Pluteus.Ingest.MusicBrainz, contact: nil
 
 # Identity arrives from a reverse proxy running forward auth. The subject is
 # the email address the provider sends, which is not stable across an email

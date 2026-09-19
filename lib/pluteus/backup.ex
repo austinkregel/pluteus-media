@@ -30,6 +30,7 @@ defmodule Pluteus.Backup do
     tombstones reconstructions duplicate_candidates schema_migrations
     trust_boundary devices audit_records catalog_writes work_creators
     acquisitions ingest_findings categories release_keys analysis_sources
+    credits musicbrainz_artists
   )
 
   @selected ~w(assets asset_roles verifications addresses annotations)

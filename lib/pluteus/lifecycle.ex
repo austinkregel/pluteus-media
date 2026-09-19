@@ -21,6 +21,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Category
+  alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
@@ -438,6 +439,7 @@ defmodule Pluteus.Lifecycle do
       manifestations: from(m in Manifestation, where: m.id in ^ids),
       expressions: from(e in Expression, where: e.id in ^ids),
       work_creators: from(c in WorkCreator, where: c.work_id in ^ids),
+      credits: from(c in Credit, where: c.work_id in ^ids),
       works: from(w in Work, where: w.id in ^ids),
       extents: from(x in Extent, where: x.res_id in ^ids),
       categories: from(c in Category, where: c.res_id in ^ids),

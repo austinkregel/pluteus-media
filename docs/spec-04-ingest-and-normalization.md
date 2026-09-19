@@ -384,13 +384,22 @@ depend on which track was placed first.
 
 #### Credits
 
-Placement records who each track's tags credit, as the tags say it: each value
-of `artist` as a credit on the track's work, and each value of `album artist` as
-a credit on the release's aggregating work. A tag holding several values —
-joined with `;`, or repeated — is a credit for each. A credit carries the name in
-Unicode normal form C, the MusicBrainz artist identifier where one is tagged, and
-automatic provenance, so a member's correction outranks it and survives
-placement running again (§6.2).
+Placement records who each track's tags credit, as the tags say it: the track's
+artists as credits on the track's work, and its album artists as credits on the
+release's aggregating work. The names are each value of `artists` where the
+track carries it, and otherwise of `artist`; for album artists, of
+`album_artist`. A tag holding several values — joined with `;`, or repeated —
+is a credit for each, in order. A credit carries the name in Unicode normal
+form C, the MusicBrainz artist identifier where one is tagged, and automatic
+provenance, so a member's correction outranks it and survives placement running
+again (§6.2).
+
+Identifiers are paired with names by position — `musicbrainz_artistid` with the
+artists, `musicbrainz_albumartistid` with the album artists — and only where the
+two hold the same number of values. Where they do not, no credit of that kind
+carries an identifier: taggers write a display string such as "A & B" in
+`artist` beside one identifier per artist, and pairing them any other way would
+give a credit another artist's identifier.
 
 A credit is not an agent. It is what the release says, LRM's statement of
 responsibility, and it names no agent until the agent's kind is known: LRM makes
@@ -418,7 +427,8 @@ says so.
 
 A credit with no identifier stays a name until matching (spec-05) or a person
 links it to an agent. A lookup MusicBrainz answers with not-found is a finding
-against the credit; one it cannot answer, a transient failure (§9).
+against the identifier; one it cannot answer is a transient failure, tried again
+on the stage's next pass, and after three is a finding (§9).
 
 #### A release in one file
 

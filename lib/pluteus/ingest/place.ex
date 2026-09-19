@@ -25,6 +25,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Credits
   alias Pluteus.Ingest.Cue
   alias Pluteus.Ingest.Finding
   alias Pluteus.Ingest.Registry
@@ -244,7 +245,7 @@ defmodule Pluteus.Ingest.Place do
         {:finding, "evidence_names_two_releases", %{identifiers: identifiers}}
 
       {:ok, key} ->
-        release = release_for(key, release_name(acquisition, tags))
+        release = release_for(key, release_name(acquisition, tags), tags)
         disc = Streams.number(tags, ["disc", "discnumber"]) || 1
         position = Streams.number(tags, ["track", "tracknumber"])
         medium = medium_for(release, disc, release_name(acquisition, tags))
@@ -262,6 +263,7 @@ defmodule Pluteus.Ingest.Place do
       Catalog.create_work(automatic(title(acquisition)))
 
     categorize(work.id, acquisition)
+    Credits.record(work.id, :artist, Credits.from_tags(Streams.tags(acquisition.probe), :artist))
     {:ok, _} = Catalog.add_manifestation_part(medium, track.id, position)
     {:ok, _} = Catalog.aggregate(release.expression_id, recording.id)
     carry(acquisition, track.id)
@@ -296,7 +298,7 @@ defmodule Pluteus.Ingest.Place do
   # first: a concurrent placement with the same key waits on it, and then finds
   # the release this one made. A key whose release has since been recycled or
   # purged no longer groups anything, and a new release takes it over.
-  defp release_for(key, name) do
+  defp release_for(key, name, tags) do
     now = DateTime.utc_now()
 
     {inserted, _} =
@@ -312,15 +314,17 @@ defmodule Pluteus.Ingest.Place do
         manifestation_id: existing.release_manifestation_id,
         expression_id: existing.release_expression_id
       },
-      else: create_release(existing, name)
+      else: create_release(existing, name, tags)
   end
 
   defp live?(nil), do: false
   defp live?(res_id), do: match?({:live, _}, Lifecycle.state(res_id))
 
-  defp create_release(release_key, name) do
+  defp create_release(release_key, name, tags) do
     {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
       Catalog.create_work(automatic(name))
+
+    Credits.record(work.id, :album_artist, Credits.from_tags(tags, :album_artist))
 
     {:ok, _} =
       Catalog.categorize(
@@ -374,7 +378,7 @@ defmodule Pluteus.Ingest.Place do
   defp place_cue_release(acquisition, cue) do
     tags = Streams.tags(acquisition.probe)
     name = cue.title || release_name(acquisition, tags)
-    release = release_for("single:" <> acquisition.id, name)
+    release = release_for("single:" <> acquisition.id, name, tags)
     medium = medium_for(release, 1, name)
     duration_ms = Streams.duration_ms(acquisition.probe)
 

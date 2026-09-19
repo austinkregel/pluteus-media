@@ -18,7 +18,7 @@ defmodule Pluteus.Ingest.Finding do
 
   import Ecto.Changeset
 
-  @stages ~w(acquire identify place normalize analyse purge)a
+  @stages ~w(acquire identify place normalize analyse purge credit)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -33,6 +33,7 @@ defmodule Pluteus.Ingest.Finding do
     field :digital_item_id, UUIDv7
     field :input_id, UUIDv7
     field :tool_version_id, UUIDv7
+    field :musicbrainz_id, Ecto.UUID
 
     field :recorded_at, :utc_datetime_usec
     field :cleared_at, :utc_datetime_usec
@@ -55,12 +56,16 @@ defmodule Pluteus.Ingest.Finding do
       :digital_item_id,
       :input_id,
       :tool_version_id,
+      :musicbrainz_id,
       :recorded_at
     ])
     |> validate_required([:stage, :kind, :permanent, :recorded_at])
     |> check_constraint(:stage, name: :a_finding_has_a_subject)
     |> check_constraint(:tool_version_id, name: :an_analysis_finding_names_its_tool)
     |> unique_constraint(:location, name: :ingest_findings_one_open_per_location_index)
+    |> unique_constraint(:musicbrainz_id,
+      name: :ingest_findings_one_open_per_musicbrainz_id_index
+    )
   end
 
   def clear_changeset(finding, principal_id, now) do
