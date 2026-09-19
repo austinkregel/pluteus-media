@@ -22,6 +22,7 @@ defmodule PluteusWeb.ChangeFeedTest do
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
   alias Pluteus.Changes.Release
+  alias Pluteus.Consumption
   alias Pluteus.Events
   alias Pluteus.Principals
   alias Pluteus.Repo
@@ -150,6 +151,31 @@ defmodule PluteusWeb.ChangeFeedTest do
       refute_receive %Message{topic: ^other_topic}, @interval * 10
     end
 
+    test "each kind of consumption data is announced as itself", %{
+      subject: subject,
+      principal: principal
+    } do
+      own_topic = "principal:#{principal.id}"
+      {:ok, own} = connect_as(subject)
+      {:ok, _reply, _channel} = subscribe_and_join(own, PrincipalChannel, own_topic)
+
+      {:ok, %{res: res}} =
+        Actor.as(principal.id, fn -> Catalog.create_named_res(:time_span, "1959") end)
+
+      {:ok, _} = Consumption.star(principal.id, res.id)
+      {:ok, _} = Consumption.rate(principal.id, res.id, 4)
+      {:ok, playlist} = Consumption.create_playlist(principal.id, "Evening", [])
+      {:ok, _} = Consumption.update_playlist(principal.id, playlist.id, %{append: [res.id]})
+      {:ok, _} = Consumption.save_play_queue(principal.id, [res.id], 0, 0, "phone")
+      :ok = Consumption.playing(principal.id, "phone", res.id)
+      {:ok, _} = Consumption.played(principal.id, "phone", res.id)
+
+      for data <- ~w(stars ratings playlists playlists play_queues now_playing events now_playing) do
+        assert_receive %Message{topic: ^own_topic, event: "changed", payload: %{"data" => ^data}},
+                       1_000
+      end
+    end
+
     test "a change rolled back is never announced", %{subject: subject, principal: principal} do
       own_topic = "principal:#{principal.id}"
       {:ok, own} = connect_as(subject)
@@ -262,7 +288,10 @@ defmodule PluteusWeb.ChangeFeedTest do
           select: type(fragment("(?->>'id')::uuid", w.row_key), Ecto.UUID)
       )
 
-    Repo.query!("DELETE FROM resume_positions WHERE principal_id = $1", [id])
+    for table <- ~w(resume_positions stars ratings playlists play_queues now_playing) do
+      Repo.query!("DELETE FROM #{table} WHERE principal_id = $1", [id])
+    end
+
     Repo.query!("DELETE FROM events WHERE principal_id = $1", [id])
 
     {:ok, _} =

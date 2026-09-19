@@ -31,14 +31,16 @@ defmodule Pluteus.Backup do
     trust_boundary devices audit_records catalog_writes work_creators
     acquisitions ingest_findings categories release_keys analysis_sources
     credits musicbrainz_artists
+    stars ratings playlists playlist_entries play_queues play_queue_entries
   )
 
   @selected ~w(assets asset_roles verifications addresses annotations)
 
   # Provenance of derived data goes with the derived data. The job queue is
   # operational state, rebuilt by the schedule, and so are inbox sightings,
-  # which the next pass over the inbox takes again.
-  @excluded ~w(tool_versions derivations oban_jobs oban_peers inbox_sightings)
+  # which the next pass over the inbox takes again. What is playing now is
+  # stale by the time any backup could be restored.
+  @excluded ~w(tool_versions derivations oban_jobs oban_peers inbox_sightings now_playing)
 
   @doc """
   Every table, classified as backed up whole, backed up in part, or excluded.

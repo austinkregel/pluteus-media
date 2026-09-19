@@ -24,6 +24,7 @@ defmodule Pluteus.Events.ResumePosition do
     field :principal_id, UUIDv7, primary_key: true
     field :res_id, UUIDv7, primary_key: true
     field :position_ms, :integer
+    field :comment, :string
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -32,7 +33,7 @@ defmodule Pluteus.Events.ResumePosition do
 
   def changeset(position, attrs) do
     position
-    |> cast(attrs, [:principal_id, :res_id, :position_ms])
+    |> cast(attrs, [:principal_id, :res_id, :position_ms, :comment])
     |> validate_required([:principal_id, :res_id, :position_ms])
     |> check_constraint(:position_ms, name: :position_is_not_negative)
     |> foreign_key_constraint(:principal_id)
