@@ -49,6 +49,14 @@ defmodule PluteusWeb.ForwardAuth do
     end
   end
 
+  @doc """
+  Whether a request came through the authenticating proxy: it carries the
+  secret the proxy injects, once. The surface exempt from forward
+  authentication (spec-07 §3.2) still asks this before reading anything else.
+  """
+  @spec from_proxy?(Plug.Conn.t()) :: boolean()
+  def from_proxy?(conn), do: from_proxy(conn, Application.fetch_env!(:pluteus, __MODULE__)) == :ok
+
   defp from_proxy(conn, config) do
     expected = Keyword.fetch!(config, :secret)
 

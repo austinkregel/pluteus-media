@@ -15,6 +15,13 @@ defmodule PluteusWeb.Router do
     plug PluteusWeb.ForwardAuth
   end
 
+  # spec-07 §3.2: the one surface exempt from forward authentication, where a
+  # client key is the request's authentication. The request must still have
+  # come through the proxy.
+  pipeline :subsonic do
+    plug PluteusWeb.Subsonic.Authenticate
+  end
+
   pipeline :onboarding do
     plug :accepts, ["json"]
     plug PluteusWeb.ForwardAuth, require_principal: false
@@ -43,6 +50,17 @@ defmodule PluteusWeb.Router do
     get "/items/:id", EntityController, :show, assigns: %{kind: :item}
     get "/digital-items/:id", EntityController, :show, assigns: %{kind: :digital_item}
     get "/assets/:id", EntityController, :show, assigns: %{kind: :asset}
+
+    get "/devices", DeviceController, :index
+    post "/devices", DeviceController, :create
+    delete "/devices/:id", DeviceController, :delete
+  end
+
+  scope "/rest", PluteusWeb do
+    pipe_through :subsonic
+
+    get "/:endpoint", SubsonicController, :dispatch
+    post "/:endpoint", SubsonicController, :dispatch
   end
 
   # Enable LiveDashboard in development

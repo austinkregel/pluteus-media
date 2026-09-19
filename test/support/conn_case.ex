@@ -43,6 +43,20 @@ defmodule PluteusWeb.ConnCase do
   end
 
   @doc """
+  A request as the proxy forwards it on the surface exempt from forward
+  authentication: carrying the proxy's secret and no identity.
+  """
+  def via_proxy(conn) do
+    config = Application.fetch_env!(:pluteus, PluteusWeb.ForwardAuth)
+
+    Plug.Conn.put_req_header(
+      conn,
+      Keyword.fetch!(config, :secret_header),
+      Keyword.fetch!(config, :secret)
+    )
+  end
+
+  @doc """
   The issuer the proxy's identities come from, as configured.
   """
   def issuer,

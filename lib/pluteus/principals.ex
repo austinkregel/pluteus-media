@@ -156,6 +156,48 @@ defmodule Pluteus.Principals do
     |> Repo.insert()
   end
 
+  @doc """
+  Binds a device to a principal and mints its client key (spec-07 §3.2).
+
+  The key is returned once, here, and never stored: only its digest is. It
+  carries 256 bits from the system's secure random source, so a fast digest
+  is enough to keep it; it is not a password, and nobody chose it.
+  """
+  @spec mint_key(Ecto.UUID.t(), String.t(), DateTime.t()) ::
+          {:ok, %{device: Device.t(), key: String.t()}} | {:error, Ecto.Changeset.t()}
+  def mint_key(principal_id, label, now \\ DateTime.utc_now()) do
+    key = "pk_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+
+    %Device{}
+    |> Device.changeset(%{
+      principal_id: principal_id,
+      label: label,
+      bound_at: now,
+      key_digest: key_digest(key)
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, device} -> {:ok, %{device: device, key: key}}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  @doc """
+  The principal and device a client key belongs to, or `:invalid_key` where no
+  device holds it, its device is revoked, or its principal is retired.
+  """
+  @spec for_key(String.t()) :: {:ok, Principal.t(), Device.t()} | {:error, :invalid_key}
+  def for_key(key) when is_binary(key) do
+    with %Device{revoked_at: nil} = device <- Repo.get_by(Device, key_digest: key_digest(key)),
+         %Principal{retired_at: nil} = principal <- Repo.get!(Principal, device.principal_id) do
+      {:ok, principal, device}
+    else
+      _unknown_revoked_or_retired -> {:error, :invalid_key}
+    end
+  end
+
+  defp key_digest(key), do: :sha256 |> :crypto.hash(key) |> Base.encode16(case: :lower)
+
   @spec devices_of(Ecto.UUID.t()) :: [Device.t()]
   def devices_of(principal_id) do
     Repo.all(from d in Device, where: d.principal_id == ^principal_id, order_by: d.bound_at)

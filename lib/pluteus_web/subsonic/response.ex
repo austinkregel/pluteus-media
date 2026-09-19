@@ -1,0 +1,97 @@
+defmodule PluteusWeb.Subsonic.Response do
+  @moduledoc """
+  The `subsonic-response` envelope, in XML by default and in JSON on `f=json`
+  (spec-07 §6.1).
+
+  A body is a map. Within it a scalar is an attribute in XML and a field in
+  JSON; a map is a child element; a list of maps is a repeated child element;
+  and `value` is an element's text in XML, as Subsonic writes a genre's name or
+  a lyric line.
+
+  Subsonic answers an error with HTTP 200 and `status: failed`; so does this.
+  """
+
+  import Plug.Conn
+
+  @version "1.16.1"
+
+  @spec version() :: String.t()
+  def version, do: @version
+
+  @doc """
+  Sends a successful response carrying `body` under `key`, or nothing further
+  where `key` is nil.
+  """
+  @spec ok(Plug.Conn.t(), String.t() | nil, map()) :: Plug.Conn.t()
+  def ok(conn, nil, _body), do: send_envelope(conn, "ok", %{})
+  def ok(conn, key, body), do: send_envelope(conn, "ok", %{key => body})
+
+  @spec error(Plug.Conn.t(), non_neg_integer(), String.t()) :: Plug.Conn.t()
+  def error(conn, code, message),
+    do: send_envelope(conn, "failed", %{"error" => %{"code" => code, "message" => message}})
+
+  defp send_envelope(conn, status, content) do
+    envelope =
+      Map.merge(
+        %{
+          "status" => status,
+          "version" => @version,
+          "type" => "pluteus",
+          "serverVersion" => :pluteus |> Application.spec(:vsn) |> to_string(),
+          "openSubsonic" => true
+        },
+        content
+      )
+
+    case conn.params["f"] do
+      "json" ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(%{"subsonic-response" => envelope}))
+
+      _xml ->
+        conn
+        |> put_resp_content_type("text/xml")
+        |> send_resp(200, [
+          ~s(<?xml version="1.0" encoding="UTF-8"?>),
+          element("subsonic-response", Map.put(envelope, "xmlns", "http://subsonic.org/restapi"))
+        ])
+    end
+  end
+
+  defp element(name, %{} = content) do
+    {text, fields} = Map.pop(content, "value")
+
+    {children, attributes} =
+      Enum.split_with(fields, fn {_key, value} -> is_map(value) or is_list(value) end)
+
+    attributes =
+      for {key, value} <- Enum.sort(attributes),
+          not is_nil(value),
+          do: [" ", key, ~s(="), escape(value), ~s(")]
+
+    inner =
+      Enum.map(Enum.sort(children), fn
+        {key, list} when is_list(list) -> Enum.map(list, &element(key, &1))
+        {key, map} -> element(key, map)
+      end)
+
+    body = if text, do: [escape(text) | inner], else: inner
+
+    case body do
+      [] -> ["<", name, attributes, "/>"]
+      _ -> ["<", name, attributes, ">", body, "</", name, ">"]
+    end
+  end
+
+  defp element(name, scalar), do: element(name, %{"value" => scalar})
+
+  defp escape(value) do
+    value
+    |> to_string()
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace(~s("), "&quot;")
+  end
+end

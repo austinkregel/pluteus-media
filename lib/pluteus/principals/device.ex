@@ -20,6 +20,7 @@ defmodule Pluteus.Principals.Device do
     field :bound_at, :utc_datetime_usec
     field :revoked_at, :utc_datetime_usec
     field :revoked_by, UUIDv7
+    field :key_digest, :string
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -28,9 +29,10 @@ defmodule Pluteus.Principals.Device do
 
   def changeset(device, attrs) do
     device
-    |> cast(attrs, [:principal_id, :label, :bound_at, :revoked_at, :revoked_by])
+    |> cast(attrs, [:principal_id, :label, :bound_at, :revoked_at, :revoked_by, :key_digest])
     |> validate_required([:principal_id, :label, :bound_at])
     |> check_constraint(:revoked_at, name: :revocation_is_attributed)
+    |> unique_constraint(:key_digest)
     |> foreign_key_constraint(:principal_id)
   end
 end

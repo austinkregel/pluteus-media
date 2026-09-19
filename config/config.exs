@@ -114,6 +114,10 @@ config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+# spec-07 §8. A client key travels in the query string, where the Subsonic
+# protocol puts it; it is kept out of the application's logs.
+config :phoenix, :filter_parameters, ["password", "apiKey", "p", "t", "s"]
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
