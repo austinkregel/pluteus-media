@@ -11,6 +11,7 @@ defmodule PluteusWeb.SubsonicController do
   use PluteusWeb, :controller
 
   alias PluteusWeb.Subsonic.Browse
+  alias PluteusWeb.Subsonic.Lists
   alias PluteusWeb.Subsonic.Response
 
   @extensions [
@@ -27,7 +28,7 @@ defmodule PluteusWeb.SubsonicController do
   @spec extensions() :: [map()]
   def extensions, do: @extensions
 
-  @surfaces [Browse]
+  @surfaces [Browse, Lists]
 
   def dispatch(conn, %{"endpoint" => endpoint}) do
     endpoint = String.replace_suffix(endpoint, ".view", "")
