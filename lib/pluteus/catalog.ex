@@ -388,6 +388,23 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
+  Records a member's correction of a res's category in a scheme, or changes
+  the correction already recorded. It sits beside any automatic category rather
+  than replacing it, and outranks it (§7.5).
+  """
+  @spec correct_category(Ecto.UUID.t(), String.t(), String.t()) ::
+          {:ok, Category.t()} | {:error, Ecto.Changeset.t()}
+  def correct_category(res_id, scheme, value) do
+    %Category{}
+    |> Category.changeset(%{res_id: res_id, scheme: scheme, value: value, provenance: :local})
+    |> Repo.insert(
+      on_conflict: {:replace, [:value, :updated_at]},
+      conflict_target: [:res_id, :scheme, :provenance],
+      returning: true
+    )
+  end
+
+  @doc """
   A res's category in a scheme: a member's correction over an automatic
   assignment over a seeded one (§7.5), or nil where it has none.
   """

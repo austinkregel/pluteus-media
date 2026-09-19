@@ -108,8 +108,9 @@ Every res kind has a collection and an entity URI. The entity URIs are spec-01
 A representation carries the res's identifier and kind, its preferred name
 resolved under the requesting principal's resolution profile (spec-01 §7.4),
 every nomen it carries, the identifiers of the res it is related to by each
-relationship, and its lifecycle state (spec-01 §14). A client MAY name another
-profile with `profile`.
+relationship, and its lifecycle state (spec-01 §14). The profile's assigner is
+the requesting principal's own person, where it has one; a client MAY ask for
+another resolution with `language` and `assigner`.
 
 A representation MUST NOT embed another res's representation. It names related
 res by identifier, and a client asks for what it needs: embedding would let one

@@ -104,6 +104,14 @@ defmodule Pluteus.Ingest.Registry do
     do: Map.fetch!(registry()["categories"], Atom.to_string(class))
 
   @doc """
+  The media type a format is served as, or `application/octet-stream` where the
+  registry maps none (spec-07 §4.4).
+  """
+  @spec media_type(String.t()) :: String.t()
+  def media_type(format),
+    do: Map.get(registry()["media_types"], format, "application/octet-stream")
+
+  @doc """
   The standard format a broad class is normalized into, or nil where the
   registry names none and a lossless acquisition is adopted as its own master.
   """

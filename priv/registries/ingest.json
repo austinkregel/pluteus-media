@@ -108,6 +108,26 @@
     "text": "document",
     "release": "album"
   },
+  "media_types": {
+    "fmt/279": "audio/flac",
+    "fmt/134": "audio/mpeg",
+    "fmt/141": "audio/wav",
+    "fmt/2094": "audio/mp4",
+    "fmt/946": "audio/ogg",
+    "fmt/199": "video/mp4",
+    "fmt/569": "video/x-matroska",
+    "fmt/11": "image/png",
+    "fmt/43": "image/jpeg",
+    "fmt/44": "image/jpeg",
+    "x-fmt/391": "image/jpeg",
+    "fmt/18": "application/pdf",
+    "fmt/19": "application/pdf",
+    "fmt/20": "application/pdf",
+    "fmt/276": "application/pdf",
+    "fmt/483": "application/epub+zip",
+    "x-fmt/111": "text/plain",
+    "fmt/1069": "application/x-cue"
+  },
   "standard_formats": {
     "audio": {"codec": "flac", "muxer": "flac", "extension": "flac", "format": "fmt/279"}
   }

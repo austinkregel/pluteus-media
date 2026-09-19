@@ -44,12 +44,24 @@ defmodule PluteusWeb.Router do
   scope "/", PluteusWeb do
     pipe_through :api
 
-    get "/works/:id", EntityController, :show, assigns: %{kind: :work}
-    get "/expressions/:id", EntityController, :show, assigns: %{kind: :expression}
-    get "/manifestations/:id", EntityController, :show, assigns: %{kind: :manifestation}
-    get "/items/:id", EntityController, :show, assigns: %{kind: :item}
-    get "/digital-items/:id", EntityController, :show, assigns: %{kind: :digital_item}
-    get "/assets/:id", EntityController, :show, assigns: %{kind: :asset}
+    for {kind, path} <- PluteusWeb.Native.paths() do
+      get "/#{path}", EntityController, :index, assigns: %{kind: kind}
+      get "/#{path}/:id", EntityController, :show, assigns: %{kind: kind}
+      delete "/#{path}/:id", EntityController, :delete, assigns: %{kind: kind}
+      post "/#{path}/:id/categories", WriteController, :categorize, assigns: %{kind: kind}
+    end
+
+    get "/assets/:id/content", ContentController, :show
+
+    post "/nomens", WriteController, :create_nomen
+    post "/annotations", WriteController, :annotate
+    post "/duplicate-candidates/:id/decision", WriteController, :decide
+    post "/recyclings/:id/restoration", WriteController, :restore
+    delete "/recyclings/:id", WriteController, :empty
+
+    get "/findings", FindingController, :index
+    get "/findings/:id", FindingController, :show
+    post "/findings/:id/clearing", WriteController, :clear_finding
 
     get "/devices", DeviceController, :index
     post "/devices", DeviceController, :create

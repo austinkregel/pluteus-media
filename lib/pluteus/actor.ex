@@ -17,19 +17,29 @@ defmodule Pluteus.Actor do
 
   The previous actor is restored afterwards, so a nested call attributes only
   the writes inside it.
+
+  Where `fun` returns `{:error, reason}`, the transaction is rolled back and the
+  error returned. A write that failed inside it has already doomed the
+  transaction, and nothing further may be run in it, restoring the actor
+  included; the actor is local to the transaction, and goes with it.
   """
   @spec as(Ecto.UUID.t(), (-> result)) :: result | {:error, term()} when result: term()
   def as(principal_id, fun) do
     case Repo.transaction(fn ->
            previous = current()
            set(principal_id)
-           result = fun.()
-           set(previous || "")
-           result
+           conclude(fun.(), previous)
          end) do
       {:ok, result} -> result
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp conclude({:error, reason}, _previous), do: Repo.rollback(reason)
+
+  defp conclude(result, previous) do
+    set(previous || "")
+    result
   end
 
   @doc """
