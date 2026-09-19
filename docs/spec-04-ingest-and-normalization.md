@@ -384,27 +384,41 @@ depend on which track was placed first.
 
 #### Credits
 
-Placement credits the agents a track's tags name as creators (LRM-R5): each
-value of `artist` on the track's work, and each value of `album artist` on the
-release's aggregating work. A tag holding several values — joined with `;`, or
-repeated — credits each.
+Placement records who each track's tags credit, as the tags say it: each value
+of `artist` as a credit on the track's work, and each value of `album artist` as
+a credit on the release's aggregating work. A tag holding several values —
+joined with `;`, or repeated — is a credit for each. A credit carries the name in
+Unicode normal form C, the MusicBrainz artist identifier where one is tagged, and
+automatic provenance, so a member's correction outranks it and survives
+placement running again (§6.2).
 
-An agent is found by a key, as a release is. Where the credit carries a
-MusicBrainz artist identifier the key is that identifier, and it is also
-recorded as a nomen of the agent in the MusicBrainz scheme; otherwise the key is
-the name, compared in Unicode normal form C. Each key names one agent, and the
-key is recorded by ingest and unique, so the same name on a thousand tracks
-credits one agent. The same person tagged once with an identifier and once
-without is two agents until matching (spec-05) or a person links them.
+A credit is not an agent. It is what the release says, LRM's statement of
+responsibility, and it names no agent until the agent's kind is known: LRM makes
+every agent a person or a collective agent, and tags do not say which.
 
-An agent placement creates is recorded as a person: tags do not say whether a
-credit names a person or a group, LRM requires every agent to be one or the
-other, and a credit most often names a person. One that names a group is
-corrected by a member or by matching.
+The kind is known music data, and a credit carrying a MusicBrainz artist
+identifier is resolved from it. A scheduled stage after placement, and never
+inside placement's transaction, finds each such credit's agent by its
+identifier, or where none exists asks MusicBrainz for the artist's type:
 
-Credits placement writes carry automatic provenance, as its names do (§6.2): a
-member's correction of a credit outranks it and survives placement running
-again.
+| MusicBrainz type | Agent |
+| --- | --- |
+| Person | a person |
+| Group, Orchestra, Choir | a collective agent |
+| Character, Other | none; the credit stays a name |
+
+The stage creates the agent with the credit's name and the identifier as nomens,
+the identifier in the MusicBrainz scheme; credits it as creator of the credit's
+work (LRM-R5); and links the credit to it. One agent is created per identifier:
+the identifier is recorded by ingest and unique, as a release key is. A request
+sends MusicBrainz the artist identifier and nothing else, at no more than one
+request a second, with a User-Agent carrying the contact the deployment is
+configured with; a deployment configured with none does not run the stage, and
+says so.
+
+A credit with no identifier stays a name until matching (spec-05) or a person
+links it to an agent. A lookup MusicBrainz answers with not-found is a finding
+against the credit; one it cannot answer, a transient failure (§9).
 
 #### A release in one file
 
@@ -617,9 +631,9 @@ place.
     correction outranks them and survives placement running again.
 13. Two tracks of one release are placed as track manifestations positioned
     within a medium, which is positioned within the release; the aggregation
-    carries no arrangement. Each value of a track's artist tag is credited on
-    the track's work, and each value of its album artist tag on the release's
-    work, one agent per key, with automatic provenance.
+    carries no arrangement. Each value of a track's artist tag is a credit on
+    the track's work, and each value of its album artist tag a credit on the
+    release's work, with automatic provenance.
 14. The same files placed in any order yield the same releases; a missing field
     equals only another missing field; a track arriving after its release was
     placed joins it.
@@ -665,6 +679,12 @@ place.
 30. Every catalog write ingest makes is attributed to the System principal.
 31. The sidecar holds no database credentials and cannot write to primary
     storage.
+32. A credit with a MusicBrainz artist identifier resolves to one agent per
+    identifier, a person for type Person and a collective agent for Group,
+    Orchestra or Choir, credited as creator of the credit's work; a credit of
+    type Character or Other, or with no identifier, names no agent.
+33. No lookup runs inside placement's transaction or sends anything but an
+    artist identifier; a deployment configured with no contact runs none.
 
 ---
 
@@ -679,6 +699,11 @@ identification SHOULD run with the same isolation. Where they run within the
 deployment, as child processes of the application holding its database
 credentials, a parser defect reaches everything the deployment can reach. Every
 tool SHOULD run with bounded time and memory.
+
+Resolving credits (§6.4) is the one place ingest reaches outside the
+household. Each lookup tells MusicBrainz an artist identifier the household
+holds, and so, over a library, which artists it holds. A deployment that must not
+disclose that configures no contact, and its credits stay names.
 
 Moving files out of the inbox means the deployment deletes from a directory the
 household writes to. It removes an inbox file only once the acquisition record

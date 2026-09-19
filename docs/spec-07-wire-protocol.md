@@ -267,14 +267,13 @@ there are none is misled; one told the endpoint is not provided can say so.
 | Subsonic | Catalog |
 | --- | --- |
 | music folder | one, the household's |
-| artist | an agent credited as creator of a track's work, or of a release's aggregating work (LRM-R5) |
+| artist | the agent a track's or release's credit resolved to (spec-04 §6.4); for a credit that names no agent, the credit's name, one artist per name |
 | album | a release manifestation (spec-04 §6.4) |
 | song | a track manifestation |
 | genre, year, duration, bit rate, suffix, content type | the current probe annotation of the manifestation's analysis source (spec-04 §5.1, §8.1) |
 | cover art | the cover-art companion linked to the release (spec-04 §4.6), or the picture embedded in the track's master |
 | lyrics | the lyrics companion linked to the track |
-| playlist | an aggregating expression the household composes, ordered by its LRM-R25 arrangement (spec-01 §12.1) |
-| star, rating, play queue, bookmark, now playing | the requesting principal's own consumption data |
+| star, rating, playlist, play queue, bookmark, now playing | the requesting principal's own consumption data |
 
 Every name is the preferred nomen under the principal's resolution profile. Every
 identifier is the res's primary identifier, as a string.
@@ -286,8 +285,8 @@ filesystem holds; storage has no directories that mean anything (spec-04 §4.5).
 
 ### 6.5 Consumption
 
-Stars, ratings, the play queue, bookmarks, and what is playing now are
-consumption data, and each principal's are its own (spec-06 §6.3):
+Stars, ratings, playlists, the play queue, bookmarks, and what is playing now
+are consumption data, and each principal's are its own (spec-06 §6.3):
 
 - `getNowPlaying` returns only the requesting principal's own sessions.
 - `getStarred`, `getStarred2` and the `starred`, `highest`, `frequent` and
@@ -303,11 +302,21 @@ directly, as a count, or as an ordering.
 
 ### 6.6 Playlists
 
-A playlist is catalog content, composed by the household. Every member may read
-and change every playlist (spec-06 §6.2), and a playlist is reported with
-`public: true`. Its `owner` is the principal whose write created it, from the
-write record. Subsonic reserves updating a playlist to its owner; this surface
-does not, because the catalog has no owners.
+A playlist is its principal's, like a star or a rating: an ordered list of songs
+that says what one person chose to hear, and so consumption data rather than
+catalog content (spec-06 §6.3). It lives with the principal's other consumption
+data, not in the catalog, and references songs by identifier.
+
+`getPlaylists` returns only the requesting principal's playlists, and every
+playlist is reported with `public: false` and the requesting principal as its
+`owner`. A request naming another principal's playlist, to read, change or
+delete it, answers error 70, as if it did not exist. A request to create or
+update one as public is refused with error 50: nothing on this surface can make
+one principal's consumption visible to another.
+
+A song a playlist names that is later recycled or purged stays in the playlist
+and is left out of what `getPlaylist` returns, so restoring the song restores
+it to the playlist.
 
 ### 6.7 Retrieval
 
@@ -376,13 +385,13 @@ missing. The native API (§4.5) is where the difference is told.
     `serverVersion`, in XML by default and JSON on `f=json`.
 15. `getOpenSubsonicExtensions` advertises exactly the extensions of §6.2.
 16. An endpoint not provided answers error 0 naming it, never an empty success.
-17. An album is a release, a song a track, and an artist an agent credited on
-    the release's or the track's work; every name is the preferred nomen under
-    the principal's profile.
-18. Stars, ratings, the play queue, bookmarks and now-playing are per principal,
-    and no list or count on the surface reflects another principal's.
-19. Every member may change every playlist, and its owner is the principal whose
-    write created it.
+17. An album is a release, a song a track, and an artist the agent a credit
+    resolved to, or for a credit naming no agent, one artist per credited name;
+    every name is the preferred nomen under the principal's profile.
+18. Stars, ratings, playlists, the play queue, bookmarks and now-playing are per
+    principal, and no list or count on the surface reflects another principal's.
+19. Another principal's playlist answers error 70 whether read, changed or
+    deleted, and a playlist cannot be made public.
 20. `stream` serves the normalized master and `download` the acquired original,
     as stored and with byte ranges; a track with no digital item of its own
     answers error 0 until spec-08.
