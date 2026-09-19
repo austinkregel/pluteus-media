@@ -70,6 +70,35 @@ defmodule Pluteus.Catalog.DeepLink do
     end
   end
 
+  @doc """
+  Reads the selector a request on an entity URI carries in its query, for a res
+  of `target_kind` (§9.1). Parameters that name no selector dimension, such as
+  a resolution profile's `language`, are not the link's and are left alone.
+
+  Returns `:none` where the query carries no selector, and refuses one that
+  names no type, uses a forbidden basis, or is invalid at the kind's level
+  (§8.5).
+  """
+  @spec read(atom(), map()) :: {:ok, map()} | :none | {:error, term()}
+  def read(target_kind, query_params) do
+    dimensions = Map.take(query_params, @dimensions)
+
+    if map_size(dimensions) == 0 do
+      :none
+    else
+      with {:ok, selector} <- selector(dimensions),
+           :ok <- valid_at_level(selector.selector_type, target_kind) do
+        {:ok, selector}
+      end
+    end
+  end
+
+  @doc """
+  The query a selector is written as in its canonical link.
+  """
+  @spec query(map()) :: String.t()
+  def query(selector), do: selector |> then(&struct(Address, &1)) |> dimensions_of() |> encode()
+
   defp canonical(attrs) do
     "/#{Map.fetch!(@segments, attrs.target_kind)}/#{attrs.target_id}?#{encode(dimensions_of(struct(Address, attrs)))}"
   end

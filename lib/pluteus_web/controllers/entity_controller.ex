@@ -18,6 +18,7 @@ defmodule PluteusWeb.EntityController do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.Res
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.RecycledRes
@@ -59,12 +60,29 @@ defmodule PluteusWeb.EntityController do
     Repo.all(query)
   end
 
+  # A deep link's selector (spec-01 §9) is read before the res is looked up: a
+  # selector that names no type, or one invalid at the kind's level, makes the
+  # request malformed whatever the res's state.
   def show(conn, %{"id" => id}) do
     kind = conn.assigns.kind
 
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} -> respond(conn, kind, Lifecycle.state(uuid))
-      :error -> Native.not_found(conn)
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         {:ok, selector} <- selector(kind, conn.query_params) do
+      respond(conn, kind, Lifecycle.state(uuid), selector)
+    else
+      :error ->
+        Native.not_found(conn)
+
+      {:invalid, reason} ->
+        Native.invalid(conn, "the deep link's selector is refused: #{inspect(reason)}")
+    end
+  end
+
+  defp selector(kind, params) do
+    case DeepLink.read(kind, params) do
+      :none -> {:ok, nil}
+      {:ok, selector} -> {:ok, selector}
+      {:error, reason} -> {:invalid, reason}
     end
   end
 
@@ -90,11 +108,28 @@ defmodule PluteusWeb.EntityController do
     end
   end
 
-  defp respond(conn, kind, {:live, %{kind: kind} = res}) do
+  defp respond(conn, kind, state), do: respond(conn, kind, state, nil)
+
+  defp respond(conn, kind, {:live, %{kind: kind} = res}, nil) do
     json(conn, Representation.of(res, Native.profile(conn)))
   end
 
-  defp respond(conn, kind, {:recycled, %{kind: kind}, recycling}) do
+  # The representation names the address the link selects, with the link in
+  # its canonical form.
+  defp respond(conn, kind, {:live, %{kind: kind} = res}, selector) do
+    fields =
+      Map.new(Map.delete(selector, :selector_type), fn {key, value} -> {to_string(key), value} end)
+
+    address =
+      Map.merge(fields, %{
+        "type" => to_string(selector.selector_type),
+        "link" => "/#{Native.paths()[kind]}/#{res.id}?#{DeepLink.query(selector)}"
+      })
+
+    json(conn, Map.put(Representation.of(res, Native.profile(conn)), "address", address))
+  end
+
+  defp respond(conn, kind, {:recycled, %{kind: kind}, recycling}, _selector) do
     conn
     |> put_resp_header("cache-control", "no-store")
     |> Problem.send(410, %{
@@ -105,7 +140,7 @@ defmodule PluteusWeb.EntityController do
     })
   end
 
-  defp respond(conn, kind, {:purged, %{kind: kind}, tombstone}) do
+  defp respond(conn, kind, {:purged, %{kind: kind}, tombstone}, _selector) do
     conn
     |> delete_resp_header("cache-control")
     |> Problem.send(410, %{
@@ -118,5 +153,5 @@ defmodule PluteusWeb.EntityController do
 
   # Absent, or present under another kind: `/works/{id}` names nothing when the
   # id belongs to an expression.
-  defp respond(conn, _kind, _state), do: Native.not_found(conn)
+  defp respond(conn, _kind, _state, _selector), do: Native.not_found(conn)
 end

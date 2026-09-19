@@ -57,6 +57,47 @@ defmodule PluteusWeb.NativeApiTest do
     end
   end
 
+  describe "a deep link's selector is honoured on the entity URI (spec-01 §9)" do
+    test "a valid selector names the address it selects, in canonical form", %{conn: conn} do
+      {:ok, %{expression: expression}} = Catalog.create_work("So What")
+
+      body =
+        conn
+        |> get("/expressions/#{expression.id}", %{"t" => "npt:140.5,148", "language" => "en"})
+        |> json_response(200)
+
+      assert body["id"] == expression.id
+
+      assert %{"type" => "temporal", "start_ms" => 140_500, "end_ms" => 148_000} =
+               body["address"]
+
+      assert body["address"]["link"] == "/expressions/#{expression.id}?t=140.5,148"
+    end
+
+    test "a request with no selector carries no address", %{conn: conn} do
+      {:ok, %{expression: expression}} = Catalog.create_work("So What")
+
+      refute conn
+             |> get("/expressions/#{expression.id}")
+             |> json_response(200)
+             |> Map.has_key?("address")
+    end
+
+    test "a selector naming no type, a forbidden basis, or the wrong level is 400", %{conn: conn} do
+      {:ok, %{work: work, expression: expression}} = Catalog.create_work("So What")
+
+      for {path, params} <- [
+            {"/expressions/#{expression.id}", %{"t" => "140,148", "page" => "3"}},
+            {"/expressions/#{expression.id}", %{"t" => "smpte:0,1"}},
+            {"/expressions/#{expression.id}", %{"xywh" => "10,10,20,20"}},
+            {"/works/#{work.id}", %{"t" => "140,148"}}
+          ] do
+        body = conn |> get(path, params) |> json_response(400)
+        assert body["type"] =~ "/problems/invalid-request"
+      end
+    end
+  end
+
   describe "7. Keyset paging neither skips nor repeats" do
     test "a work created and one recycled between pages disturb nothing else", %{conn: conn} do
       works =
