@@ -34,6 +34,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Catalog.Work
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
+  alias Pluteus.Ingest.Finding
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Recycling
   alias Pluteus.Lifecycle.Tombstone
@@ -165,7 +166,9 @@ defmodule Pluteus.Lifecycle do
   other order could remove bytes for an entity whose purge then rolled back,
   which would turn a failed purge into a loss. Any byte sequence that could not
   be removed is returned rather than raised, so every failure in the set is
-  reported and not only the first.
+  reported and not only the first, and is recorded as a finding against its
+  location: the bytes outlive their record, and the finding outlives whatever
+  called this.
   """
   @spec purge(Recycling.t(), DateTime.t()) :: {:ok, map()}
   def purge(%Recycling{} = recycling, now) do
@@ -184,7 +187,33 @@ defmodule Pluteus.Lifecycle do
           {:error, reason} <- [Storage.delete(location)],
           do: {location, reason}
 
+    Enum.each(bytes_not_removed, &record_bytes_not_removed(&1, now))
+
     {:ok, %{purged: res_ids, bytes_not_removed: bytes_not_removed}}
+  end
+
+  # One open finding per location: a second purge failing on the same bytes
+  # adds nothing a person does not already have to act on.
+  defp record_bytes_not_removed({location, reason}, now) do
+    Repo.insert_all(
+      Finding,
+      [
+        %{
+          id: UUIDv7.generate(),
+          stage: :purge,
+          kind: "bytes_not_removed",
+          permanent: false,
+          detail: %{reason: inspect(reason)},
+          location: location,
+          recorded_at: now,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: :nothing,
+      conflict_target:
+        {:unsafe_fragment, "(location) WHERE location IS NOT NULL AND cleared_at IS NULL"}
+    )
   end
 
   defp state_of(%Res{id: id} = res) do

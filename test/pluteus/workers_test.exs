@@ -144,6 +144,22 @@ defmodule Pluteus.WorkersTest do
       assert location == asset.location
       assert {:purged, _res, _tombstone} = Lifecycle.state(asset.id)
     end
+
+    test "bytes it could not remove are a finding that outlives the job", %{principal: principal} do
+      asset = a_letter_on_disk()
+      :ok = Storage.delete(asset.location)
+      long_ago = DateTime.add(DateTime.utc_now(), -31 * 86_400, :second)
+      {:ok, _} = Lifecycle.recycle(asset.id, principal.id, now: long_ago)
+
+      {:error, _} = perform_job(PurgeExpired, %{})
+      Repo.delete_all("oban_jobs")
+
+      assert [%{stage: :purge, kind: "bytes_not_removed", location: location, detail: detail}] =
+               Pluteus.Ingest.open_findings()
+
+      assert location == asset.location
+      assert detail["reason"] == ":enoent"
+    end
   end
 
   defp ids(assets), do: Enum.map(assets, & &1.id)

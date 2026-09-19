@@ -6,8 +6,8 @@ defmodule Pluteus.Ingest.Finding do
   A finding is recorded against what the stage was working on: the acquisition
   record for acquisition, identification and placement; the digital item for
   normalization; the input, tool and version for analysis. Stray bytes under
-  primary storage have no record at all, so theirs is recorded against the
-  location.
+  primary storage have no record at all, and bytes a purge could not remove
+  have outlived theirs, so each is recorded against its location.
 
   An uncleared finding keeps its subject out of the stage's due work. Clearing
   one is a person asking for it to be tried again, and the finding stays on
@@ -18,7 +18,7 @@ defmodule Pluteus.Ingest.Finding do
 
   import Ecto.Changeset
 
-  @stages ~w(acquire identify place normalize analyse)a
+  @stages ~w(acquire identify place normalize analyse purge)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7

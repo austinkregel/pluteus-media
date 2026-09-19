@@ -18,6 +18,9 @@ config :pluteus, Oban,
   engine: Oban.Engines.Basic,
   repo: Pluteus.Repo,
   queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2],
+  # Finished jobs are kept a week for inspection, then pruned. Nothing is known
+  # only to a job: a failure a person must act on is a finding.
+  pruner: [max_age: {7, :days}],
   cron: [
     crontab: [
       # spec-04 §3: each stage is scheduled work finding its own due items.
