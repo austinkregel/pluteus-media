@@ -13,6 +13,8 @@ defmodule Pluteus.Application do
       {DNSCluster, query: Application.get_env(:pluteus, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pluteus.PubSub},
       {Oban, Application.fetch_env!(:pluteus, Oban)},
+      Pluteus.Changes.Consumption,
+      release(),
       onboarding(),
       # Start to serve requests, typically the last entry
       PluteusWeb.Endpoint
@@ -30,6 +32,14 @@ defmodule Pluteus.Application do
     if Application.fetch_env!(:pluteus, :announce_onboarding),
       do: Supervisor.child_spec({Task, &Pluteus.Onboarding.announce/0}, restart: :temporary),
       else: Supervisor.child_spec({Task, fn -> :ok end}, restart: :temporary)
+  end
+
+  # The feed's release reads the database on a timer, which a test's sandbox
+  # does not permit from a process no test owns; tests start their own.
+  defp release do
+    if Keyword.fetch!(Application.fetch_env!(:pluteus, Pluteus.Changes.Release), :start),
+      do: Pluteus.Changes.Release,
+      else: Supervisor.child_spec({Task, fn -> :ok end}, restart: :temporary, id: :no_release)
   end
 
   # Tell Phoenix to update the endpoint configuration

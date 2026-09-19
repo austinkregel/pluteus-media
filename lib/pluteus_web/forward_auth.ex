@@ -40,12 +40,30 @@ defmodule PluteusWeb.ForwardAuth do
   def call(conn, require_principal) do
     config = Application.fetch_env!(:pluteus, __MODULE__)
 
-    with :ok <- from_proxy(conn, config),
-         {:ok, identity} <- identity(conn, config) do
+    with :ok <- from_proxy(conn.req_headers, config),
+         {:ok, identity} <- identity(conn.req_headers, config) do
       conn = assign(conn, :identity, identity)
       if require_principal, do: attach_principal(conn, identity), else: conn
     else
       {:error, reason} -> refuse(conn, 401, "unauthenticated", reason)
+    end
+  end
+
+  @doc """
+  The principal a set of request headers establishes, as `call/2` would
+  attach it. The socket (spec-07 §5.2) authenticates its upgrade request with
+  this, from the headers it is given.
+  """
+  @spec principal([{String.t(), String.t()}]) ::
+          {:ok, Principal.t()} | {:error, String.t(), String.t()}
+  def principal(headers) do
+    config = Application.fetch_env!(:pluteus, __MODULE__)
+
+    with :ok <- from_proxy(headers, config),
+         {:ok, identity} <- identity(headers, config) do
+      admitted(identity)
+    else
+      {:error, reason} -> {:error, "unauthenticated", reason}
     end
   end
 
@@ -55,12 +73,13 @@ defmodule PluteusWeb.ForwardAuth do
   authentication (spec-07 §3.2) still asks this before reading anything else.
   """
   @spec from_proxy?(Plug.Conn.t()) :: boolean()
-  def from_proxy?(conn), do: from_proxy(conn, Application.fetch_env!(:pluteus, __MODULE__)) == :ok
+  def from_proxy?(conn),
+    do: from_proxy(conn.req_headers, Application.fetch_env!(:pluteus, __MODULE__)) == :ok
 
-  defp from_proxy(conn, config) do
+  defp from_proxy(headers, config) do
     expected = Keyword.fetch!(config, :secret)
 
-    case get_req_header(conn, Keyword.fetch!(config, :secret_header)) do
+    case values(headers, Keyword.fetch!(config, :secret_header)) do
       [presented] ->
         if Plug.Crypto.secure_compare(presented, expected),
           do: :ok,
@@ -71,20 +90,29 @@ defmodule PluteusWeb.ForwardAuth do
     end
   end
 
-  defp identity(conn, config) do
-    case get_req_header(conn, Keyword.fetch!(config, :subject_header)) do
+  defp identity(headers, config) do
+    case values(headers, Keyword.fetch!(config, :subject_header)) do
       [subject] when subject != "" -> {:ok, {Keyword.fetch!(config, :issuer), subject}}
       _absent_or_repeated -> {:error, "the proxy supplied no identity"}
     end
   end
 
-  defp attach_principal(conn, {issuer, subject}) do
+  defp values(headers, name), do: for({^name, value} <- headers, do: value)
+
+  defp attach_principal(conn, identity) do
+    case admitted(identity) do
+      {:ok, principal} -> assign(conn, :principal, principal)
+      {:error, type, detail} -> refuse(conn, 403, type, detail)
+    end
+  end
+
+  defp admitted({issuer, subject}) do
     case Principals.admit(issuer, subject) do
       %Principal{retired_at: retired} when not is_nil(retired) ->
-        refuse(conn, 403, "retired", "this principal has been removed from the household")
+        {:error, "retired", "this principal has been removed from the household"}
 
       %Principal{} = principal ->
-        assign(conn, :principal, principal)
+        {:ok, principal}
     end
   end
 

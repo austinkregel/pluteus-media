@@ -59,6 +59,8 @@ defmodule PluteusWeb.Router do
     post "/recyclings/:id/restoration", WriteController, :restore
     delete "/recyclings/:id", WriteController, :empty
 
+    get "/changes", ChangeController, :index
+
     get "/findings", FindingController, :index
     get "/findings/:id", FindingController, :show
     post "/findings/:id/clearing", WriteController, :clear_finding

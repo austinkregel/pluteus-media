@@ -186,7 +186,9 @@ write is numbered in the order it was recorded, and names the res it touched.
 `GET /changes?after={n}` returns, in order, each recorded write after `n`: its
 number, the operation, and the identifiers of every res in the row it wrote. A
 client reconciles by fetching those res again. Several writes to one res are
-several entries, and a client MAY fetch it once.
+several entries, and a client MAY fetch it once. The response also gives the
+number the feed was released through when it was read, so a client that has
+read that far knows it has seen every write so far.
 
 A write MUST NOT appear in the feed before every write numbered below it has
 either committed or failed. Numbers are assigned as rows are written and

@@ -14,6 +14,11 @@ config :pluteus,
 # Background work. Concurrency is set here and nowhere else: a worker never
 # spawns its own pool. Verification reads whole files, so two at a time keeps
 # the disks from thrashing while a pass over a large library still progresses.
+# spec-07 §5.1: how often the change feed's release is advanced. A push to
+# sockets follows each advance, so this is also how long a change can wait
+# before a device hears of it.
+config :pluteus, Pluteus.Changes.Release, start: true, interval: 1_000
+
 config :pluteus, Oban,
   engine: Oban.Engines.Basic,
   repo: Pluteus.Repo,

@@ -15,6 +15,12 @@ defmodule PluteusWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # spec-07 §5.2. Only the `x-` headers reach a socket, which is where the
+  # proxy's secret and identity travel.
+  socket "/socket", PluteusWeb.ClientSocket,
+    websocket: [connect_info: [:x_headers]],
+    longpoll: false
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

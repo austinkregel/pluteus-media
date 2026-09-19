@@ -61,3 +61,5 @@ config :pluteus, PluteusWeb.ForwardAuth,
   secret: "test-proxy-secret"
 
 config :pluteus, announce_onboarding: false
+
+config :pluteus, Pluteus.Changes.Release, start: false, interval: 20

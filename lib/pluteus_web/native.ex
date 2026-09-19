@@ -61,9 +61,13 @@ defmodule PluteusWeb.Native do
     end
   end
 
-  defp limit(nil), do: {:ok, @default_limit}
+  @doc """
+  A page size as a request gives it, or the default where it gives none.
+  """
+  @spec limit(String.t() | nil) :: {:ok, pos_integer()} | {:error, String.t()}
+  def limit(nil), do: {:ok, @default_limit}
 
-  defp limit(value) do
+  def limit(value) do
     case Integer.parse(value) do
       {limit, ""} when limit in 1..@maximum_limit -> {:ok, limit}
       _other -> {:error, "limit must be a whole number from 1 to #{@maximum_limit}"}
