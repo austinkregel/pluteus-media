@@ -47,7 +47,7 @@ defmodule PluteusWeb.Subsonic.Response do
       "json" ->
         conn
         |> put_resp_content_type("application/json")
-        |> send_resp(200, Jason.encode!(%{"subsonic-response" => envelope}))
+        |> send_resp(200, Jason.encode!(%{"subsonic-response" => present(envelope)}))
 
       _xml ->
         conn
@@ -58,6 +58,11 @@ defmodule PluteusWeb.Subsonic.Response do
         ])
     end
   end
+
+  # An absent field is left out, as XML leaves out a nil attribute.
+  defp present(%{} = map), do: for({k, v} <- map, not is_nil(v), into: %{}, do: {k, present(v)})
+  defp present(list) when is_list(list), do: Enum.map(list, &present/1)
+  defp present(value), do: value
 
   defp element(name, %{} = content) do
     {text, fields} = Map.pop(content, "value")

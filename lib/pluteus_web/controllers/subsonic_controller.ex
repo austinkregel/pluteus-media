@@ -10,6 +10,7 @@ defmodule PluteusWeb.SubsonicController do
 
   use PluteusWeb, :controller
 
+  alias PluteusWeb.Subsonic.Browse
   alias PluteusWeb.Subsonic.Response
 
   @extensions [
@@ -26,8 +27,15 @@ defmodule PluteusWeb.SubsonicController do
   @spec extensions() :: [map()]
   def extensions, do: @extensions
 
+  @surfaces [Browse]
+
   def dispatch(conn, %{"endpoint" => endpoint}) do
-    endpoint |> String.replace_suffix(".view", "") |> handle(conn)
+    endpoint = String.replace_suffix(endpoint, ".view", "")
+
+    case Enum.find(@surfaces, &(endpoint in &1.endpoints())) do
+      nil -> handle(endpoint, conn)
+      surface -> surface.handle(endpoint, conn)
+    end
   end
 
   defp handle("ping", conn), do: Response.ok(conn, nil, %{})

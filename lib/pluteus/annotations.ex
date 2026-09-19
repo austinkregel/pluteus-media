@@ -131,6 +131,23 @@ defmodule Pluteus.Annotations do
   end
 
   @doc """
+  The current derived body of one type on each of many targets, keyed by
+  target. A target with none is absent.
+  """
+  @spec current_bodies([Ecto.UUID.t()], String.t()) :: %{Ecto.UUID.t() => map()}
+  def current_bodies(target_ids, body_type) do
+    Map.new(
+      Repo.all(
+        from a in Annotation,
+          where: a.target_id in ^target_ids and a.body_type == ^body_type,
+          where: a.derivation_id in subquery(current_derivations()),
+          order_by: a.id,
+          select: {a.target_id, a.body}
+      )
+    )
+  end
+
+  @doc """
   Every derived annotation on a target that a newer run has superseded. They
   are kept, so that a supersession can be reviewed before anything is deleted.
   """

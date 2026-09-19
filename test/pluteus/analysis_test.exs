@@ -28,7 +28,7 @@ defmodule Pluteus.AnalysisTest do
   @t0 ~U[2026-09-18 12:00:00.000000Z]
 
   setup do
-    {:ok, _system} = Principals.create_principal(%{role: "system"})
+    _system = Principals.system!()
     %{inbox: inbox!()}
   end
 

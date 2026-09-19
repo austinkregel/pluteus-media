@@ -27,7 +27,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
   @eight_bit %{"codec" => "pcm_u8", "muxer" => "wav", "extension" => "wav", "format" => "fmt/141"}
 
   setup do
-    {:ok, _system} = Principals.create_principal(%{role: "system"})
+    _system = Principals.system!()
     %{inbox: inbox!()}
   end
 

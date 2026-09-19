@@ -261,14 +261,14 @@ defmodule Pluteus.Principals.ConformanceTest do
 
   describe "13. The System principal has no identity mapping" do
     test "one cannot be given to it" do
-      {:ok, system} = Principals.create_principal(%{role: "system"})
+      system = Principals.system!()
 
       assert {:error, changeset} = Principals.bind_identity(system.id, @issuer, "system")
       assert %{principal_id: [_ | _]} = errors_on(changeset)
     end
 
     test "and there is only ever one" do
-      {:ok, _} = Principals.create_principal(%{role: "system"})
+      assert %{role: "system"} = Principals.system!()
 
       assert {:error, changeset} = Principals.create_principal(%{role: "system"})
       assert %{role: [_ | _]} = errors_on(changeset)

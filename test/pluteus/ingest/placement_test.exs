@@ -32,7 +32,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   @t0 ~U[2026-09-18 12:00:00.000000Z]
 
   setup do
-    {:ok, system} = Principals.create_principal(%{role: "system"})
+    system = Principals.system!()
     %{inbox: inbox!(), system: system}
   end
 
