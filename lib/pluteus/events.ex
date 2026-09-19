@@ -19,15 +19,17 @@ defmodule Pluteus.Events do
   alias Pluteus.Repo
 
   @doc """
-  Records that something happened.
+  Records that something happened, and on which of the principal's devices
+  where one did it (spec-07 §3.3).
   """
-  @spec record(Ecto.UUID.t(), Ecto.UUID.t(), String.t(), DateTime.t()) ::
+  @spec record(Ecto.UUID.t(), Ecto.UUID.t(), String.t(), DateTime.t(), Ecto.UUID.t() | nil) ::
           {:ok, Event.t()} | {:error, Ecto.Changeset.t()}
-  def record(principal_id, res_id, type, occurred_at \\ DateTime.utc_now()) do
+  def record(principal_id, res_id, type, occurred_at \\ DateTime.utc_now(), device_id \\ nil) do
     %Event{}
     |> Event.changeset(%{
       principal_id: principal_id,
       res_id: res_id,
+      device_id: device_id,
       type: type,
       occurred_at: occurred_at
     })

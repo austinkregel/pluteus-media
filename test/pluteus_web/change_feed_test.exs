@@ -166,9 +166,10 @@ defmodule PluteusWeb.ChangeFeedTest do
       {:ok, _} = Consumption.rate(principal.id, res.id, 4)
       {:ok, playlist} = Consumption.create_playlist(principal.id, "Evening", [])
       {:ok, _} = Consumption.update_playlist(principal.id, playlist.id, %{append: [res.id]})
-      {:ok, _} = Consumption.save_play_queue(principal.id, [res.id], 0, 0, "phone")
-      :ok = Consumption.playing(principal.id, "phone", res.id)
-      {:ok, _} = Consumption.played(principal.id, "phone", res.id)
+      {:ok, phone} = Principals.bind_device(principal.id, "phone")
+      {:ok, _} = Consumption.save_play_queue(principal.id, [res.id], 0, 0, phone.id)
+      :ok = Consumption.playing(principal.id, phone.id, res.id)
+      {:ok, _} = Consumption.played(principal.id, phone.id, res.id)
 
       for data <- ~w(stars ratings playlists playlists play_queues now_playing events now_playing) do
         assert_receive %Message{topic: ^own_topic, event: "changed", payload: %{"data" => ^data}},
@@ -293,6 +294,7 @@ defmodule PluteusWeb.ChangeFeedTest do
     end
 
     Repo.query!("DELETE FROM events WHERE principal_id = $1", [id])
+    Repo.query!("DELETE FROM devices WHERE principal_id = $1", [id])
 
     {:ok, _} =
       Actor.as(principal_id, fn ->

@@ -20,17 +20,20 @@ defmodule PluteusWeb.SubsonicListsTest do
   setup %{conn: conn} do
     library = MusicFixtures.library!()
 
-    %{"key" => key} =
+    %{"key" => key, "device" => %{"id" => phone}} =
       conn
       |> through_proxy(@subject)
       |> post("/devices", %{"label" => "phone"})
       |> json_response(201)
 
     {:ok, other} = Principals.create_principal(%{role: "member"})
+    {:ok, tv} = Principals.bind_device(other.id, "tv")
 
     %{
       conn: via_proxy(conn),
       key: key,
+      phone: phone,
+      tv: tv.id,
       ada: Principals.principal_for(issuer(), @subject),
       other: other,
       album: library.albums["01 So What.flac"],
@@ -130,34 +133,47 @@ defmodule PluteusWeb.SubsonicListsTest do
     end
 
     test "frequent and recent count and order the principal's own plays", context do
-      for _ <- 1..3, do: {:ok, _} = Consumption.played(context.other.id, "tv", context.so_what)
+      for _ <- 1..3,
+          do: {:ok, _} = Consumption.played(context.other.id, context.tv, context.so_what)
+
       assert ids(context, "frequent") == []
       assert ids(context, "recent") == []
 
       loose_song = hd(call(context, "getAlbum", %{"id" => context.loose})["album"]["song"])["id"]
 
       {:ok, _} =
-        Consumption.played(context.ada.id, "phone", context.so_what, ~U[2026-09-01 10:00:00Z])
+        Consumption.played(
+          context.ada.id,
+          context.phone,
+          context.so_what,
+          ~U[2026-09-01 10:00:00Z]
+        )
 
       {:ok, _} =
-        Consumption.played(context.ada.id, "phone", context.freddie, ~U[2026-09-01 10:10:00Z])
+        Consumption.played(
+          context.ada.id,
+          context.phone,
+          context.freddie,
+          ~U[2026-09-01 10:10:00Z]
+        )
 
-      {:ok, _} = Consumption.played(context.ada.id, "phone", loose_song, ~U[2026-09-02 10:00:00Z])
+      {:ok, _} =
+        Consumption.played(context.ada.id, context.phone, loose_song, ~U[2026-09-02 10:00:00Z])
 
       assert ids(context, "frequent") == [context.album, context.loose]
       assert ids(context, "recent") == [context.loose, context.album]
     end
 
     test "now playing is the principal's own sessions", context do
-      :ok = Consumption.playing(context.other.id, "tv", context.freddie)
+      :ok = Consumption.playing(context.other.id, context.tv, context.freddie)
       assert call(context, "getNowPlaying", %{})["nowPlaying"] == %{"entry" => []}
 
-      :ok = Consumption.playing(context.ada.id, "phone", context.so_what)
+      :ok = Consumption.playing(context.ada.id, context.phone, context.so_what)
 
       assert [entry] = call(context, "getNowPlaying", %{})["nowPlaying"]["entry"]
 
-      assert {entry["id"], entry["username"], entry["playerName"]} ==
-               {context.so_what, context.ada.id, "phone"}
+      assert {entry["id"], entry["username"], entry["playerId"], entry["playerName"]} ==
+               {context.so_what, context.ada.id, context.phone, "phone"}
     end
 
     test "starred lists hold the principal's own artists, albums and songs", context do

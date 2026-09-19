@@ -21,7 +21,13 @@ defmodule Pluteus.ConsumptionTest do
         manifestation.id
       end
 
-    %{ada: ada, bo: bo, songs: songs}
+    devices =
+      for {principal, label} <- [{ada, "phone"}, {ada, "desk"}, {bo, "tablet"}], into: %{} do
+        {:ok, device} = Principals.bind_device(principal.id, label)
+        {label, device.id}
+      end
+
+    %{ada: ada, bo: bo, songs: songs, devices: devices}
   end
 
   test "every function takes the principal whose data it reads or writes first" do
@@ -170,37 +176,53 @@ defmodule Pluteus.ConsumptionTest do
   describe "the play queue" do
     test "is saved with its current entry and replaced by the next save", %{
       ada: ada,
+      devices: devices,
       bo: bo,
       songs: [a, b, c]
     } do
-      {:ok, queue} = Consumption.save_play_queue(ada.id, [a, b, a], 2, 90_000, "phone")
+      {:ok, queue} = Consumption.save_play_queue(ada.id, [a, b, a], 2, 90_000, devices["phone"])
 
       assert entries(queue) == [a, b, a]
-      assert {queue.current_index, queue.position_ms, queue.changed_by} == {2, 90_000, "phone"}
 
-      {:ok, queue} = Consumption.save_play_queue(ada.id, [c], 0, 0, "desk")
+      assert {queue.current_index, queue.position_ms, queue.changed_by_device_id} ==
+               {2, 90_000, devices["phone"]}
+
+      {:ok, queue} = Consumption.save_play_queue(ada.id, [c], 0, 0, devices["desk"])
       assert entries(queue) == [c]
-      assert queue.changed_by == "desk"
+      assert queue.changed_by_device_id == devices["desk"]
 
       assert Consumption.play_queue(bo.id) == nil
     end
 
     test "refuses a current entry outside it, and an empty save clears it", %{
       ada: ada,
+      devices: devices,
       bo: bo,
       songs: [a, b | _]
     } do
-      {:ok, _} = Consumption.save_play_queue(bo.id, [b], 0, 0, "tablet")
+      {:ok, _} = Consumption.save_play_queue(bo.id, [b], 0, 0, devices["tablet"])
 
       assert {:error, :current_outside_queue} =
-               Consumption.save_play_queue(ada.id, [a, b], 2, 0, "phone")
+               Consumption.save_play_queue(ada.id, [a, b], 2, 0, devices["phone"])
 
-      {:ok, _} = Consumption.save_play_queue(ada.id, [a, b], nil, 0, "phone")
+      {:ok, _} = Consumption.save_play_queue(ada.id, [a, b], nil, 0, devices["phone"])
       assert Consumption.play_queue(ada.id).current_index == nil
 
-      {:ok, nil} = Consumption.save_play_queue(ada.id, [], nil, 0, "phone")
+      {:ok, nil} = Consumption.save_play_queue(ada.id, [], nil, 0, devices["phone"])
       assert Consumption.play_queue(ada.id) == nil
       assert entries(Consumption.play_queue(bo.id)) == [b]
+    end
+  end
+
+  describe "devices" do
+    test "a principal's data can name only its own devices", %{
+      ada: ada,
+      devices: devices,
+      songs: [a | _]
+    } do
+      assert_raise Postgrex.Error, ~r/now_playing_device_id_fkey/, fn ->
+        Consumption.playing(ada.id, devices["tablet"], a)
+      end
     end
   end
 
@@ -224,28 +246,31 @@ defmodule Pluteus.ConsumptionTest do
   end
 
   describe "now playing and plays" do
-    test "playing is per client and no event; a play is an event that ends it", %{
+    test "playing is per device and no event; a play is an event that ends it", %{
       ada: ada,
+      devices: devices,
       bo: bo,
       songs: [a, b | _]
     } do
-      :ok = Consumption.playing(ada.id, "phone", a)
-      :ok = Consumption.playing(ada.id, "desk", b)
-      :ok = Consumption.playing(ada.id, "phone", b)
+      :ok = Consumption.playing(ada.id, devices["phone"], a)
+      :ok = Consumption.playing(ada.id, devices["desk"], b)
+      :ok = Consumption.playing(ada.id, devices["phone"], b)
 
       assert ada.id
              |> Consumption.now_playing()
-             |> Enum.map(&{&1.client, &1.res_id})
+             |> Enum.map(&{&1.device_id, &1.res_id})
              |> Enum.sort() ==
-               [{"desk", b}, {"phone", b}]
+               Enum.sort([{devices["desk"], b}, {devices["phone"], b}])
 
       assert Events.for_principal(ada.id) == []
       assert Consumption.now_playing(bo.id) == []
 
-      {:ok, event} = Consumption.played(ada.id, "phone", b)
+      {:ok, event} = Consumption.played(ada.id, devices["phone"], b)
 
       assert {event.principal_id, event.res_id, event.type} == {ada.id, b, "played"}
-      assert [%{client: "desk"}] = Consumption.now_playing(ada.id)
+      assert [%{device_id: desk}] = Consumption.now_playing(ada.id)
+      assert desk == devices["desk"]
+      assert event.device_id == devices["phone"]
       assert Events.play_count(ada.id, b, "played") == 1
       assert Events.play_count(bo.id, b, "played") == 0
     end

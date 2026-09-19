@@ -25,6 +25,7 @@ defmodule Pluteus.Events.Event do
     field :principal_id, UUIDv7
     field :res_id, UUIDv7
 
+    field :device_id, UUIDv7
     field :type, :string
     field :occurred_at, :utc_datetime_usec
 
@@ -35,9 +36,10 @@ defmodule Pluteus.Events.Event do
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :principal_id, :res_id, :type, :occurred_at])
+    |> cast(attrs, [:id, :principal_id, :res_id, :device_id, :type, :occurred_at])
     |> validate_required([:principal_id, :res_id, :type, :occurred_at])
     |> foreign_key_constraint(:principal_id)
     |> foreign_key_constraint(:res_id)
+    |> foreign_key_constraint(:device_id, name: :events_device_id_fkey)
   end
 end

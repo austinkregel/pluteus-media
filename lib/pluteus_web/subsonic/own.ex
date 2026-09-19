@@ -7,7 +7,8 @@ defmodule PluteusWeb.Subsonic.Own do
   Every operation reads or writes only the requesting principal's data.
   Another principal's playlist answers error 70, as if it did not exist, and
   a playlist is never public: asking for one to be is error 50. What a client
-  reports it is playing is recorded against its device's label.
+  reports is recorded against its key's device, by identifier, and shown by
+  the device's label.
 
   A song that is later recycled or purged stays where a playlist, queue or
   bookmark named it, and is left out of what is shown. The positions a client
@@ -16,6 +17,7 @@ defmodule PluteusWeb.Subsonic.Own do
 
   alias Pluteus.Consumption
   alias Pluteus.Music
+  alias Pluteus.Principals
   alias PluteusWeb.Subsonic.Request
   alias PluteusWeb.Subsonic.Response
   alias PluteusWeb.Subsonic.Shape
@@ -62,12 +64,18 @@ defmodule PluteusWeb.Subsonic.Own do
          {:ok, submission} <- Request.boolean(conn, "submission", true),
          {:ok, times} <- times(conn),
          {:ok, songs} <- songs(conn, ids) do
-      client = conn.assigns.device.label
+      device_id = conn.assigns.device.id
 
       songs
       |> Enum.with_index()
       |> Enum.each(fn {song, index} ->
-        record_play(conn, client, submission, song, Enum.at(times, index) || DateTime.utc_now())
+        record_play(
+          conn,
+          device_id,
+          submission,
+          song,
+          Enum.at(times, index) || DateTime.utc_now()
+        )
       end)
 
       :ok
@@ -249,11 +257,11 @@ defmodule PluteusWeb.Subsonic.Own do
   defp mark("unstar", principal_id, res_id), do: :ok = Consumption.unstar(principal_id, res_id)
 
   # A submission is a play; without one, the song is what the client plays now.
-  defp record_play(conn, client, true, song, at),
-    do: {:ok, _} = Consumption.played(principal_id(conn), client, song.id, at)
+  defp record_play(conn, device_id, true, song, at),
+    do: {:ok, _} = Consumption.played(principal_id(conn), device_id, song.id, at)
 
-  defp record_play(conn, client, false, song, at),
-    do: :ok = Consumption.playing(principal_id(conn), client, song.id, at)
+  defp record_play(conn, device_id, false, song, at),
+    do: :ok = Consumption.playing(principal_id(conn), device_id, song.id, at)
 
   # With a playlistId, createPlaylist replaces that playlist's songs.
   defp write_playlist(conn, nil, ids) do
@@ -427,7 +435,7 @@ defmodule PluteusWeb.Subsonic.Own do
           "position" => queue.position_ms,
           "username" => principal_id(conn),
           "changed" => Shape.timestamp(queue.updated_at),
-          "changedBy" => queue.changed_by,
+          "changedBy" => device_label(conn, queue.changed_by_device_id),
           "entry" =>
             Enum.map(shown, fn {_entry, song} ->
               Shape.song(song, albums[song.album_id], context)
@@ -459,7 +467,7 @@ defmodule PluteusWeb.Subsonic.Own do
            Enum.map(songs, & &1.id),
            current,
            position,
-           conn.assigns.device.label
+           conn.assigns.device.id
          ) do
       {:ok, _queue} -> :ok
       {:error, :current_outside_queue} -> {:error, 0, "The current index is outside the queue"}
@@ -517,4 +525,12 @@ defmodule PluteusWeb.Subsonic.Own do
   defp put_present(map, key, value), do: Map.put(map, key, value)
 
   defp principal_id(conn), do: conn.assigns.principal.id
+
+  defp device_label(conn, device_id) do
+    conn
+    |> principal_id()
+    |> Principals.devices_of()
+    |> Enum.find(&(&1.id == device_id))
+    |> Map.fetch!(:label)
+  end
 end

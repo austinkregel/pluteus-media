@@ -21,7 +21,7 @@ defmodule PluteusWeb.SubsonicOwnTest do
   setup %{conn: conn} do
     library = MusicFixtures.library!()
 
-    %{"key" => key} =
+    %{"key" => key, "device" => %{"id" => device}} =
       conn
       |> through_proxy(@subject)
       |> post("/devices", %{"label" => "Symfonium"})
@@ -32,6 +32,7 @@ defmodule PluteusWeb.SubsonicOwnTest do
     %{
       conn: via_proxy(conn),
       key: key,
+      device: device,
       ada: Principals.principal_for(issuer(), @subject),
       other: other,
       album: library.albums["01 So What.flac"],
@@ -95,8 +96,8 @@ defmodule PluteusWeb.SubsonicOwnTest do
     test "a submission is a play event; without one it is what is playing now", context do
       ok(context, "scrobble?id=#{context.so_what}&submission=false")
 
-      assert [%{client: "Symfonium", res_id: so_what}] = Consumption.now_playing(context.ada.id)
-      assert so_what == context.so_what
+      assert [%{device_id: device, res_id: so_what}] = Consumption.now_playing(context.ada.id)
+      assert {device, so_what} == {context.device, context.so_what}
       assert Events.for_principal(context.ada.id) == []
 
       ok(

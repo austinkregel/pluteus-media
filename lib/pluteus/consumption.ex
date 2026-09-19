@@ -228,34 +228,35 @@ defmodule Pluteus.Consumption do
 
   @doc """
   Saves the principal's play queue: `res_ids` in order, the entry at
-  `current_index` current, `position_ms` into it. An empty queue clears it.
+  `current_index` current, `position_ms` into it, saved from one of the
+  principal's devices. An empty queue clears it.
   """
   @spec save_play_queue(
           Ecto.UUID.t(),
           [Ecto.UUID.t()],
           non_neg_integer() | nil,
           non_neg_integer(),
-          String.t()
+          Ecto.UUID.t()
         ) :: {:ok, PlayQueue.t() | nil} | {:error, :current_outside_queue}
-  def save_play_queue(principal_id, [], _current_index, _position_ms, _client) do
+  def save_play_queue(principal_id, [], _current_index, _position_ms, _device_id) do
     Repo.delete_all(from q in PlayQueue, where: q.principal_id == ^principal_id)
     {:ok, nil}
   end
 
-  def save_play_queue(principal_id, res_ids, current_index, position_ms, client) do
+  def save_play_queue(principal_id, res_ids, current_index, position_ms, device_id) do
     if current_index && current_index not in 0..(length(res_ids) - 1)//1 do
       {:error, :current_outside_queue}
     else
       {:ok, _} =
         Repo.transaction(fn ->
-          write_queue(principal_id, res_ids, current_index, position_ms, client)
+          write_queue(principal_id, res_ids, current_index, position_ms, device_id)
         end)
 
       {:ok, play_queue(principal_id)}
     end
   end
 
-  defp write_queue(principal_id, res_ids, current_index, position_ms, client) do
+  defp write_queue(principal_id, res_ids, current_index, position_ms, device_id) do
     now = DateTime.utc_now()
 
     Repo.insert_all(
@@ -265,12 +266,12 @@ defmodule Pluteus.Consumption do
           principal_id: principal_id,
           current_index: current_index,
           position_ms: position_ms,
-          changed_by: client,
+          changed_by_device_id: device_id,
           inserted_at: now,
           updated_at: now
         }
       ],
-      on_conflict: {:replace, [:current_index, :position_ms, :changed_by, :updated_at]},
+      on_conflict: {:replace, [:current_index, :position_ms, :changed_by_device_id, :updated_at]},
       conflict_target: [:principal_id]
     )
 
@@ -330,18 +331,18 @@ defmodule Pluteus.Consumption do
   # Now playing, and plays
 
   @doc """
-  Records that the principal is playing `res_id` now on `client`, replacing
-  what that client was playing. This is not an event.
+  Records that the principal is playing `res_id` now on one of its devices,
+  replacing what that device was playing. This is not an event.
   """
-  @spec playing(Ecto.UUID.t(), String.t(), Ecto.UUID.t(), DateTime.t()) :: :ok
-  def playing(principal_id, client, res_id, now \\ DateTime.utc_now()) do
+  @spec playing(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) :: :ok
+  def playing(principal_id, device_id, res_id, now \\ DateTime.utc_now()) do
     {1, _} =
       Repo.insert_all(
         NowPlaying,
         [
           %{
             principal_id: principal_id,
-            client: client,
+            device_id: device_id,
             res_id: res_id,
             started_at: now,
             inserted_at: now,
@@ -349,7 +350,7 @@ defmodule Pluteus.Consumption do
           }
         ],
         on_conflict: {:replace, [:res_id, :started_at, :updated_at]},
-        conflict_target: [:principal_id, :client]
+        conflict_target: [:principal_id, :device_id]
       )
 
     :ok
@@ -365,19 +366,20 @@ defmodule Pluteus.Consumption do
   end
 
   @doc """
-  Records that the principal played `res_id` through on `client`: a playback
-  event (spec-01 §11). The client is no longer playing it now.
+  Records that the principal played `res_id` through on one of its devices: a
+  playback event (spec-01 §11). The device is no longer playing it now.
   """
-  @spec played(Ecto.UUID.t(), String.t(), Ecto.UUID.t(), DateTime.t()) ::
+  @spec played(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
           {:ok, Events.Event.t()} | {:error, term()}
-  def played(principal_id, client, res_id, at \\ DateTime.utc_now()) do
+  def played(principal_id, device_id, res_id, at \\ DateTime.utc_now()) do
     Repo.transaction(fn ->
-      case Events.record(principal_id, res_id, "played", at) do
+      case Events.record(principal_id, res_id, "played", at, device_id) do
         {:ok, event} ->
           Repo.delete_all(
             from n in NowPlaying,
               where:
-                n.principal_id == ^principal_id and n.client == ^client and n.res_id == ^res_id
+                n.principal_id == ^principal_id and n.device_id == ^device_id and
+                  n.res_id == ^res_id
           )
 
           event

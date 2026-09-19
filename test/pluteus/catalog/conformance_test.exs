@@ -893,6 +893,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
                play_count: 3,
                record: 3,
                record: 4,
+               record: 5,
                resumable: 1,
                resume_position: 2,
                set_resume_position: 3
