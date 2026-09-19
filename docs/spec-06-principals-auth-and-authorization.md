@@ -74,6 +74,11 @@ implementation MUST establish that a request came through that proxy before
 reading the assertion. Headers that reached it any other way could have been
 set by anyone able to reach it.
 
+One surface is exempt from forward authentication: the one spec-07 §3.2 serves
+to clients that cannot follow a browser through the provider's sign-in. There a
+request is identified by a client key (§4) instead. It MUST still have come
+through the proxy, established the same way, before its key is read.
+
 ### 3.3 Issuer change
 
 spec-01 §10.1 records the exposure: if the issuer URL changes through provider
@@ -121,6 +126,12 @@ Devices are scoped to a principal at authentication time.
 
 Input-constrained clients — televisions, set-top boxes, anything without a
 usable keyboard — SHOULD use the OIDC device authorization grant [RFC8628].
+
+A client that cannot perform forward authentication, such as a music player on
+a phone, holds a client key (spec-07 §3.2). The key is its device's credential:
+a principal mints it while authenticated through the proxy, which binds the
+device to that principal, and revoking the device revokes the key. A key
+identifies its principal only on the surface §3.2 exempts, and nowhere else.
 
 **There is no shared or ambient session.** Every playback MUST be attributable
 to a principal. A device is not an identity and MUST NOT accumulate consumption
@@ -322,6 +333,9 @@ consumed.
 15. Every catalog write records the acting principal.
 16. An audit record readable by an Administrator carries no indication of what
     any principal consumed.
+17. A client key identifies its principal only on the surface exempt from
+    forward authentication, only for a request that came through the proxy, and
+    not once its device is revoked.
 
 ---
 

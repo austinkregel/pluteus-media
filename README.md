@@ -21,7 +21,7 @@ dependency. Everything else builds on it.
 | [04 — Ingest and Normalization](docs/spec-04-ingest-and-normalization.md) | Acquisition from an inbox, identification, placement per media class, normalization, analysis by native and sidecar tools. Idempotency and resumability. | Draft |
 | 05 — Metadata Acquisition and Matching | External identifier nomens. MusicBrainz, TMDB, AcoustID. Correction beats automatic. | Not started |
 | [06 — Principals, Auth and Authorization](docs/spec-06-principals-auth-and-authorization.md) | Principals and roles, identity from a forward-authenticating proxy, household boundary, per-principal scoping, audit. | Draft |
-| 07 — Wire Protocol | Native API plus an OpenSubsonic compatibility surface. Change notification. | Not started |
+| [07 — Wire Protocol](docs/spec-07-wire-protocol.md) | Native API, change notification, client keys, and an OpenSubsonic surface for existing music clients. | Draft |
 | 08 — Playback and Transcode Negotiation | Sessions, direct play / remux / transcode, track selection. | Not started |
 | 09 — Search, Ranking and Recommendation | Feature vectors, taste modelling, playlist generation and sequencing. | Not started |
 | 10 — Presentation | Resolution profiles, client contracts. | Not started |

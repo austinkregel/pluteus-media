@@ -382,6 +382,30 @@ person decides. Where a track carries an external release identifier its tags
 are not compared with other tracks' for this, since whether they disagree would
 depend on which track was placed first.
 
+#### Credits
+
+Placement credits the agents a track's tags name as creators (LRM-R5): each
+value of `artist` on the track's work, and each value of `album artist` on the
+release's aggregating work. A tag holding several values — joined with `;`, or
+repeated — credits each.
+
+An agent is found by a key, as a release is. Where the credit carries a
+MusicBrainz artist identifier the key is that identifier, and it is also
+recorded as a nomen of the agent in the MusicBrainz scheme; otherwise the key is
+the name, compared in Unicode normal form C. Each key names one agent, and the
+key is recorded by ingest and unique, so the same name on a thousand tracks
+credits one agent. The same person tagged once with an identifier and once
+without is two agents until matching (spec-05) or a person links them.
+
+An agent placement creates is recorded as a person: tags do not say whether a
+credit names a person or a group, LRM requires every agent to be one or the
+other, and a credit most often names a person. One that names a group is
+corrected by a member or by matching.
+
+Credits placement writes carry automatic provenance, as its names do (§6.2): a
+member's correction of a credit outranks it and survives placement running
+again.
+
 #### A release in one file
 
 A release ripped to a single file with a cue sheet beside it is one digital item
@@ -593,7 +617,9 @@ place.
     correction outranks them and survives placement running again.
 13. Two tracks of one release are placed as track manifestations positioned
     within a medium, which is positioned within the release; the aggregation
-    carries no arrangement.
+    carries no arrangement. Each value of a track's artist tag is credited on
+    the track's work, and each value of its album artist tag on the release's
+    work, one agent per key, with automatic provenance.
 14. The same files placed in any order yield the same releases; a missing field
     equals only another missing field; a track arriving after its release was
     placed joins it.
