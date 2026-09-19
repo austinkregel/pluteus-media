@@ -4,7 +4,7 @@ A self-hosted media system for one household: catalog, preservation, and
 consumption in one application. Music, video, documents, photographs, scanned
 correspondence, ebooks, and home recordings — anything the household holds.
 
-**Status:** specification, with an implementation of specs 01, 02, 03, 04 and 06
+**Status:** specification, with an implementation of specs 01, 02, 03, 04, 06 and 07
 in this repository.
 
 ## The specification series
@@ -60,7 +60,7 @@ principal, and no principal's consumption is visible to another.
 **Pluteus** — one Phoenix application, one PostgreSQL database, Ecto as sole
 schema owner. Each specification's conformance criteria are its test suite:
 spec-01 is met except criterion 33, which waits on spec-08; spec-02, spec-03,
-spec-04 and spec-06 are met in full.
+spec-04, spec-06 and spec-07 are met in full.
 
 Analysis runs in two tools: one on the BEAM, and a Python sidecar in
 [sidecar/](sidecar/) on an internal network it shares only with the app, with

@@ -12,7 +12,9 @@ defmodule PluteusWeb.SubsonicController do
 
   alias PluteusWeb.Subsonic.Browse
   alias PluteusWeb.Subsonic.Lists
+  alias PluteusWeb.Subsonic.Own
   alias PluteusWeb.Subsonic.Response
+  alias PluteusWeb.Subsonic.Retrieval
 
   @extensions [
     %{"name" => "apiKeyAuthentication", "versions" => [1]},
@@ -28,7 +30,7 @@ defmodule PluteusWeb.SubsonicController do
   @spec extensions() :: [map()]
   def extensions, do: @extensions
 
-  @surfaces [Browse, Lists]
+  @surfaces [Browse, Lists, Retrieval, Own]
 
   def dispatch(conn, %{"endpoint" => endpoint}) do
     endpoint = String.replace_suffix(endpoint, ".view", "")

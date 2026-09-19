@@ -24,7 +24,7 @@ defmodule PluteusWeb.Subsonic.Request do
   """
   @spec all(Plug.Conn.t(), String.t()) :: [String.t()]
   def all(conn, key) do
-    body = conn.private |> Map.get(:raw_form_body, []) |> IO.iodata_to_binary()
+    body = Map.get(conn.private, :raw_form_body, "")
 
     for source <- [conn.query_string, body],
         {^key, value} <- URI.query_decoder(source),

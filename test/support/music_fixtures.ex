@@ -39,20 +39,31 @@ defmodule Pluteus.MusicFixtures do
     inbox = inbox!()
     cover = media!(:png)
 
+    # Inbox paths key what ingest records of a file, so each library's
+    # directories are its own, and concurrent tests do not wait on each other.
+    album = "KoB #{System.unique_integer([:positive])}"
+    loose = "loose #{System.unique_integer([:positive])}"
+    # Release keys are unique too, and one per library keeps them apart.
+    release = Ecto.UUID.generate()
+
     files = %{
-      "KoB/01 So What.flac" =>
+      "#{album}/01 So What.flac" =>
         media!(:flac,
           art: true,
-          tags: kind_of_blue(%{"title" => "So What", "track" => "1", "genre" => "Modal"})
+          tags: kind_of_blue(release, %{"title" => "So What", "track" => "1", "genre" => "Modal"})
         ),
-      "KoB/02 Freddie.flac" =>
+      "#{album}/02 Freddie.flac" =>
         media!(:flac,
           tags:
-            kind_of_blue(%{"title" => "Freddie Freeloader", "track" => "2", "genre" => "Jazz"})
+            kind_of_blue(release, %{
+              "title" => "Freddie Freeloader",
+              "track" => "2",
+              "genre" => "Jazz"
+            })
         ),
-      "KoB/cover.png" => cover,
-      "KoB/01 So What.lrc" => @lyrics,
-      "loose/untitled.wav" => media!(:wav)
+      "#{album}/cover.png" => cover,
+      "#{album}/01 So What.lrc" => @lyrics,
+      "#{loose}/untitled.wav" => media!(:wav)
     }
 
     for {path, bytes} <- files, do: drop!(inbox, path, bytes)
@@ -82,9 +93,10 @@ defmodule Pluteus.MusicFixtures do
     }
   end
 
-  defp kind_of_blue(tags) do
+  defp kind_of_blue(release, tags) do
     Map.merge(
       %{
+        "musicbrainz_albumid" => release,
         "album" => "Kind of Blue",
         "album_artist" => "Miles Davis",
         "artist" => "Miles Davis",

@@ -15,7 +15,13 @@ config :pluteus, Pluteus.Repo,
   hostname: "db",
   database: "pluteus_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: 32
+  pool_size: 32,
+  # Ingest keys what it records by inbox path, and many tests drop a file at the
+  # same relative path into inboxes of their own. Each sandboxed test holds its
+  # rows uncommitted, so a second test writing the same key waits until the
+  # first finishes; ingest tests run for many seconds, and the wait outlasts the
+  # default statement timeout without anything being wrong.
+  timeout: 120_000
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

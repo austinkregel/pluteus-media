@@ -2,7 +2,7 @@
 
 **Specification 07**
 **Status:** Draft
-**Version:** 0.1
+**Version:** 0.2
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
 Normalization), spec-06 (Principals, Auth and Authorization)
