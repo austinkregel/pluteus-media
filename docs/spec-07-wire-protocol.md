@@ -276,6 +276,7 @@ there are none is misled; one told the endpoint is not provided can say so.
 | genre, year, duration, bit rate, suffix, content type | the current probe annotation of the manifestation's analysis source (spec-04 §5.1, §8.1) |
 | cover art | the cover-art companion linked to the release (spec-04 §4.6), or the picture embedded in the track's master |
 | lyrics | the lyrics companion linked to the track |
+| album info | the description companion linked to the release as its notes, and the MusicBrainz release its tracks are tagged with; no image URLs, which would have to carry the client's key |
 | star, rating, playlist, play queue, bookmark, now playing | the requesting principal's own consumption data |
 
 Every name is the preferred nomen under the principal's resolution profile. Every

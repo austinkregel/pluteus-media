@@ -177,6 +177,22 @@ defmodule PluteusWeb.SubsonicBrowseTest do
     end
   end
 
+  describe "album and artist info" do
+    test "an album's notes are its description, with its MusicBrainz release", context do
+      info = call(context, "getAlbumInfo2", %{"id" => context.album})["albumInfo"]
+
+      assert info == %{
+               "notes" => "Recorded at Columbia 30th Street Studio.",
+               "musicBrainzId" => context.library.release
+             }
+    end
+
+    test "an album the catalog knows nothing more of has empty info", context do
+      loose = context.library.albums["untitled.wav"]
+      assert call(context, "getAlbumInfo2", %{"id" => loose})["albumInfo"] == %{}
+    end
+  end
+
   describe "cover art and lyrics" do
     test "an album's cover is its cover companion, as stored", context do
       response = raw(context, "getCoverArt", %{"id" => context.album})

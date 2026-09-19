@@ -9,6 +9,7 @@ defmodule PluteusWeb.Subsonic.Browse do
   filesystem holds (§6.4).
   """
 
+  alias Pluteus.Ingest.Streams
   alias Pluteus.Music
   alias Pluteus.Music.Album
   alias Pluteus.Music.Song
@@ -99,8 +100,20 @@ defmodule PluteusWeb.Subsonic.Browse do
     end
   end
 
+  # What the catalog holds about a release: its description companion as the
+  # notes, and the MusicBrainz release its tracks are tagged with. Image URLs
+  # are not given, since they would have to carry the client's key; a client
+  # asks getCoverArt by the album's coverArt.
   defp answer("getAlbumInfo2", conn) do
-    with {:ok, _album} <- album(conn), do: {:ok, "albumInfo", %{}}
+    with {:ok, album} <- album(conn) do
+      notes =
+        case Music.companion(album.id, "description") do
+          nil -> nil
+          asset -> text(Storage.read(asset.location), album.id)
+        end
+
+      {:ok, "albumInfo", %{"notes" => notes, "musicBrainzId" => release_identifier(album)}}
+    end
   end
 
   defp answer("getSong", conn) do
@@ -274,6 +287,17 @@ defmodule PluteusWeb.Subsonic.Browse do
     conn
     |> Plug.Conn.put_resp_content_type(media_type, nil)
     |> Plug.Conn.send_resp(200, bytes)
+  end
+
+  defp release_identifier(album) do
+    Enum.find_value(album.songs, fn song ->
+      song.probe |> Streams.tags() |> Streams.release_identifiers() |> List.first()
+    end)
+  end
+
+  defp text(bytes, id) do
+    unless String.valid?(bytes), do: raise(ArgumentError, "the description of #{id} is not UTF-8")
+    String.trim(bytes)
   end
 
   # --- Lyrics (§6.4) ------------------------------------------------------------

@@ -63,6 +63,7 @@ defmodule Pluteus.MusicFixtures do
         ),
       "#{album}/cover.png" => cover,
       "#{album}/01 So What.lrc" => @lyrics,
+      "#{album}/about.nfo" => "Recorded at Columbia 30th Street Studio.\n",
       "#{loose}/untitled.wav" => media!(:wav)
     }
 
@@ -87,6 +88,7 @@ defmodule Pluteus.MusicFixtures do
       end
 
     %{
+      release: release,
       songs: songs,
       albums: Map.new(songs, fn {name, track} -> {name, album_of(track)} end),
       cover: cover
