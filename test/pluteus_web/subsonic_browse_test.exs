@@ -11,9 +11,9 @@ defmodule PluteusWeb.SubsonicBrowseTest do
   alias Pluteus.Actor
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Credit
+  alias Pluteus.Ingest.Credits
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
-  alias Pluteus.Music
   alias Pluteus.MusicFixtures
   alias Pluteus.Principals
   alias Pluteus.Principals.Principal
@@ -36,18 +36,20 @@ defmodule PluteusWeb.SubsonicBrowseTest do
       library: library,
       album: library.albums["01 So What.flac"],
       so_what: library.songs["01 So What.flac"],
-      freddie: library.songs["02 Freddie.flac"]
+      freddie: library.songs["02 Freddie.flac"],
+      artist: library.artist,
+      artist_id: library.artist_id
     }
   end
 
-  describe "17. An album is a release, a song a track, an artist a credit's agent or name" do
+  describe "17. An album is a release, a song a track, an artist the agent a credit names" do
     test "the album holds its tracks in order, credited by name", context do
       album = call(context, "getAlbum", %{"id" => context.album})["album"]
 
       assert album["name"] == "Kind of Blue"
       assert album["songCount"] == 2
-      assert album["artist"] == "Miles Davis"
-      assert album["artistId"] == Music.name_artist_id("Miles Davis")
+      assert album["artist"] == context.artist
+      assert album["artistId"] == context.artist_id
       assert album["year"] == 1959
 
       assert Enum.map(album["song"], &{&1["id"], &1["title"], &1["track"], &1["discNumber"]}) ==
@@ -62,36 +64,32 @@ defmodule PluteusWeb.SubsonicBrowseTest do
       refute Map.has_key?(so_what, "path")
     end
 
-    test "a credit resolved to an agent is that agent, under the agent's name", context do
-      {:ok, %{res: agent}} =
+    test "an artist narrowed to a person is that person, under the person's name", context do
+      {:ok, _} =
         Actor.as(Principals.system!().id, fn ->
-          Catalog.create_named_res(:person, "Miles Dewey Davis III")
+          Catalog.narrow(context.artist_id, :person)
         end)
 
-      {_count, _} =
-        Repo.update_all(Credit, set: [agent_id: agent.id, agent_kind: :person])
+      {:ok, _} =
+        Catalog.create_nomen(%{
+          res_id: context.artist_id,
+          nomen_string: "Miles Dewey Davis III",
+          provenance: :local
+        })
 
       album = call(context, "getAlbum", %{"id" => context.album})["album"]
 
-      assert album["artistId"] == agent.id
+      assert album["artistId"] == context.artist_id
       assert album["artist"] == "Miles Dewey Davis III"
     end
 
     test "a member's credit outranks placement's in the same role", context do
-      {:ok, _} =
-        %Credit{}
-        |> Credit.changeset(%{
-          work_id: work_of(context.album),
-          role: :album_artist,
-          position: 1,
-          name: "Davis Sextet",
-          provenance: :local
-        })
-        |> Repo.insert()
+      credit!(work_of(context.album), :album_artist, "Davis Sextet", :local)
 
       album = call(context, "getAlbum", %{"id" => context.album})["album"]
       assert album["artist"] == "Davis Sextet"
-      assert [%{"name" => "Miles Davis"}] = hd(album["song"])["artists"]
+      assert [%{"name" => name}] = hd(album["song"])["artists"]
+      assert name == context.artist
     end
 
     test "an album credited to nobody is credited to its songs' artists", context do
@@ -101,19 +99,11 @@ defmodule PluteusWeb.SubsonicBrowseTest do
             where: c.role == :album_artist and c.work_id == ^work_of(context.album)
         )
 
-      {:ok, _} =
-        %Credit{}
-        |> Credit.changeset(%{
-          work_id: work_of(context.freddie),
-          role: :artist,
-          position: 2,
-          name: "Cannonball Adderley",
-          provenance: :automatic
-        })
-        |> Repo.insert()
+      credit!(work_of(context.freddie), :artist, "Cannonball Adderley", :automatic, 2)
 
       album = call(context, "getAlbum", %{"id" => context.album})["album"]
-      assert Enum.map(album["artists"], & &1["name"]) == ["Miles Davis", "Cannonball Adderley"]
+
+      assert Enum.map(album["artists"], & &1["name"]) == [context.artist, "Cannonball Adderley"]
     end
 
     test "every name is the one the principal's profile prefers", context do
@@ -138,7 +128,7 @@ defmodule PluteusWeb.SubsonicBrowseTest do
 
     test "artists are listed by initial, and an artist lists its albums", context do
       artists = call(context, "getArtists", %{})["artists"]["index"]
-      id = Music.name_artist_id("Miles Davis")
+      id = context.artist_id
 
       assert %{"name" => "M", "artist" => [%{"id" => ^id, "albumCount" => 1}]} =
                Enum.find(artists, &(&1["name"] == "M"))
@@ -149,9 +139,7 @@ defmodule PluteusWeb.SubsonicBrowseTest do
     end
 
     test "the directories are artists, their albums, and the albums' songs", context do
-      id = Music.name_artist_id("Miles Davis")
-
-      artist = call(context, "getMusicDirectory", %{"id" => id})["directory"]
+      artist = call(context, "getMusicDirectory", %{"id" => context.artist_id})["directory"]
       assert [%{"id" => album_id, "isDir" => true}] = artist["child"]
       assert album_id == context.album
 
@@ -259,7 +247,8 @@ defmodule PluteusWeb.SubsonicBrowseTest do
     test "an identifier naming nothing, or not an identifier, is error 70", context do
       assert error(context, "getAlbum", %{"id" => UUIDv7.generate()}) == 70
       assert error(context, "getAlbum", %{"id" => "nope"}) == 70
-      assert error(context, "getArtist", %{"id" => Music.name_artist_id("Nobody")}) == 70
+      assert error(context, "getArtist", %{"id" => UUIDv7.generate()}) == 70
+      assert error(context, "getArtist", %{"id" => "Nobody"}) == 70
       assert error(context, "getAlbum", %{}) == 10
     end
   end
@@ -276,6 +265,29 @@ defmodule PluteusWeb.SubsonicBrowseTest do
   defp work_of(manifestation_id) do
     [expression | _] = Catalog.expressions_in(manifestation_id)
     expression.work_id
+  end
+
+  # A credit as the system writes one: naming the artist it credits (spec-04
+  # §6.4), whoever wrote it.
+  defp credit!(work_id, role, name, provenance, position \\ 1) do
+    Actor.as(Principals.system!().id, fn ->
+      artist = Credits.artist_for(name, nil)
+
+      {:ok, credit} =
+        %Credit{}
+        |> Credit.changeset(%{
+          work_id: work_id,
+          role: role,
+          position: position,
+          name: name,
+          agent_id: artist.id,
+          agent_kind: artist.kind,
+          provenance: provenance
+        })
+        |> Repo.insert()
+
+      credit
+    end)
   end
 
   defp call(context, endpoint, params) do

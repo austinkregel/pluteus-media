@@ -436,8 +436,30 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
-  Credits an agent as a creator of a work (LRM-R5). The agent is a person or a
-  collective agent; whether it holds a login does not enter into it.
+  Narrows an artist to the kind of agent it turns out to be (spec-01 §3.1).
+
+  The identifier is kept, and with it everything recorded against the artist:
+  its names, the works it is credited with, and every principal's stars and
+  ratings. This is the one change of kind the model permits. Anything else —
+  narrowing a res that is not an artist, or narrowing to a kind that is not a
+  person or a collective agent — is refused.
+  """
+  @spec narrow(Ecto.UUID.t(), :person | :collective_agent) ::
+          {:ok, Res.t()} | {:error, :no_such_res | :not_an_artist | :not_an_agent_kind}
+  def narrow(artist_id, kind) when kind in [:person, :collective_agent] do
+    case Repo.get(Res, artist_id) do
+      nil -> {:error, :no_such_res}
+      %Res{kind: :artist} = artist -> artist |> Res.changeset(%{kind: kind}) |> Repo.update()
+      %Res{} -> {:error, :not_an_artist}
+    end
+  end
+
+  def narrow(_artist_id, _kind), do: {:error, :not_an_agent_kind}
+
+  @doc """
+  Credits an agent as a creator of a work (LRM-R5). The agent is a person, a
+  collective agent or an artist; whether it holds a login does not enter into
+  it.
   """
   @spec credit_creator(Ecto.UUID.t(), Ecto.UUID.t()) ::
           {:ok, WorkCreator.t()} | {:error, term()}

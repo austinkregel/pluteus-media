@@ -214,7 +214,7 @@ defmodule PluteusWeb.Subsonic.Lists do
       Music.named_containing(
         Enum.map(library, & &1.id) ++
           Enum.map(pairs, &elem(&1, 0).id) ++
-          for({artist, _} <- artists, artist.agent_id, do: artist.agent_id),
+          for({artist, _albums} <- artists, do: artist.id),
         query
       )
 
@@ -231,10 +231,11 @@ defmodule PluteusWeb.Subsonic.Lists do
   defp credited?(artists, named, query),
     do: Enum.any?(artists, &artist_matches?(&1, named, query))
 
-  defp artist_matches?(%{agent_id: nil, name: name}, _named, query),
-    do: String.contains?(String.downcase(name), String.downcase(query))
-
-  defp artist_matches?(%{agent_id: agent_id}, named, _query), do: agent_id in named
+  # An artist matches by any name it carries, and by the name the credit
+  # states, which is what a release says however the artist is catalogued.
+  defp artist_matches?(%{id: id, name: name}, named, query) do
+    id in named or String.contains?(String.downcase(name), String.downcase(query))
+  end
 
   # --- The album lists' orders --------------------------------------------------
 

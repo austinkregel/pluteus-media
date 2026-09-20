@@ -137,6 +137,8 @@ defmodule Pluteus.Ingest.Place do
 
     outcome =
       Actor.as(Principals.system!().id, fn ->
+        contended_rows_in_order()
+
         case place_by_class(acquisition) do
           :placed -> :placed
           {:finding, kind, detail} -> record_finding(acquisition, kind, detail)
@@ -145,6 +147,18 @@ defmodule Pluteus.Ingest.Place do
 
     link_companions(acquisition.inbox_directory)
     outcome
+  end
+
+  # Two placements running at once contend for the same few rows: the probe's
+  # tool version, a release key, an artist key. Each waits for the other to
+  # commit, which is what makes one release out of two tracks, but two
+  # placements that took them in different orders would deadlock instead of
+  # queueing. Every placement takes them in this one order, beginning with the
+  # tool version, which a placement of a file carrying no streams would
+  # otherwise never take at all.
+  defp contended_rows_in_order do
+    {:ok, _} = Annotations.record_tool_version("ffprobe", Streams.ffprobe_version())
+    :ok
   end
 
   defp place_by_class(%Acquisition{media_class: :audio} = acquisition) do

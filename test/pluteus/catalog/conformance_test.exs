@@ -16,6 +16,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Catalog.Association
+  alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
@@ -29,6 +30,9 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Catalog.Seeds
   alias Pluteus.Catalog.Work
   alias Pluteus.CatalogFixtures
+  alias Pluteus.Consumption
+  alias Pluteus.Consumption.Rating
+  alias Pluteus.Consumption.Star
   alias Pluteus.Dedup
   alias Pluteus.Events
   alias Pluteus.Events.Event
@@ -1461,6 +1465,102 @@ defmodule Pluteus.Catalog.ConformanceTest do
       assert Resolution.resolve(manifestation.id, %Profile{}).nomen_string ==
                "Hokusai, Great Wave, 1831 printing"
     end
+  end
+
+  describe "38. An artist narrowed keeps its identifier, names, credits and stars" do
+    test "everything recorded against the artist is recorded against the agent" do
+      %{artist: artist, work: work, principal: principal} = a_followed_artist()
+
+      assert {:ok, narrowed} = Catalog.narrow(artist.id, :collective_agent)
+
+      assert narrowed.id == artist.id
+      assert Repo.get!(Res, artist.id).kind == :collective_agent
+
+      assert Enum.sort(Enum.map(Catalog.nomens_for(artist.id), & &1.nomen_string)) ==
+               ["Coheed and Cambria", "ae1b47d5-5128-431c-9d30-e08fd90e0767"]
+
+      assert [%Credit{agent_id: credited, agent_kind: :collective_agent}] =
+               Repo.all(from c in Credit, where: c.work_id == ^work.id)
+
+      assert credited == artist.id
+      assert Catalog.creators_of(work.id) == [artist.id]
+      assert [%{res_id: starred}] = Repo.all(from s in Star, where: s.res_id == ^artist.id)
+      assert starred == artist.id
+
+      assert Repo.get_by!(Rating, principal_id: principal.id, res_id: artist.id).rating == 5
+    end
+
+    test "a res that is not an artist does not change kind" do
+      {:ok, person} = Catalog.create_named_res(:person, "Miles Davis")
+      {:ok, %{work: work}} = Catalog.create_work("Odyssey")
+
+      assert Catalog.narrow(person.res.id, :collective_agent) == {:error, :not_an_artist}
+      assert Catalog.narrow(work.id, :person) == {:error, :not_an_artist}
+      assert Repo.get!(Res, person.res.id).kind == :person
+    end
+
+    test "an artist is narrowed to an agent and to nothing else" do
+      %{artist: artist} = a_followed_artist()
+
+      assert Catalog.narrow(artist.id, :work) == {:error, :not_an_agent_kind}
+      assert Catalog.narrow(artist.id, :artist) == {:error, :not_an_agent_kind}
+      assert Catalog.narrow(UUIDv7.generate(), :person) == {:error, :no_such_res}
+    end
+
+    test "the store refuses every other change of kind, and refuses widening back" do
+      %{artist: artist} = a_followed_artist()
+      {:ok, %{work: work}} = Catalog.create_work("Odyssey")
+
+      assert_raise Postgrex.Error, ~r/a res does not change kind: work to person/, fn ->
+        Repo.update_all(from(r in Res, where: r.id == ^work.id), set: [kind: :person])
+      end
+
+      {:ok, _} = Catalog.narrow(artist.id, :person)
+
+      assert_raise Postgrex.Error, ~r/a res does not change kind: person to artist/, fn ->
+        Repo.update_all(from(r in Res, where: r.id == ^artist.id), set: [kind: :artist])
+      end
+    end
+  end
+
+  # An artist one principal follows: named, credited on a work it created, and
+  # both starred and rated.
+  defp a_followed_artist do
+    {:ok, %{res: artist}} =
+      Catalog.create_named_res(:artist, %{
+        nomen_string: "Coheed and Cambria",
+        provenance: :automatic
+      })
+
+    {:ok, _} =
+      Catalog.create_nomen(%{
+        res_id: artist.id,
+        nomen_string: "ae1b47d5-5128-431c-9d30-e08fd90e0767",
+        scheme: "musicbrainz",
+        provenance: :automatic
+      })
+
+    {:ok, %{work: work}} = Catalog.create_work("Welcome Home")
+
+    {:ok, _} =
+      %Credit{}
+      |> Credit.changeset(%{
+        work_id: work.id,
+        role: :artist,
+        position: 1,
+        name: "Coheed and Cambria",
+        agent_id: artist.id,
+        agent_kind: :artist,
+        provenance: :automatic
+      })
+      |> Repo.insert()
+
+    {:ok, _} = Catalog.credit_creator(work.id, artist.id)
+    {:ok, principal} = Principals.create_principal(%{role: "member"})
+    {:ok, _} = Consumption.star(principal.id, artist.id)
+    {:ok, _} = Consumption.rate(principal.id, artist.id, 5)
+
+    %{artist: artist, work: work, principal: principal}
   end
 
   # A person with a login, the work they were watching, and the provider that

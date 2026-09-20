@@ -1,15 +1,19 @@
 defmodule Pluteus.Ingest.Credits do
   @moduledoc """
-  Credits: who a release says made it, and the agents they resolve to
-  (spec-04 §6.4).
+  Credits: who a release says made it, and the artists they name (spec-04
+  §6.4).
 
-  Placement records credits as the tags state them and names no agent. The
-  resolve stage, which runs on a schedule and never inside placement's
-  transaction, resolves each credit carrying a MusicBrainz artist identifier:
-  it asks MusicBrainz the artist's type once per identifier, creates a person
-  for Person and a collective agent for Group, Orchestra or Choir, credits it
-  as creator of the credit's work, and links the credit. Character and Other
-  name no agent; a credit with no identifier stays a name.
+  Placement records credits as the tags state them, and every credit names an
+  artist from the moment it is placed: one per MusicBrainz artist identifier,
+  one per name for a credit carrying none, created where none exists and
+  credited as creator of the credit's work. An artist who has made a record can
+  be starred, rated and browsed whether or not a music database knows of them.
+
+  The resolve stage, which runs on a schedule and never inside placement's
+  transaction, asks MusicBrainz the type of each artist carrying an identifier
+  and narrows it: a person for Person, a collective agent for Group, Orchestra
+  or Choir. Character and Other stay artists, as does an artist with no
+  identifier, until matching or a person says what it is.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -17,12 +21,15 @@ defmodule Pluteus.Ingest.Credits do
   alias Pluteus.Actor
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Credit
+  alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Ingest
+  alias Pluteus.Ingest.ArtistKey
   alias Pluteus.Ingest.Finding
   alias Pluteus.Ingest.MusicBrainz
   alias Pluteus.Ingest.MusicBrainzArtist
   alias Pluteus.Ingest.Streams
+  alias Pluteus.Lifecycle
   alias Pluteus.Principals
   alias Pluteus.Repo
 
@@ -70,26 +77,113 @@ defmodule Pluteus.Ingest.Credits do
   end
 
   @doc """
-  Records a work's credits in a role, with automatic provenance. Runs inside
-  placement's transaction and reaches nothing outside the database.
+  Records a work's credits in a role, with automatic provenance, each naming
+  the artist it credits. Runs inside placement's transaction and reaches
+  nothing outside the database.
   """
   @spec record(Ecto.UUID.t(), :artist | :album_artist, [{String.t(), Ecto.UUID.t() | nil}]) :: :ok
   def record(work_id, role, credits) do
+    credits =
+      Enum.map(credits, fn {name, musicbrainz_id} -> {normalize(name), musicbrainz_id} end)
+
+    artists = artists_for(credits)
+
     credits
     |> Enum.with_index(1)
     |> Enum.each(fn {{name, musicbrainz_id}, position} ->
+      artist = Map.fetch!(artists, {name, musicbrainz_id})
+
       {:ok, _} =
         %Credit{}
         |> Credit.changeset(%{
           work_id: work_id,
           role: role,
           position: position,
-          name: String.normalize(name, :nfc),
+          name: name,
           musicbrainz_id: musicbrainz_id,
+          agent_id: artist.id,
+          agent_kind: artist.kind,
           provenance: :automatic
         })
         |> Repo.insert()
+
+      credit_creator(work_id, artist.id)
     end)
+  end
+
+  # The artists a work's credits name, in key order. A track crediting two
+  # artists and another crediting the same two in the other order take their
+  # keys in one order, and queue rather than deadlock.
+  defp artists_for(credits) do
+    credits
+    |> Enum.uniq()
+    |> Enum.sort_by(fn {name, musicbrainz_id} -> key_for(name, musicbrainz_id) end)
+    |> Map.new(fn {name, musicbrainz_id} ->
+      {{name, musicbrainz_id}, artist_for(name, musicbrainz_id)}
+    end)
+  end
+
+  @doc """
+  The artist a credit names: the one for its MusicBrainz artist identifier, or
+  the one for its name where it carries none, created where none exists.
+
+  An artist for an identifier and an artist for a name are never the same
+  artist, even where the names agree: matching or a person links them. A key
+  whose artist has since been recycled or purged names a new one, as a release
+  key does.
+  """
+  @spec artist_for(String.t(), Ecto.UUID.t() | nil) :: Res.t()
+  def artist_for(name, musicbrainz_id) do
+    name = normalize(name)
+    key = key_for(name, musicbrainz_id)
+    now = DateTime.utc_now()
+
+    {inserted, _} =
+      Repo.insert_all(ArtistKey, [%{key: key, inserted_at: now, updated_at: now}],
+        on_conflict: :nothing,
+        conflict_target: :key
+      )
+
+    existing = Repo.get!(ArtistKey, key)
+
+    if inserted == 0 and live?(existing.artist_id),
+      do: Repo.get!(Res, existing.artist_id),
+      else: create_artist(existing, name, musicbrainz_id)
+  end
+
+  defp key_for(name, nil), do: "name:" <> name
+  defp key_for(_name, musicbrainz_id), do: "mbid:" <> musicbrainz_id
+
+  defp normalize(name), do: String.normalize(name, :nfc)
+
+  defp live?(nil), do: false
+  defp live?(res_id), do: match?({:live, _}, Lifecycle.state(res_id))
+
+  defp create_artist(artist_key, name, musicbrainz_id) do
+    {:ok, %{res: artist}} =
+      Catalog.create_named_res(:artist, %{nomen_string: name, provenance: :automatic})
+
+    if musicbrainz_id do
+      {:ok, _} =
+        Catalog.create_nomen(%{
+          res_id: artist.id,
+          nomen_string: musicbrainz_id,
+          scheme: "musicbrainz",
+          provenance: :automatic
+        })
+    end
+
+    artist_key |> Ecto.Changeset.change(artist_id: artist.id) |> Repo.update!()
+    artist
+  end
+
+  defp credit_creator(work_id, agent_id) do
+    credited =
+      Repo.exists?(
+        from w in WorkCreator, where: w.work_id == ^work_id and w.agent_id == ^agent_id
+      )
+
+    unless credited, do: {:ok, _} = Catalog.credit_creator(work_id, agent_id)
   end
 
   @spec credits_of(Ecto.UUID.t()) :: [Credit.t()]
@@ -98,7 +192,8 @@ defmodule Pluteus.Ingest.Credits do
   end
 
   @doc """
-  One pass of the resolve stage.
+  One pass of the resolve stage: an artist for every credit that has none, and
+  a MusicBrainz lookup narrowing each artist whose identifier it answers for.
 
   Options:
 
@@ -118,6 +213,8 @@ defmodule Pluteus.Ingest.Credits do
     if client == MusicBrainz and is_nil(MusicBrainz.contact()) do
       {:error, :no_contact_configured}
     else
+      name_unnamed()
+
       looked_up =
         due_identifiers()
         |> Enum.with_index()
@@ -125,13 +222,31 @@ defmodule Pluteus.Ingest.Credits do
           {musicbrainz_id, look_up_in_turn(index, interval, client, musicbrainz_id)}
         end)
 
-      link_known()
       {:ok, looked_up}
     end
   end
 
-  # Identifiers some unlinked credit carries that MusicBrainz has not yet
-  # answered for, and that no open finding holds back.
+  # A credit naming no artist is one placed before an artist was named for
+  # every credit. It is given the artist its identifier or name calls for, by
+  # the rule placement follows.
+  defp name_unnamed do
+    unnamed = Repo.all(from c in Credit, where: is_nil(c.agent_id), order_by: c.id)
+
+    Actor.as(Principals.system!().id, fn ->
+      Enum.each(unnamed, fn credit ->
+        artist = artist_for(credit.name, credit.musicbrainz_id)
+
+        credit
+        |> Credit.changeset(%{agent_id: artist.id, agent_kind: artist.kind})
+        |> Repo.update!()
+
+        credit_creator(credit.work_id, artist.id)
+      end)
+    end)
+  end
+
+  # Identifiers carried by a credit whose artist is still an artist, that
+  # MusicBrainz has not yet answered for, and that no open finding holds back.
   defp due_identifiers do
     answered =
       from a in MusicBrainzArtist, where: not is_nil(a.looked_up_at), select: a.musicbrainz_id
@@ -143,7 +258,7 @@ defmodule Pluteus.Ingest.Credits do
 
     Repo.all(
       from c in Credit,
-        where: not is_nil(c.musicbrainz_id) and is_nil(c.agent_id),
+        where: not is_nil(c.musicbrainz_id) and c.agent_kind == :artist,
         where: c.musicbrainz_id not in subquery(answered),
         where: c.musicbrainz_id not in subquery(blocked),
         distinct: true,
@@ -168,13 +283,18 @@ defmodule Pluteus.Ingest.Credits do
 
     case client.artist_type(musicbrainz_id) do
       {:ok, type} ->
-        agent_id = create_agent(Map.get(@kinds, type), musicbrainz_id)
+        artist_id = Repo.get!(ArtistKey, "mbid:" <> musicbrainz_id).artist_id
+        outcome = narrow(Map.get(@kinds, type), artist_id)
 
         row
-        |> Ecto.Changeset.change(type: type, agent_id: agent_id, looked_up_at: DateTime.utc_now())
+        |> Ecto.Changeset.change(
+          type: type,
+          agent_id: artist_id,
+          looked_up_at: DateTime.utc_now()
+        )
         |> Repo.insert_or_update!()
 
-        if agent_id, do: :agent, else: :no_agent_kind
+        outcome
 
       {:error, :not_found} ->
         finding(musicbrainz_id, "musicbrainz_artist_not_found", true, %{})
@@ -194,64 +314,16 @@ defmodule Pluteus.Ingest.Credits do
     end
   end
 
-  defp create_agent(nil, _musicbrainz_id), do: nil
+  # A type MusicBrainz names no agent kind for — Character, Other — leaves the
+  # artist an artist. Narrowing keeps its identifier, so the credits naming it
+  # and the works it is credited with follow it without being rewritten.
+  defp narrow(nil, _artist_id), do: :stays_an_artist
 
-  defp create_agent(kind, musicbrainz_id) do
-    name =
-      Repo.one!(
-        from c in Credit,
-          where: c.musicbrainz_id == ^musicbrainz_id,
-          order_by: c.id,
-          limit: 1,
-          select: c.name
-      )
-
+  defp narrow(kind, artist_id) do
     Actor.as(Principals.system!().id, fn ->
-      {:ok, %{res: agent}} =
-        Catalog.create_named_res(kind, %{nomen_string: name, provenance: :automatic})
-
-      {:ok, _} =
-        Catalog.create_nomen(%{
-          res_id: agent.id,
-          nomen_string: musicbrainz_id,
-          scheme: "musicbrainz",
-          provenance: :automatic
-        })
-
-      agent.id
+      {:ok, _} = Catalog.narrow(artist_id, kind)
+      :narrowed
     end)
-  end
-
-  # Every unlinked credit whose identifier has an agent is linked to it, and the
-  # agent credited as creator of the credit's work.
-  defp link_known do
-    pending =
-      Repo.all(
-        from c in Credit,
-          join: a in MusicBrainzArtist,
-          on: a.musicbrainz_id == c.musicbrainz_id,
-          join: r in Catalog.Res,
-          on: r.id == a.agent_id,
-          where: is_nil(c.agent_id),
-          select: {c, r}
-      )
-
-    Actor.as(Principals.system!().id, fn ->
-      Enum.each(pending, fn {credit, agent} -> link(credit, agent) end)
-    end)
-  end
-
-  defp link(credit, agent) do
-    credit
-    |> Credit.changeset(%{agent_id: agent.id, agent_kind: agent.kind})
-    |> Repo.update!()
-
-    credited =
-      Repo.exists?(
-        from w in WorkCreator, where: w.work_id == ^credit.work_id and w.agent_id == ^agent.id
-      )
-
-    unless credited, do: {:ok, _} = Catalog.credit_creator(credit.work_id, agent.id)
   end
 
   defp finding(musicbrainz_id, kind, permanent, detail) do

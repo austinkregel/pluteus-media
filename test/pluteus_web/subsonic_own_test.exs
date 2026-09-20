@@ -6,15 +6,11 @@ defmodule PluteusWeb.SubsonicOwnTest do
 
   use PluteusWeb.ConnCase, async: true
 
-  alias Pluteus.Catalog
-  alias Pluteus.Catalog.Credit
   alias Pluteus.Consumption
   alias Pluteus.Events
   alias Pluteus.Lifecycle
-  alias Pluteus.Music
   alias Pluteus.MusicFixtures
   alias Pluteus.Principals
-  alias Pluteus.Repo
 
   @subject "ada@example.test"
 
@@ -38,35 +34,43 @@ defmodule PluteusWeb.SubsonicOwnTest do
       album: library.albums["01 So What.flac"],
       loose: library.songs["untitled.wav"],
       so_what: library.songs["01 So What.flac"],
-      freddie: library.songs["02 Freddie.flac"]
+      freddie: library.songs["02 Freddie.flac"],
+      artist_id: library.artist_id
     }
   end
 
   describe "stars and ratings" do
     test "star takes repeated songs, albums and artists, and unstar removes them", context do
-      {:ok, %{res: agent}} = Catalog.create_named_res(:person, "Miles Davis")
-
-      {_count, _} =
-        Repo.update_all(Credit, set: [agent_id: agent.id, agent_kind: :person])
+      artist_id = context.artist_id
 
       ok(
         context,
-        "star?id=#{context.so_what}&id=#{context.freddie}&albumId=#{context.album}&artistId=#{agent.id}"
+        "star?id=#{context.so_what}&id=#{context.freddie}&albumId=#{context.album}&artistId=#{artist_id}"
       )
 
       assert context.ada.id |> Consumption.starred() |> Enum.map(& &1.res_id) |> Enum.sort() ==
-               Enum.sort([context.so_what, context.freddie, context.album, agent.id])
+               Enum.sort([context.so_what, context.freddie, context.album, artist_id])
 
       ok(context, "unstar?id=#{context.freddie}")
       refute context.freddie in Enum.map(Consumption.starred(context.ada.id), & &1.res_id)
       assert Consumption.starred(context.other.id) == []
     end
 
-    test "an unknown target stars nothing, and a named artist cannot be starred", context do
+    test "an artist the tags alone named is starred and rated, as any res is", context do
+      ok(context, "star?artistId=#{context.artist_id}")
+      ok(context, "setRating?id=#{context.artist_id}&rating=5")
+
+      assert Enum.map(Consumption.starred(context.ada.id), & &1.res_id) == [context.artist_id]
+
+      assert Consumption.ratings(context.ada.id, [context.artist_id]) ==
+               %{context.artist_id => 5}
+    end
+
+    test "an unknown target stars nothing", context do
       assert code(context, "star?id=#{context.so_what}&id=#{UUIDv7.generate()}") == 70
       assert Consumption.starred(context.ada.id) == []
 
-      assert code(context, "star?artistId=#{Music.name_artist_id("Miles Davis")}") == 0
+      assert code(context, "star?artistId=#{UUIDv7.generate()}") == 70
       assert code(context, "star") == 10
     end
 

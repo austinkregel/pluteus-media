@@ -11,7 +11,6 @@ defmodule PluteusWeb.SubsonicListsTest do
   alias Pluteus.Catalog
   alias Pluteus.Consumption
   alias Pluteus.Ingest.Place
-  alias Pluteus.Music
   alias Pluteus.MusicFixtures
   alias Pluteus.Principals
   alias Pluteus.Principals.Device
@@ -41,7 +40,9 @@ defmodule PluteusWeb.SubsonicListsTest do
       album: library.albums["01 So What.flac"],
       loose: library.albums["untitled.wav"],
       so_what: library.songs["01 So What.flac"],
-      freddie: library.songs["02 Freddie.flac"]
+      freddie: library.songs["02 Freddie.flac"],
+      artist: library.artist,
+      artist_id: library.artist_id
     }
   end
 
@@ -79,7 +80,7 @@ defmodule PluteusWeb.SubsonicListsTest do
         call(context, "getAlbumList", %{"type" => "alphabeticalByName"})["albumList"]["album"]
 
       assert album["isDir"] == true
-      assert album["parent"] == Music.name_artist_id("Miles Davis")
+      assert album["parent"] == context.artist_id
     end
 
     test "a type, a year range or a genre missing is 10, and an unknown type 0", context do
@@ -232,8 +233,7 @@ defmodule PluteusWeb.SubsonicListsTest do
       assert search(context, "blue")["artist"] == []
       assert search(context, "FREDDIE")["song"] |> Enum.map(& &1["id"]) == [context.freddie]
 
-      assert search(context, "miles")["artist"] |> Enum.map(& &1["id"]) ==
-               [Music.name_artist_id("Miles Davis")]
+      assert search(context, "miles")["artist"] |> Enum.map(& &1["id"]) == [context.artist_id]
 
       # A person searching for the band means its records: the album is called
       # "Kind of Blue" and no song is called "Miles Davis".

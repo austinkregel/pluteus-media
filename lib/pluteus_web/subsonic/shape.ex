@@ -39,13 +39,14 @@ defmodule PluteusWeb.Subsonic.Shape do
   end
 
   @doc """
-  Every res identifier the albums show, songs and resolved artists included.
+  Every res identifier the albums show, songs and artists included.
   """
   @spec ids([Album.t()]) :: [Ecto.UUID.t()]
   def ids(albums) do
     Enum.flat_map(albums, fn album ->
       [album.id | Enum.map(album.songs, & &1.id)] ++
-        for(artist <- album.artists, artist.agent_id, do: artist.agent_id)
+        Enum.map(album.artists, & &1.id) ++
+        for(song <- album.songs, artist <- song.artists, do: artist.id)
     end)
   end
 
@@ -169,7 +170,7 @@ defmodule PluteusWeb.Subsonic.Shape do
       "albumCount" => length(albums),
       "coverArt" => albums |> List.first() |> then(&(&1 && &1.id)),
       "musicBrainzId" => artist.musicbrainz_id,
-      "starred" => artist.agent_id && timestamp(context.starred[artist.agent_id])
+      "starred" => timestamp(context.starred[artist.id])
     }
   end
 

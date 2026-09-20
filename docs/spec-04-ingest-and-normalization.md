@@ -432,33 +432,55 @@ carries an identifier: taggers write a display string such as "A & B" in
 give a credit another artist's identifier.
 
 A credit is not an agent. It is what the release says, LRM's statement of
-responsibility, and it names no agent until the agent's kind is known: LRM makes
-every agent a person or a collective agent, and tags do not say which.
+responsibility. But every credit names an agent from the moment it is placed:
+an artist who has made a record can be starred, rated and browsed whether or
+not a music database knows of them, and a small artist is not made to wait on
+one.
 
-The kind is known music data, and a credit carrying a MusicBrainz artist
-identifier is resolved from it. A scheduled stage after placement, and never
-inside placement's transaction, finds each such credit's agent by its
-identifier, or where none exists asks MusicBrainz for the artist's type:
+Placement links each credit to an artist (spec-01 §3.1), creating it where
+none exists, in placement's own transaction:
 
-| MusicBrainz type | Agent |
+- A credit carrying a MusicBrainz artist identifier names the one artist for
+  that identifier.
+- A credit carrying none names the one artist for its name, compared in Unicode
+  normal form C. Two credits of the same name with no identifier are the same
+  artist, on whatever release they appear.
+- An artist for an identifier and an artist for a name are never the same
+  artist by placement, even where the names agree; matching (spec-05) or a
+  person links them.
+
+The identifier or name is the artist's key, recorded by ingest and unique, as a
+release key is, so two tracks placed at once create one artist. The artist is
+created with the credit's name as a nomen, and the identifier as a nomen in the
+MusicBrainz scheme where there is one; it is credited as creator of the
+credit's work (LRM-R5).
+
+Whether an artist is a person or a collective agent is known music data, and
+an artist carrying a MusicBrainz identifier is narrowed from it. A scheduled
+stage after placement, and never inside placement's transaction, asks
+MusicBrainz for the artist's type:
+
+| MusicBrainz type | Artist |
 | --- | --- |
-| Person | a person |
-| Group, Orchestra, Choir | a collective agent |
-| Character, Other | none; the credit stays a name |
+| Person | narrowed to a person |
+| Group, Orchestra, Choir | narrowed to a collective agent |
+| Character, Other | stays an artist |
 
-The stage creates the agent with the credit's name and the identifier as nomens,
-the identifier in the MusicBrainz scheme; credits it as creator of the credit's
-work (LRM-R5); and links the credit to it. One agent is created per identifier:
-the identifier is recorded by ingest and unique, as a release key is. A request
-sends MusicBrainz the artist identifier and nothing else, at no more than one
-request a second, with a User-Agent carrying the contact the deployment is
-configured with; a deployment configured with none does not run the stage, and
-says so.
+Narrowing keeps the artist's identifier and everything recorded against it
+(spec-01 §3.1). A request sends MusicBrainz the artist identifier and nothing
+else, at no more than one request a second, with a User-Agent carrying the
+contact the deployment is configured with; a deployment configured with none
+does not run the stage, says so, and leaves its artists as artists.
 
-A credit with no identifier stays a name until matching (spec-05) or a person
-links it to an agent. A lookup MusicBrainz answers with not-found is a finding
-against the identifier; one it cannot answer is a transient failure, tried again
-on the stage's next pass, and after three is a finding (§9).
+An artist with no identifier stays an artist until matching (spec-05) or a
+person says what it is. A lookup MusicBrainz answers with not-found is a
+finding against the identifier; one it cannot answer is a transient failure,
+tried again on the stage's next pass, and after three is a finding (§9).
+
+The stage names an artist for every credit that has none, by the rule
+placement follows, before it asks MusicBrainz anything. A credit acquires an
+artist wherever it was placed, and a catalog holding credits from before this
+was required does not stay half-named.
 
 #### A release in one file
 
@@ -723,10 +745,12 @@ place.
 30. Every catalog write ingest makes is attributed to the System principal.
 31. The sidecar holds no database credentials and cannot write to primary
     storage.
-32. A credit with a MusicBrainz artist identifier resolves to one agent per
-    identifier, a person for type Person and a collective agent for Group,
-    Orchestra or Choir, credited as creator of the credit's work; a credit of
-    type Character or Other, or with no identifier, names no agent.
+32. Every credit names an artist once placed, credited as creator of the
+    credit's work: one per MusicBrainz artist identifier, and one per name for
+    credits with none, never one artist for both an identifier and a name.
+    An artist with an identifier is narrowed to a person for type Person and a
+    collective agent for Group, Orchestra or Choir, and stays an artist for
+    Character or Other.
 33. No lookup runs inside placement's transaction or sends anything but an
     artist identifier; a deployment configured with no contact runs none.
 

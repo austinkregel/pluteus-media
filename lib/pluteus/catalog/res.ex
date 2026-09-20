@@ -25,6 +25,7 @@ defmodule Pluteus.Catalog.Res do
     asset
     person
     collective_agent
+    artist
     nomen
     place
     time_span
@@ -44,7 +45,10 @@ defmodule Pluteus.Catalog.Res do
   Every kind a res row may take.
 
   `agent` is absent by construction: LRM-E6 is the union of person and
-  collective agent, so nothing is an agent without being one of those.
+  collective agent, so nothing is an agent without being one of those. An
+  artist is an agent of an undetermined one of the two (spec-01 §3.1), and is
+  the one kind a row may leave, by being narrowed to the kind it turns out to
+  be.
   """
   @spec kinds() :: [atom()]
   def kinds, do: @kinds

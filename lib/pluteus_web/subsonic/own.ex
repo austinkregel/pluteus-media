@@ -321,24 +321,15 @@ defmodule PluteusWeb.Subsonic.Own do
     end
   end
 
-  # An artist known only by a credited name is no res, and a star or rating is
-  # kept against a res.
   defp artist(id, profile) do
-    case Music.parse_artist_id(id) do
-      {:agent, agent_id} ->
-        known =
-          profile
-          |> Music.library()
-          |> Music.artists()
-          |> Enum.any?(fn {artist, _} -> artist.agent_id == agent_id end)
+    with {:ok, uuid} <- Request.uuid(id) do
+      known =
+        profile
+        |> Music.library()
+        |> Music.artists()
+        |> Enum.any?(fn {artist, _albums} -> artist.id == uuid end)
 
-        if known, do: {:ok, agent_id}, else: Request.not_found(id)
-
-      {:name, _name} ->
-        {:error, 0, "An artist known only by a credited name cannot be starred or rated"}
-
-      :error ->
-        Request.not_found(id)
+      if known, do: {:ok, uuid}, else: Request.not_found(id)
     end
   end
 

@@ -6,8 +6,14 @@ defmodule Pluteus.Music do
   whose category is the release category, and not itself a part of another
   manifestation, since a release's media embody the same aggregating
   expression. Its songs are the track manifestations that are parts of its
-  media, in disc and track order. An artist is the agent a credit resolved to,
-  or for a credit naming no agent, the credited name: one artist per name.
+  media, in disc and track order. An artist is the agent a credit names
+  (spec-04 §6.4), which is a res like any other and can be starred and rated
+  as one.
+
+  A credit that names no artist yet is not shown as one. Placement names an
+  artist for every credit it writes, and the credit stage names one for any
+  credit that has none, so this is a catalog waiting for that pass rather than
+  an artist the household cannot reach.
 
   Names are resolved under the profile given. Only live res appear: a recycled
   or purged album, medium or track is left out wherever it would be shown.
@@ -37,11 +43,9 @@ defmodule Pluteus.Music do
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Repo
 
-  @name_prefix "name-"
-
   defmodule Artist do
-    @moduledoc "An artist: an agent a credit resolved to, or a credited name."
-    defstruct [:id, :name, :agent_id, :musicbrainz_id]
+    @moduledoc "An artist: the agent a credit names."
+    defstruct [:id, :name, :musicbrainz_id]
     @type t :: %__MODULE__{}
   end
 
@@ -73,33 +77,6 @@ defmodule Pluteus.Music do
     @moduledoc "A release manifestation as an album, with its songs in order."
     defstruct [:id, :work_id, :name, :artists, :songs, :created]
     @type t :: %__MODULE__{}
-  end
-
-  # --- Identity ---------------------------------------------------------------
-
-  @doc """
-  The identifier of an artist known only by a credited name. It is derived
-  from the name, so the same name is the same artist wherever it is credited.
-  """
-  @spec name_artist_id(String.t()) :: String.t()
-  def name_artist_id(name), do: @name_prefix <> Base.url_encode64(name, padding: false)
-
-  @doc """
-  What an artist identifier names: an agent, or a credited name.
-  """
-  @spec parse_artist_id(String.t()) :: {:agent, Ecto.UUID.t()} | {:name, String.t()} | :error
-  def parse_artist_id(@name_prefix <> encoded) do
-    case Base.url_decode64(encoded, padding: false) do
-      {:ok, name} -> if String.valid?(name), do: {:name, name}, else: :error
-      :error -> :error
-    end
-  end
-
-  def parse_artist_id(id) do
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} -> {:agent, uuid}
-      :error -> :error
-    end
   end
 
   # --- Albums -----------------------------------------------------------------
@@ -333,21 +310,13 @@ defmodule Pluteus.Music do
 
   defp artists(credits, names) do
     credits
-    |> Enum.map(fn
-      %Credit{agent_id: nil} = credit ->
-        %Artist{
-          id: name_artist_id(credit.name),
-          name: credit.name,
-          musicbrainz_id: credit.musicbrainz_id
-        }
-
-      %Credit{agent_id: agent_id} = credit ->
-        %Artist{
-          id: agent_id,
-          name: names[agent_id] || credit.name,
-          agent_id: agent_id,
-          musicbrainz_id: credit.musicbrainz_id
-        }
+    |> Enum.filter(& &1.agent_id)
+    |> Enum.map(fn %Credit{agent_id: agent_id} = credit ->
+      %Artist{
+        id: agent_id,
+        name: names[agent_id] || credit.name,
+        musicbrainz_id: credit.musicbrainz_id
+      }
     end)
     |> Enum.uniq_by(& &1.id)
   end

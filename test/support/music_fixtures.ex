@@ -14,9 +14,11 @@ defmodule Pluteus.MusicFixtures do
 
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.ManifestationPart
+  alias Pluteus.Catalog.Profile
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
+  alias Pluteus.Music
   alias Pluteus.Repo
 
   @lyrics """
@@ -43,19 +45,26 @@ defmodule Pluteus.MusicFixtures do
     # directories are its own, and concurrent tests do not wait on each other.
     album = "KoB #{System.unique_integer([:positive])}"
     loose = "loose #{System.unique_integer([:positive])}"
-    # Release keys are unique too, and one per library keeps them apart.
+    # Release keys are unique too, and one per library keeps them apart. So is
+    # the artist's name, which keys the artist every credit here names.
     release = Ecto.UUID.generate()
+    artist = "Miles Davis #{System.unique_integer([:positive])}"
 
     files = %{
       "#{album}/01 So What.flac" =>
         media!(:flac,
           art: true,
-          tags: kind_of_blue(release, %{"title" => "So What", "track" => "1", "genre" => "Modal"})
+          tags:
+            kind_of_blue(release, artist, %{
+              "title" => "So What",
+              "track" => "1",
+              "genre" => "Modal"
+            })
         ),
       "#{album}/02 Freddie.flac" =>
         media!(:flac,
           tags:
-            kind_of_blue(release, %{
+            kind_of_blue(release, artist, %{
               "title" => "Freddie Freeloader",
               "track" => "2",
               "genre" => "Jazz"
@@ -87,25 +96,35 @@ defmodule Pluteus.MusicFixtures do
         {Path.basename(acquisition.inbox_path), track}
       end
 
+    albums = Map.new(songs, fn {name, track} -> {name, album_of(track)} end)
+
     %{
       release: release,
       songs: songs,
-      albums: Map.new(songs, fn {name, track} -> {name, album_of(track)} end),
+      albums: albums,
+      artist: artist,
+      artist_id: artist_id(albums["01 So What.flac"]),
       cover: cover
     }
   end
 
-  defp kind_of_blue(release, tags) do
+  defp kind_of_blue(release, artist, tags) do
     Map.merge(
       %{
         "musicbrainz_albumid" => release,
         "album" => "Kind of Blue",
-        "album_artist" => "Miles Davis",
-        "artist" => "Miles Davis",
+        "album_artist" => artist,
+        "artist" => artist,
         "date" => "1959"
       },
       tags
     )
+  end
+
+  # The artist the album's credits name, which is a res and can be starred.
+  defp artist_id(album_id) do
+    [%{id: id}] = Music.album(album_id, %Profile{}).artists
+    id
   end
 
   defp album_of(track) do

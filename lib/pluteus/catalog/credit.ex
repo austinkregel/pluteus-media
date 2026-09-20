@@ -4,9 +4,10 @@ defmodule Pluteus.Catalog.Credit do
   responsibility (spec-04 §6.4).
 
   A credit is a name in a role — an artist of a track, an album artist of a
-  release — and names an agent only once the agent's kind is known. LRM makes
-  every agent a person or a collective agent, and a credit's name does not say
-  which, so an agent is linked when MusicBrainz or a person has said.
+  release — and names an agent from the moment it is placed: the artist for its
+  MusicBrainz identifier, or for its name where it carries none (spec-01 §3.1).
+  Which of LRM's two kinds of agent that artist is may be settled later, and
+  narrowing it leaves the credit naming the same agent.
 
   Credits carry provenance: placement's are automatic, and a member's
   correction is local and outranks them.
@@ -18,7 +19,7 @@ defmodule Pluteus.Catalog.Credit do
 
   @roles ~w(artist album_artist)a
   @provenances ~w(seeded automatic local)a
-  @agent_kinds ~w(person collective_agent)a
+  @agent_kinds ~w(person collective_agent artist)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7

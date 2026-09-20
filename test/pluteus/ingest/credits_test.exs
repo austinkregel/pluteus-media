@@ -83,21 +83,23 @@ defmodule Pluteus.Ingest.CreditsTest do
                  role: :artist,
                  name: "Miles Davis",
                  musicbrainz_id: id,
-                 agent_id: nil,
+                 agent_id: artist_id,
+                 agent_kind: :artist,
                  provenance: :automatic
                }
              ] =
                Credits.credits_of(work_of(track))
 
       assert id == Fake.person()
+      assert Repo.get!(Res, artist_id).kind == :artist
 
       assert [%Credit{role: :album_artist, name: "Miles Davis", musicbrainz_id: nil}] =
                Credits.credits_of(release_work_of(track))
     end
   end
 
-  describe "32. A credit with an identifier resolves by the identifier's MusicBrainz type" do
-    test "Person is a person, Group and Orchestra collective agents, Character none", %{
+  describe "32. Every credit names an artist once placed, narrowed by its MusicBrainz type" do
+    test "Person is a person, Group and Orchestra collective agents, Character an artist", %{
       inbox: inbox
     } do
       placed =
@@ -121,29 +123,40 @@ defmodule Pluteus.Ingest.CreditsTest do
             track(%{"artist" => "Hatsune Miku", "MUSICBRAINZ_ARTISTID" => Fake.character()}, 700)
         })
 
+      before_lookup =
+        Map.new(placed, fn track ->
+          [credit] = Credits.credits_of(work_of(track))
+          {credit.name, Repo.get!(Res, credit.agent_id).kind}
+        end)
+
+      assert before_lookup == %{
+               "Miles Davis" => :artist,
+               "Miles Davis Quintet" => :artist,
+               "Berliner Philharmoniker" => :artist,
+               "Hatsune Miku" => :artist
+             }
+
       {:ok, _} = Credits.resolve_due(client: Fake, interval_ms: 0)
 
       kinds =
         Map.new(placed, fn track ->
           [credit] = Credits.credits_of(work_of(track))
-          {credit.name, credit.agent_id && Repo.get!(Res, credit.agent_id).kind}
+          {credit.name, Repo.get!(Res, credit.agent_id).kind}
         end)
 
       assert kinds == %{
                "Miles Davis" => :person,
                "Miles Davis Quintet" => :collective_agent,
                "Berliner Philharmoniker" => :collective_agent,
-               "Hatsune Miku" => nil
+               "Hatsune Miku" => :artist
              }
     end
 
-    test "the agent is credited as creator and carries its name and identifier", %{inbox: inbox} do
+    test "the artist is credited as creator and named, before anything is asked", %{inbox: inbox} do
       [track] =
         ingest!(inbox, %{
           "a.flac" => track(%{"artist" => "Miles Davis", "MUSICBRAINZ_ARTISTID" => Fake.person()})
         })
-
-      {:ok, _} = Credits.resolve_due(client: Fake, interval_ms: 0)
 
       [credit] = Credits.credits_of(work_of(track))
       assert Catalog.creators_of(work_of(track)) == [credit.agent_id]
@@ -156,6 +169,41 @@ defmodule Pluteus.Ingest.CreditsTest do
              )
 
       assert Enum.any?(nomens, &(&1.nomen_string == Fake.person() and &1.scheme == "musicbrainz"))
+
+      {:ok, _} = Credits.resolve_due(client: Fake, interval_ms: 0)
+
+      assert Catalog.creators_of(work_of(track)) == [credit.agent_id]
+      assert Repo.get!(Res, credit.agent_id).kind == :person
+    end
+
+    test "an artist for a name and an artist for an identifier are never one artist",
+         %{inbox: inbox} do
+      [tagged, untagged] =
+        ingest!(inbox, %{
+          "a.flac" =>
+            track(%{"artist" => "Miles Davis", "MUSICBRAINZ_ARTISTID" => Fake.person()}),
+          "b.flac" => track(%{"artist" => "Miles Davis"}, 500)
+        })
+
+      [with_identifier] = Credits.credits_of(work_of(tagged))
+      [by_name_only] = Credits.credits_of(work_of(untagged))
+
+      refute with_identifier.agent_id == by_name_only.agent_id
+      assert Catalog.nomens_for(by_name_only.agent_id) |> Enum.map(& &1.scheme) == [nil]
+    end
+
+    test "two credits of one name with no identifier are one artist", %{inbox: inbox} do
+      [first, second] =
+        ingest!(inbox, %{
+          "a.flac" => track(%{"artist" => "Aya Higuchi"}),
+          "b.flac" => track(%{"artist" => "Aya Higuchi"}, 500)
+        })
+
+      [one] = Credits.credits_of(work_of(first))
+      [two] = Credits.credits_of(work_of(second))
+
+      assert one.agent_id == two.agent_id
+      assert Repo.get!(Res, one.agent_id).kind == :artist
     end
 
     test "one identifier on many tracks, placed before and after it resolved, is one agent",
@@ -165,7 +213,7 @@ defmodule Pluteus.Ingest.CreditsTest do
           "a.flac" => track(%{"artist" => "Miles Davis", "MUSICBRAINZ_ARTISTID" => Fake.person()})
         })
 
-      {:ok, [{_, :agent}]} = Credits.resolve_due(client: Fake, interval_ms: 0)
+      {:ok, [{_, :narrowed}]} = Credits.resolve_due(client: Fake, interval_ms: 0)
 
       [second] =
         ingest!(
@@ -185,12 +233,37 @@ defmodule Pluteus.Ingest.CreditsTest do
       assert [_] = Repo.all(MusicBrainzArtist)
     end
 
-    test "a credit with no identifier names no agent", %{inbox: inbox} do
+    test "a credit with no identifier names an artist, and asks MusicBrainz nothing",
+         %{inbox: inbox} do
       [track] = ingest!(inbox, %{"a.flac" => track(%{"artist" => "Aya Higuchi"})})
 
       {:ok, []} = Credits.resolve_due(client: Fake, interval_ms: 0)
 
-      assert [%Credit{agent_id: nil}] = Credits.credits_of(work_of(track))
+      assert [%Credit{agent_id: artist_id, agent_kind: :artist}] =
+               Credits.credits_of(work_of(track))
+
+      assert Repo.get!(Res, artist_id).kind == :artist
+      assert Repo.all(MusicBrainzArtist) == []
+    end
+
+    test "a credit placed before artists were named acquires one on the next pass",
+         %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "a.flac" => track(%{"artist" => "Miles Davis", "MUSICBRAINZ_ARTISTID" => Fake.person()})
+        })
+
+      work_id = work_of(track)
+      [placed] = Credits.credits_of(work_id)
+      unname(placed)
+
+      assert [%Credit{agent_id: nil}] = Credits.credits_of(work_id)
+
+      {:ok, [{_, :narrowed}]} = Credits.resolve_due(client: Fake, interval_ms: 0)
+
+      assert [%Credit{agent_id: artist_id, agent_kind: :person}] = Credits.credits_of(work_id)
+      assert artist_id == placed.agent_id
+      assert Catalog.creators_of(work_id) == [artist_id]
     end
 
     test "not found is a finding against the identifier, and is not asked again", %{inbox: inbox} do
@@ -267,6 +340,13 @@ defmodule Pluteus.Ingest.CreditsTest do
           tags
         )
     )
+  end
+
+  # A credit as placement wrote one before every credit named an artist. The
+  # artist it named stays, as it would in a catalog filled by an earlier
+  # release.
+  defp unname(credit) do
+    credit |> Ecto.Changeset.change(agent_id: nil, agent_kind: nil) |> Repo.update!()
   end
 
   defp ingest!(inbox, files, from \\ @t0) do

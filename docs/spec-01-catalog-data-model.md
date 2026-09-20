@@ -2,7 +2,7 @@
 
 **Specification 01**
 **Status:** Draft
-**Version:** 0.1
+**Version:** 0.2
 **Depends on:** nothing
 **Obsoletes:** nothing
 
@@ -96,6 +96,20 @@ LRM declares eleven entities under a single top-level entity `res`. Work,
 expression, manifestation, and item are four of the eight direct subclasses of
 `res`; the others are agent, nomen, place, and time-span, with person and
 collective agent below agent.
+
+This system records a third kind below agent: the **artist**, an agent known by
+the name it performs or is credited under, of whom it is not yet known whether
+they are a person or a collective agent. A stage name is the common case. LRM
+makes every agent one or the other, and an artist is not a claim that it is
+neither: it is an agent recorded at the superclass because its subclass has not
+been determined, rather than a guess recorded as fact.
+
+An artist MAY be narrowed to a person or a collective agent once which it is
+becomes known. Narrowing keeps the artist's identifier, and everything recorded
+against it stays with it: its names, the works it is credited with or created,
+and every principal's stars and ratings. It is the one change of kind this
+system permits; no other res changes kind, and a person or collective agent is
+never widened back to an artist.
 
 No LRM entity is omitted. LRM §2.2 permits omission, but this system keeps place
 and time-span as entities rather than collapsing them to literals, on the
@@ -1238,6 +1252,9 @@ and languages may differ.
     returns those same bytes.
 37. Purging an entity removes its bytes from primary storage and retains a
     tombstone that prevents its identifier being reused.
+38. An artist narrowed to a person or a collective agent keeps its identifier,
+    its names, the works it is credited with, and every principal's stars and
+    ratings of it; no other change of a res's kind is accepted.
 
 ---
 
