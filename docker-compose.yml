@@ -32,6 +32,10 @@ services:
       # the image, and sharing one directory between the two corrupts both.
       - deps:/app/deps
       - build:/app/_build
+      # The demo corpus, read-only. Acquisition moves what it takes out of the
+      # inbox (spec-04 §4.3), so the inbox is never pointed at a dataset that
+      # is not meant to be consumed; files are copied from here into it.
+      - pluteus-catalog-demo:/demo:ro
     stdin_open: true
     tty: true
     networks:
@@ -74,4 +78,6 @@ volumes:
   deps:
   build:
   homelab-media-linuxserver-plex-music:
+    external: true
+  pluteus-catalog-demo:
     external: true

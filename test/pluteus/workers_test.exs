@@ -8,6 +8,7 @@ defmodule Pluteus.WorkersTest do
   use Pluteus.DataCase, async: true
   use Oban.Testing, repo: Pluteus.Repo
 
+  alias Pluteus.Actor
   alias Pluteus.Assets
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
@@ -35,6 +36,15 @@ defmodule Pluteus.WorkersTest do
 
       assert [%{outcome: :verified}] = Assets.verifications_of(asset.id)
       refute asset.id in ids(Assets.unverified())
+    end
+
+    test "the check runs with no actor set, as the queue runs it" do
+      asset = a_letter_on_disk()
+      :ok = Actor.set("")
+
+      assert :ok = perform_job(VerifyAsset, %{asset_id: asset.id})
+
+      assert [%{outcome: :verified}] = Assets.verifications_of(asset.id)
     end
 
     test "altered bytes are recorded as a mismatch and left as they are" do
