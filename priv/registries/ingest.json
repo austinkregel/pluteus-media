@@ -1,19 +1,74 @@
 {
   "inbox_ignore": {
-    "names": [".DS_Store", "Thumbs.db", "ehthumbs.db", "desktop.ini", ".localized", ".directory"],
-    "prefixes": ["._", ".~lock.", ".syncthing."],
-    "suffixes": [".part", ".crdownload", ".download", ".partial", ".opdownload", ".!qB", ".tmp"],
-    "directories": ["@eaDir", ".Trashes", ".Spotlight-V100", ".fseventsd", "$RECYCLE.BIN", ".stfolder"]
+    "names": [
+      ".DS_Store",
+      "Thumbs.db",
+      "ehthumbs.db",
+      "desktop.ini",
+      ".localized",
+      ".directory"
+    ],
+    "prefixes": [
+      "._",
+      ".~lock.",
+      ".syncthing."
+    ],
+    "suffixes": [
+      ".part",
+      ".crdownload",
+      ".download",
+      ".partial",
+      ".opdownload",
+      ".!qB",
+      ".tmp"
+    ],
+    "directories": [
+      "@eaDir",
+      ".Trashes",
+      ".Spotlight-V100",
+      ".fseventsd",
+      "$RECYCLE.BIN",
+      ".stfolder"
+    ]
   },
   "companions": [
     {
       "kind": "cover_art",
-      "base_names": ["cover", "folder", "front", "albumart", "albumartsmall", "album"],
-      "extensions": ["jpg", "jpeg", "png", "webp", "gif", "bmp"]
+      "base_names": [
+        "cover",
+        "folder",
+        "front",
+        "albumart",
+        "albumartsmall",
+        "album"
+      ],
+      "extensions": [
+        "jpg",
+        "jpeg",
+        "png",
+        "webp",
+        "gif",
+        "bmp"
+      ]
     },
-    {"kind": "lyrics", "extensions": ["lrc"]},
-    {"kind": "cue_sheet", "extensions": ["cue"]},
-    {"kind": "description", "extensions": ["nfo"]}
+    {
+      "kind": "lyrics",
+      "extensions": [
+        "lrc"
+      ]
+    },
+    {
+      "kind": "cue_sheet",
+      "extensions": [
+        "cue"
+      ]
+    },
+    {
+      "kind": "description",
+      "extensions": [
+        "nfo"
+      ]
+    }
   ],
   "codecs": {
     "flac": "lossless",
@@ -34,8 +89,23 @@
     "wmav2": "lossy",
     "amr_nb": "lossy",
     "amr_wb": "lossy",
-    "dts": {"parameter": "profile", "cases": {"DTS-HD MA": "lossless", "DTS-HD MA + DTS:X": "lossless", "DTS-HD MA + DTS:X IMAX": "lossless", "DTS": "lossy", "DTS-ES": "lossy", "DTS 96/24": "lossy", "DTS-HD HRA": "lossy", "DTS Express": "lossy"}},
-    "wavpack": {"parameter": "profile", "cases": {}},
+    "dts": {
+      "parameter": "profile",
+      "cases": {
+        "DTS-HD MA": "lossless",
+        "DTS-HD MA + DTS:X": "lossless",
+        "DTS-HD MA + DTS:X IMAX": "lossless",
+        "DTS": "lossy",
+        "DTS-ES": "lossy",
+        "DTS 96/24": "lossy",
+        "DTS-HD HRA": "lossy",
+        "DTS Express": "lossy"
+      }
+    },
+    "wavpack": {
+      "parameter": "profile",
+      "cases": {}
+    },
     "ffv1": "lossless",
     "huffyuv": "lossless",
     "ffvhuff": "lossless",
@@ -58,13 +128,38 @@
     "theora": "lossy",
     "wmv3": "lossy",
     "vc1": "lossy",
-    "h264": {"parameter": "profile", "cases": {"High 4:4:4 Predictive": "unknown", "High 4:4:4 Intra": "unknown"}, "otherwise": "lossy"},
-    "hevc": {"parameter": "profile", "cases": {}},
-    "vp9": {"parameter": "profile", "cases": {}},
-    "av1": {"parameter": "profile", "cases": {}},
-    "webp": {"parameter": "profile", "cases": {}},
-    "jpegxl": {"parameter": "profile", "cases": {}},
-    "jpeg2000": {"parameter": "profile", "cases": {}},
+    "h264": {
+      "parameter": "profile",
+      "cases": {
+        "High 4:4:4 Predictive": "unknown",
+        "High 4:4:4 Intra": "unknown"
+      },
+      "otherwise": "lossy"
+    },
+    "hevc": {
+      "parameter": "profile",
+      "cases": {}
+    },
+    "vp9": {
+      "parameter": "profile",
+      "cases": {}
+    },
+    "av1": {
+      "parameter": "profile",
+      "cases": {}
+    },
+    "webp": {
+      "parameter": "profile",
+      "cases": {}
+    },
+    "jpegxl": {
+      "parameter": "profile",
+      "cases": {}
+    },
+    "jpeg2000": {
+      "parameter": "profile",
+      "cases": {}
+    },
     "subrip": "lossless",
     "ass": "lossless",
     "ssa": "lossless",
@@ -78,30 +173,103 @@
   "codec_prefixes": {
     "pcm_": "lossless"
   },
-  "image_containers": ["png_pipe", "jpeg_pipe", "bmp_pipe", "tiff_pipe", "webp_pipe", "gif", "gif_pipe", "jpegxl_pipe", "j2k_pipe", "image2"],
+  "image_containers": [
+    "png_pipe",
+    "jpeg_pipe",
+    "bmp_pipe",
+    "tiff_pipe",
+    "webp_pipe",
+    "gif",
+    "gif_pipe",
+    "jpegxl_pipe",
+    "j2k_pipe",
+    "image2"
+  ],
   "streamless_formats": {
-    "x-fmt/111": {"class": "text", "essence": "not_applicable"},
-    "fmt/14": {"class": "text", "essence": "not_applicable"},
-    "fmt/15": {"class": "text", "essence": "not_applicable"},
-    "fmt/16": {"class": "text", "essence": "not_applicable"},
-    "fmt/17": {"class": "text", "essence": "not_applicable"},
-    "fmt/18": {"class": "text", "essence": "not_applicable"},
-    "fmt/19": {"class": "text", "essence": "not_applicable"},
-    "fmt/20": {"class": "text", "essence": "not_applicable"},
-    "fmt/276": {"class": "text", "essence": "not_applicable"},
-    "fmt/95": {"class": "text", "essence": "not_applicable"},
-    "fmt/354": {"class": "text", "essence": "not_applicable"},
-    "fmt/476": {"class": "text", "essence": "not_applicable"},
-    "fmt/477": {"class": "text", "essence": "not_applicable"},
-    "fmt/478": {"class": "text", "essence": "not_applicable"},
-    "fmt/479": {"class": "text", "essence": "not_applicable"},
-    "fmt/480": {"class": "text", "essence": "not_applicable"},
-    "fmt/481": {"class": "text", "essence": "not_applicable"},
-    "fmt/483": {"class": "text", "essence": "not_applicable"},
-    "fmt/1069": {"class": "text", "essence": "not_applicable"}
+    "x-fmt/111": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/14": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/15": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/16": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/17": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/18": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/19": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/20": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/276": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/95": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/354": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/476": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/477": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/478": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/479": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/480": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/481": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/483": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/1069": {
+      "class": "text",
+      "essence": "not_applicable"
+    }
   },
   "categories": {
-    "companion": {"cover_art": "cover_art", "lyrics": "lyrics", "cue_sheet": "cue_sheet", "description": "description"},
+    "companion": {
+      "cover_art": "cover_art",
+      "lyrics": "lyrics",
+      "cue_sheet": "cue_sheet",
+      "description": "description"
+    },
     "audio": "music_recording",
     "video": "home_video",
     "image": "photograph",
@@ -126,9 +294,18 @@
     "fmt/276": "application/pdf",
     "fmt/483": "application/epub+zip",
     "x-fmt/111": "text/plain",
-    "fmt/1069": "application/x-cue"
+    "fmt/1069": "application/x-cue",
+    "fmt/203": "audio/ogg",
+    "fmt/12": "image/png",
+    "fmt/41": "image/jpeg",
+    "fmt/645": "image/jpeg"
   },
   "standard_formats": {
-    "audio": {"codec": "flac", "muxer": "flac", "extension": "flac", "format": "fmt/279"}
+    "audio": {
+      "codec": "flac",
+      "muxer": "flac",
+      "extension": "flac",
+      "format": "fmt/279"
+    }
   }
 }
