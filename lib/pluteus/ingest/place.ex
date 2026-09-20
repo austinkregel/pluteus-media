@@ -42,7 +42,8 @@ defmodule Pluteus.Ingest.Place do
     "cover_art" => "cover-art-of",
     "lyrics" => "lyrics-of",
     "cue_sheet" => "cue-sheet-of",
-    "description" => "description-of"
+    "description" => "description-of",
+    "metadata" => "metadata-of"
   }
 
   @doc """
@@ -529,16 +530,31 @@ defmodule Pluteus.Ingest.Place do
     end
   end
 
-  defp described_by(%Acquisition{companion_kind: "lyrics"} = lyrics, media) do
-    base = base_name(lyrics.inbox_path)
+  defp described_by(%Acquisition{companion_kind: "lyrics"} = lyrics, media),
+    do: named_after(lyrics, media)
 
-    case Enum.find(media, &(base_name(&1.inbox_path) == base)) do
-      nil -> :none
-      track -> {:ok, manifestation_of(track)}
+  # A metadata sidecar describes the file it is named after — a player writes
+  # `film.xml` beside `film.mkv` — and where it is named after nothing, the
+  # release of its directory, as `.plexmatch` is.
+  defp described_by(%Acquisition{companion_kind: "metadata"} = sidecar, media) do
+    case named_after(sidecar, media) do
+      :none -> describes_release(media)
+      found -> found
     end
   end
 
-  defp described_by(_companion, media) do
+  defp described_by(_companion, media), do: describes_release(media)
+
+  defp named_after(companion, media) do
+    base = base_name(companion.inbox_path)
+
+    case Enum.find(media, &(base_name(&1.inbox_path) == base)) do
+      nil -> :none
+      holding -> {:ok, manifestation_of(holding)}
+    end
+  end
+
+  defp describes_release(media) do
     case media |> Enum.map(&(&1 |> manifestation_of() |> topmost())) |> Enum.uniq() do
       [] -> :none
       [release] -> {:ok, release}
@@ -570,7 +586,16 @@ defmodule Pluteus.Ingest.Place do
 
   defp title(acquisition) do
     Streams.first(Streams.tags(acquisition.probe), ["title"]) ||
-      base_name(acquisition.inbox_path)
+      stem_or_file_name(acquisition.inbox_path)
+  end
+
+  # A dot file is all extension: `.plexmatch` has no stem, and a holding is
+  # named under something rather than under nothing (spec-01 §6.1).
+  defp stem_or_file_name(inbox_path) do
+    case base_name(inbox_path) do
+      "" -> inbox_path |> Path.basename() |> String.normalize(:nfc)
+      stem -> stem
+    end
   end
 
   defp automatic(name), do: %{nomen_string: name, provenance: :automatic}

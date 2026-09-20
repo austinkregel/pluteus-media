@@ -30,16 +30,23 @@ defmodule Pluteus.Ingest.Registry do
 
   @doc """
   The companion kind a file name matches, or nil (spec-04 §4.6).
+
+  A pattern matches by extension, optionally narrowed to a set of base names,
+  or by the whole file name: a dot file such as `.plexmatch` has no extension
+  to match on.
   """
   @spec companion_kind(String.t()) :: String.t() | nil
   def companion_kind(file_name) do
-    extension = file_name |> Path.extname() |> String.trim_leading(".") |> String.downcase()
-    base_name = file_name |> Path.rootname() |> String.downcase()
+    file_name = String.downcase(file_name)
+    extension = file_name |> Path.extname() |> String.trim_leading(".")
+    base_name = Path.rootname(file_name)
 
     Enum.find_value(registry()["companions"], fn pattern ->
-      matches_extension = extension in pattern["extensions"]
-      matches_base = pattern["base_names"] == nil or base_name in pattern["base_names"]
-      if matches_extension and matches_base, do: pattern["kind"]
+      by_extension =
+        extension in (pattern["extensions"] || []) and
+          (pattern["base_names"] == nil or base_name in pattern["base_names"])
+
+      if by_extension or file_name in (pattern["names"] || []), do: pattern["kind"]
     end)
   end
 

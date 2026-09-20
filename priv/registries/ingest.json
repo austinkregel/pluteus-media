@@ -52,6 +52,12 @@
       ]
     },
     {
+      "kind": "cover_art",
+      "extensions": [
+        "metathumb"
+      ]
+    },
+    {
       "kind": "lyrics",
       "extensions": [
         "lrc"
@@ -67,6 +73,15 @@
       "kind": "description",
       "extensions": [
         "nfo"
+      ]
+    },
+    {
+      "kind": "metadata",
+      "extensions": [
+        "xml"
+      ],
+      "names": [
+        ".plexmatch"
       ]
     }
   ],
@@ -261,6 +276,10 @@
     "fmt/1069": {
       "class": "text",
       "essence": "not_applicable"
+    },
+    "fmt/101": {
+      "class": "text",
+      "essence": "not_applicable"
     }
   },
   "categories": {
@@ -268,7 +287,8 @@
       "cover_art": "cover_art",
       "lyrics": "lyrics",
       "cue_sheet": "cue_sheet",
-      "description": "description"
+      "description": "description",
+      "metadata": "metadata"
     },
     "audio": "music_recording",
     "video": "home_video",
@@ -295,6 +315,7 @@
     "fmt/483": "application/epub+zip",
     "x-fmt/111": "text/plain",
     "fmt/1069": "application/x-cue",
+    "fmt/101": "application/xml",
     "fmt/203": "audio/ogg",
     "fmt/12": "image/png",
     "fmt/41": "image/jpeg",

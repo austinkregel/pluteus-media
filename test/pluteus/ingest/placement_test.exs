@@ -211,6 +211,81 @@ defmodule Pluteus.Ingest.PlacementTest do
                Catalog.associated(manifestation_of(lyrics), "lyrics-of")
     end
 
+    test "a metadata sidecar describes the file it is named after, and is no release",
+         %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Aladdin (1992)/Aladdin.1992.BluRay.mkv" => media!(:ffv1),
+          "Aladdin (1992)/Aladdin.1992.BluRay.xml" =>
+            ~s(<?xml version="1.0" encoding="UTF-8"?>\n<movie><title>Aladdin</title></movie>\n),
+          "Aladdin (1992)/.plexmatch" => "tmdbid: 812\n",
+          "Aladdin (1992)/Aladdin.1992.BluRay.metathumb" => media!(:jpeg),
+          "Aladdin (1992)/folder.png" => media!(:png)
+        })
+
+      film = Enum.find(placed, &(&1.media_class == :video))
+      sidecar = Enum.find(placed, &(Path.extname(&1.inbox_path) == ".xml"))
+      match = Enum.find(placed, &(Path.basename(&1.inbox_path) == ".plexmatch"))
+      cover = Enum.find(placed, &(Path.basename(&1.inbox_path) == "folder.png"))
+      thumbnail = Enum.find(placed, &(Path.extname(&1.inbox_path) == ".metathumb"))
+
+      for companion <- [sidecar, match] do
+        assert companion.state == :placed,
+               "#{companion.inbox_path} is #{companion.state}: " <>
+                 inspect(
+                   Enum.map(
+                     Ingest.findings_for_acquisition(companion.id),
+                     &{&1.stage, &1.kind, &1.detail}
+                   )
+                 )
+
+        assert companion.media_class == :companion
+        assert companion.companion_kind == "metadata"
+        assert Catalog.category_of(work_of(companion), Place.category_scheme()) == "metadata"
+      end
+
+      # Named after the film, it describes the film; named after nothing, the
+      # directory's one release, which for a film is the film itself.
+      assert Catalog.associated(manifestation_of(sidecar), "metadata-of") ==
+               [manifestation_of(film)]
+
+      assert Catalog.associated(manifestation_of(match), "metadata-of") ==
+               [manifestation_of(film)]
+
+      # A thumbnail written beside the film is artwork, whatever its extension
+      # says, and the sidecars are no longer releases of their own, so both
+      # pieces of artwork have one release to describe.
+      assert thumbnail.companion_kind == "cover_art"
+
+      for artwork <- [cover, thumbnail] do
+        assert Catalog.associated(manifestation_of(artwork), "cover-art-of") ==
+                 [manifestation_of(film)]
+      end
+
+      assert Enum.flat_map([film, cover, thumbnail], &Ingest.findings_for_acquisition(&1.id)) ==
+               []
+    end
+
+    test "a sidecar named after a track describes the track, not the release",
+         %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Kind of Blue/01 So What.flac" => media!(:flac, tags: album("Kind of Blue", 1)),
+          "Kind of Blue/01 So What.xml" =>
+            ~s(<?xml version="1.0" encoding="UTF-8"?>\n<track><title>So What</title></track>\n),
+          "Kind of Blue/02 Freddie Freeloader.flac" =>
+            media!(:flac, frequency: 500, tags: album("Kind of Blue", 2))
+        })
+
+      sidecar = Enum.find(placed, &(&1.companion_kind == "metadata"))
+      so_what = Enum.find(placed, &(&1.inbox_path == "Kind of Blue/01 So What.flac"))
+
+      assert Catalog.associated(manifestation_of(sidecar), "metadata-of") ==
+               [manifestation_of(so_what)]
+
+      refute manifestation_of(so_what) == release_of(so_what)
+    end
+
     test "a directory that produced two releases leaves its cover unlinked, as a finding",
          %{inbox: inbox} do
       placed =

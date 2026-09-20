@@ -2,7 +2,7 @@
 
 **Specification 04**
 **Status:** Draft
-**Version:** 0.2
+**Version:** 0.3
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-06 (Principals, Auth
 and Authorization)
@@ -174,15 +174,21 @@ nomen; where it sat in the inbox is on its acquisition record.
 ### 4.6 Companion files
 
 A companion is a file that describes another: a cover image, synchronized
-lyrics, a cue sheet, an `.nfo`. It is recognized as one at identification,
-before any category is decided, by its name and format against a registry of
-companion patterns (spec-01 §17) — `cover.*`, `folder.*`, `*.lrc`, `*.cue`,
-`*.nfo` among them — so that album art never reaches placement as a photograph,
-nor lyrics as a document.
+lyrics, a cue sheet, an `.nfo`, or a metadata sidecar a media manager wrote. It
+is recognized as one at identification, before any category is decided, by its
+name and format against a registry of companion patterns (spec-01 §17) —
+`cover.*`, `folder.*`, `*.lrc`, `*.cue`, `*.nfo`, `*.xml` and `.plexmatch`
+among them — so that album art never reaches placement as a photograph, nor
+lyrics or a sidecar as a document.
+
+A metadata sidecar is a companion for the same reason the others are: it
+describes a holding rather than being one. Catalogued as a document it would
+count as a release placed from its directory, which would leave a cover image
+beside it describing two releases and linked to neither.
 
 A companion is acquired as a holding of its own, whose category is its companion
-kind — cover art, lyrics, cue sheet, description — and never its broad class's
-default (§6.3). It is not an asset of the media it describes. A digital item's
+kind — cover art, lyrics, cue sheet, description, metadata — and never its broad
+class's default (§6.3). It is not an asset of the media it describes. A digital item's
 assets are copies of one content (spec-01 §5.5), and a cover image made an
 Acquired asset of a track would become the original the track's normalized
 master depends on (spec-03 §3.3).
@@ -196,6 +202,7 @@ arrive:
 | Companion | Describes |
 | --- | --- |
 | lyrics sharing a media file's base name | the track manifestation placed from that file |
+| a metadata sidecar sharing a media file's base name | the holding placed from that file |
 | any other companion | the release placed from the directory's files |
 
 Where a directory's files were placed into more than one release, a
@@ -208,6 +215,12 @@ relation. A deriving tool then reads the companion into what it describes:
 synchronized lyrics become derived temporal annotations on the track
 manifestation (spec-02), and a cue sheet or `.nfo` becomes evidence for
 placement. The companion itself is kept, since it cannot be regenerated.
+
+What a metadata sidecar asserts is evidence for matching (spec-05) and not for
+placement: placement acts on the file's own bytes and tags. Where those sources
+disagree, spec-05 ranks them — a person's correction first, then a colocated
+sidecar, then the file's own tags, then an external provider — and a deployment
+may order the three automatic sources otherwise.
 
 ---
 
@@ -630,9 +643,11 @@ place.
 8. A directory's media are placed only once every file in the directory is
    settled and identified.
 9. A companion is linked to what its directory's files were placed as, whichever
-   arrives first; lyrics sharing a file's base name link to that track; a
-   companion whose directory produced more than one release is not linked and is
-   recorded as a finding.
+   arrives first; lyrics and a metadata sidecar sharing a file's base name link
+   to what was placed from that file; a companion whose directory produced more
+   than one release is not linked and is recorded as a finding. A metadata
+   sidecar is never catalogued as a document, and never makes a directory
+   produce a second release.
 10. Removing a companion does not remove the described holding's normalized
     master.
 11. Placement writes a holding's work, expression, manifestation, digital item
