@@ -14,6 +14,7 @@ defmodule Pluteus.Ingest.CreditsTest do
   alias Pluteus.Catalog.Res
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Credits
+  alias Pluteus.Ingest.Finding
   alias Pluteus.Ingest.MusicBrainz
   alias Pluteus.Ingest.MusicBrainzArtist
   alias Pluteus.Ingest.Place
@@ -276,10 +277,26 @@ defmodule Pluteus.Ingest.CreditsTest do
   end
 
   defp work_of(acquisition) do
-    manifestation = Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
-    [expression] = Catalog.expressions_in(manifestation)
+    [expression] = acquisition |> placed!() |> Catalog.expressions_in()
     expression.work_id
   end
+
+  # An acquisition that was not placed says why: its state, and whatever
+  # finding held it back. Without that the failure is a nil identifier and
+  # nothing to act on.
+  defp placed!(%{digital_item_id: nil, id: id}) do
+    acquisition = Ingest.get_acquisition!(id)
+    findings = Repo.all(from f in Finding, where: f.acquisition_id == ^id)
+
+    flunk("""
+    #{acquisition.inbox_path} was acquired but never placed.
+      state: #{acquisition.state}
+      findings: #{inspect(Enum.map(findings, &{&1.stage, &1.kind, &1.detail}))}
+    """)
+  end
+
+  defp placed!(acquisition),
+    do: Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
 
   defp release_work_of(track) do
     manifestation = Repo.get!(DigitalItem, track.digital_item_id).manifestation_id
