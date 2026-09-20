@@ -235,6 +235,14 @@ defmodule PluteusWeb.SubsonicListsTest do
       assert search(context, "miles")["artist"] |> Enum.map(& &1["id"]) ==
                [Music.name_artist_id("Miles Davis")]
 
+      # A person searching for the band means its records: the album is called
+      # "Kind of Blue" and no song is called "Miles Davis".
+      miles = search(context, "miles")
+      assert Enum.map(miles["album"], & &1["id"]) == [context.album]
+
+      assert Enum.sort(Enum.map(miles["song"], & &1["id"])) ==
+               Enum.sort([context.so_what, context.freddie])
+
       {:ok, _} =
         Catalog.create_nomen(%{
           res_id: context.album,

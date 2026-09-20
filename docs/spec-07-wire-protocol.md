@@ -304,6 +304,11 @@ there are none is misled; one told the endpoint is not provided can say so.
 Every name is the preferred nomen under the principal's resolution profile. Every
 identifier is the res's primary identifier, as a string.
 
+`search2` and `search3` match a res by every name it carries (spec-01 §7.4),
+and match an album or a song by the names of the artists credited on it as
+well: a person searching for a band means its records, and a release is rarely
+titled after whoever made it.
+
 `getIndexes` and `getMusicDirectory` present the same catalog as directories:
 artists at the top, an artist's albums within it, an album's songs within that.
 The directories are a presentation of the catalog, and name nothing the

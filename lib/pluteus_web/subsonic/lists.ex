@@ -218,10 +218,18 @@ defmodule PluteusWeb.Subsonic.Lists do
         query
       )
 
-    {Enum.filter(library, &(&1.id in named)),
-     Enum.filter(pairs, fn {song, _} -> song.id in named end),
-     Enum.filter(artists, fn {artist, _} -> artist_matches?(artist, named, query) end)}
+    {Enum.filter(library, &(&1.id in named or credited?(&1.artists, named, query))),
+     Enum.filter(pairs, fn {song, album} ->
+       song.id in named or credited?(song.artists, named, query) or
+         credited?(album.artists, named, query)
+     end),
+     Enum.filter(artists, fn {artist, _albums} -> artist_matches?(artist, named, query) end)}
   end
+
+  # A person searching for a band means its records, not only whatever happens
+  # to carry the band's name in its own title.
+  defp credited?(artists, named, query),
+    do: Enum.any?(artists, &artist_matches?(&1, named, query))
 
   defp artist_matches?(%{agent_id: nil, name: name}, _named, query),
     do: String.contains?(String.downcase(name), String.downcase(query))
