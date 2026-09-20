@@ -329,6 +329,20 @@ defmodule Pluteus.Ingest.CreditsTest do
       assert MusicBrainz.contact() == nil
       assert {:error, :no_contact_configured} = Credits.resolve_due()
     end
+
+    test "a credit is still named an artist where no contact is configured", %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "a.flac" => track(%{"artist" => "Miles Davis", "MUSICBRAINZ_ARTISTID" => Fake.person()})
+        })
+
+      [placed] = Credits.credits_of(work_of(track))
+      unname(placed)
+
+      assert {:error, :no_contact_configured} = Credits.resolve_due()
+
+      assert [%Credit{agent_kind: :artist}] = Credits.credits_of(work_of(track))
+    end
   end
 
   defp track(tags, frequency \\ 440) do

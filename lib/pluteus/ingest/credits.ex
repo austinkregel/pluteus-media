@@ -210,11 +210,13 @@ defmodule Pluteus.Ingest.Credits do
     client = Keyword.get(opts, :client, MusicBrainz)
     interval = Keyword.get(opts, :interval_ms, 1_000)
 
+    # Naming an artist asks nothing of anyone, so a deployment configured with
+    # no contact still gets every credit named; only the lookups wait.
+    name_unnamed()
+
     if client == MusicBrainz and is_nil(MusicBrainz.contact()) do
       {:error, :no_contact_configured}
     else
-      name_unnamed()
-
       looked_up =
         due_identifiers()
         |> Enum.with_index()
