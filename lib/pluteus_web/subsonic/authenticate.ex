@@ -8,11 +8,16 @@ defmodule PluteusWeb.Subsonic.Authenticate do
   is answered 30 before its credential is read: what it would do with the answer
   is not this server's to guess.
 
-  Then, in this order: a password or a salted token is
-  refused with error 42, since the deployment holds no password to check one
-  against; `u` given with `apiKey` with error 43; no key with error 10; and a
-  key no device holds, whose device is revoked, or whose principal is retired,
-  with error 44.
+  A key may arrive in an `X-API-Key` header instead of the query string, which
+  keeps it out of the access logs §8 warns of. A header is unambiguous, so a
+  username or password the client sent beside it is ignored rather than
+  refused: a client with no field for a key, and no way to leave its password
+  field empty, is otherwise shut out over a value this deployment never reads.
+
+  Otherwise, in this order: a password or a salted token is refused with error
+  42, since the deployment holds no password to check one against; `u` given
+  with `apiKey` with error 43; no key with error 10; and a key no device holds,
+  whose device is revoked, or whose principal is retired, with error 44.
   """
 
   @behaviour Plug
@@ -31,7 +36,7 @@ defmodule PluteusWeb.Subsonic.Authenticate do
   def call(conn, _opts) do
     if ForwardAuth.from_proxy?(conn) do
       case protocol(conn.params["v"]) do
-        :ok -> authenticate(conn, credential(conn.params))
+        :ok -> authenticate(conn, credential(conn))
         {:refuse, code, message} -> refuse(conn, code, message)
       end
     else
@@ -66,7 +71,15 @@ defmodule PluteusWeb.Subsonic.Authenticate do
     end)
   end
 
-  defp credential(params) do
+  defp credential(conn) do
+    case get_req_header(conn, "x-api-key") do
+      [key] -> {:key, key}
+      [] -> offered(conn.params)
+      _several -> {:refuse, 43, "Multiple conflicting authentication mechanisms provided"}
+    end
+  end
+
+  defp offered(params) do
     cond do
       Map.has_key?(params, "p") or Map.has_key?(params, "t") ->
         {:refuse, 42, "Provided authentication mechanism not supported: use apiKey"}

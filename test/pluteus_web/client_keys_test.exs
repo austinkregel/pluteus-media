@@ -114,6 +114,49 @@ defmodule PluteusWeb.ClientKeysTest do
     end
   end
 
+  describe "a key may arrive in a header, for a client that has no field for one" do
+    test "the header authenticates, and a password beside it is ignored", %{conn: conn, key: key} do
+      principal = Principals.principal_for(issuer(), "ada@example.test")
+
+      body =
+        conn
+        |> via_proxy()
+        |> put_req_header("x-api-key", key)
+        |> get("/rest/tokenInfo", %{"u" => "ada", "p" => "whatever", "f" => "json"})
+        |> json_response(200)
+
+      assert body["subsonic-response"]["status"] == "ok"
+      assert body["subsonic-response"]["tokenInfo"]["username"] == principal.id
+    end
+
+    test "an unknown key in the header is error 44", %{conn: conn} do
+      assert conn
+             |> via_proxy()
+             |> put_req_header("x-api-key", "pk_not-a-key")
+             |> get("/rest/ping", %{"f" => "json"})
+             |> json_response(200)
+             |> get_in(["subsonic-response", "error", "code"]) == 44
+    end
+
+    test "two keys in the header are conflicting mechanisms", %{conn: conn, key: key} do
+      assert conn
+             |> via_proxy()
+             |> put_req_header("x-api-key", key)
+             |> Plug.Conn.prepend_req_headers([{"x-api-key", key}])
+             |> get("/rest/ping", %{"f" => "json"})
+             |> json_response(200)
+             |> get_in(["subsonic-response", "error", "code"]) == 43
+    end
+
+    test "the native API still refuses a key, header or not", %{conn: conn, key: key} do
+      assert conn
+             |> via_proxy()
+             |> put_req_header("x-api-key", key)
+             |> get("/works")
+             |> response(401)
+    end
+  end
+
   describe "14. Every response carries the OpenSubsonic fields, in XML or JSON" do
     test "XML by default", %{conn: conn, key: key} do
       body = conn |> via_proxy() |> get("/rest/ping", %{"apiKey" => key}) |> response(200)

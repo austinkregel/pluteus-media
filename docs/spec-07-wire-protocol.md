@@ -72,7 +72,10 @@ that device's, and nothing it does is attributed to anyone else.
   revoke any principal's, which spec-06 §6.6 audits.
 - A revoked key, or a key whose principal is retired, MUST be refused.
 - A key is accepted only on the OpenSubsonic surface (§6). It is never
-  accepted where forward authentication is expected.
+  accepted where forward authentication is expected, in a header or otherwise.
+- A key MAY be presented in an `X-API-Key` header rather than in the query
+  string, and SHOULD be where a client can: §8 notes that query strings reach
+  access logs, and a header does not.
 
 The OpenSubsonic surface's path is exempt from forward authentication at the
 proxy, since a key is its authentication; the proxy MUST still assert that the
@@ -240,6 +243,13 @@ one. That refusal SHOULD carry `helpUrl`, where a person is sent to mint a key
 the surface would accept; a deployment configured with nowhere to send them
 sends nothing rather than somewhere wrong.
 
+Where the key arrives in the `X-API-Key` header (§3.2), a `u`, `p` or `t` the
+client sent with it is ignored rather than refused. The header says which
+principal acts without ambiguity, and a client that cannot be configured
+without filling a password field would otherwise be shut out over a value this
+deployment never reads. Two such headers are conflicting mechanisms, and are
+refused with error 43.
+
 ### 6.2 Extensions
 
 `getOpenSubsonicExtensions` advertises exactly these:
@@ -382,9 +392,10 @@ missing. The native API (§4.5) is where the difference is told.
    one principal, and refused once revoked or once its principal is retired.
 3. The OpenSubsonic surface refuses a request that did not come through the
    proxy before reading its key.
-4. A password or token is refused with error 42; `u` with `apiKey` with error
-   43; an unknown or revoked key, or one whose principal is retired, with error
-   44.
+4. A password or token given without a key is refused with error 42, and `u`
+   with `apiKey` with error 43; both are ignored where the key arrived in the
+   header. An unknown or revoked key, or one whose principal is retired, is
+   refused with error 44 however it arrived.
 5. Every catalog write and every consumption event made through a key is
    attributed to the key's principal.
 6. A representation names related res by identifier and embeds none.
