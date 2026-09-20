@@ -41,6 +41,7 @@ defmodule Pluteus.Ingest.Place do
   @companion_links %{
     "cover_art" => "cover-art-of",
     "lyrics" => "lyrics-of",
+    "subtitles" => "subtitles-of",
     "cue_sheet" => "cue-sheet-of",
     "description" => "description-of",
     "metadata" => "metadata-of"
@@ -471,10 +472,11 @@ defmodule Pluteus.Ingest.Place do
 
   It waits until nothing from the directory remains to be placed, other than
   what a finding holds back, since until then the directory may yet produce a
-  second release. Lyrics sharing a media file's base name describe the track
-  placed from it; any other companion describes the release placed from the
-  directory, and where the directory produced more than one, it is not linked
-  and the ambiguity is a finding.
+  second release. Lyrics, a metadata sidecar and a subtitle named after a media
+  file describe what was placed from that file; any other companion describes
+  the release placed from the directory, and where the directory produced more
+  than one, it is not linked and the ambiguity is a finding. A companion in a
+  directory that produced no release describes nothing and is not linked.
   """
   @spec link_companions(String.t()) :: :ok
   def link_companions(directory) do
@@ -533,11 +535,12 @@ defmodule Pluteus.Ingest.Place do
   defp described_by(%Acquisition{companion_kind: "lyrics"} = lyrics, media),
     do: named_after(lyrics, media)
 
-  # A metadata sidecar describes the file it is named after — a player writes
-  # `film.xml` beside `film.mkv` — and where it is named after nothing, the
-  # release of its directory, as `.plexmatch` is.
-  defp described_by(%Acquisition{companion_kind: "metadata"} = sidecar, media) do
-    case named_after(sidecar, media) do
+  # A metadata sidecar or a subtitle describes the file it is named after — a
+  # player writes `film.xml` and `film.en.srt` beside `film.mkv` — and where it
+  # is named after nothing, the release of its directory, as `.plexmatch` is.
+  defp described_by(%Acquisition{companion_kind: kind} = companion, media)
+       when kind in ["metadata", "subtitles"] do
+    case named_after(companion, media) do
       :none -> describes_release(media)
       found -> found
     end
@@ -549,6 +552,19 @@ defmodule Pluteus.Ingest.Place do
     base = base_name(companion.inbox_path)
 
     case Enum.find(media, &(base_name(&1.inbox_path) == base)) do
+      nil -> named_under(base, media)
+      holding -> {:ok, manifestation_of(holding)}
+    end
+  end
+
+  # A companion may carry marks its media file does not: `film.en.forced.srt`
+  # is the subtitle of `film.mkv`. The longest media name the companion's own
+  # begins with is the one it was named after.
+  defp named_under(base, media) do
+    media
+    |> Enum.filter(&String.starts_with?(base, base_name(&1.inbox_path) <> "."))
+    |> Enum.max_by(&String.length(base_name(&1.inbox_path)), fn -> nil end)
+    |> case do
       nil -> :none
       holding -> {:ok, manifestation_of(holding)}
     end

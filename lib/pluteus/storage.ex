@@ -40,6 +40,26 @@ defmodule Pluteus.Storage do
   def read(location), do: location |> path() |> File.read!()
 
   @doc """
+  The first bytes at a location, for a decision that reads a file's head rather
+  than all of it. A shorter file answers with what it has.
+  """
+  @spec leading(String.t(), pos_integer()) :: binary()
+  def leading(location, count) do
+    file = path(location)
+    device = File.open!(file, [:read, :binary])
+
+    try do
+      case IO.binread(device, count) do
+        :eof -> ""
+        {:error, reason} -> raise File.Error, reason: reason, action: "read", path: file
+        bytes -> bytes
+      end
+    after
+      :ok = File.close(device)
+    end
+  end
+
+  @doc """
   The digest of the bytes at a location, as lowercase hex.
 
   Read in chunks, so a file larger than memory can be checked. A file that

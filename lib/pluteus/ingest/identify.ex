@@ -4,7 +4,10 @@ defmodule Pluteus.Ingest.Identify do
 
   The file's name is consulted once, and only to recognize a companion, which is
   decided before anything else so that album art never reaches placement as a
-  photograph, nor lyrics as a document (§4.6).
+  photograph, nor lyrics as a document (§4.6). Where a name alone cannot say
+  what a companion is, the file's first bytes decide: an `.nfo` holding markup
+  is a media manager's metadata, and one holding a release's notes is a
+  description.
 
   Essence is decided per content stream. Embedded cover art, data streams,
   timecode tracks and attachments accompany the media and are not counted, so
@@ -15,8 +18,13 @@ defmodule Pluteus.Ingest.Identify do
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Probe
   alias Pluteus.Ingest.Registry
+  alias Pluteus.Storage
 
   @content_types ~w(audio video subtitle)
+
+  # Enough of a file to hold an XML declaration, a doctype and the element that
+  # follows them.
+  @head_bytes 4_096
 
   @doc """
   Everything identification records about an acquisition's stored bytes, or
@@ -26,7 +34,11 @@ defmodule Pluteus.Ingest.Identify do
   """
   @spec identify(Acquisition.t()) :: {:ok, map()} | {:error, {String.t(), map()}}
   def identify(%Acquisition{} = acquisition) do
-    companion_kind = acquisition.inbox_path |> Path.basename() |> Registry.companion_kind()
+    companion_kind =
+      Registry.companion_kind(
+        Path.basename(acquisition.inbox_path),
+        fn -> Storage.leading(acquisition.location, @head_bytes) end
+      )
 
     with {:ok, format} <- format(acquisition.location),
          {:ok, probe} <- probe(acquisition.location, format) do

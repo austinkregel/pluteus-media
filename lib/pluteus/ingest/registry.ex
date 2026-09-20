@@ -34,9 +34,14 @@ defmodule Pluteus.Ingest.Registry do
   A pattern matches by extension, optionally narrowed to a set of base names,
   or by the whole file name: a dot file such as `.plexmatch` has no extension
   to match on.
+
+  A pattern naming root elements matches only a file whose markup begins with
+  one of them, read from `leading`, which answers the file's first bytes. One
+  extension carries more than one thing: `.nfo` is a media manager's metadata
+  where its root says so, and a release's notes where it is not markup at all.
   """
-  @spec companion_kind(String.t()) :: String.t() | nil
-  def companion_kind(file_name) do
+  @spec companion_kind(String.t(), (-> binary())) :: String.t() | nil
+  def companion_kind(file_name, leading \\ fn -> "" end) do
     file_name = String.downcase(file_name)
     extension = file_name |> Path.extname() |> String.trim_leading(".")
     base_name = Path.rootname(file_name)
@@ -46,8 +51,25 @@ defmodule Pluteus.Ingest.Registry do
         extension in (pattern["extensions"] || []) and
           (pattern["base_names"] == nil or base_name in pattern["base_names"])
 
-      if by_extension or file_name in (pattern["names"] || []), do: pattern["kind"]
+      named = by_extension or file_name in (pattern["names"] || [])
+
+      if named and rooted?(pattern, leading), do: pattern["kind"]
     end)
+  end
+
+  defp rooted?(%{"roots" => roots}, leading), do: root_element(leading.()) in roots
+  defp rooted?(_pattern, _leading), do: true
+
+  # The first element of a document, without its namespace prefix. Text that is
+  # not markup, and bytes that are not text, have no root element.
+  defp root_element(bytes) when is_binary(bytes) do
+    with true <- String.valid?(bytes),
+         markup = String.replace(bytes, ~r/<!--.*?-->/s, ""),
+         [_match, element] <- Regex.run(~r/<\s*([A-Za-z_][A-Za-z0-9_.:-]*)/, markup) do
+      element |> String.downcase() |> String.split(":") |> List.last()
+    else
+      _unrooted -> nil
+    end
   end
 
   @doc """

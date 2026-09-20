@@ -272,7 +272,7 @@ defmodule Pluteus.Ingest.PlacementTest do
         ingest!(inbox, %{
           "Kind of Blue/01 So What.flac" => media!(:flac, tags: album("Kind of Blue", 1)),
           "Kind of Blue/01 So What.xml" =>
-            ~s(<?xml version="1.0" encoding="UTF-8"?>\n<track><title>So What</title></track>\n),
+            ~s(<?xml version="1.0" encoding="UTF-8"?>\n<details><title>So What</title></details>\n),
           "Kind of Blue/02 Freddie Freeloader.flac" =>
             media!(:flac, frequency: 500, tags: album("Kind of Blue", 2))
         })
@@ -284,6 +284,76 @@ defmodule Pluteus.Ingest.PlacementTest do
                [manifestation_of(so_what)]
 
       refute manifestation_of(so_what) == release_of(so_what)
+    end
+
+    test "an .nfo of markup and an .nfo of notes are different companions", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Kind of Blue/01 So What.flac" => media!(:flac, tags: album("Kind of Blue", 1)),
+          "Kind of Blue/album.nfo" => """
+          <album>
+            <title>Kind of Blue</title>
+            <musicbrainzalbumid>1fd4d3d0-eb4a-3fc5-8ad1-d2eb2b1b0e0a</musicbrainzalbumid>
+            <label>Columbia</label>
+          </album>
+          """,
+          "Kind of Blue/release.nfo" => """
+           :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+           :  Kind.Of.Blue.1959.Remastered.24bit.FLAC-GROUP                :
+           :  Source ..... CD            Tracks ..... 5                    :
+           :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+          """
+        })
+
+      sidecar = Enum.find(placed, &(&1.inbox_path == "Kind of Blue/album.nfo"))
+      notes = Enum.find(placed, &(&1.inbox_path == "Kind of Blue/release.nfo"))
+      track = Enum.find(placed, &(&1.media_class == :audio))
+
+      assert sidecar.companion_kind == "metadata"
+      assert notes.companion_kind == "description"
+
+      assert Catalog.associated(manifestation_of(sidecar), "metadata-of") == [release_of(track)]
+      assert Catalog.associated(manifestation_of(notes), "description-of") == [release_of(track)]
+    end
+
+    test "a subtitle carrying marks the film does not describes the film", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Tarkovsky/Stalker.1979.mkv" => media!(:film),
+          "Tarkovsky/Stalker.1979.Extras.mkv" => media!(:film, audio: [{"rus", "flac", nil}]),
+          "Tarkovsky/Stalker.1979.Extras.en.forced.srt" =>
+            "1\n00:00:01,000 --> 00:00:02,000\nWhat do you want?\n\n" <>
+              "2\n00:00:03,000 --> 00:00:04,000\nTo be left alone.\n\n"
+        })
+
+      subtitle = Enum.find(placed, &(&1.companion_kind == "subtitles"))
+      stalker = Enum.find(placed, &(&1.inbox_path == "Tarkovsky/Stalker.1979.Extras.mkv"))
+
+      assert subtitle.media_class == :companion
+      assert Catalog.category_of(work_of(subtitle), Place.category_scheme()) == "subtitles"
+
+      assert Catalog.associated(manifestation_of(subtitle), "subtitles-of") ==
+               [manifestation_of(stalker)]
+
+      assert Ingest.findings_for_acquisition(subtitle.id) == []
+    end
+
+    test "a subtitle whose name merely begins with a film's is not that film's",
+         %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "Kurosawa/Ran.mkv" => media!(:film),
+          "Kurosawa/Rashomon.mkv" => media!(:film, audio: [{"jpn", "flac", nil}]),
+          "Kurosawa/Random subtitles.en.srt" =>
+            "1\n00:00:01,000 --> 00:00:02,000\nFor some other film.\n\n"
+        })
+
+      stray = Enum.find(placed, &(&1.companion_kind == "subtitles"))
+
+      assert Catalog.associated(manifestation_of(stray), "subtitles-of") == []
+
+      assert [%{kind: "companion_describes_several_releases"}] =
+               Ingest.findings_for_acquisition(stray.id)
     end
 
     test "a directory that produced two releases leaves its cover unlinked, as a finding",

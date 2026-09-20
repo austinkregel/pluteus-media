@@ -174,24 +174,33 @@ nomen; where it sat in the inbox is on its acquisition record.
 ### 4.6 Companion files
 
 A companion is a file that describes another: a cover image, synchronized
-lyrics, a cue sheet, an `.nfo`, or a metadata sidecar a media manager wrote. It
-is recognized as one at identification, before any category is decided, by its
-name and format against a registry of companion patterns (spec-01 §17) —
-`cover.*`, `folder.*`, `*.lrc`, `*.cue`, `*.nfo`, `*.xml` and `.plexmatch`
-among them — so that album art never reaches placement as a photograph, nor
-lyrics or a sidecar as a document.
+lyrics, subtitles, a cue sheet, an `.nfo`, or a metadata sidecar a media
+manager wrote. It is recognized as one at identification, before any category
+is decided, by its name and format against a registry of companion patterns
+(spec-01 §17) — `cover.*`, `folder.*`, `poster.*`, `*.lrc`, `*.srt`, `*.vtt`,
+`*.cue`, `*.nfo`, `*.xml`, `*.xmp`, `.plexmatch` and `metadata.opf` among them
+— so that album art never reaches placement as a photograph, nor lyrics, a
+subtitle or a sidecar as a document.
 
 A metadata sidecar is a companion for the same reason the others are: it
 describes a holding rather than being one. Catalogued as a document it would
 count as a release placed from its directory, which would leave a cover image
 beside it describing two releases and linked to neither.
 
+One extension carries more than one thing, and a name alone cannot always say
+which: an `.nfo` is a media manager's metadata where its markup begins with an
+element the registry names — `movie`, `episodedetails`, `album`, `artist`,
+`details` among them — and a release's notes where it is not markup at all. A
+pattern that names root elements is matched against the file's first bytes, so
+an XML file whose root the registry does not name is no companion but a
+document in its own right.
+
 A companion is acquired as a holding of its own, whose category is its companion
-kind — cover art, lyrics, cue sheet, description, metadata — and never its broad
-class's default (§6.3). It is not an asset of the media it describes. A digital item's
-assets are copies of one content (spec-01 §5.5), and a cover image made an
-Acquired asset of a track would become the original the track's normalized
-master depends on (spec-03 §3.3).
+kind — cover art, lyrics, subtitles, cue sheet, description, metadata — and
+never its broad class's default (§6.3). It is not an asset of the media it
+describes. A digital item's assets are copies of one content (spec-01 §5.5),
+and a cover image made an Acquired asset of a track would become the original
+the track's normalized master depends on (spec-03 §3.3).
 
 A companion finds what it describes through the inbox directory it arrived in,
 which is the only link an untagged `cover.jpg` has to its album. The directory is
@@ -202,13 +211,21 @@ arrive:
 | Companion | Describes |
 | --- | --- |
 | lyrics sharing a media file's base name | the track manifestation placed from that file |
-| a metadata sidecar sharing a media file's base name | the holding placed from that file |
+| a metadata sidecar or subtitle sharing a media file's base name | the holding placed from that file |
 | any other companion | the release placed from the directory's files |
+
+A companion may carry marks the file it describes does not: `film.en.forced.srt`
+is the subtitle of `film.mkv`. A companion whose base name begins with a media
+file's base name, followed by a dot, is named after that file, and where several
+match, the longest does.
 
 Where a directory's files were placed into more than one release, a
 directory-level companion is not linked, and the ambiguity is recorded as a
-finding for a person. The directory is evidence for this link and for nothing
-else; it does not group tracks into releases (§6.4).
+finding for a person. A companion in a directory that produced no release —
+an `artist.nfo` beside album directories and no media of its own — describes
+nothing this deployment can name, and is not linked. The directory is evidence
+for this link and for nothing else; it does not group tracks into releases
+(§6.4).
 
 The link is an association refining LRM-R1 (spec-01 §7.5) whose type names the
 relation. A deriving tool then reads the companion into what it describes:
@@ -643,11 +660,13 @@ place.
 8. A directory's media are placed only once every file in the directory is
    settled and identified.
 9. A companion is linked to what its directory's files were placed as, whichever
-   arrives first; lyrics and a metadata sidecar sharing a file's base name link
-   to what was placed from that file; a companion whose directory produced more
-   than one release is not linked and is recorded as a finding. A metadata
+   arrives first; lyrics, a metadata sidecar and a subtitle named after a file
+   link to what was placed from that file; a companion whose directory produced
+   more than one release is not linked and is recorded as a finding. A metadata
    sidecar is never catalogued as a document, and never makes a directory
-   produce a second release.
+   produce a second release. A file whose extension carries more than one thing
+   is the companion kind its first bytes say it is, and an XML file whose root
+   element the registry does not name is no companion at all.
 10. Removing a companion does not remove the described holding's normalized
     master.
 11. Placement writes a holding's work, expression, manifestation, digital item

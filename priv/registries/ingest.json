@@ -40,7 +40,18 @@
         "front",
         "albumart",
         "albumartsmall",
-        "album"
+        "album",
+        "poster",
+        "banner",
+        "fanart",
+        "background",
+        "thumb",
+        "disc",
+        "logo",
+        "clearart",
+        "landscape",
+        "series",
+        "default"
       ],
       "extensions": [
         "jpg",
@@ -60,7 +71,21 @@
     {
       "kind": "lyrics",
       "extensions": [
-        "lrc"
+        "lrc",
+        "elrc",
+        "ttml"
+      ]
+    },
+    {
+      "kind": "subtitles",
+      "extensions": [
+        "srt",
+        "vtt",
+        "ass",
+        "ssa",
+        "sub",
+        "idx",
+        "sup"
       ]
     },
     {
@@ -70,18 +95,38 @@
       ]
     },
     {
-      "kind": "description",
+      "kind": "metadata",
       "extensions": [
+        "xml",
         "nfo"
+      ],
+      "roots": [
+        "details",
+        "movie",
+        "movieset",
+        "tvshow",
+        "season",
+        "episodedetails",
+        "musicvideo",
+        "artist",
+        "album",
+        "song"
       ]
     },
     {
       "kind": "metadata",
       "extensions": [
-        "xml"
+        "xmp"
       ],
       "names": [
-        ".plexmatch"
+        ".plexmatch",
+        "metadata.opf"
+      ]
+    },
+    {
+      "kind": "description",
+      "extensions": [
+        "nfo"
       ]
     }
   ],
@@ -280,12 +325,21 @@
     "fmt/101": {
       "class": "text",
       "essence": "not_applicable"
+    },
+    "fmt/1218": {
+      "class": "text",
+      "essence": "not_applicable"
+    },
+    "fmt/1454": {
+      "class": "text",
+      "essence": "not_applicable"
     }
   },
   "categories": {
     "companion": {
       "cover_art": "cover_art",
       "lyrics": "lyrics",
+      "subtitles": "subtitles",
       "cue_sheet": "cue_sheet",
       "description": "description",
       "metadata": "metadata"
@@ -319,7 +373,9 @@
     "fmt/203": "audio/ogg",
     "fmt/12": "image/png",
     "fmt/41": "image/jpeg",
-    "fmt/645": "image/jpeg"
+    "fmt/645": "image/jpeg",
+    "fmt/1218": "application/x-subrip",
+    "fmt/1454": "text/vtt"
   },
   "standard_formats": {
     "audio": {
