@@ -17,6 +17,11 @@ config :pluteus,
 # spec-07 §5.1: how often the change feed's release is advanced. A push to
 # sockets follows each advance, so this is also how long a change can wait
 # before a device hears of it.
+# [OPENSUBSONIC] apiKeyAuthentication: a client refused for offering a password
+# is told where a person can mint a key it would accept. A deployment with
+# nowhere to send them says nothing rather than somewhere wrong.
+config :pluteus, PluteusWeb.Subsonic.Response, help_url: nil
+
 config :pluteus, Pluteus.Changes.Release, start: true, interval: 1_000
 
 config :pluteus, Oban,

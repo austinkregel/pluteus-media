@@ -69,3 +69,5 @@ config :pluteus, PluteusWeb.ForwardAuth,
 config :pluteus, announce_onboarding: false
 
 config :pluteus, Pluteus.Changes.Release, start: false, interval: 20
+
+config :pluteus, PluteusWeb.Subsonic.Response, help_url: "https://pluteus.test/devices"

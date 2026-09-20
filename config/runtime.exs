@@ -87,6 +87,10 @@ if config_env() == :prod do
   # Optional. Without it no MusicBrainz request is made and credits stay names.
   config :pluteus, Pluteus.Ingest.MusicBrainz, contact: System.get_env("MUSICBRAINZ_CONTACT")
 
+  # Optional. Where a person is sent to mint a client key, given to a client
+  # whose password this surface refused.
+  config :pluteus, PluteusWeb.Subsonic.Response, help_url: System.get_env("SUBSONIC_HELP_URL")
+
   forward_auth_issuer =
     System.get_env("FORWARD_AUTH_ISSUER") ||
       raise """

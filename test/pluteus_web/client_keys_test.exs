@@ -85,8 +85,16 @@ defmodule PluteusWeb.ClientKeysTest do
   end
 
   describe "4. Passwords, tokens, mixed and invalid keys are refused" do
-    test "a password is error 42", %{conn: conn} do
+    test "a password is error 42, and says where a key comes from", %{conn: conn} do
       assert error_code(conn, %{"u" => "ada", "p" => "secret"}) == 42
+
+      body =
+        conn
+        |> via_proxy()
+        |> get("/rest/ping", %{"u" => "ada", "p" => "secret", "f" => "json"})
+        |> json_response(200)
+
+      assert body["subsonic-response"]["error"]["helpUrl"] == "https://pluteus.test/devices"
     end
 
     test "a salted token is error 42", %{conn: conn} do

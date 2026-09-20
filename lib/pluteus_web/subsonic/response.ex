@@ -26,9 +26,25 @@ defmodule PluteusWeb.Subsonic.Response do
   def ok(conn, nil, _body), do: send_envelope(conn, "ok", %{})
   def ok(conn, key, body), do: send_envelope(conn, "ok", %{key => body})
 
+  @doc """
+  Sends an error. A refusal of the authentication a client offered carries
+  where a person can get a key it would accept, where the deployment is
+  configured with somewhere to send them ([OPENSUBSONIC] apiKeyAuthentication).
+  """
   @spec error(Plug.Conn.t(), non_neg_integer(), String.t()) :: Plug.Conn.t()
-  def error(conn, code, message),
-    do: send_envelope(conn, "failed", %{"error" => %{"code" => code, "message" => message}})
+  def error(conn, code, message) do
+    error = %{"code" => code, "message" => message}
+
+    error =
+      case {code, help_url()} do
+        {code, url} when code in [41, 42] and is_binary(url) -> Map.put(error, "helpUrl", url)
+        _no_help -> error
+      end
+
+    send_envelope(conn, "failed", %{"error" => error})
+  end
+
+  defp help_url, do: :pluteus |> Application.fetch_env!(__MODULE__) |> Keyword.fetch!(:help_url)
 
   defp send_envelope(conn, status, content) do
     envelope =

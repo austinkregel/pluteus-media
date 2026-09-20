@@ -236,7 +236,9 @@ Authentication is by client key only (§3.2), as `apiKey`. A request carrying
 `u` together with `apiKey` MUST be refused with error 43. A request
 authenticating by password or by salted token MUST be refused with error 42:
 the deployment holds no password to check a token against, and will not keep
-one.
+one. That refusal SHOULD carry `helpUrl`, where a person is sent to mint a key
+the surface would accept; a deployment configured with nowhere to send them
+sends nothing rather than somewhere wrong.
 
 ### 6.2 Extensions
 
