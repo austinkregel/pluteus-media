@@ -82,13 +82,20 @@ defmodule PluteusWeb.SubsonicOwnTest do
       assert code(context, "setRating?id=#{context.so_what}") == 10
     end
 
-    test "another principal's star or rating is never shown", context do
+    test "another principal's star, rating, plays or bookmark are never shown", context do
+      {:ok, other_device} = Principals.bind_device(context.other.id, "tv")
       {:ok, _} = Consumption.star(context.other.id, context.so_what)
       {:ok, _} = Consumption.rate(context.other.id, context.so_what, 5)
+      {:ok, _} = Consumption.played(context.other.id, other_device.id, context.so_what)
+      {:ok, _} = Consumption.bookmark(context.other.id, context.so_what, 90_000, nil)
 
       shown = song(context, context.so_what)
+
       refute Map.has_key?(shown, "starred")
       refute Map.has_key?(shown, "userRating")
+      refute Map.has_key?(shown, "played")
+      refute Map.has_key?(shown, "bookmarkPosition")
+      assert shown["playCount"] == 0
     end
   end
 
@@ -314,7 +321,7 @@ defmodule PluteusWeb.SubsonicOwnTest do
       user = call(context, "getUser?username=#{context.ada.id}")["user"]
 
       assert {user["username"], user["streamRole"], user["adminRole"], user["folder"]} ==
-               {context.ada.id, true, false, ["household"]}
+               {context.ada.id, true, false, [1]}
 
       assert code(context, "getUser?username=#{context.other.id}") == 50
       assert code(context, "getUser") == 10

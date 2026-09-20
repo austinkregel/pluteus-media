@@ -62,7 +62,8 @@ defmodule Pluteus.Music do
       :extent,
       :probe,
       :created,
-      :duration_s
+      :duration_s,
+      :bpm
     ]
 
     @type t :: %__MODULE__{}
@@ -209,6 +210,7 @@ defmodule Pluteus.Music do
     items = digital_items_of(album_ids ++ track_ids)
     assets = assets_of(Map.values(items))
     probes = Annotations.current_bodies(album_ids ++ track_ids, "probe")
+    measurements = Annotations.current_bodies(track_ids, "measurements")
     agents = for {_key, list} <- credits, credit <- list, credit.agent_id, do: credit.agent_id
     masters = for {{_item, :normalized}, asset} <- assets, do: asset.id
     names = names(album_ids ++ track_ids ++ agents ++ masters, profile)
@@ -223,7 +225,8 @@ defmodule Pluteus.Music do
       probes: probes,
       names: names,
       created: created,
-      extents: extents
+      extents: extents,
+      measurements: measurements
     }
 
     medium_of =
@@ -261,7 +264,8 @@ defmodule Pluteus.Music do
       extent: extent,
       probe: found.probes[track_id] || (extent && found.probes[album_id]),
       created: found.created[track_id],
-      duration_s: duration_s(extent, found.probes[track_id])
+      duration_s: duration_s(extent, found.probes[track_id]),
+      bpm: found.measurements[track_id]["tempo_bpm"]
     }
   end
 
@@ -439,6 +443,23 @@ defmodule Pluteus.Music do
       _none -> nil
     end
   end
+
+  @doc """
+  The audio stream a song's probe found, which carries what the protocol asks
+  of every song: its bit depth, sampling rate and channel count.
+  """
+  @spec audio_stream(Song.t()) :: map()
+  def audio_stream(%Song{probe: nil}), do: %{}
+
+  def audio_stream(%Song{probe: probe}) do
+    probe |> Map.get("streams", []) |> Enum.find(%{}, &(&1["codec_type"] == "audio"))
+  end
+
+  @doc """
+  A tag a song's probe read, where it carries one.
+  """
+  @spec tag(Song.t(), [String.t()]) :: String.t() | nil
+  def tag(%Song{probe: probe}, keys), do: Streams.first(Streams.tags(probe), keys)
 
   @doc """
   A song's bit rate in kilobits a second, from its probe.

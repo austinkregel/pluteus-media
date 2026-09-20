@@ -2,7 +2,7 @@
 
 **Specification 07**
 **Status:** Draft
-**Version:** 0.2
+**Version:** 0.3
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
 Normalization), spec-06 (Principals, Auth and Authorization)
@@ -226,6 +226,12 @@ OpenSubsonic additions [OPENSUBSONIC]: every response carries `status`,
 `version`, `type`, `serverVersion` and `openSubsonic: true`, in XML by default
 and in JSON when `f=json` is asked for.
 
+Every response carries the fields [OPENSUBSONIC] requires of its type,
+whether or not this deployment holds a value for one: a client reads them
+without asking what the server happened to fill in. A request naming a
+protocol version newer than 1.16.1 is refused with error 30 before its
+credential is read.
+
 Authentication is by client key only (§3.2), as `apiKey`. A request carrying
 `u` together with `apiKey` MUST be refused with error 43. A request
 authenticating by password or by salted token MUST be refused with error 42:
@@ -269,11 +275,14 @@ there are none is misled; one told the endpoint is not provided can say so.
 
 | Subsonic | Catalog |
 | --- | --- |
-| music folder | one, the household's |
-| artist | the agent a track's or release's credit resolved to (spec-04 §6.4); for a credit that names no agent, the credit's name, one artist per name |
+| music folder | one, the household's, identified as `1`: the protocol types a folder's identifier as an integer, and it is the one identifier here that is not a res's |
+| artist | the agent a track's or release's credit names (spec-04 §6.4): an artist, or the person or collective agent it was narrowed to, under the same identifier |
 | album | a release manifestation (spec-04 §6.4) |
 | song | a track manifestation |
 | genre, year, duration, bit rate, suffix, content type | the current probe annotation of the manifestation's analysis source (spec-04 §5.1, §8.1) |
+| bit depth, sampling rate, channel count | the probed audio stream; a lossy stream has no bit depth, and answers the zero the protocol reads as none |
+| bpm | the tempo the analysis measured, where it has run (spec-04 §8) |
+| MusicBrainz identifier, comment | the track's own tags |
 | cover art | the cover-art companion linked to the release (spec-04 §4.6), or the picture embedded in the track's master |
 | lyrics | the lyrics companion linked to the track |
 | album info | the description companion linked to the release as its notes, and the MusicBrainz release its tracks are tagged with; no image URLs, which would have to carry the client's key |
@@ -292,6 +301,9 @@ filesystem holds; storage has no directories that mean anything (spec-04 §4.5).
 Stars, ratings, playlists, the play queue, bookmarks, and what is playing now
 are consumption data, and each principal's are its own (spec-06 §6.3):
 
+- A song carries the requesting principal's own play count, when it last
+  played it, its bookmark position, its star and its rating, and no trace of
+  anyone else's.
 - `getNowPlaying` returns only the requesting principal's own sessions.
 - `getStarred`, `getStarred2` and the `starred`, `highest`, `frequent` and
   `recent` album lists read only the requesting principal's own data.
@@ -390,8 +402,8 @@ missing. The native API (§4.5) is where the difference is told.
 15. `getOpenSubsonicExtensions` advertises exactly the extensions of §6.2.
 16. An endpoint not provided answers error 0 naming it, never an empty success.
 17. An album is a release, a song a track, and an artist the agent a credit
-    resolved to, or for a credit naming no agent, one artist per credited name;
-    every name is the preferred nomen under the principal's profile.
+    names, which any principal may star and rate whether or not it has been
+    narrowed; every name is the preferred nomen under the principal's profile.
 18. Stars, ratings, playlists, the play queue, bookmarks and now-playing are per
     principal, and no list or count on the surface reflects another principal's.
 19. Another principal's playlist answers error 70 whether read, changed or

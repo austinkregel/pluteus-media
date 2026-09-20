@@ -216,6 +216,7 @@ defmodule Pluteus.Principals.ConformanceTest do
         assert function in [
                  :for_principal,
                  :play_count,
+                 :plays,
                  :record,
                  :resumable,
                  :resume_position,

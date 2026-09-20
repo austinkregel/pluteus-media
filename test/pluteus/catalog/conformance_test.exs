@@ -891,6 +891,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       assert exported == [
                for_principal: 1,
                play_count: 3,
+               plays: 3,
                record: 3,
                record: 4,
                record: 5,

@@ -248,7 +248,7 @@ defmodule PluteusWeb.Subsonic.Own do
          "jukeboxRole" => false,
          "shareRole" => false,
          "videoConversionRole" => false,
-         "folder" => ["household"]
+         "folder" => [1]
        }}
     end
   end

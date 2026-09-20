@@ -91,7 +91,7 @@ defmodule PluteusWeb.SubsonicListsTest do
     test "another music folder is not found", context do
       assert error(context, "getAlbumList2", %{"type" => "random", "musicFolderId" => "7"}) == 70
 
-      assert ids(context, "alphabeticalByName", %{"musicFolderId" => "household"}) ==
+      assert ids(context, "alphabeticalByName", %{"musicFolderId" => "1"}) ==
                [context.album, context.loose]
     end
   end

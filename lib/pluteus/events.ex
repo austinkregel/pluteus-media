@@ -64,6 +64,23 @@ defmodule Pluteus.Events do
   end
 
   @doc """
+  How many times one principal played each of many res, and when it last did,
+  as a map keyed by res identifier. A res the principal never played is absent.
+  """
+  @spec plays(Ecto.UUID.t(), [Ecto.UUID.t()], String.t()) ::
+          %{Ecto.UUID.t() => {non_neg_integer(), DateTime.t()}}
+  def plays(principal_id, res_ids, type) do
+    Map.new(
+      Repo.all(
+        from e in Event,
+          where: e.principal_id == ^principal_id and e.res_id in ^res_ids and e.type == ^type,
+          group_by: e.res_id,
+          select: {e.res_id, {count(e.id), max(e.occurred_at)}}
+      )
+    )
+  end
+
+  @doc """
   Sets how far through something a principal is.
   """
   @spec set_resume_position(Ecto.UUID.t(), Ecto.UUID.t(), non_neg_integer()) ::

@@ -19,7 +19,7 @@ defmodule PluteusWeb.Subsonic.Browse do
   alias PluteusWeb.Subsonic.Response
   alias PluteusWeb.Subsonic.Shape
 
-  @folder %{"id" => "household", "name" => "Music"}
+  @folder %{"id" => 1, "name" => "Music"}
 
   @endpoints ~w(getMusicFolders getIndexes getMusicDirectory getGenres getArtists getArtist
                 getAlbum getSong getArtistInfo2 getAlbumInfo2 getCoverArt getLyricsBySongId)

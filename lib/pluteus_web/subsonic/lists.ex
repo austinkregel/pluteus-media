@@ -21,7 +21,7 @@ defmodule PluteusWeb.Subsonic.Lists do
   alias PluteusWeb.Subsonic.Response
   alias PluteusWeb.Subsonic.Shape
 
-  @folder "household"
+  @folder "1"
   @played "played"
 
   @endpoints ~w(getAlbumList getAlbumList2 getRandomSongs getSongsByGenre getNowPlaying

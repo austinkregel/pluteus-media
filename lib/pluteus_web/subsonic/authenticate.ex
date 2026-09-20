@@ -4,7 +4,11 @@ defmodule PluteusWeb.Subsonic.Authenticate do
   (spec-07 §3.2, §6.1).
 
   The request must first have come through the proxy; nothing else about it is
-  read until then. Then, in this order: a password or a salted token is
+  read until then. A client asking for a protocol newer than this server speaks
+  is answered 30 before its credential is read: what it would do with the answer
+  is not this server's to guess.
+
+  Then, in this order: a password or a salted token is
   refused with error 42, since the deployment holds no password to check one
   against; `u` given with `apiKey` with error 43; no key with error 10; and a
   key no device holds, whose device is revoked, or whose principal is retired,
@@ -26,7 +30,10 @@ defmodule PluteusWeb.Subsonic.Authenticate do
   @impl Plug
   def call(conn, _opts) do
     if ForwardAuth.from_proxy?(conn) do
-      authenticate(conn, credential(conn.params))
+      case protocol(conn.params["v"]) do
+        :ok -> authenticate(conn, credential(conn.params))
+        {:refuse, code, message} -> refuse(conn, code, message)
+      end
     else
       conn
       |> Problem.send(401, %{
@@ -36,6 +43,27 @@ defmodule PluteusWeb.Subsonic.Authenticate do
       })
       |> halt()
     end
+  end
+
+  # spec-07 §6.8: a client asking for a version this server does not speak is
+  # answered 30, which names the server as the one that must upgrade.
+  defp protocol(nil), do: :ok
+
+  defp protocol(asked) do
+    if version(asked) <= version(Response.version()),
+      do: :ok,
+      else: {:refuse, 30, "Incompatible Subsonic REST protocol version. Server must upgrade."}
+  end
+
+  defp version(string) do
+    string
+    |> String.split(".")
+    |> Enum.map(fn part ->
+      case Integer.parse(part) do
+        {number, _rest} -> number
+        :error -> 0
+      end
+    end)
   end
 
   defp credential(params) do

@@ -9,16 +9,19 @@ defmodule PluteusWeb.Subsonic.Shape do
   """
 
   alias Pluteus.Consumption
+  alias Pluteus.Events
   alias Pluteus.Ingest.Registry
   alias Pluteus.Music
   alias Pluteus.Music.Album
   alias Pluteus.Music.Artist
   alias Pluteus.Music.Song
 
-  @type context :: %{starred: map(), ratings: map()}
+  @type context :: %{starred: map(), ratings: map(), plays: map(), bookmarks: map()}
 
   @doc """
-  The principal's own stars and ratings over the res a response shows.
+  The principal's own stars, ratings, plays and bookmarks over the res a
+  response shows. A song carries what its own principal did with it and
+  nothing of anyone else's (spec-07 §6.5).
   """
   @spec context(Plug.Conn.t(), [Ecto.UUID.t()]) :: context()
   def context(conn, res_ids) do
@@ -26,7 +29,12 @@ defmodule PluteusWeb.Subsonic.Shape do
 
     %{
       starred: Consumption.starred_at(principal_id, res_ids),
-      ratings: Consumption.ratings(principal_id, res_ids)
+      ratings: Consumption.ratings(principal_id, res_ids),
+      plays: Events.plays(principal_id, res_ids, "played"),
+      bookmarks:
+        principal_id
+        |> Consumption.bookmarks()
+        |> Map.new(&{&1.res_id, &1.position_ms})
     }
   end
 
@@ -44,6 +52,8 @@ defmodule PluteusWeb.Subsonic.Shape do
   @spec song(Song.t(), Album.t(), context()) :: map()
   def song(%Song{} = song, %Album{} = album, context) do
     genres = Music.genres(song)
+    stream = Music.audio_stream(song)
+    {play_count, last_played} = Map.get(context.plays, song.id, {0, nil})
 
     %{
       "id" => song.id,
@@ -72,10 +82,39 @@ defmodule PluteusWeb.Subsonic.Shape do
       "created" => timestamp(song.created),
       "type" => "music",
       "mediaType" => "song",
+      "isVideo" => false,
+      "bitDepth" => bit_depth(stream),
+      "samplingRate" => integer(stream["sample_rate"]),
+      "channelCount" => stream["channels"],
+      "bpm" => song.bpm && round(song.bpm),
+      "comment" => Music.tag(song, ["comment", "description"]),
+      "musicBrainzId" => Music.tag(song, ["musicbrainz_trackid", "musicbrainz_releasetrackid"]),
       "starred" => timestamp(context.starred[song.id]),
-      "userRating" => context.ratings[song.id]
+      "userRating" => context.ratings[song.id],
+      "playCount" => play_count,
+      "played" => timestamp(last_played),
+      "bookmarkPosition" => bookmark_seconds(context.bookmarks[song.id])
     }
   end
+
+  # A lossy codec has no bit depth, and the protocol asks for the field all the
+  # same; zero is the value it reads as "none", as it is for a bit rate.
+  defp bit_depth(stream) do
+    integer(stream["bits_per_raw_sample"]) || integer(stream["bits_per_sample"]) || 0
+  end
+
+  defp integer(nil), do: nil
+  defp integer(value) when is_integer(value), do: if(value == 0, do: nil, else: value)
+
+  defp integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, ""} -> number
+      _other -> nil
+    end
+  end
+
+  defp bookmark_seconds(nil), do: nil
+  defp bookmark_seconds(position_ms), do: div(position_ms, 1000)
 
   @doc """
   An album as an ID3 album, with its songs where `songs?`.
