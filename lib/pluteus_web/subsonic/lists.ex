@@ -108,7 +108,7 @@ defmodule PluteusWeb.Subsonic.Lists do
 
     albums = albums_by_id(conn, Map.values(songs))
     context = Shape.context(conn, Map.keys(songs))
-    labels = Map.new(Principals.devices_of(principal_id), &{&1.id, &1.label})
+    devices = Map.new(Principals.devices_of(principal_id), &{&1.id, &1})
     now = DateTime.utc_now()
 
     entries =
@@ -118,8 +118,8 @@ defmodule PluteusWeb.Subsonic.Lists do
         |> Map.merge(%{
           "username" => principal_id,
           "minutesAgo" => div(DateTime.diff(now, session.started_at), 60),
-          "playerId" => session.device_id,
-          "playerName" => labels[session.device_id]
+          "playerId" => devices[session.device_id].player_number,
+          "playerName" => devices[session.device_id].label
         })
       end
 

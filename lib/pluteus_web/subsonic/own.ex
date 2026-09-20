@@ -150,7 +150,9 @@ defmodule PluteusWeb.Subsonic.Own do
 
   defp answer("getPlayQueueByIndex", conn) do
     {:ok, "playQueueByIndex",
-     queue(conn, fn visible_index, _songs -> {"currentIndex", visible_index} end)}
+     queue(conn, fn visible_index, songs ->
+       {"currentIndex", visible_current(visible_index, songs)}
+     end)}
   end
 
   defp answer("savePlayQueue", conn) do
@@ -444,8 +446,18 @@ defmodule PluteusWeb.Subsonic.Own do
     end
   end
 
-  defp current_id(nil, _songs), do: {"current", nil}
+  # A queue with entries names one of them current: a client reads `current` to
+  # know where it is, and the first entry is where a queue saved without one
+  # begins.
+  defp current_id(nil, []), do: {"current", nil}
+  defp current_id(nil, [song | _rest]), do: {"current", song.id}
   defp current_id(index, songs), do: {"current", Enum.at(songs, index).id}
+
+  # A queue with entries is somewhere in them, and a queue saved without a
+  # current entry is at its first.
+  defp visible_current(nil, []), do: nil
+  defp visible_current(nil, _songs), do: 0
+  defp visible_current(index, _songs), do: index
 
   # `current` names a song; where it appears more than once, its first place.
   defp current_index(conn, ids) do

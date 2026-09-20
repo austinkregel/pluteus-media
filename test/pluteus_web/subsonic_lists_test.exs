@@ -14,6 +14,8 @@ defmodule PluteusWeb.SubsonicListsTest do
   alias Pluteus.Music
   alias Pluteus.MusicFixtures
   alias Pluteus.Principals
+  alias Pluteus.Principals.Device
+  alias Pluteus.Repo
 
   @subject "ada@example.test"
 
@@ -172,8 +174,12 @@ defmodule PluteusWeb.SubsonicListsTest do
 
       assert [entry] = call(context, "getNowPlaying", %{})["nowPlaying"]["entry"]
 
+      player = Repo.get!(Device, context.phone).player_number
+
       assert {entry["id"], entry["username"], entry["playerId"], entry["playerName"]} ==
-               {context.so_what, context.ada.id, context.phone, "phone"}
+               {context.so_what, context.ada.id, player, "phone"}
+
+      assert is_integer(player), "a player's id is an int, not #{inspect(player)}"
     end
 
     test "starred lists hold the principal's own artists, albums and songs", context do

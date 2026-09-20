@@ -287,6 +287,7 @@ there are none is misled; one told the endpoint is not provided can say so.
 | lyrics | the lyrics companion linked to the track |
 | album info | the description companion linked to the release as its notes, and the MusicBrainz release its tracks are tagged with; no image URLs, which would have to carry the client's key |
 | star, rating, playlist, play queue, bookmark, now playing | the requesting principal's own consumption data |
+| player | the device the client's key belongs to, under a number of its own: the protocol types a player's identifier as an integer, and the device's label names it |
 
 Every name is the preferred nomen under the principal's resolution profile. Every
 identifier is the res's primary identifier, as a string.
@@ -311,7 +312,9 @@ are consumption data, and each principal's are its own (spec-06 §6.3):
   principal (spec-01 §11); with `submission=false` it records what that
   principal is playing now, which is not kept as an event.
 - A play queue and a bookmark belong to their principal, and the bookmark is the
-  principal's resume position (spec-01 §11).
+  principal's resume position (spec-01 §11). A queue holding entries names one
+  of them current, as [OPENSUBSONIC] requires; a queue saved without one is at
+  its first entry.
 
 No response on this surface reveals another principal's consumption, whether
 directly, as a count, or as an ordering.

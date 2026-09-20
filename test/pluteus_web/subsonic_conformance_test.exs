@@ -181,6 +181,67 @@ defmodule PluteusWeb.SubsonicConformanceTest do
     end
   end
 
+  describe "the responses a client reads its own data from" do
+    test "a playlist, a bookmark, a queue and a now-playing entry carry their fields",
+         context do
+      song_id = context.library.songs["01 So What.flac"]
+      other_id = context.library.songs["02 Freddie.flac"]
+
+      playlist =
+        call(context, "createPlaylist", %{"name" => "Evening", "songId" => song_id})["playlist"]
+
+      for field <- ~w(id name songCount duration created changed) do
+        assert Map.has_key?(playlist, field), "a playlist is missing #{field}"
+      end
+
+      call(context, "createBookmark", %{"id" => song_id, "position" => "61000"})
+      [bookmark] = call(context, "getBookmarks", %{})["bookmarks"]["bookmark"]
+
+      for field <- ~w(entry position username created changed) do
+        assert Map.has_key?(bookmark, field), "a bookmark is missing #{field}"
+      end
+
+      assert bookmark["position"] == 61_000, "a bookmark's position is in milliseconds"
+      assert bookmark["entry"]["bookmarkPosition"] == 61, "a song's is in seconds"
+
+      call(context, "scrobble", %{"id" => other_id, "submission" => "false"})
+      [entry] = call(context, "getNowPlaying", %{})["nowPlaying"]["entry"]
+
+      for field <- ~w(username minutesAgo playerId) do
+        assert Map.has_key?(entry, field), "a now-playing entry is missing #{field}"
+      end
+
+      assert is_integer(entry["playerId"]), "a player's id is an int"
+    end
+
+    test "a queue with entries names one of them current", context do
+      song_id = context.library.songs["01 So What.flac"]
+      other_id = context.library.songs["02 Freddie.flac"]
+
+      get(
+        context.conn,
+        "/rest/savePlayQueue?id=#{song_id}&id=#{other_id}&apiKey=#{context.key}&f=json"
+      )
+
+      queue = call(context, "getPlayQueue", %{})["playQueue"]
+
+      for field <- ~w(username changed changedBy entry) do
+        assert Map.has_key?(queue, field), "a play queue is missing #{field}"
+      end
+
+      assert queue["current"] == song_id,
+             "a queue saved with no current song still names where it is"
+
+      assert call(context, "getPlayQueueByIndex", %{})["playQueueByIndex"]["currentIndex"] == 0
+    end
+
+    test "a timestamp is written to the second", context do
+      song = call(context, "getSong", %{"id" => context.library.songs["01 So What.flac"]})["song"]
+
+      assert song["created"] =~ ~r/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/
+    end
+  end
+
   describe "a browser player reaches the bytes the way it builds URLs" do
     test "cover art and stream answer a plain GET with the key in the query", context do
       song_id = context.library.songs["01 So What.flac"]

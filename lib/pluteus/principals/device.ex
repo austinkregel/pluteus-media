@@ -21,6 +21,7 @@ defmodule Pluteus.Principals.Device do
     field :revoked_at, :utc_datetime_usec
     field :revoked_by, UUIDv7
     field :key_digest, :string
+    field :player_number, :integer, read_after_writes: true
 
     timestamps(type: :utc_datetime_usec)
   end

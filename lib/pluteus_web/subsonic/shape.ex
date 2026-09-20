@@ -209,5 +209,5 @@ defmodule PluteusWeb.Subsonic.Shape do
 
   @spec timestamp(DateTime.t() | nil) :: String.t() | nil
   def timestamp(nil), do: nil
-  def timestamp(%DateTime{} = at), do: DateTime.to_iso8601(at)
+  def timestamp(%DateTime{} = at), do: at |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 end
