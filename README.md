@@ -4,8 +4,7 @@ A self-hosted media system for one household: catalog, preservation, and
 consumption in one application. Music, video, documents, photographs, scanned
 correspondence, ebooks, and home recordings — anything the household holds.
 
-**Status:** specification, with an implementation of specs 01, 02, 03, 04, 06 and 07
-in this repository.
+**Status:** specification, with an implementation of a basic API; do not use, there is no visual interface yet.
 
 ## The specification series
 
@@ -24,7 +23,8 @@ dependency. Everything else builds on it.
 | [07 — Wire Protocol](docs/spec-07-wire-protocol.md) | Native API, change notification, client keys, and an OpenSubsonic surface for existing music clients. | Draft |
 | 08 — Playback and Transcode Negotiation | Sessions, direct play / remux / transcode, track selection. | Not started |
 | 09 — Search, Ranking and Recommendation | Feature vectors, taste modelling, playlist generation and sequencing. | Not started |
-| 10 — Presentation | Resolution profiles, client contracts. | Not started |
+| [10 — Presentation](docs/spec-10-presentation.md) | The render boundary. Surfaces, absence, names at the point of display, browsing without ranking, presentation profiles, the transport, continuity, correction, and the television client contract. 60 conformance criteria; §19 lists seven additions to spec-02 and spec-07 it depends on. | Draft |
+| [10 Annex A — Design Language](docs/spec-10-annex-a-design-language.md) | Tokens, colour, type, space, focus, motion, iconography, components. Heroicons 2.2.0 is the icon base; A.8 gives the construction and reduction rules for the twelve glyphs drawn on top of it. Normative for the interface; values are a registry. | Draft |
 
 **01, 02, 03 and 06 gate implementation.** Open items are marked **OPEN**
 inline.
