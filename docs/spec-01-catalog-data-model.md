@@ -2,7 +2,7 @@
 
 **Specification 01**
 **Status:** Draft
-**Version:** 0.3
+**Version:** 0.4
 **Depends on:** nothing
 **Obsoletes:** nothing
 
@@ -397,12 +397,28 @@ LRM-R33 (`res` to place) and LRM-R35 (`res` to time-span) are declared at
 `res` level and are many-to-many. Both scope notes expect implementations to
 refine them into specific association types.
 
-Implementations SHOULD refine these. Candidate refinements named by LRM: time of
-work conception or creation, time of expression creation, time of publication or
-manufacture, period of ownership of an item, date of birth of a person, time of
-validity of a nomen for a particular res.
+Implementations MUST refine these. The registry (§7.5, §17) carries the
+refinements a document in this series cites, and no others:
 
-**OPEN:** the refinement set is not specified. It is a registry (§7.5).
+| Relation | Refinement | Cited by |
+| --- | --- | --- |
+| LRM-R35 | time of capture | [spec-05] §9.7 |
+| LRM-R35 | time of publication or manufacture | §6.4 |
+| LRM-R33 | place of capture | [spec-05] §9.7 |
+| LRM-R1 | a place within a place | [spec-05] §9.7 |
+| LRM-R1 | a household arrangement position and a source's numbering for the same member | [spec-05] §9.2 |
+
+LRM names further candidates — time of work conception or creation, time of
+expression creation, period of ownership of an item, date of birth of a person,
+time of validity of a nomen. None is carried until something writes it, because
+a refinement nothing writes is a row that only looks like coverage.
+
+**A relation written before its refinement existed is untyped, and stays
+untyped.** Nothing recorded which kind it would have been, so nothing can
+classify it afterwards. Adding a refinement is a seed change and costs nothing;
+what it cannot do is repair what was already written without one. That asymmetry
+is accepted knowingly: the alternative is a registry of relations nobody uses,
+and an unused refinement is as misleading in its own way as an untyped relation.
 
 ### 6.4 Work boundaries
 
@@ -456,12 +472,30 @@ Implementations MAY automatically promote expression attributes to
 representative expression attributes at ingest where a work has a single
 expression in a single manifestation (LRM §5.6). This covers the home-media case.
 
-**OPEN:** which attributes are significant per category of work. LRM §5.6
-requires the implementation to specify this. It is a registry (§7.5). LRM-E2-A2
-supplies attribute sets for textual, musical, cartographic, moving image, and
-art works, which the registry SHOULD adopt; [ANNEX-A] §A.9 records them and
-identifies the two categories — still image and personal record — for which LRM
-has no analogue and the selection must be authored.
+LRM §5.6 requires the implementation to say which attributes are significant per
+category of work. The registry (§7.5, §17) carries:
+
+| Category of work | Significant attributes | Source |
+| --- | --- | --- |
+| textual | language, intended audience | LRM-E2-A2 |
+| musical | key, medium of performance | LRM-E2-A2 |
+| cartographic | cartographic scale, projection | LRM-E2-A2 |
+| moving image | aspect ratio, colourization | LRM-E2-A2 |
+| art | medium of execution | LRM-E2-A2 |
+| still image | capture device, orientation, colour or monochrome | authored |
+| personal record | the correspondents, the date of writing | authored |
+
+LRM supplies the first five. The last two have no LRM analogue, because
+libraries do not catalogue a relative's letters, and are authored here
+([ANNEX-A] §A.9).
+
+**These measure distance from the canonical form, and do nothing else.** They
+order expressions where a work has several (§8.6); where it has one, the
+automatic promotion above applies and they never discriminate. They are not a
+description of what a work is *about* — its subject, its genre, whether it
+depicts a person or a landscape, whether it reproduces another work. That is
+categorization (§3.3), which LRM §4.2.3 permits to run as several independent
+schemes at once and which this table does not bound.
 
 ---
 
@@ -865,24 +899,48 @@ principal.
 ### 11.1 Nature
 
 Events are descriptive records of what happened. They carry no notion of current
-state, and questions of editability do not arise. Their purpose is to give a
-person basic metrics about their media consumption.
+state, and questions of editability do not arise.
 
-Current state — resume position — is a separate concern from event history.
-Derived metrics such as play count are counts over events.
+**Events are a layer over the three of §3.2 rather than one of them.** An event
+may record a person playing a track, a file arriving, or an asset being
+verified, and those concern the consumption, preservation and catalog layers
+respectively. §3.2's prohibition on conflating the three does not reach them:
+LRM §2.1 places administrative metadata outside the model, an activity record is
+that, and what §3.2 forbids is one layer's own data being mixed into another's
+rather than a record that observes all three from outside.
+
+Current state — resume position — is a separate concern from event history
+(§11.4). Derived metrics such as play count are counts over events.
 
 Event volume is bounded by human viewing time. At 60 hours per week of viewing
 with 30-second checkpointing, one heavy user generates on the order of a few
 hundred thousand small rows per year. No compaction policy is required, and a
 time-series store is not warranted.
 
-### 11.2 Scope and visibility
+### 11.2 Two classes, and what each may be shown
 
-Events MUST be scoped to the principal. The household MUST NOT be shown what an
-individual is watching.
+Every event is exactly one of:
 
-Implementations MUST NOT expose one principal's events to another through any
-aggregate, recommendation surface, or resumption list.
+| Class | Records | Visible to |
+| --- | --- | --- |
+| **consumption** | what a person played, read or viewed | that principal alone |
+| **platform** | what happened to the holdings — acquired, placed, normalized, verified, matched, corrected | the household |
+
+**A consumption event MUST be scoped to its principal.** The household MUST NOT
+be shown what an individual is watching, and implementations MUST NOT expose one
+principal's consumption events to another through any aggregate, recommendation
+surface, or resumption list.
+
+A platform event is not about a person and carries no privacy interest. Most are
+the System principal's ([spec-04] §3), and a household unable to see them could
+not see its own library changing. A platform event MUST NOT carry what any
+principal consumed, and MUST NOT be derivable into it: *this file was played* is
+a consumption event however it is labelled.
+
+**The class is decided by what the event records, not by who acted.** A member
+correcting a name produces a platform event, household-visible, as that member's
+names already are (§7.3). The same member playing the track produces a
+consumption event, visible to nobody else.
 
 Playback progress originates on the device the principal authenticated to and is
 stored against that principal so it reaches their other devices.
@@ -890,10 +948,24 @@ stored against that principal so it reaches their other devices.
 ### 11.3 Distinct from notifications
 
 The change notifications in §12.2 are also called events in common usage. They
-are a different thing and MUST NOT share a representation with consumption
-events.
+are a different thing and MUST NOT share a representation with either class of
+§11.2.
 
-**OPEN:** the event type vocabulary is seed data (§7.5).
+The event type vocabulary is seed data (§7.5, §17). At minimum it distinguishes,
+within each class:
+
+| Class | Types |
+| --- | --- |
+| consumption | started, progressed, completed |
+| platform | acquired, placed, normalized, verified, matched, corrected |
+
+*completed* is not reported by a client. It is established when a position
+passes the ceiling [spec-10] §13.2 names for the category, so that a surface and
+a count cannot disagree about what finishing means.
+
+§11.1's volume estimate bounds the consumption class. The platform class is
+bounded by what the household acquires and does, which is smaller by orders of
+magnitude.
 
 ### 11.4 Resume position
 
@@ -1149,7 +1221,15 @@ Annotations whose target has been purged are governed by [spec-02] §8.1: derive
 annotations are purged with the target, authored annotations are retained as
 orphans and MUST render.
 
-**OPEN:** post-window behaviour with respect to propagation convergence.
+**A purge produces no change notification.** Propagation announces that
+something changed and never that something is absent (§12.2), so a client
+holding a purged res discovers it on its next request, which answers 410.
+
+A client disconnected across the whole window therefore never learns of the
+recycling either, and holds a row it believes live until it asks. That is
+accepted. The alternative is a feed retaining every purge for as long as any
+client might be away — which is indefinitely — to save that client one request
+it was going to make regardless.
 
 ### 14.3 Recycling, purge, and bytes
 
@@ -1309,6 +1389,13 @@ and languages may differ.
 40. Two devices reporting different positions for one principal and one res
     produce two positions, each naming its device, its unit, its reporting time,
     its session sequence and whether that session was playing.
+41. A consumption event of one principal is not observable by another through
+    any surface; a platform event is observable by every member, including one
+    the System principal recorded.
+42. No platform event carries, or can be combined into, what any principal
+    consumed.
+43. Purging a res emits no change notification, and the next request for it
+    answers 410.
 
 ---
 
