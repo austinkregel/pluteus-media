@@ -48,7 +48,8 @@ The transcode decision and the streams it produces (spec-08); this document
 names the profiles a surface may ask for, and spec-08 says how the bytes are
 made. Search ranking, similarity and recommendation (spec-09); this document
 specifies the search surface and what a result carries, not the order results
-arrive in. Metadata matching (spec-05, not yet written).
+arrive in. Metadata matching (spec-05); this document presents the provenance
+a match carries, and spec-05 says how the value was arrived at.
 
 Wire form is spec-07's. This document needs seven things the specifications it
 depends on do not carry; §19 enumerates them as additions to those documents
@@ -1779,8 +1780,9 @@ An implementation conforms if it satisfies all of the following.
 
 ### 23.2 Informative
 
-- **[spec-05]** *Metadata Acquisition and Matching*, not yet written. §15.3's
-  provenance rules anticipate it.
+- **[spec-05]** *Metadata Acquisition and Matching*, this system. §15.3's
+  provenance rules govern what its matches render as, and its §11 maps onto
+  §5.2's states.
 - **[spec-08]** *Playback and Transcode Negotiation*, not yet written. §18.4
   waits on it.
 - **[spec-09]** *Search, Ranking and Recommendation*, not yet written. §9.5

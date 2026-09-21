@@ -18,7 +18,7 @@ dependency. Everything else builds on it.
 | [02 — Annotations and Derived Data](docs/spec-02-annotations-and-derived-data.md) | Bodies attached to §8 addresses. Provenance, model versioning, supersession. The one abstraction spanning audio segments, video scenes, document chunks, OCR words, face tags. | Draft |
 | [03 — Assets, Storage and Preservation](docs/spec-03-assets-storage-and-preservation.md) | Normalization, checksum scheduling, format risk, backup scope, dedupe. | Draft |
 | [04 — Ingest and Normalization](docs/spec-04-ingest-and-normalization.md) | Acquisition from an inbox, identification, placement per media class, normalization, analysis by native and sidecar tools. Idempotency and resumability. | Draft |
-| 05 — Metadata Acquisition and Matching | External identifier nomens. MusicBrainz, TMDB, AcoustID. Correction beats automatic. | Not started |
+| [05 — Metadata Acquisition and Matching](docs/spec-05-metadata-acquisition-and-matching.md) | Where a scheme's identifier sits in WEMI, and what a match at one level licenses. The holding, a local corpus, a provider. Equality acts; resemblance raises a candidate. 40 conformance criteria; §16 lists six additions to spec-01 to spec-04 it depends on. | Draft |
 | [06 — Principals, Auth and Authorization](docs/spec-06-principals-auth-and-authorization.md) | Principals and roles, identity from a forward-authenticating proxy, household boundary, per-principal scoping, audit. | Draft |
 | [07 — Wire Protocol](docs/spec-07-wire-protocol.md) | Native API, change notification, client keys, and an OpenSubsonic surface for existing music clients. | Draft |
 | 08 — Playback and Transcode Negotiation | Sessions, direct play / remux / transcode, track selection. | Not started |
