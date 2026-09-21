@@ -108,6 +108,30 @@ NOT become an expression or manifestation. The test is authorship, not
 pixel difference — and getting it wrong in the permissive direction produces one
 manifestation per generated artifact, which is what §5.5 forbids.
 
+### A photograph of an artwork
+
+A second boundary, which LRM settles for neither side. A photograph of a
+painting can be read two ways:
+
+| Reading | Structure | Consequence |
+| --- | --- | --- |
+| a reproduction | the painting is the work; the photograph is a manifestation of it, alongside any other shot | asking for the painter's work finds it; the photographer is credited on nothing, and two shots of one painting are the same thing however differently made |
+| a photographic work | the photograph is a work of its own, related to the painting by LRM-R22 | the photographer is credited; asking for the painter's work does not find it without travelling the relation |
+
+Both are correct for some holdings, and the difference is intent rather than
+content. A documentation shot of a canvas is a reproduction. A composed
+photograph that happens to contain a painting is a work.
+
+**Placement therefore defaults to the photographic work**, because the bytes say
+*photograph* and nothing says *reproduction*, and a member changes it. The
+change is a decision at work level in spec-03 §8.3's vocabulary, which already
+carries *same work*; no mechanism is added for it.
+
+The default is the recoverable direction. Reading a reproduction as a work
+leaves a photograph credited to its photographer and one relation short, which a
+member repairs. Reading a work as a reproduction files somebody's photograph
+under another artist's name and loses the photographer entirely.
+
 ## A.5 Scanned letter
 
 The case with a genuine physical `item`, which is otherwise rare here (§5.2:
@@ -190,28 +214,34 @@ orthogonal to the others, rather than a category value. Provenance cuts across
 every value in every list above: a photograph may be commercial or household,
 and so may a moving image.
 
-### The representative expression attribute registry is partly pre-answered
+### The representative expression attributes, and what they are not
 
-spec-01 §6.5's OPEN asks which attributes are significant per category of work.
-LRM-E2-A2 supplies a starter set directly, which the registry SHOULD adopt
-rather than re-derive:
+spec-01 §6.5 carries the registry. LRM-E2-A2 supplies five of its rows directly;
+two are authored here, because LRM has no analogue for them:
 
-| Work type | Representative expression attributes LRM names |
-| --- | --- |
-| Textual | language, intended audience |
-| Musical | key, medium of performance |
-| Cartographic | cartographic scale, projection |
-| Moving image | aspect ratio, colourization |
-| Art | medium of execution |
+| Work type | Significant attributes | Source |
+| --- | --- | --- |
+| Textual | language, intended audience | LRM-E2-A2 |
+| Musical | key, medium of performance | LRM-E2-A2 |
+| Cartographic | cartographic scale, projection | LRM-E2-A2 |
+| Moving image | aspect ratio, colourization | LRM-E2-A2 |
+| Art | medium of execution | LRM-E2-A2 |
+| Still image | capture device, orientation, colour or monochrome | authored |
+| Personal record | the correspondents, the date of writing | authored |
 
-Three of the five cover this system's holdings directly. Two gaps remain, and
-they are the household cases again:
+LRM's *art works* row gives medium of execution, which suits a painting and says
+nothing useful about a photograph — hence a still image row of its own. Personal
+record has no LRM analogue because libraries do not catalogue a relative's
+letters.
 
-- **Still image.** LRM's "art works" row gives *medium of execution*, which
-  suits a painting and says nothing useful about a photograph. Candidates:
-  capture device, orientation, colour versus monochrome.
-- **Personal record.** No LRM analogue, because libraries do not catalogue a
-  relative's letters. Candidates: the correspondents, the date of writing.
+**The two registries are easy to confuse and answer different questions.** These
+attributes exist to order competing expressions of one work. What a photograph
+depicts, whether it is a portrait or a landscape, whether its subject is a
+person or an animal, whether it reproduces another work — none of that belongs
+here. It is categorization, and §A.9's first heading is the point: several
+independent schemes may run on one entity at once, so a household wanting
+subject, composition and provenance as three orthogonal axes may have all three
+without touching this table.
 
 LRM §5.6 grounds the automatic promotion §A.4 and §A.7 rely on: it applies "in
 the vast majority of cases where new works are realized through a single
