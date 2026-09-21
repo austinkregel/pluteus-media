@@ -1356,7 +1356,7 @@ obligations they place on the deployment (§6.4).
 
 **The decision vocabulary** of §8.4, shared with spec-03 §8.3.
 
-**Association refinements**, which spec-01 §6.3 leaves OPEN:
+**Association refinements** this document writes, which spec-01 §6.3 carries:
 
 - LRM-R35, the time of capture of a still or moving image (§9.7)
 - LRM-R33, the place of capture (§9.7)
@@ -1364,6 +1364,10 @@ obligations they place on the deployment (§6.4).
   granularity relates to the finer one (§9.7)
 - LRM-R1, the correspondence between a household arrangement position and a
   source's numbering (§9.2)
+
+spec-01 §6.3 carries no refinement nothing writes, so a match that needs one not
+on that list raises a finding rather than attaching an untyped relation — a
+relation written without its kind can never be classified afterwards.
 
 **Companion patterns and root element names** in spec-04 §4.6's registry, which
 this document reads: `ComicInfo.xml`, `MetronInfo.xml`, `*.info.json`,
