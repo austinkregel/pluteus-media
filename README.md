@@ -26,8 +26,9 @@ dependency. Everything else builds on it.
 | [10 — Presentation](docs/spec-10-presentation.md) | The render boundary. Surfaces, absence, names at the point of display, browsing without ranking, presentation profiles, the transport, continuity, correction, and the television client contract. 60 conformance criteria; §19 says where the seven things it rests on are specified. | Draft |
 | [10 Annex A — Design Language](docs/spec-10-annex-a-design-language.md) | Tokens, colour, type, space, focus, motion, iconography, components. Heroicons 2.2.0 is the icon base; A.8 gives the construction and reduction rules for the twelve glyphs drawn on top of it. Normative for the interface; values are a registry. | Draft |
 
-**01, 02, 03 and 06 gate implementation.** Open items are marked **OPEN**
-inline.
+**01, 02, 03 and 06 gate implementation.** No specification carries an open
+item; the last four, in spec-01, were closed in favour of the answers recorded
+in §6.3, §6.5, §11.2 and §14.2.
 
 ## Foundations
 
@@ -58,9 +59,13 @@ principal, and no principal's consumption is visible to another.
 ## Implementation
 
 **Pluteus** — one Phoenix application, one PostgreSQL database, Ecto as sole
-schema owner. Each specification's conformance criteria are its test suite:
-spec-01 is met except criterion 33, which waits on spec-08; spec-02, spec-03,
-spec-04, spec-06 and spec-07 are met in full.
+schema owner. Each specification's conformance criteria are its test suite.
+
+The implementation met spec-01 except criterion 33, and spec-02, spec-03,
+spec-04, spec-06 and spec-07 in full, against those documents as they stood
+before spec-05 and spec-10 were written. Twenty-four criteria have been added
+since, across spec-01, spec-02, spec-03, spec-04, spec-06 and spec-07, and none
+of them is met yet. Criterion 33 still waits on spec-08.
 
 Analysis runs in two tools: one on the BEAM, and a Python sidecar in
 [sidecar/](sidecar/) on an internal network it shares only with the app, with
