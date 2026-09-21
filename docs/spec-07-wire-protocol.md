@@ -298,6 +298,12 @@ several entries, and a client MAY fetch it once. The response also gives the
 number the feed was released through when it was read, so a client that has
 read that far knows it has seen every write so far.
 
+**A purge is not a feed entry** (spec-01 §14.2). The recycling that preceded it
+was one, and a client that saw it already knows; a client that did not will be
+answered 410 on its next request. Feeding the purge would mean retaining it for
+as long as any client might be away, which is indefinitely, to save that client
+one request it was going to make regardless.
+
 A write MUST NOT appear in the feed before every write numbered below it has
 either committed or failed. Numbers are assigned as rows are written and
 transactions commit in their own order, so a feed that released a committed
@@ -518,7 +524,7 @@ missing. The native API (§4.5) is where the difference is told.
     on the OpenSubsonic surface.
 11. The change feed returns every catalog write after a number, in order, and
     never releases a write before every lower-numbered one has committed or
-    failed.
+    failed; a purge produces no entry.
 12. The socket pushes feed numbers and no rows; a client that reconciles from
     the feed after a disconnection has lost nothing.
 13. No principal can join another's topic or receive a notice of another's
