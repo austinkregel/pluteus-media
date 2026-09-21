@@ -2,7 +2,7 @@
 
 **Specification 03**
 **Status:** Draft
-**Version:** 0.1
+**Version:** 0.2
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived Data)
 **Obsoletes:** nothing
 
@@ -299,23 +299,44 @@ household may have deliberate reasons for both.
 Deduplication MUST produce candidate pairs for a person to resolve. It MUST NOT
 merge, delete, or re-point references automatically.
 
-A candidate is raised by one of §8.2's signals or by a member, who MAY propose a
-pair no signal found — two scans of one letter differ in every byte. A decision
-is one of: *same holding*, *same expression*, or *distinct*.
+A candidate is raised by one of §8.2's signals, by matching ([spec-05] §8.5), or
+by a member, who MAY propose a pair no signal found — two scans of one letter
+differ in every byte.
+
+A decision names the level at which the two are one:
+
+| Decision | Means | Resolution |
+| --- | --- | --- |
+| *same holding* | one digital item | merge the holdings under one manifestation |
+| *same manifestation* | one manifestation | move the digital items under one manifestation |
+| *same expression* | one expression | move the manifestations under one expression |
+| *same work* | one work | move the expressions under one work |
+| *distinct* | not the same | recorded, and not asked again |
+
+The vocabulary names a level because the decision is only ever about one. Two
+scans of a letter are the same expression and remain two manifestations; two
+pressings of a record are the same expression and two releases; two files of one
+encode are the same holding. Collapsing these into a single "duplicate" decision
+would force an implementation to guess which level a person meant, and a wrong
+guess destroys a relation rather than a value.
+
+Whichever level is chosen, the resolution moves children under the surviving res
+and recycles whichever of the emptied res are left holding nothing. It MUST NOT
+purge, and it MUST NOT delete an asset; assets are deleted only by the rules in
+§3.3. Because the emptied res are recycled, spec-01 §14.1's window makes the
+decision reversible for thirty days.
 
 This follows spec-01 §7.5's pattern, where an automatic match and a human
 correction are separate rows and the correction wins by preference rather than by
 overwriting. A resolved duplicate decision MUST NOT be overturned by a later
 automatic detection run.
 
-Where the household confirms two digital items are the same holding, the
-resolution is a catalog operation — merging holdings under one manifestation —
-and not the deletion of an asset. Assets are deleted only by the rules in §3.3.
-
 Where the household decides two holdings are manifestations of one expression —
 a second scan of a letter already catalogued — the resolution moves the second's
 manifestation under the first's expression, and recycles whichever of the work
-and expression the second was placed under are left holding nothing.
+and expression the second was placed under are left holding nothing. That is the
+*same expression* row above, worked through; every other row behaves the same way
+at its own level.
 
 ### 8.4 Across media types
 
@@ -352,6 +373,12 @@ than building one per media type.
 11. Two byte-identical assets of one digital item are not reported as duplicates.
 12. Deduplication produces candidates and never merges automatically; a resolved
     decision survives a subsequent detection run.
+13. A decision names one of *same holding*, *same manifestation*, *same
+    expression*, *same work* or *distinct*, and resolving it moves children under
+    the surviving res, recycles only what is left holding nothing, purges
+    nothing, and deletes no asset.
+14. A pair decided *distinct* is not raised again, by a detection run or by
+    matching.
 
 ---
 
@@ -378,6 +405,8 @@ backups has a copy, not a backup.
 
 ### 11.2 Informative
 
+- **[spec-05]** *Metadata Acquisition and Matching*, this system. §8.4 equates
+  res through §8.3's vocabulary and raises §8.5's candidates into it.
 - **[PRONOM]** The National Archives (UK) format registry.
 - **[JPEG-XL]** ISO/IEC 18181.
 - **[PREMIS]** Library of Congress, *PREMIS Data Dictionary for Preservation

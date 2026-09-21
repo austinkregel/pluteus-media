@@ -2,7 +2,7 @@
 
 **Specification 06**
 **Status:** Draft
-**Version:** 0.1
+**Version:** 0.2
 **Depends on:** spec-01 (Catalog Data Model)
 **Obsoletes:** nothing
 
@@ -143,6 +143,40 @@ it, and switching viewer is switching principal, not switching profile within a
 device. An implementation MUST make that switch cheap enough that people
 actually do it, because the alternative is that one principal's history silently
 absorbs the household's.
+
+### 4.1 Several principals on one device
+
+A device MAY hold a credential for more than one principal, each separately
+revocable. Revoking one leaves the others, and no credential is reachable by the
+principal of another.
+
+This is what makes the switch of §4 cheap on a surface with no keyboard: without
+it, every change of viewer is a fresh enrolment, and a household faced with that
+stops switching. The device still accumulates no history of its own — each
+credential's requests are its own principal's, and the device is recorded with an
+event only as the screen it happened on.
+
+The cost is stated rather than concealed: a device holding several credentials is
+an ambient session for the set of people enrolled on it, since selecting among
+stored credentials proves nothing about who is in the room. A deployment MAY
+instead hold one credential at a time and re-run enrolment on a switch, which is
+slower and honest. Which it does is a deployment decision, and [spec-10] §18.3
+records it for the surface it governs.
+
+### 4.2 A credential narrower than its principal
+
+A credential MAY grant less than its principal may do. Its grant is recorded with
+it and is a subset of the principal's role (§6.1); it MUST NOT be widened by the
+principal's role changing afterwards.
+
+A television's credential is the case. It is held in device storage, on hardware
+that leaves the household by being sold or lent, and it needs to read the
+catalog, stream, and write its own principal's consumption — and nothing else. A
+credential that could do everything an Administrator may, because the person who
+enrolled it is one, makes a stolen television an administrative session.
+
+A narrowed credential MUST NOT grant any operation in §6.1's Administrator row,
+and MUST NOT grant identity mapping (§3.3), whatever its principal's role.
 
 ---
 
@@ -336,6 +370,12 @@ consumed.
 17. A client key identifies its principal only on the surface exempt from
     forward authentication, only for a request that came through the proxy, and
     not once its device is revoked.
+18. A device holds credentials for several principals, each separately
+    revocable; revoking one leaves the others usable and no credential is
+    reachable by another's principal.
+19. A narrowed credential is refused for every operation outside its recorded
+    grant, including every operation in §6.1's Administrator row, and does not
+    widen when its principal's role changes.
 
 ---
 
@@ -354,6 +394,13 @@ of a code displayed on it. A device that leaves the household — sold, lent,
 returned — retains its binding until revoked. Implementations MUST provide
 revocation and SHOULD surface bound devices to their principal.
 
+§4.2's narrowing is what bounds that exposure. A credential held in device
+storage cannot be kept secret from whoever holds the device, so its damage is
+bounded by what it may do and by how quickly it can be revoked, and not by
+secrecy. §4.1 multiplies the exposure by the number of people enrolled on one
+device, which is the reason it offers the one-credential alternative rather than
+presenting several as strictly better.
+
 §6.2's peer model means any member can delete any catalog entity. The recycle
 bin (spec-01 §14) bounds the damage to thirty days; it does not prevent it. A
 household that wants this prevented needs a distinction §6.2 does not provide.
@@ -371,4 +418,6 @@ household that wants this prevented needs a distinction §6.2 does not provide.
 ### 9.2 Informative
 
 - **[spec-02]** *Annotations and Derived Data*, this system. §6.4.
+- **[spec-10]** *Presentation*, this system. §18.3 is the surface §4.1 and §4.2
+  were written for, and §14.2 is the switch §4 requires be cheap.
 - **[OIDC-CORE]** OpenID Connect Core 1.0, for the `(iss, sub)` composite.

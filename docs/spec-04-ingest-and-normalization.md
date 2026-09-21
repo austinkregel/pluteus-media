@@ -2,7 +2,7 @@
 
 **Specification 04**
 **Status:** Draft
-**Version:** 0.3
+**Version:** 0.4
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-06 (Principals, Auth
 and Authorization)
@@ -178,22 +178,28 @@ lyrics, subtitles, a cue sheet, an `.nfo`, or a metadata sidecar a media
 manager wrote. It is recognized as one at identification, before any category
 is decided, by its name and format against a registry of companion patterns
 (spec-01 §17) — `cover.*`, `folder.*`, `poster.*`, `*.lrc`, `*.srt`, `*.vtt`,
-`*.cue`, `*.nfo`, `*.xml`, `*.xmp`, `.plexmatch` and `metadata.opf` among them
-— so that album art never reaches placement as a photograph, nor lyrics, a
-subtitle or a sidecar as a document.
+`*.cue`, `*.nfo`, `*.xml`, `*.xmp`, `*.info.json`, `gamelist.xml`,
+`.plexmatch` and `metadata.opf` among them — so that album art never reaches
+placement as a photograph, nor lyrics, a subtitle or a sidecar as a document.
 
 A metadata sidecar is a companion for the same reason the others are: it
 describes a holding rather than being one. Catalogued as a document it would
 count as a release placed from its directory, which would leave a cover image
 beside it describing two releases and linked to neither.
 
+A photographic edit sidecar is the same case at the other end of the library:
+`*.xmp` beside a raw capture, and the editor-specific `*.pp3`, `*.dop` and
+`*.aae`. Each records adjustments to a capture rather than a capture of its own,
+and placing one as a document files a text record of a photograph beside the
+photograph.
+
 One extension carries more than one thing, and a name alone cannot always say
 which: an `.nfo` is a media manager's metadata where its markup begins with an
 element the registry names — `movie`, `episodedetails`, `album`, `artist`,
-`details` among them — and a release's notes where it is not markup at all. A
-pattern that names root elements is matched against the file's first bytes, so
-an XML file whose root the registry does not name is no companion but a
-document in its own right.
+`details`, `ComicInfo`, `MetronInfo` among them — and a release's notes where it
+is not markup at all. A pattern that names root elements is matched against the
+file's first bytes, so an XML file whose root the registry does not name is no
+companion but a document in its own right.
 
 A companion is acquired as a holding of its own, whose category is its companion
 kind — cover art, lyrics, subtitles, cue sheet, description, metadata — and
@@ -254,6 +260,19 @@ container. On placement, the probe output becomes derived annotations of the
 probing tool on the manifestation (spec-02 §4), since re-running the probe
 regenerates them from the asset.
 
+**A metadata document inside a container is an embedded tag, not a companion.**
+A `ComicInfo.xml` or `MetronInfo.xml` within a `.cbz`, and an OPF package within
+an `.epub`, describe the thing they are inside rather than a sibling file.
+§4.6's mechanism does not reach them — nothing arrived beside anything — so
+identification reads them here, from the container, alongside the tags a probe
+finds.
+
+Which documents are read from which containers is a registry (spec-01 §17),
+keyed by the container's format and the document's path or root element. A
+container is not searched for arbitrary metadata: the registry names what is
+looked for, and a document it does not name is part of the holding's content
+rather than a description of it.
+
 ### 5.2 Essence
 
 Essence — whether bytes have already discarded information — belongs to a
@@ -291,10 +310,21 @@ and identified again.
 
 Identification decides the broad media class: companion, when the file matches
 a companion pattern (§4.6), which is decided first; otherwise audio, video,
-image or text, from the format and the streams. It is recorded on the
-acquisition record and routes placement (§6) and normalization (§7). The finer category a holding
-belongs to — film, television episode or home video; photograph or scan — is
-placement's decision (§6.3), since bytes alone do not carry it.
+image, text, package or software, from the format and the streams. It is
+recorded on the acquisition record and routes placement (§6) and normalization
+(§7). The finer category a holding belongs to — film, television episode or home
+video; photograph or scan; audiobook or podcast episode — is placement's
+decision (§6.3), since bytes alone do not carry it.
+
+**package** is a container carrying an ordered set of renderable parts that is
+one holding rather than many: a comic archive of page images is the case. The
+parts are addressed by a `page` selector (spec-01 §8.3) on the holding, and are
+never acquired as holdings of their own — a page of a comic is no more a
+photograph than a page of a scan is.
+
+**software** is a byte sequence a machine executes rather than a person reads or
+hears: a cartridge or disc dump. It has no streams, so §5.2 takes its essence
+from its format, and the registry maps these formats to not applicable.
 
 ---
 
@@ -345,6 +375,8 @@ from the broad class:
 | video | home video |
 | image | photograph |
 | text | document |
+| package | comic issue |
+| software | video game |
 
 A member's correction outranks it (§6.2). Normalization's standard format is
 looked up by the broad class, which the bytes decide and which does not change
@@ -535,7 +567,48 @@ criterion 10's outcome.
 
 Per Annex A §A.6.
 
-### 6.9 Idempotency
+### 6.9 Audiobooks, podcast episodes, comics and games
+
+Four categories the bytes alone do not distinguish from their neighbours. Each
+takes the structure its content has, and none is a special case of the placement
+transaction (§6.1).
+
+**Audiobook.** A narration is a new rendering of the same material, which §6.4's
+test of spec-01 makes an expression rather than a work — the same treatment as a
+translation. The author is credited on the work and the narrator on the
+expression, and the edition as published is the manifestation. Chapters become
+temporal addresses (spec-01 §8.3) on that manifestation, taken from the
+container where it carries them, so that a chapter is a region of the reading
+rather than a holding of its own.
+
+Where an audiobook arrives as several files, they are parts of one digital item
+and carry a part sequence (spec-01 §12.1), not tracks of a release: nothing was
+released as a track, and treating them as one would put a reading's arbitrary
+file split into the catalog as though it were arrangement.
+
+**Podcast episode.** A podcast is a serial work (spec-01 §5.4) and each episode
+is a work of its own, connected to it by LRM-R21 and positioned at manifestation
+level — the television shape of Annex A §A.3, for the same reason. Placement
+takes the feed's identifier for the serial and the item's for the episode where
+the holding carries them.
+
+**Comic issue.** A series is a serial work; an issue is a work of its own,
+positioned within the series at manifestation level. A `.cbz` is one digital
+item carrying the issue manifestation, and a page is a `page` selector on it
+(§5.3). A trade paperback collecting issues is an aggregate (spec-01 §5.3) and
+MUST NOT be given a whole-part relation to the issues' works.
+
+**Video game.** The game is the work. A regional release carrying a translated
+script is a parallel expression, by §6.4's test; a revision that changes nothing
+but defects is another manifestation of one expression. Placement cannot tell
+these apart from the bytes — a dump says it differs from another dump, not how —
+so it places each dump as a manifestation of one expression and leaves the
+distinction to matching (spec-05 §9.5) or to a person.
+
+Normalization re-encodes none of these. A package and a software holding have no
+standard format in the registry, and §7 therefore adopts each as its own master.
+
+### 6.10 Idempotency
 
 The acquisition record carries the placement once made. Placement over a placed
 acquisition changes nothing.
@@ -753,6 +826,23 @@ place.
     Character or Other.
 33. No lookup runs inside placement's transaction or sends anything but an
     artist identifier; a deployment configured with no contact runs none.
+34. A photographic edit sidecar, a `.info.json` and a `gamelist.xml` are
+    companions and are never placed as documents.
+35. A metadata document the registry names inside a container is read at
+    identification as an embedded tag, is not a companion, and does not make its
+    container produce a second holding; a document the registry does not name is
+    content.
+36. A comic archive is one digital item, its pages are `page` selectors on it,
+    and no page is acquired as a holding of its own.
+37. A software holding takes its essence from its format, is adopted as its own
+    master, and is never re-encoded.
+38. A narration is placed as an expression of the text with the narrator
+    credited on it; an audiobook in several files is one digital item with a
+    part sequence, not a release of tracks.
+39. A podcast episode is a work positioned within its serial work at
+    manifestation level, and a comic issue likewise within its series.
+40. Two dumps of one game are placed as two manifestations of one expression,
+    and whether one is a parallel expression is left to matching or to a person.
 
 ---
 
@@ -791,6 +881,9 @@ accounting for it exists (§4.3), and never removes anything it has not acquired
 
 ### 12.2 Informative
 
+- **[spec-05]** *Metadata Acquisition and Matching*, this system. It reads the
+  companions §4.6 catalogues and the documents §5.1 finds inside a container,
+  and resolves what §6.9 leaves to a person.
 - **[PRONOM]** The National Archives (UK) format registry.
 - **[MUSICBRAINZ]** MusicBrainz database schema: release, medium, track and
   recording, which §6.4's music structure mirrors.

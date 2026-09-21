@@ -2,7 +2,7 @@
 
 **Specification 01**
 **Status:** Draft
-**Version:** 0.2
+**Version:** 0.3
 **Depends on:** nothing
 **Obsoletes:** nothing
 
@@ -481,17 +481,33 @@ A nomen is itself a res and MAY therefore have nomens of its own.
 Because a nomen belongs to exactly one res (§6.1), the appellation relation is
 keyed on the nomen.
 
-### 7.2 Language is nullable
+### 7.2 Absent, unknown, and a language
 
-`language` MUST be nullable, and null MUST mean genuinely absent rather than
-unknown.
+`language` takes three values, and an implementation MUST distinguish all three:
 
-A household's vocabulary is a mixture of dialects and borrowed terms and does not
-belong to a language in the relevant sense. Implementations MUST NOT infer or
-detect a language for such names.
+| Value | Means |
+| --- | --- |
+| a language | the nomen is in that language |
+| absent | the nomen belongs to no language in the relevant sense |
+| unknown | nobody has established which of the other two holds |
 
-Queries decide how to treat null. A language-filtered query MAY include or
-exclude untagged nomens depending on context; neither is mandated.
+Null is **absent**, never unknown. A household's vocabulary is a mixture of
+dialects and borrowed terms and does not belong to a language in the relevant
+sense. Implementations MUST NOT infer or detect a language for such names.
+
+Unknown is the state a name arrives in from a source that did not state one
+([spec-05] §8.1). Recording that as absent would put a stranger's word into the
+household's untagged vocabulary, which §7.3 reserves for the household's own;
+recording a guess would be the inference the paragraph above forbids. A third
+value is what keeps a source's silence from being read as a claim.
+
+Unknown is a fact about provenance and not about display. Resolution's language
+step ([spec-10] §6.1) treats an unknown language as no language, because a
+filter cannot match what nobody has established, and the two are therefore
+indistinguishable at the render boundary and distinguishable everywhere else.
+
+Queries decide how to treat each. A language-filtered query MAY include or
+exclude absent and unknown nomens independently; neither is mandated.
 
 ### 7.3 Assigners and the household layer
 
@@ -879,6 +895,38 @@ events.
 
 **OPEN:** the event type vocabulary is seed data (§7.5).
 
+### 11.4 Resume position
+
+A resume position is current state rather than history (§11.1) and is scoped to
+its principal (§11.2). It records:
+
+| Field | Holds |
+| --- | --- |
+| principal | whose position it is |
+| res | what it is a position in |
+| device | which device reported it |
+| position | in the medium's own unit (§8.4) |
+| unit | which unit that is |
+| reported_at | [RFC3339] UTC |
+| sequence | the reporting session's own counter |
+| playing | whether that session was playing when it reported |
+
+**A position is kept per device, not per res.** Two devices holding different
+positions for one principal and one res is the ordinary case and not the error
+case, and collapsing them to a single row discards which of them a person was
+actually in front of. [spec-10] §13.3 is normative for which one a surface
+shows and for how a report arriving late is ordered.
+
+The unit is stored because the medium decides it: a time for a recording, a page
+for a scan, a position in the index for reflowable text. A proportion MUST NOT
+be stored in its place, for §8.4's reason — it loses precision and is
+invalidated whenever the extent is corrected.
+
+The device is part of the position's identity and is not a second identity. A
+device accumulates no consumption history of its own ([spec-06] §4); it is
+recorded here so that a person can be told which of their own screens a position
+came from.
+
 ---
 
 ## 12. Ordering and propagation
@@ -1255,6 +1303,12 @@ and languages may differ.
 38. An artist narrowed to a person or a collective agent keeps its identifier,
     its names, the works it is credited with, and every principal's stars and
     ratings of it; no other change of a res's kind is accepted.
+39. A nomen whose language is unknown is distinguishable from one whose language
+    is absent, and neither is reported as the other; resolution treats both as
+    carrying no language.
+40. Two devices reporting different positions for one principal and one res
+    produce two positions, each naming its device, its unit, its reporting time,
+    its session sequence and whether that session was playing.
 
 ---
 
@@ -1333,8 +1387,12 @@ here:
 - **[spec-03]** *Assets, Storage and Preservation*, this system. Normative for
   how §13's obligations are met, including reversibility verification (§13.2)
   and deduplication.
+- **[spec-05]** *Metadata Acquisition and Matching*, this system. §8.1 is what
+  puts a nomen's language in §7.2's unknown state.
 - **[spec-06]** *Principals, Authentication and Authorization*, this system.
   Normative for §10 and for enforcement of §11.2's scoping rule.
+- **[spec-10]** *Presentation*, this system. §6.1 is the language step §7.2
+  refers to, and §13.3 decides among the positions §11.4 keeps.
 - **[ANNEX-A]** *Annex A — Worked WEMI Mappings*, companion to this
   specification. Non-normative. Shows §5–6 applied to music, film, television,
   photographs, scanned correspondence, ebooks, and home video, and enumerates

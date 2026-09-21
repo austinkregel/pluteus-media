@@ -2,7 +2,7 @@
 
 **Specification 07**
 **Status:** Draft
-**Version:** 0.3
+**Version:** 0.4
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
 Normalization), spec-06 (Principals, Auth and Authorization)
@@ -34,8 +34,9 @@ what that model cannot hold and adds nothing the native API cannot reach.
 
 The transcode decision and transcoded streams (spec-08); until spec-08, bytes
 are served as stored. Search ranking and similarity (spec-09); searching here
-matches names and orders them alphabetically. Image scaling and client
-presentation (spec-10). Metadata matching (spec-05).
+matches names and orders them alphabetically. What a surface draws, and which
+presentation profiles exist (spec-10); §4.6 serves them and spec-10 §20 names
+them. Metadata matching (spec-05).
 
 ---
 
@@ -71,8 +72,8 @@ that device's, and nothing it does is attributed to anyone else.
 - A principal MAY list and revoke its own devices' keys. An Administrator MAY
   revoke any principal's, which spec-06 §6.6 audits.
 - A revoked key, or a key whose principal is retired, MUST be refused.
-- A key is accepted only on the OpenSubsonic surface (§6). It is never
-  accepted where forward authentication is expected, in a header or otherwise.
+- A key is accepted only on the surfaces §3.4 names. It is never accepted where
+  forward authentication is expected, in a header or otherwise.
 - A key MAY be presented in an `X-API-Key` header rather than in the query
   string, and SHOULD be where a client can: §8 notes that query strings reach
   access logs, and a header does not.
@@ -89,6 +90,38 @@ write it makes is attributed to that principal (spec-06 §6.2), and every
 consumption event it records belongs to that principal (spec-01 §11). The
 device is recorded with the event where the event carries one, and never
 accumulates history of its own (spec-06 §4).
+
+### 3.4 Where a key is accepted, and what it grants
+
+Three surfaces, and a key is accepted on two of them:
+
+| Surface | Authentication |
+| --- | --- |
+| the native API and its socket (§4, §5) | forward authentication only |
+| the OpenSubsonic surface (§6) | a client key |
+| the projected surface spec-10 §18 serves | a client key |
+
+The third exists because a television client cannot follow a browser through the
+provider's sign-in any more than a phone's music player can, and this deployment
+runs no sign-in flow of its own to offer it (spec-06 §3.2). Its enrolment
+displays a short code on the television which a person approves from an
+authenticated session elsewhere; what that mints is a client key in §3.2's
+sense, with everything §3.2 requires of one.
+
+**A key mints with a grant, and the grant may be narrower than its principal's
+role.** The grant is recorded with the key (spec-06 §4.2) and is checked on
+every request. A key minted for a television grants reading the catalog,
+streaming, and writing its own principal's consumption; it MUST NOT grant
+administration, identity mapping, or the catalog writes of spec-10 §15.
+
+A key's grant MUST NOT widen when its principal's role changes. A key is a
+credential for a device, and a device that becomes administrative because the
+person who enrolled it was promoted is a surprise in the wrong direction.
+
+**One device MAY hold a key for each of several principals** (spec-06 §4.1),
+each separately revocable, so that a household television can switch viewer
+without re-enrolling. Revoking one leaves the others, and a request presenting
+one acts as that key's principal and no other.
 
 ---
 
@@ -118,6 +151,52 @@ another resolution with `language` and `assigner`.
 A representation MUST NOT embed another res's representation. It names related
 res by identifier, and a client asks for what it needs: embedding would let one
 resource's representation carry another's recycled or purged state stale.
+
+**Every field carries a value and a state.** The state is one of spec-10 §5.2's,
+and a field is never carried by its omission:
+
+```
+"photographer": { "state": "sought_not_found" }
+"taken_at":     { "state": "held", "value": "2009-07-14T16:12:00Z" }
+"loudness":     { "state": "not_yet_examined" }
+```
+
+A client receiving no field cannot tell a value nobody has looked for from one a
+tool failed on from one this deployment does not implement, and will render one
+as another. Carrying the state makes the three distinguishable by a client that
+knows the field, and leaves a client that does not knowing it received something
+it cannot interpret rather than nothing at all.
+
+A state a deployment cannot establish for a field is `not_yet_examined`, which
+is true; spec-10 §5.2 forbids reporting any other in its place, and spec-02 §6.5
+is what establishes the three a person asserts.
+
+**A representation carries the composed name** where resolution yields nothing
+displayable — a reified address, an annotation, any res whose only nomen is the
+identifier-nomen (spec-01 §4.1). spec-10 §6.3 specifies how it is composed and
+requires it terminate in a noun for the res's kind. It is carried rather than
+left to the client because a client composing it from bare identifiers would
+have to fetch every related res to do so, and would get a different answer than
+the interface.
+
+The composed name is not a nomen. It MUST NOT appear among the nomens the
+representation carries, and MUST NOT be written to the catalog.
+
+**An entity URI content-negotiates.** It answers with the interface where the
+request's `Accept` header contains `text/html`, and with the representation
+above otherwise. The representation is unchanged by this: the same URI, the same
+authorization, the same body for every request that did not ask for HTML.
+
+**The negotiation is on the presence of `text/html` in the header, not on a
+media-type preference list.** A framework that treats `*/*` as matching HTML
+will serve HTML to every programmatic client, because `*/*` is what a
+command-line client, a fetch call and most HTTP libraries send by default. A
+client that cannot control its header MAY send `_format` instead, which is
+honoured, and a selector parser MUST ignore query parameters naming no selector
+dimension.
+
+Which res kinds answer with an interface is spec-10 §9.1's; the rest answer with
+the representation whatever was asked for.
 
 ### 4.2 Paging
 
@@ -159,6 +238,9 @@ and `application/octet-stream` where it does not.
 It serves the bytes as they are stored. It MUST NOT transform them: a transcode
 is spec-08's, produced on demand and never stored as the asset (spec-01 §13.6).
 
+A presentation asset is served elsewhere, by profile (§4.6). This route is
+untouched by that and continues to serve stored bytes untransformed.
+
 ### 4.5 Errors
 
 Every error is problem details [RFC9457] with a type this system defines.
@@ -175,6 +257,29 @@ Every error is problem details [RFC9457] with a type this system defines.
 
 The last row is deliberate. Answering 403 would confirm that another principal's
 datum exists, which is itself consumption data (spec-06 §6.3).
+
+### 4.6 Presentation assets
+
+A derived artefact a surface needs to draw a holding — a cover at a given width,
+a key frame, a trickplay sheet, an overview waveform, a page of extracted text —
+is served at `/{kind}/{id}/presentation/{profile}`, where `{profile}` is a name
+from spec-10 §20's registry.
+
+**A request naming dimensions rather than a profile MUST be refused.** An
+endpoint that accepts arbitrary width and height is an unbounded transcoder
+addressable by anyone who can construct a query string, and at household scale
+one crawler fills a disk. The closed set is the control.
+
+The response names the profile it served, in a header, so that a client caching
+the bytes knows which artefact it holds. Where the profile exists and the
+artefact has not been generated, the deployment generates it or answers that it
+has not been; the absence of a presentation asset is never an error (spec-10
+§17.1), because spec-03 §7 makes it regenerable and excludes it from backup.
+
+The OpenSubsonic surface's `getCoverArt` carries an integer `size`, which the
+protocol requires. That integer maps to the smallest profile at or above it
+(§6.7). It is the one place a dimension is accepted, and it is accepted by being
+translated into the closed set rather than by widening it.
 
 ---
 
@@ -433,6 +538,24 @@ missing. The native API (§4.5) is where the difference is told.
     as stored and with byte ranges; a track with no digital item of its own
     answers error 0 until spec-08.
 21. A recycled or purged entity answers error 70.
+22. Every field of a representation carries a value and a state; no field is
+    carried by its omission, and a field the deployment cannot establish a state
+    for reports not-yet-examined.
+23. A res whose resolution yields nothing displayable carries a composed name in
+    its representation, and that name does not appear among its nomens.
+24. An entity URI answers with the interface for a request whose `Accept`
+    contains `text/html`, and with the unchanged representation for one
+    containing `*/*` and no `text/html`.
+25. A presentation asset is served by profile name and a request naming
+    dimensions is refused, except that an OpenSubsonic `size` maps to the
+    smallest profile at or above it; the response names the profile served, and
+    an ungenerated artefact is not an error.
+26. A key is refused on the native API and accepted on the OpenSubsonic and
+    projected surfaces; a key's grant is checked on every request, is refused
+    for administration and identity mapping, and does not widen when its
+    principal's role changes.
+27. One device holds keys for several principals, each separately revocable, and
+    a request acts as the principal of the key it presented.
 
 ---
 
@@ -449,9 +572,15 @@ strings reach access logs. A deployment SHOULD keep `apiKey` out of the logs of
 the proxy and of the application, and a key found in a log is revoked, not
 trusted.
 
-A key grants everything its principal may do on the surface. It does not grant
-administration, identity mapping, or anything on the native API, which a
-stolen phone's key therefore cannot reach.
+A key grants what its recorded grant says and no more (§3.4). It does not grant
+administration, identity mapping, or anything on the native API, which a stolen
+phone's or television's key therefore cannot reach.
+
+A key held in a television's device storage cannot be kept secret from whoever
+holds the television. Its damage is bounded by that grant and by revocation, and
+not by secrecy, which is why §3.4 makes the grant explicit rather than deriving
+it from the principal's role. A device holding keys for several principals
+multiplies that exposure by their number (spec-06 §4.1).
 
 The change feed names identifiers the household can already read. It carries no
 consumption data, which travels only on a principal's own topic.
@@ -472,5 +601,9 @@ consumption data, which travels only on a principal's own topic.
 
 ### 9.2 Informative
 
+- **[spec-10]** *Presentation*, this system. §5.2 is the state vocabulary §4.1
+  carries, §6.3 the composed name, §9.1 which kinds negotiate to an interface,
+  §20 the presentation profiles §4.6 serves, and §18 the surface §3.4 admits a
+  key on.
 - **[notes-02]** [Protocol landscape](notes/02-protocol-landscape.md): the
   survey this surface was chosen from, and the clients it serves.

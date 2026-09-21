@@ -2,7 +2,7 @@
 
 **Specification 10**
 **Status:** Draft
-**Version:** 0.2
+**Version:** 0.3
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
 Normalization), spec-06 (Principals, Auth and Authorization), spec-07 (Wire
@@ -51,9 +51,8 @@ specifies the search surface and what a result carries, not the order results
 arrive in. Metadata matching (spec-05); this document presents the provenance
 a match carries, and spec-05 says how the value was arrived at.
 
-Wire form is spec-07's. This document needs seven things the specifications it
-depends on do not carry; §19 enumerates them as additions to those documents
-rather than inventing a parallel mechanism.
+Wire form is spec-07's. Seven things this document needs are specified by the
+documents that own the concepts rather than here; §19 says where each one lives.
 
 The values of the design language are [ANNEX-A].
 
@@ -69,14 +68,13 @@ view and no web runtime. §4.3 and §18 are written against that.
 
 ### 1.4 What gates what
 
-§5 through §17 govern the interface and build against spec-01 to spec-04 and
-spec-06 as they stand, except where §19 names an addition.
+§5 through §17 govern the interface and build against spec-01 to spec-04,
+spec-06 and spec-07 as they stand; §19 names the seven places this document
+rests on a section of one of them.
 
-Three dependencies run outward. §8.1's default expression waits on spec-01
-§6.5's open registry, which spec-01 §2 forbids proceeding past. §18's playback
-waits on spec-08. §5.2's last three states wait on §19.7, per field.
-
-§18 MUST NOT be built before §19.5 is made.
+Two dependencies run outward, and neither is met. §8.1's default expression
+waits on spec-01 §6.5's open registry, which spec-01 §2 forbids proceeding past.
+§18's playback waits on spec-08.
 
 ---
 
@@ -255,12 +253,13 @@ collapse, and each pair answers a different question:
   wastes effort or discards a fact.
 
 The last three states are per field, and spec-01 to spec-04 record provenance
-per row. §19.7 lists the addition that carries them.
+per row. spec-02 §6.5 is the body whose subject is a named field, which is what
+carries them, and §20's registry names the fields one may be about.
 
-A deployment MUST NOT render a field it cannot state the state of. Where the
-addition of §19.7 has not been made for a given field, that field's absence is
-rendered as *not yet examined*, which is true, and the deployment says which
-fields it can carry the last three states for.
+A deployment MUST NOT render a field it cannot state the state of. A field the
+registry does not name cannot carry one of the last three, and its absence is
+rendered as *not yet examined*, which is true; the deployment says which fields
+it can carry the others for.
 
 ### 5.3 Rendering an absence
 
@@ -294,8 +293,8 @@ about the release. Where there is no image, the surface renders what the thing
 
 ### 5.5 Absence on the wire
 
-A representation (spec-07 §4.1) MUST carry each field as a value and a state,
-rather than carrying absence by omission. §19.1 specifies the shape.
+A representation MUST carry each field as a value and a state, rather than
+carrying absence by omission. spec-07 §4.1 specifies the shape.
 
 A client receiving no field cannot tell *not yet examined* from *attempted,
 failed* from a field it does not understand, and will render one as another.
@@ -379,8 +378,8 @@ resolution's contract is untouched: resolution returned nothing displayable,
 and this is what the surface shows instead. It is also the accessible name for
 the same res, so one string serves both.
 
-The composed name MUST be carried in the representation (§19.1), so that a
-client does not have to compose it from bare identifiers.
+The composed name MUST be carried in the representation (spec-07 §4.1), so that
+a client does not have to compose it from bare identifiers.
 
 ### 6.4 Sorting
 
@@ -696,8 +695,8 @@ construct a query string.
 This answers what spec-07 §6.7 defers. On the OpenSubsonic surface, where the
 protocol's `getCoverArt` carries an integer `size`, that integer maps to the
 smallest profile at or above it, and the response carries the profile name in
-the header §19.4 defines. On every other surface an arbitrary dimension is
-refused.
+the header spec-07 §4.6 defines. On every other surface an arbitrary dimension
+is refused.
 
 ### 11.2 Still images
 
@@ -884,8 +883,8 @@ medium's own unit, that unit, when it was reported, a per-session sequence, and
 whether the reporting session was playing. The device is part of its identity,
 because §13.3 keeps two of them.
 
-This is wider than spec-01 §11.2's resume position as spec-01 leaves it, and
-§19.6 lists it as an addition.
+spec-01 §11.4 records exactly these, one per device rather than one per res.
+This section is what they are for.
 
 ### 13.2 Thresholds
 
@@ -1325,7 +1324,7 @@ be, the deployment says which and why, as spec-07 §6.4 does for a folder and
 a player.
 
 Names are resolved per §6.1, and the composed name of §6.3 is carried where
-resolution yields nothing displayable. Absence is carried per §19.1.
+resolution yields nothing displayable. Absence is carried per spec-07 §4.1.
 
 A work with several expressions held has no place in the projected model. It is
 projected as its resolved expression under §8.1 with the alternatives projected
@@ -1358,15 +1357,13 @@ grant spec-06 §4 recommends, because this deployment runs no login flow of its
 own and reads an identity a proxy asserts (spec-06 §3.2). A client key in
 spec-07 §3.2's sense is what it is.
 
-spec-07 §3.2 admits a client key on the OpenSubsonic surface alone, and spec-07
-§3.1 refuses it on the native API. **§18's surface is therefore a third
-authentication surface and §19.5 lists it as an addition to spec-07.** It MUST
-NOT be built before that addition is made.
+spec-07 §3.1 refuses a client key on the native API and spec-07 §3.4 admits one
+here. **§18's surface is the third authentication surface that section names.**
 
 A credential issued to a television is scoped to that device and separately
-revocable. §19.5 also carries the two concepts spec-06 and spec-07 do not have:
-a credential narrower than its principal's role, and more than one principal
-enrolled on one device.
+revocable. spec-07 §3.4 and spec-06 §4.2 carry the grant narrower than its
+principal's role; spec-06 §4.1 carries more than one principal enrolled on one
+device.
 
 **The compromise, and it is not concealed.** A television client holds its
 credential in device storage and remains signed in as whoever last used it.
@@ -1440,7 +1437,7 @@ carries everything.**
 
 ### 18.7 What binds a client
 
-**[C]** A client honours §5 (absence, as carried by §19.1), §6.1 to §6.3
+**[C]** A client honours §5 (absence, as carried by spec-07 §4.1), §6.1 to §6.3
 (names), §8.1 (which res is an entry, and the resolved default), §8.3 (ordered
 members), §10.2 to §10.4 (regions and links), §11 (profiles), §12.2 and §12.3
 (the three rules and the transport), §13 (continuity), §14.1 to §14.4
@@ -1463,79 +1460,26 @@ though there is nothing.
 
 ---
 
-## 19. Additions this document depends on
+## 19. What this document rests on elsewhere
 
-spec-10 needs seven things the specifications it depends on do not carry. Six
-are additions to spec-07's native API, not a second wire; the seventh is an
-addition to spec-02's provenance. §18 MUST NOT be built before §19.5 is made,
-and §5.2's last three states MUST NOT be claimed for a field before §19.7 is
-made for it.
+Seven things this document needs belong to the specifications that own the
+concepts, and are specified there rather than here. Six are properties of the
+wire; the seventh is a kind of annotation.
 
-### 19.1 A field carries a value and a state
+| What this document needs | Where it is specified |
+| --- | --- |
+| every field carrying a value and a state (§5.5) | spec-07 §4.1 |
+| the composed name carried in a representation (§6.3) | spec-07 §4.1 |
+| an entity URI content-negotiating to the interface (§10.1) | spec-07 §4.1 |
+| a presentation asset served by profile name (§11.1) | spec-07 §4.6 |
+| a key admitted on a third surface, narrower than its principal, several to a device (§18.3) | spec-07 §3.4, spec-06 §4.1 and §4.2 |
+| a resume position carrying a device, a unit, a time, a sequence and whether it was playing (§13.1) | spec-01 §11.4 |
+| a body whose subject is a named field of its target (§5.2) | spec-02 §6.5 |
 
-spec-07 §4.1 enumerates what a representation carries and has no way to say
-why a value is missing. Every field a surface renders carries a value and a
-state from §5.2, so that absence is distinguishable from a field the client
-does not understand.
-
-### 19.2 The composed name
-
-A representation carries the composed name of §6.3 where resolution yields
-nothing displayable, so that a client does not compose it from bare
-identifiers.
-
-### 19.3 Content negotiation on the entity URI
-
-spec-07 §4.1's URIs answer with the interface where the request's `Accept`
-header contains `text/html`, and with the representation otherwise (§10.1).
-The representation is unchanged.
-
-### 19.4 Presentation assets by profile
-
-A route serves a presentation asset by res, kind and profile name (§11.1), and
-its response names the profile served in a header. spec-07 §4.4's
-`/assets/{id}/content` is unaffected and continues to serve stored bytes
-untransformed.
-
-### 19.5 A third authentication surface
-
-spec-07 §3.1 refuses a client key on the native API and spec-07 §3.2 admits it
-only on the OpenSubsonic surface. §18's surface admits one too, and it needs
-two properties spec-06 and spec-07 do not have:
-
-- a credential **narrower than its principal's role** — spec-07 §8 makes a key
-  grant everything its principal may do;
-- more than one principal enrolled on one device, separately revocable —
-  spec-06 §4 and spec-07 §3.2 bind one device to one principal.
-
-### 19.6 A resume position carries more
-
-spec-01 §11 makes a resume position a principal's current state. §13.1 requires
-it to carry a device, a unit, a reporting time, a per-session sequence and
-whether the session was playing, and §13.3 keeps one per device rather than
-one per res.
-
-### 19.7 Provenance of a field's absence
-
-spec-02 §3.1 attaches an annotation to a target and a body, and spec-02 §3.4
-records the principal that authored it. That is provenance per assertion, which
-is what an assertion about a *region* needs.
-
-§5.2's last three states are assertions about **a field of a res that holds no
-value** — that a photographer was sought and not found, that a date will not be
-recovered, that a letter positively has no transcript. Each is an authored
-annotation in spec-02 §3.2's sense, and each needs to name the field it is
-about.
-
-The addition is a body type whose subject is a named field of its target, and
-the registry of field names it may take. spec-02 §6.1 already makes body types
-a registry and spec-02 §6.4 already makes their groupings seed data, so the
-mechanism exists and the vocabulary is what is missing.
-
-Until the addition is made for a field, §5.2's rule stands: that field's
-absence renders as *not yet examined*, and the deployment states which fields
-it can carry the other states for. A deployment MUST NOT infer one of the three
-from silence, then or after.
+Two of these carry a vocabulary this document owns rather than the other
+document: §20's registry names the presentation profiles spec-07 §4.6 serves,
+and the fields an absence assertion may be about. Neither mechanism is duplicated
+here — a surface that needs one of them uses the section above.
 
 ---
 
@@ -1574,7 +1518,7 @@ built, and no code path may supply a value a registry omits.**
 | seek granularities | the small and large position steps of §12.3 |
 | text track classifications | the values of §17.4 |
 | accessibility affordances and hazards | the vocabularies of §17.3 |
-| absence field names | the fields an absence assertion may name (§19.7), as a body type vocabulary under spec-02 §6.1 |
+| absence field names | the fields an absence assertion may be about, which spec-02 §6.5 requires be drawn from a registry |
 
 **The television contract (§18)**
 
@@ -1639,7 +1583,7 @@ An implementation conforms if it satisfies all of the following.
    states of §5.2 are distinguishable in it. No state is inferred from the
    absence of a value: *sought, not found*, *known unknowable* and *known
    absent* appear only where an authored annotation establishes them, and a
-   field for which §19.7 has not been made reports *not yet examined*.
+   field §20's registry does not name reports *not yet examined*.
 5. A res whose only nomens are its identifier-nomen or are excluded by the
    profile carries a composed name, terminating in a noun for its kind, and
    never an identifier.

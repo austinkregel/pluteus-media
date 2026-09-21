@@ -2,7 +2,7 @@
 
 **Specification 02**
 **Status:** Draft
-**Version:** 0.1
+**Version:** 0.2
 **Depends on:** spec-01 (Catalog Data Model)
 **Obsoletes:** nothing
 
@@ -193,6 +193,15 @@ Because a version distinguishes builds rather than ranking them, version strings
 carry no order. Versions of one tool are ordered by when the system first
 records each, and that order is what "newer" (§5.2) and "before version X" mean.
 
+**A derivation produced elsewhere is ordered by its source's snapshot, not by
+when this system first recorded it.** A body imported from a corpus ([spec-05]
+§8.6) was computed before it arrived, often years before, and ordering it by
+arrival would make a frozen 2022 corpus newer than a run performed here last
+week — and so supersede a fresh result with a stale one under §5.2's first row.
+The snapshot is the source's own statement of when its data was current, and an
+imported derivation that carries none is not ordered against local runs at all:
+it stands alongside them and supersedes nothing.
+
 ### 4.3 Determinism is not assumed
 
 Two derivations of the same tool at the same version over the same input SHOULD
@@ -286,6 +295,30 @@ Semantic groupings of measurements — for weighting, for display, for
 per-application emphasis — are seed data (spec-01 §7.5), not code and not part
 of this specification. Adding a group is a seed change.
 
+### 6.5 A body whose subject is a field
+
+An annotation ordinarily says something about a res or a region of one (§3.1).
+One kind says something about **a named field of its target that holds no
+value**: that a photographer was sought and not found, that a date will not be
+recovered, that a letter positively has no second page.
+
+Such a body carries the field it is about, drawn from a registry of field names
+(spec-01 §7.5), alongside what it asserts. Without the field name the assertion
+has no subject — "not found" about a photograph says nothing — and attaching it
+to a region would be wrong, because the absence is not located anywhere in the
+thing.
+
+These are authored annotations in §3.2's sense and nothing else may write them.
+A tool that looked and failed has produced a finding ([spec-04] §9), which is a
+record of what the deployment attempted; only a person can assert that something
+was sought, is unknowable, or is absent. [spec-10] §5.2 is normative for the
+states this distinction produces at the render boundary, and §5.3 for the rule
+that none of them may be inferred from silence.
+
+A field the registry does not name cannot carry one of these assertions. That is
+deliberate: the vocabulary is what stops the mechanism from becoming a free-text
+store of claims about arbitrary keys.
+
 ---
 
 ## 7. Raw and normalized values
@@ -352,6 +385,12 @@ Superseding does not purge. See §5.2.
 9. Purging a target purges its derived annotations and retains its authored ones.
 10. An orphaned authored annotation renders, names its purged target, and does
     not raise an integrity error.
+11. A derivation imported from a source is ordered by that source's snapshot; a
+    corpus frozen before a local run does not supersede it, and one carrying no
+    snapshot supersedes nothing.
+12. A body whose subject is a named field carries a field name from the
+    registry, is refused for a field the registry does not name, and is refused
+    unless it is authored.
 
 ---
 
@@ -378,6 +417,12 @@ the household by default.
 
 ### 11.2 Informative
 
+- **[spec-04]** *Ingest and Normalization*, this system. §9's findings are what
+  a tool produces where §6.5 requires a person.
+- **[spec-05]** *Metadata Acquisition and Matching*, this system. §8.6 imports
+  the derivations §4.2 orders by their source's snapshot.
+- **[spec-10]** *Presentation*, this system. §5.2's states are what §6.5's
+  bodies establish at the render boundary.
 - **[W3C-ANNO]** W3C, *Web Annotation Data Model*. Its body-and-target shape is
   the direct ancestor of §3.1. Its `motivation` vocabulary is a candidate for the
   body type registry; its identity and provenance model is not adopted.

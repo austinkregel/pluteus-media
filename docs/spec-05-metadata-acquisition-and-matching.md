@@ -2,7 +2,7 @@
 
 **Specification 05**
 **Status:** Draft
-**Version:** 0.1
+**Version:** 0.2
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
 Normalization), spec-06 (Principals, Auth and Authorization)
@@ -622,16 +622,17 @@ outrank it by. Resolution then prefers a provider's title over the name the
 household actually uses, on every surface, for good.
 
 Where the source is not an agent — a tagger, a sidecar of unknown authorship —
-the assigner is the agent that wrote it where the file says so, and null
-otherwise. A sidecar of unknown authorship is the one case in which a name
-arrives with no assigner and is nonetheless not the household's, and §16.4 is
-what that costs.
+there is no agent for the name to be assigned to. **Such a name is not written
+as a nomen.** It is held on the match record until a member accepts it, and the
+member is then its assigner. Writing it with a null assigner would put a
+stranger's word into the household's shared vocabulary, which spec-01 §7.3
+reserves for the household's own, and no third answer is true.
 
-Script and language come from the source where the source states them. Where it
-does not, the nomen's language is left null and the match record holds that the
-source stated none — spec-01 §7.2's null means genuinely absent, and §16.4 lists
-the addition that would let unknown be said instead. Until it is made, a
-deployment MUST NOT present such a name as one the household left untagged.
+Script and language come from the source where the source states them. Where a
+source states no language, the nomen's language is **unknown** (spec-01 §7.2),
+which is a value of its own. It is not null: null means absent, absent means the
+household's own untagged vocabulary, and a source's silence is not a claim to
+belong to it.
 
 ### 8.2 External identifier nomens
 
@@ -751,9 +752,10 @@ own extractor holds both. A provider field called `bpm` with nothing behind it
 does not import.
 
 An imported derivation's version is ordered by **the source's snapshot**, not by
-when the household imported it. spec-02 §4.2 orders versions by when the system
-first records each, which would let a corpus frozen in 2022 supersede a fresh
-local run merely by being imported afterwards. §16.5 lists the addition.
+when the household imported it, and spec-02 §4.2 is normative for that. Ordering
+it by arrival would let a corpus frozen in 2022 supersede a fresh local run
+merely by being imported afterwards. An import carrying no snapshot is not
+ordered against local runs at all, and supersedes nothing.
 
 ### 8.7 When a match is examined again
 
@@ -919,8 +921,8 @@ the resources it names, and **the source each value came from**, which §5.3 use
 directly.
 
 ComicInfo is conventionally stored *inside* the archive rather than beside it, so
-it is not a companion at all. §16.3 lists the addition that lets spec-04 §5.1
-read it as an embedded tag, which is what it is.
+it is not a companion at all. spec-04 §5.1 reads it from the container at
+identification, as an embedded tag, which is what it is.
 
 **Structure.** A comic series is a serial work and an issue is a work of its own,
 connected by LRM-R21 inspiration, with the issue's place in the series carried at
@@ -968,7 +970,9 @@ well as its name, TheGamesDB requires a private key for usable limits, and the
 MobyGames API is a paid feature. A deployment configuring none of them still has
 the DAT, which is what establishes identity; what it loses is the cover art.
 
-spec-04 has no placement rule for a game; §16.1 lists it.
+spec-04 §6.9 places a game as one work with a manifestation per dump, and leaves
+to matching the question this section raises: whether a clone is a parallel
+expression or another manifestation of one.
 
 ### 9.6 Podcasts and downloaded media
 
@@ -989,7 +993,8 @@ addresses (spec-01 §8.3). Here the identifier is one nobody outside the
 household can resolve, which spec-01 §4.3 tolerates explicitly and which spec-01
 §9.3's same-instance scope makes sufficient.
 
-`.info.json` is not in spec-04 §4.6's companion registry; §16.2 lists it.
+`.info.json` is a companion pattern in spec-04 §4.6's registry, so a download's
+sidecar is never catalogued as a document of its own.
 
 ### 9.7 Photographs
 
@@ -1360,76 +1365,36 @@ obligations they place on the deployment (§6.4).
 - LRM-R1, the correspondence between a household arrangement position and a
   source's numbering (§9.2)
 
-**Companion patterns and root element names**, added to spec-04 §4.6's registry:
-`ComicInfo.xml`, `MetronInfo.xml`, `*.info.json`, `gamelist.xml`, and the sidecar
-edit formats `*.xmp`, `*.pp3`, `*.dop` and `*.aae`.
+**Companion patterns and root element names** in spec-04 §4.6's registry, which
+this document reads: `ComicInfo.xml`, `MetronInfo.xml`, `*.info.json`,
+`gamelist.xml`, and the sidecar edit formats `*.xmp`, `*.pp3`, `*.dop` and
+`*.aae`.
+
+**The documents read from inside a container** (spec-04 §5.1), keyed by the
+container's format and the document's path or root element.
 
 ---
 
-## 16. Additions this document depends on
+## 16. What this document rests on elsewhere
 
-Six things the specifications this document depends on do not carry. Each is an
-addition to the document that owns the concept, not a parallel mechanism here.
+Six things this document needs belong to the specifications that own the
+concepts, and are specified there rather than here.
 
-### 16.1 Placement rules for four classes
+| What this document needs | Where it is specified |
+| --- | --- |
+| a broad class, a placement structure and a category for audiobooks, podcast episodes, comics and games (§9.3–§9.6) | spec-04 §5.3, §6.3, §6.9 |
+| `*.info.json`, `gamelist.xml` and the photographic edit sidecars as companion patterns, and `ComicInfo` and `MetronInfo` as root elements (§9.4, §9.6, §9.7) | spec-04 §4.6 |
+| a metadata document read from inside a container rather than beside it (§9.3, §9.4) | spec-04 §5.1 |
+| a nomen whose language is unknown, distinct from one whose language is absent (§8.1) | spec-01 §7.2 |
+| an imported derivation ordered by its source's snapshot (§8.6) | spec-02 §4.2 |
+| a decision vocabulary naming the level at which two res are one (§8.4) | spec-03 §8.3 |
 
-§9.3 through §9.6 match audiobooks, comics, video games and podcast episodes.
-spec-04 §5.3 decides a broad media class from the bytes and spec-04 §6 places by
-it, and neither has a rule for any of them: a `.cbz` is an archive, a ROM is
-undifferentiated bytes, an audiobook is audio that is not music, and a podcast
-episode is audio arriving with a feed.
-
-Each needs a broad class, a placement structure, and a category value. §9.3,
-§9.4, §9.5 and §9.6 state the structures each should take; spec-04 §6 is where
-they belong.
-
-### 16.2 Companion patterns
-
-spec-04 §4.6's registry does not name `*.info.json`, `MetronInfo.xml`,
-`gamelist.xml`, or the photographic sidecar edit formats. Until it does, a
-`.info.json` is catalogued as a document, which spec-04 §4.6 forbids for a
-metadata sidecar and which its own rule would prevent if the pattern were
-present.
-
-`MetronInfo` and `ComicInfo` are also root element names for spec-04 §4.6's
-first-bytes test, which already names `movie`, `episodedetails`, `album`,
-`artist` and `details`.
-
-### 16.3 Metadata inside a container
-
-`ComicInfo.xml` is stored inside the `.cbz` and an OPF package is inside the
-`.epub`. spec-04 §4.6 recognizes a companion as a file that arrived beside
-another, and spec-04 §5.1 reads embedded tags from the container. A metadata
-document inside a container is the second of those and not the first, and
-spec-04 §5.1 is where reading one belongs.
-
-### 16.4 A nomen whose language is unknown
-
-spec-01 §7.2 makes `language` nullable and requires null to mean genuinely
-absent rather than unknown, which is right for the household's own vocabulary
-and has no room for a source that simply did not say.
-
-§8.1's interim rule is to write null and hold the distinction on the match
-record. The addition is a way for a nomen to say that its language is unstated,
-which is a third value and not a second meaning for null.
-
-### 16.5 Ordering an imported derivation's version
-
-spec-02 §4.2 orders a tool's versions by when the system first records each,
-because version strings carry no order. §8.6 imports derivations produced
-elsewhere, at versions older than anything local, and importing one after a local
-run would make the older one "newer" and supersede a fresh result with a frozen
-one.
-
-The addition is that an imported derivation's version is ordered by the source's
-snapshot.
-
-### 16.6 Two decisions
-
-spec-03 §8.3's vocabulary is *same holding*, *same expression* and *distinct*.
-§8.4 equates at manifestation and work level as well, and one vocabulary should
-serve both documents rather than two overlapping ones. The addition is *same
-manifestation* and *same work* in spec-03 §8.3.
+Two of these were a choice between mechanisms rather than a gap. A nomen's
+unknown language could have been a second meaning for null, and was made a third
+value instead, because null already means the household's own untagged
+vocabulary and a stranger's name does not belong in it. A decision could have
+been a single *duplicate*, and names a level instead, because a wrong guess at
+the level destroys a relation rather than a value.
 
 ---
 
