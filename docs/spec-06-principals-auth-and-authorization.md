@@ -281,8 +281,9 @@ time, and the write record says who did it.
 
 ### 6.3 Consumption data is not shared
 
-**No principal may observe another's consumption data.** This is spec-01 §11.2
-and it is not subject to the peer rule in §6.2.
+**No principal may observe another's consumption data.** This is spec-01 §11.2's
+consumption class, and it is not subject to the peer rule in §6.2. The platform
+class is a different thing and §6.4 governs it.
 
 The prohibition covers every surface, not merely direct queries:
 
@@ -300,10 +301,21 @@ assuming that an aggregate anonymizes.
 A household of two makes almost any aggregate re-identifying. Implementations
 MUST NOT rely on aggregation as a privacy mechanism at household scale.
 
-### 6.4 Authored annotations are household-visible
+### 6.4 What is household-visible
 
-spec-02 §10 makes authored annotations visible to the household, as names are
-under spec-01 §7.3. §6.3 governs consumption events, not annotations.
+§6.3 governs consumption events and nothing else. Three things a member
+contributes are visible to the household by design:
+
+- names, under spec-01 §7.3, where a null assigner *is* the shared vocabulary;
+- authored annotations, under spec-02 §10;
+- platform events, under spec-01 §11.2 — what was acquired, placed, verified,
+  matched or corrected, whoever did it.
+
+A platform event is household-visible because it is about the holdings rather
+than about a person. A household that could not see its own library changing
+could not tell an import from a deletion. The class is decided by what the event
+records and not by who acted, so a member's correction is visible for the same
+reason that member's names already are, while that member's playback is not.
 
 ### 6.5 Bootstrap
 
