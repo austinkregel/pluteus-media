@@ -72,9 +72,10 @@ view and no web runtime. §4.3 and §18 are written against that.
 spec-06 and spec-07 as they stand; §19 names the seven places this document
 rests on a section of one of them.
 
-Two dependencies run outward, and neither is met. §8.1's default expression
-waits on spec-01 §6.5's open registry, which spec-01 §2 forbids proceeding past.
-§18's playback waits on spec-08.
+One dependency runs outward and is not met: §18's playback waits on spec-08.
+§8.1's default expression no longer waits on anything — spec-01 §6.5 carries the
+significant attributes per category, so the ordering that section requires is
+computable.
 
 ---
 
@@ -443,14 +444,14 @@ The ordering is spec-01 §8.6's: distance from the representative expression
 (spec-01 §6.5), under the requesting principal's profile. spec-01 §8.6
 recommends that ordering; this document requires it.
 
-**spec-01 §6.5 leaves open which attributes are significant per category**, and
-spec-01 §2 forbids treating an open item as licence to choose and proceed.
-Until that registry exists, the resolution is: where spec-01 §6.5's automatic
-promotion applies — one expression in one manifestation, which is most of a
-household's own media — that expression is the default; otherwise the default
-is the expression whose parallel-expression selection spec-01 §8.6 already
-yields for the profile, and where that is silent the surface asks once and
-records the answer as an authored preference. It does not guess.
+spec-01 §6.5 carries the significant attributes per category, so the distance
+that ordering rests on is computable. Where §6.5's automatic promotion applies —
+one expression in one manifestation, which is most of a household's own media —
+that expression is the default and no ordering is needed. Where a work has
+several and the category's attributes do not separate them, the default is the
+expression spec-01 §8.6's parallel-expression selection yields for the profile,
+and where that is silent the surface asks once and records the answer as an
+authored preference. It does not guess.
 
 Where the resolved expression differs from the profile's preference, the
 surface SHOULD say so unobtrusively; spec-01 §8.6 makes this a display concern
@@ -1607,9 +1608,10 @@ An implementation conforms if it satisfies all of the following.
 16. A res presented by an aggregating work or by a whole-part relation is not a
     browse entry; the res presenting it is.
 17. A serial manifestation is one browse entry, whatever its episode count.
-18. The primary action resolves without asking, and where spec-01 §6.5's
-    promotion does not apply and spec-01 §8.6 is silent, the surface asks and
-    records rather than guessing.
+18. The primary action resolves without asking; where spec-01 §6.5's promotion
+    does not apply, the ordering is distance from the category's significant
+    attributes, and where those do not separate two expressions and spec-01 §8.6
+    is silent, the surface asks and records rather than guessing.
 19. Alternatives are reachable in one action and are counted.
 20. A res carrying ordered members renders them in the order held by whichever
     of LRM-R25 and LRM-R26 carries it.
