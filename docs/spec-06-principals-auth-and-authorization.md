@@ -74,10 +74,15 @@ implementation MUST establish that a request came through that proxy before
 reading the assertion. Headers that reached it any other way could have been
 set by anyone able to reach it.
 
-One surface is exempt from forward authentication: the one spec-07 §3.2 serves
-to clients that cannot follow a browser through the provider's sign-in. There a
-request is identified by a client key (§4) instead. It MUST still have come
-through the proxy, established the same way, before its key is read.
+Two surfaces are exempt from forward authentication: those spec-07 §3.4 admits a
+client key on, which serve clients that cannot follow a browser through the
+provider's sign-in. There a request is identified by a client key (§4) instead.
+It MUST still have come through the proxy, established the same way, before its
+key is read.
+
+A surface reached by a client that cannot sign in through a browser cannot be
+asked to, and a television fetching a segmented stream would otherwise put one
+forward-authentication request to the provider behind every segment.
 
 ### 3.3 Issuer change
 
@@ -430,6 +435,9 @@ household that wants this prevented needs a distinction §6.2 does not provide.
 ### 9.2 Informative
 
 - **[spec-02]** *Annotations and Derived Data*, this system. §6.4.
+- **[spec-08]** *Playback and Transcode Negotiation*, this system. §14.2 is what
+  §3.2's assertion covers on a rendition endpoint, and §11.2 is why a capacity
+  refusal is computed over one principal rather than the household (§6.3).
 - **[spec-10]** *Presentation*, this system. §18.3 is the surface §4.1 and §4.2
   were written for, and §14.2 is the switch §4 requires be cheap.
 - **[OIDC-CORE]** OpenID Connect Core 1.0, for the `(iss, sub)` composite.
