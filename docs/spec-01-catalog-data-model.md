@@ -1164,8 +1164,8 @@ eviction policy.
 
 Compute is local and CPU time is not a cost consideration. Sustained real-time
 transcoding of high-bitrate video is nonetheless a capacity constraint, and
-concurrent sessions multiply it, since a transcode is per-session and the
-selected track (§8.6) is an input to it.
+concurrent deliveries multiply it, since a transcode is per-delivery ([spec-08]
+§2) and the selected track (§8.6) is an input to it.
 
 The standardized master (§13.3) is nonetheless chosen for fidelity and longevity,
 not for direct-play compatibility. Serving therefore transcodes routinely rather
@@ -1478,6 +1478,9 @@ here:
   puts a nomen's language in §7.2's unknown state.
 - **[spec-06]** *Principals, Authentication and Authorization*, this system.
   Normative for §10 and for enforcement of §11.2's scoping rule.
+- **[spec-08]** *Playback and Transcode Negotiation*, this system. §2
+  distinguishes the delivery §13.6 counts from the session §11.4 keeps a
+  sequence for, and §4.2 is what §13.6 means by a request for the content.
 - **[spec-10]** *Presentation*, this system. §6.1 is the language step §7.2
   refers to, and §13.3 decides among the positions §11.4 keeps.
 - **[ANNEX-A]** *Annex A — Worked WEMI Mappings*, companion to this
