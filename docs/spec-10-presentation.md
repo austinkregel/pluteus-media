@@ -6,7 +6,7 @@
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
 Normalization), spec-06 (Principals, Auth and Authorization), spec-07 (Wire
-Protocol)
+Protocol), spec-08 (Playback and Transcode Negotiation)
 **Obsoletes:** nothing
 
 ## Abstract
@@ -45,8 +45,8 @@ vocabulary for what is.
 ### 1.2 What this document does not specify
 
 The transcode decision and the streams it produces (spec-08); this document
-names the profiles a surface may ask for, and spec-08 says how the bytes are
-made. Search ranking, similarity and recommendation (spec-09); this document
+names the profiles a surface may ask for and what it renders while bytes are in
+flight, and spec-08 says how the bytes are made. Search ranking, similarity and recommendation (spec-09); this document
 specifies the search surface and what a result carries, not the order results
 arrive in. Metadata matching (spec-05); this document presents the provenance
 a match carries, and spec-05 says how the value was arrived at.
@@ -69,13 +69,12 @@ view and no web runtime. §4.3 and §18 are written against that.
 ### 1.4 What gates what
 
 §5 through §17 govern the interface and build against spec-01 to spec-04,
-spec-06 and spec-07 as they stand; §19 names the seven places this document
-rests on a section of one of them.
+spec-06, spec-07 and spec-08 as they stand; §19 names the eight places this
+document rests on a section of one of them.
 
-One dependency runs outward and is not met: §18's playback waits on spec-08.
-§8.1's default expression no longer waits on anything — spec-01 §6.5 carries the
-significant attributes per category, so the ordering that section requires is
-computable.
+No dependency runs outward unmet. §18's playback is spec-08 §6, and §8.1's
+default expression rests on spec-01 §6.5's significant attributes per category,
+so the ordering that section requires is computable.
 
 ---
 
@@ -815,6 +814,7 @@ is the shape it takes.
 | Category | Primary surface | Selectors | Requires |
 | --- | --- | --- | --- |
 | music recording | transport and queue | `temporal`, `track` | overview waveform, cover profiles |
+| audiobook, podcast episode | transport and chapter list | `temporal` | chapters, cover profiles |
 | film, television episode, home video | player | `temporal`, `spatiotemporal`, `track` | key frame, trickplay, chapters |
 | photograph | viewer in a justified grid | `spatial` | image profiles, geometry |
 | scan | scan beside its transcript | `spatial`, `page`, `text_quote` | image profiles or tiles, word positions |
@@ -835,9 +835,13 @@ of what they describe. A cover image MUST NOT appear in a photograph grid.
 
 **A track of a release held in one file is the stored temporal address spec-04
 §6.4 records on the release manifestation.** The coordinate frame is the
-medium; track coordinates are projected from that address at the surface.
-Playing track four is a range-limited play of the medium, not a separate
-stream.
+medium; track coordinates are projected from that address at the surface. On
+the surfaces this document governs, playing track four is a range-limited play
+of the medium, not a separate stream.
+
+spec-07 §6.7 answers differently on its own surface, where a client given a
+song's stream URL expects a response of that song's duration and spec-08 §13.1
+cuts the extent.
 
 ### 12.3 The transport
 
@@ -849,6 +853,7 @@ stream.
 | position | a slider carrying its minimum, maximum, current value and a human-readable value; steps of the two granularities §20 names; home and end |
 | skip | where offered, an interval stated in the control's name |
 | audio track, subtitle track, subtitle visibility | three independent controls (§12.2) |
+| playback speed | where the category carries spoken word; a client-side property that changes no rendition |
 | volume and mute | a non-drag path, since no function may require dragging (§17.5) |
 | what happens at the end | stated in §12.4 |
 
@@ -1109,9 +1114,13 @@ NOT render an unverified asset as sound.
 | A presentation asset is absent | degrade visibly and continue: a scrub bar without thumbnails, a flat colour without a placeholder, a transport without a waveform |
 | A source medium is absent | surface it loudly. This is data loss, not a missing derivative |
 | The connection drops with media buffered | keep playing; show a persistent, non-modal notice; queue position reports |
+| The deployment is reachable and its bytes have not arrived | say that, named: a rendition restarting after a seek, a link slower than what is being served, or a request cut short in transit (spec-08 §15). Not a spinner, not "something went wrong", and not unreachable, which is false |
 | The buffer empties and the deployment is unreachable | stop, and say the deployment is unreachable — not a spinner, and not "something went wrong" |
 | The connection returns | flush queued position reports as §13.3 requires |
 | A rendition fails mid-stream | surface the failure and its reason. Do not silently restart |
+
+The bytes-not-arrived row is rendered outside any live region, as §17.7 requires
+of a buffer state.
 
 A presentation asset's absence is a designed condition because spec-03 §7
 declares it regenerable and excludes it from backup. A source's absence is not,
@@ -1351,12 +1360,14 @@ three.
 request carries that person. Every consumption datum the client reports is that
 principal's (spec-01 §11.2).
 
-The preferred enrolment displays a short code on the television which the
-person approves from their own authenticated session on another device. That is
-a deployment-minted credential approved in-band; it is **not** the OIDC device
-grant spec-06 §4 recommends, because this deployment runs no login flow of its
-own and reads an identity a proxy asserts (spec-06 §3.2). A client key in
-spec-07 §3.2's sense is what it is.
+Enrolment is the OIDC device authorization grant spec-06 §4 recommends, as
+spec-07 §3.4 specifies it: the television displays a user code, the person
+approves it from their own authenticated session on another device, and what the
+television holds afterwards is a client key in spec-07 §3.2's sense.
+
+The grant establishes the person; the credential stays the deployment's, so its
+narrowing under spec-06 §4.2 remains enforceable here rather than in the
+provider's scopes.
 
 spec-07 §3.1 refuses a client key on the native API and spec-07 §3.4 admits one
 here. **§18's surface is the third authentication surface that section names.**
@@ -1390,22 +1401,21 @@ NOT infer capability from a device name: decoding capability varies within one
 product line and changes with the audio path.
 
 Where the normalized master is within the declared capability, it is served as
-stored, with byte ranges (spec-07 §4.4). Where it is not, a rendition is
-required and producing one is spec-08's. **Until spec-08, such a holding is
-refused with a statement of why.**
+stored, with byte ranges (spec-07 §4.4). Where it is not, spec-08 §6 produces a
+rendition, and where no rendition within the declared capability can be produced
+the holding is **refused with a statement of why, and is never silently
+substituted**.
 
-spec-07 §6.7 makes the opposite choice on its surface — it serves the master
-whatever format was asked for, and lets the content type say what was served.
-The television contract refuses instead, because a client handed bytes it cannot
-decode has no fallback and no way to explain itself.
+A refusal names the client that made the attempt and what it declared. It is a
+statement about the television in front of the person, at the moment of the
+attempt: §18.4's declaration rule means the deployment knows nothing about a
+television that has not asked.
 
-This limitation follows from a decision made upstream: spec-01 §13.3 chooses
-the standardized master for fidelity and longevity and explicitly not for
-direct-play compatibility, and spec-01 §13.6 accepts that serving therefore
-transcodes routinely. Two format facts bind regardless of spec-08:
+spec-01 §13.3 chooses the standardized master for fidelity and longevity and
+explicitly not for direct-play compatibility, and spec-01 §13.6 accepts that
+serving therefore transcodes routinely. One format fact makes the refusal
+branch non-empty:
 
-- Where the household's televisions differ in capability, one holding may be
-  served on one and refused on another, and the deployment MUST say which.
 - A rendition MUST carry an audio track the device can decode on its own
   speakers. An audio codec the device can only pass through to a receiver is
   silence on a television that has none.
@@ -1463,9 +1473,9 @@ though there is nothing.
 
 ## 19. What this document rests on elsewhere
 
-Seven things this document needs belong to the specifications that own the
+Eight things this document needs belong to the specifications that own the
 concepts, and are specified there rather than here. Six are properties of the
-wire; the seventh is a kind of annotation.
+wire, the seventh is a kind of annotation, and the eighth is how bytes are made.
 
 | What this document needs | Where it is specified |
 | --- | --- |
@@ -1476,6 +1486,7 @@ wire; the seventh is a kind of annotation.
 | a key admitted on a third surface, narrower than its principal, several to a device (§18.3) | spec-07 §3.4, spec-06 §4.1 and §4.2 |
 | a resume position carrying a device, a unit, a time, a sequence and whether it was playing (§13.1) | spec-01 §11.4 |
 | a body whose subject is a named field of its target (§5.2) | spec-02 §6.5 |
+| a rendition within a client's declared capability, and the refusal where none can be produced (§18.4) | spec-08 §6 |
 
 Two of these carry a vocabulary this document owns rather than the other
 document: §20's registry names the presentation profiles spec-07 §4.6 serves,
@@ -1526,8 +1537,15 @@ built, and no code path may supply a value a registry omits.**
 | Registry | Holds |
 | --- | --- |
 | projected API version | the version string §18.1 declares |
-| projected endpoints | the endpoint groups §18.2 serves |
+| projected endpoints | the endpoint groups §18.2 serves, including the rendition endpoints spec-08 §14.1 reaches |
 | credential policy | whether a television holds one credential or several (§18.3) |
+
+**Playback (spec-08)**
+
+spec-08 §18 holds the session inactivity period, the session ceiling, the seek
+settling period, the per-principal transcode allocation, the abandonment period
+and the rendition retention bound. They are that document's and are named here
+so that §20 is the one place a reader looks for a playback value.
 
 **The design language**
 
@@ -1652,8 +1670,9 @@ An implementation conforms if it satisfies all of the following.
 38. A control for an accessibility affordance the res does not carry is
     disabled and carries a description saying why.
 39. A cover companion does not appear in a photograph grid.
-40. A track of a release held in one file resolves through the temporal address
-    spec-04 §6.4 records, not through a second stream.
+40. On the surfaces this document governs, a track of a release held in one file
+    resolves through the temporal address spec-04 §6.4 records, not through a
+    second stream.
 41. Focus is restored after a patch, a route change and a reconnection, to the
     nearest surviving sibling, else the container, else the surface's first
     focusable.
@@ -1691,8 +1710,9 @@ An implementation conforms if it satisfies all of the following.
     except where §18.1 names a type that forbids it.
 57. Capability is taken from the client's declaration, never inferred from a
     device name.
-58. A holding the client cannot decode is refused with a statement of why, and
-    is not silently substituted.
+58. A holding for which no rendition within the client's declared capability can
+    be produced is refused with a statement of why, naming that client and what
+    it declared, and is not silently substituted.
 59. Byte ranges are honoured for every asset served to a client, including
     images.
 60. An unhandled request is logged with its full path and parameters and
@@ -1706,6 +1726,9 @@ An implementation conforms if it satisfies all of the following.
 
 - **[spec-01]**, **[spec-02]**, **[spec-03]**, **[spec-04]**, **[spec-06]**,
   **[spec-07]**, this system.
+- **[spec-08]** *Playback and Transcode Negotiation*, this system. §6 is the
+  path §18.4 answers with, §9 the seek §12.3's transport drives, §12 what a
+  session reports into §13, and §15 the failures §17.1 renders.
 - **[ANNEX-A]** *Annex A — Design Language*, companion to this specification.
   Normative for the interface and for the token definition a client's theme is
   generated from.
@@ -1729,8 +1752,6 @@ An implementation conforms if it satisfies all of the following.
 - **[spec-05]** *Metadata Acquisition and Matching*, this system. §15.3's
   provenance rules govern what its matches render as, and its §11 maps onto
   §5.2's states.
-- **[spec-08]** *Playback and Transcode Negotiation*, not yet written. §18.4
-  waits on it.
 - **[spec-09]** *Search, Ranking and Recommendation*, not yet written. §9.5
   orders results until it exists.
 - **[W3C-ANNO]** W3C, *Web Annotation Data Model*. Its `creator` and
