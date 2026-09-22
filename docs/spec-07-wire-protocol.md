@@ -5,7 +5,8 @@
 **Version:** 0.4
 **Depends on:** spec-01 (Catalog Data Model), spec-02 (Annotations and Derived
 Data), spec-03 (Assets, Storage and Preservation), spec-04 (Ingest and
-Normalization), spec-06 (Principals, Auth and Authorization)
+Normalization), spec-06 (Principals, Auth and Authorization), spec-08 (Playback
+and Transcode Negotiation)
 **Obsoletes:** nothing
 
 ## Abstract
@@ -32,9 +33,10 @@ what that model cannot hold and adds nothing the native API cannot reach.
 
 ### 1.2 What this document does not specify
 
-The transcode decision and transcoded streams (spec-08); until spec-08, bytes
-are served as stored. Search ranking and similarity (spec-09); searching here
-matches names and orders them alphabetically. What a surface draws, and which
+The transcode decision and the streams it produces (spec-08); this document
+serves an asset's stored bytes at §4.4 and projects spec-08's negotiation onto
+the OpenSubsonic surface at §6.7. Search ranking and similarity (spec-09);
+searching here matches names and orders them alphabetically. What a surface draws, and which
 presentation profiles exist (spec-10); §4.6 serves them and spec-10 §20 names
 them. Metadata matching (spec-05).
 
@@ -78,9 +80,9 @@ that device's, and nothing it does is attributed to anyone else.
   string, and SHOULD be where a client can: §8 notes that query strings reach
   access logs, and a header does not.
 
-The OpenSubsonic surface's path is exempt from forward authentication at the
-proxy, since a key is its authentication; the proxy MUST still assert that the
-request came through it (spec-06 §3.2), and a request without that assertion
+The paths a key is accepted on (§3.4) are exempt from forward authentication at
+the proxy, since a key is their authentication; the proxy MUST still assert that
+the request came through it (spec-06 §3.2), and a request without that assertion
 MUST be refused before any key is read.
 
 ### 3.3 Attribution
@@ -102,11 +104,18 @@ Three surfaces, and a key is accepted on two of them:
 | the projected surface spec-10 §18 serves | a client key |
 
 The third exists because a television client cannot follow a browser through the
-provider's sign-in any more than a phone's music player can, and this deployment
-runs no sign-in flow of its own to offer it (spec-06 §3.2). Its enrolment
-displays a short code on the television which a person approves from an
-authenticated session elsewhere; what that mints is a client key in §3.2's
-sense, with everything §3.2 requires of one.
+provider's sign-in any more than a phone's music player can. Its enrolment is
+the OIDC device authorization grant [RFC8628], which spec-06 §4 recommends for
+an input-constrained client: the deployment asks the provider's
+device-authorization endpoint, the television displays the user code, and the
+deployment polls until the person approves it from a session elsewhere.
+
+The grant establishes the person. What the television holds afterwards is a
+client key in §3.2's sense, with everything §3.2 requires of one. The provider's
+token is read once, to learn which principal approved, and is not retained: a
+credential's grant MUST NOT widen when its principal's role changes (spec-06
+§4.2), and that is an invariant the deployment enforces over a credential it
+minted rather than one a provider's scopes carry.
 
 **A key mints with a grant, and the grant may be narrower than its principal's
 role.** The grant is recorded with the key (spec-06 §4.2) and is checked on
@@ -371,9 +380,11 @@ refused with error 43.
 | `formPost` | 1 | every endpoint by `application/x-www-form-urlencoded` POST |
 | `songLyrics` | 1 | `getLyricsBySongId`, from lyrics companions (spec-04 §4.6) |
 | `indexBasedQueue` | 1 | `getPlayQueueByIndex`, `savePlayQueueByIndex` |
+| `transcoding` | 1 | `getTranscodeDecision`, `getTranscodeStream` (§6.7) |
+| `transcodeOffset` | 1 | the start offset `getTranscodeStream` accepts (§6.7) |
 
-An extension not listed MUST NOT be advertised. `transcoding` and
-`transcodeOffset` wait for spec-08, `sonicSimilarity` for spec-09.
+An extension not listed MUST NOT be advertised. `sonicSimilarity` waits for
+spec-09.
 
 ### 6.3 Endpoints
 
@@ -383,7 +394,7 @@ An extension not listed MUST NOT be advertised. `transcoding` and
 | Browsing | `getMusicFolders`, `getIndexes`, `getMusicDirectory`, `getGenres`, `getArtists`, `getArtist`, `getAlbum`, `getSong`, `getArtistInfo2`, `getAlbumInfo2`, `getCoverArt` |
 | Lists | `getAlbumList`, `getAlbumList2`, `getRandomSongs`, `getSongsByGenre`, `getNowPlaying`, `getStarred`, `getStarred2` |
 | Searching | `search2`, `search3` |
-| Retrieval | `stream`, `download` |
+| Retrieval | `stream`, `download`, `getTranscodeDecision`, `getTranscodeStream` |
 | Annotation | `star`, `unstar`, `setRating`, `scrobble`, `getLyricsBySongId` |
 | Playlists | `getPlaylists`, `getPlaylist`, `createPlaylist`, `updatePlaylist`, `deletePlaylist` |
 | Play queue | `getPlayQueue`, `savePlayQueue`, `getPlayQueueByIndex`, `savePlayQueueByIndex` |
@@ -402,7 +413,8 @@ there are none is misled; one told the endpoint is not provided can say so.
 | artist | the agent a track's or release's credit names (spec-04 §6.4): an artist, or the person or collective agent it was narrowed to, under the same identifier |
 | album | a release manifestation (spec-04 §6.4) |
 | song | a track manifestation |
-| genre, year, duration, bit rate, suffix, content type | the current probe annotation of the manifestation's analysis source (spec-04 §5.1, §8.1) |
+| genre, year, duration | the current probe annotation of the manifestation's analysis source (spec-04 §5.1, §8.1) |
+| bit rate, suffix, content type | what was served: the master's probe where it was served as stored, and the rendition's where one was produced (spec-08 §6) |
 | bit depth, sampling rate, channel count | the probed audio stream; a lossy stream has no bit depth, and answers the zero the protocol reads as none |
 | bpm | the tempo the analysis measured, where it has run (spec-04 §8) |
 | MusicBrainz identifier, comment | the track's own tags |
@@ -467,17 +479,29 @@ it to the playlist.
 
 ### 6.7 Retrieval
 
-`stream` serves the song's normalized master as stored, honouring byte ranges.
-Until spec-08, `format`, `maxBitRate` and `estimateContentLength` do not change
-what is served, and a request that names a format other than the master's is
-still served the master; the response's content type says what was served.
+`stream` serves the song's normalized master as stored where `format`,
+`maxBitRate` and `estimateContentLength` admit it, honouring byte ranges, and
+otherwise opens a delivery under spec-08 §6 and serves what that decides. The
+response's content type says what was served.
+
+`getTranscodeDecision` carries the client's capability declaration (spec-08 §5)
+and answers the path spec-08 §6 decided, with the parameters `getTranscodeStream`
+requires. A client MUST NOT reconstruct those parameters (spec-08 §10.3).
+`getTranscodeStream` serves the rendition, and its offset is a time (spec-08
+§9.2).
+
+**A `Range` header on a request that has been transcoded is answered with the
+whole stream rather than a range, and the response says so.** A byte offset into
+a rendition of unknown length addresses nothing (spec-01 §8.4), and a client
+predating the `transcoding` extension knows only `stream` and a range.
 
 A song whose track manifestation has no digital item of its own — a track of a
 release held in one file (spec-04 §6.4) — is served by cutting its extent from
-the release's master, which is a transcode, and waits for spec-08. Until then
-`stream` answers error 0 for it, and says why.
+the release's master, which is a transcode under spec-08 §13.1.
 
-`download` serves the song's acquired original, the bytes as they arrived.
+`download` serves the song's acquired original, the bytes as they arrived. It
+refuses a track of a release held in one file: a cut of a release's master is
+not the bytes that arrived.
 
 `getCoverArt` serves the cover image as stored; `size` waits for spec-10.
 
@@ -540,9 +564,11 @@ missing. The native API (§4.5) is where the difference is told.
     principal, and no list or count on the surface reflects another principal's.
 19. Another principal's playlist answers error 70 whether read, changed or
     deleted, and a playlist cannot be made public.
-20. `stream` serves the normalized master and `download` the acquired original,
-    as stored and with byte ranges; a track with no digital item of its own
-    answers error 0 until spec-08.
+20. `stream` serves the normalized master as stored, with byte ranges, where the
+    format and bitrate asked for admit it, and otherwise what spec-08 §6
+    decides; a `Range` on a transcoded response is answered with the whole
+    stream. `download` serves the acquired original and refuses a track with no
+    digital item of its own, which `stream` serves by cutting its extent.
 21. A recycled or purged entity answers error 70.
 22. Every field of a representation carries a value and a state; no field is
     carried by its omission, and a field the deployment cannot establish a state
@@ -598,6 +624,11 @@ consumption data, which travels only on a principal's own topic.
 ### 9.1 Normative
 
 - **[spec-01]** through **[spec-06]**, this system.
+- **[spec-08]** *Playback and Transcode Negotiation*, this system. §5 is the
+  declaration `getTranscodeDecision` carries, §6 the path it answers, §10.3 why
+  its parameters may not be reconstructed, and §13.1 the cut §6.7 serves.
+- **[RFC8628]** OAuth 2.0 Device Authorization Grant, by which §3.4's third
+  surface enrols.
 - **[OPENSUBSONIC]** OpenSubsonic API, <https://opensubsonic.netlify.app/>: the
   `subsonic-response` fields, the endpoints of §6.3, and the extensions
   `apiKeyAuthentication`, `formPost`, `songLyrics` and `indexBasedQueue`.
