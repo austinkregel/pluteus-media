@@ -59,7 +59,7 @@ The values of the design language are [ANNEX-A].
 ### 1.3 Implementation context
 
 The interface is Phoenix LiveView: rendered on the server and patched into a
-document over a WebSocket. Three obligations in §17.7 are broken by DOM
+document over a WebSocket. Four obligations in §17.7 are broken by DOM
 patching and by nothing else, and naming the mechanism is what makes them
 enforceable.
 
