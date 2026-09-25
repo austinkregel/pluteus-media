@@ -144,4 +144,57 @@ defmodule Pluteus.Presentation.GeometryTest do
       assert_raise KeyError, fn -> Geometry.reserve(nil, "hologram") end
     end
   end
+
+  describe "28. …and a rendered collection does not shift as images arrive" do
+    test "the representation carries the ratio to reserve", %{inbox: inbox} do
+      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      res = Repo.get!(Catalog.Res, manifestation_of(photo))
+
+      [representation] = Representation.of_many([res], %Profile{})
+
+      # Measured, so the ratio is the image's own.
+      assert_in_delta representation["reserve_aspect_ratio"], 1.3333, 0.001
+    end
+
+    test "an unprobed res reserves its category's ratio, so the tile has a size" do
+      {:ok, catalogued} = Catalog.create_work("An Unprobed Scan")
+
+      {:ok, _} =
+        Catalog.categorize(catalogued.work.id, Place.category_scheme(), "scan", :automatic)
+
+      res = Repo.get!(Catalog.Res, catalogued.manifestation.id)
+
+      [representation] = Representation.of_many([res], %Profile{})
+
+      # Nothing has been probed, so the geometry is absent — and the ratio is still
+      # answerable, which is what keeps the tile from collapsing to nothing.
+      assert representation["geometry"] == %{"state" => "not_yet_examined"}
+      assert representation["reserve_aspect_ratio"] == Registry.assumed_aspect_ratio("scan")
+    end
+
+    test "the category is read from the work, not from the manifestation" do
+      {:ok, catalogued} = Catalog.create_work("A Film")
+
+      {:ok, _} =
+        Catalog.categorize(catalogued.work.id, Place.category_scheme(), "film", :automatic)
+
+      # spec-04 §6.3 records the category on the work, so a manifestation carries none
+      # of its own and the ratio has to be reached through it.
+      assert Catalog.categories_of(catalogued.manifestation.id) == []
+
+      res = Repo.get!(Catalog.Res, catalogued.manifestation.id)
+      [representation] = Representation.of_many([res], %Profile{})
+
+      assert representation["reserve_aspect_ratio"] == 0.6667
+    end
+
+    test "a res of no category and no geometry reserves nothing rather than zero" do
+      {:ok, catalogued} = Catalog.create_work("An Uncategorized Thing")
+      res = Repo.get!(Catalog.Res, catalogued.manifestation.id)
+
+      [representation] = Representation.of_many([res], %Profile{})
+
+      refute Map.has_key?(representation, "reserve_aspect_ratio")
+    end
+  end
 end
