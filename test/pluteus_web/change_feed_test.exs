@@ -22,6 +22,7 @@ defmodule PluteusWeb.ChangeFeedTest do
   alias Pluteus.Catalog.Category
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
+  alias Pluteus.Catalog.Extent
   alias Pluteus.Catalog.Manifestation
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
@@ -304,10 +305,12 @@ defmodule PluteusWeb.ChangeFeedTest do
     Repo.query!("DELETE FROM devices WHERE principal_id = $1", [id])
 
     # These tests commit for real, so they clean up after themselves rather than
-    # rolling back. A work is five rows and two links, every one of them keyed on a
-    # res identifier about to be removed, so each goes before its res does.
+    # rolling back. A work is five rows, two links, a category and an extent, every
+    # one of them keyed on a res identifier about to be removed, so each goes before
+    # its res does.
     {:ok, _} =
       Actor.as(principal_id, fn ->
+        Repo.delete_all(from e in Extent, where: e.res_id in ^res_ids)
         Repo.delete_all(from c in Category, where: c.res_id in ^res_ids)
 
         Repo.delete_all(
