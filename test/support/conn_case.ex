@@ -61,4 +61,18 @@ defmodule PluteusWeb.ConnCase do
   """
   def issuer,
     do: Keyword.fetch!(Application.fetch_env!(:pluteus, PluteusWeb.ForwardAuth), :issuer)
+
+  @doc """
+  An identity subject no other test will use.
+
+  `principal_identities` is unique on `(issuer, subject)`, so two async tests binding one
+  subject contend on that index: each holds its row uncommitted, and the second waits for
+  the first to finish. The Repo's timeout outlasts a test's, so the slow holder passes
+  and some unrelated test fails instead, wherever it happened to be waiting.
+
+  A test asserting on a particular subject passes its own. Every other test takes one of
+  these, so no two can collide however long either runs.
+  """
+  def a_subject(name \\ "ada"),
+    do: "#{name}-#{System.unique_integer([:positive])}@household.test"
 end
