@@ -15,6 +15,8 @@ defmodule Pluteus.Events do
   import Ecto.Query, only: [from: 2]
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Addressing
+  alias Pluteus.Catalog.Extent
   alias Pluteus.Events.Continuity
   alias Pluteus.Events.Event
   alias Pluteus.Events.ResumePosition
@@ -87,10 +89,13 @@ defmodule Pluteus.Events do
   @doc """
   Records how far through something a principal is, on one of its devices.
 
-  Takes the session's own facts — the device, the position and its unit, when it
-  was reported, the session's sequence and whether it was playing — and the res's
-  whole `extent` in that unit, which [spec-10] §13.2's floor and ceiling are both
-  measured against.
+  Takes the session's own facts and nothing else: the device, the position and its
+  unit, when it was reported, the session's sequence and whether it was playing.
+
+  **The whole extent is read from the catalog, never from the report.** [spec-10]
+  §13.2 measures its floor and ceiling against it, so a session that named its own
+  extent could decide what counts as finished. spec-01 §8.4's recorded figure is
+  the deployment's, and a res with none in the position's unit raises.
 
   A report is stored with the `reported_at` and `sequence` it was made with, so one
   flushed from an offline queue is weighed by §13.3 against its contemporaries.
@@ -104,8 +109,8 @@ defmodule Pluteus.Events do
           {:ok, ResumePosition.t()}
           | {:discarded, Thresholds.outcome()}
           | {:error, Ecto.Changeset.t()}
-  def report_position(%{res_id: res_id, position: position, extent: extent} = report) do
-    case Thresholds.weigh(category!(res_id), position, extent) do
+  def report_position(%{res_id: res_id, position: position, unit: unit} = report) do
+    case Thresholds.weigh(category!(res_id), position, extent(res_id, unit)) do
       :keep -> put_position(report)
       :consumed -> consumed(report)
       outcome -> {:discarded, outcome}
@@ -178,6 +183,16 @@ defmodule Pluteus.Events do
       )
 
     {:discarded, :consumed}
+  end
+
+  # spec-01 §8.4's figure for the res, in the unit the session reported its
+  # position in. A category that keeps no position never reaches this, so a
+  # photograph needs no extent to be reported against.
+  defp extent(res_id, unit) do
+    case Addressing.get_extent(res_id, unit) do
+      nil -> nil
+      %Extent{magnitude: magnitude} -> magnitude
+    end
   end
 
   # A res being played has a category, because placement writes one (spec-04 §6.3)
