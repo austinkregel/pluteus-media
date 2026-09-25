@@ -51,7 +51,11 @@ defmodule Pluteus.Presentation.Tiles do
       ".jpg"
     ]
 
-    case System.cmd("vips", args, stderr_to_stdout: true) do
+    # libvips defaults its worker count to the number of cores, and the queue that runs
+    # this already bounds how many pyramids are built at once. Left unbounded the two
+    # multiply, and one request to look at a scan takes the whole machine — including the
+    # schedulers the rest of the deployment is answering requests on.
+    case System.cmd("vips", args, stderr_to_stdout: true, env: [{"VIPS_CONCURRENCY", "2"}]) do
       {_output, 0} -> :ok
       {output, status} -> {:error, "pyramid_not_built", %{status: status, output: output}}
     end
