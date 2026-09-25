@@ -25,6 +25,24 @@ defmodule Pluteus.AnalysisTools do
     end
   end
 
+  defmodule Undefined do
+    @moduledoc """
+    Answers as the native analyser does for a signal it cannot measure: a
+    well-formed response whose measurements omit the one the field registry
+    names, because the level of silence and the loudness of a signal entirely
+    below the absolute gate are undefined rather than zero.
+    """
+    @behaviour Pluteus.Analysis.Tool
+
+    @impl true
+    def describe,
+      do: {:ok, %{name: "pluteus-native", version: "undefined-case", schema_version: 1}}
+
+    @impl true
+    def analyse(_request),
+      do: {:ok, %{"schema_version" => 1, "measurements" => %{"spectral_centroid" => 0.0}}}
+  end
+
   defmodule Positional do
     @moduledoc "Returns a vector whose meaning is its order."
     @behaviour Pluteus.Analysis.Tool
