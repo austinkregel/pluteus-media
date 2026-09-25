@@ -110,7 +110,10 @@
         "musicvideo",
         "artist",
         "album",
-        "song"
+        "song",
+        "comicinfo",
+        "metroninfo",
+        "gamelist"
       ]
     },
     {
@@ -121,6 +124,20 @@
       "names": [
         ".plexmatch",
         "metadata.opf"
+      ]
+    },
+    {
+      "kind": "metadata",
+      "suffixes": [
+        ".info.json"
+      ]
+    },
+    {
+      "kind": "metadata",
+      "extensions": [
+        "pp3",
+        "dop",
+        "aae"
       ]
     },
     {
@@ -246,6 +263,22 @@
     "image2"
   ],
   "streamless_formats": {
+    "ines": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
+    "megadrive": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
+    "n64": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
+    "iso9660": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
     "x-fmt/111": {
       "class": "text",
       "essence": "not_applicable"
@@ -348,6 +381,8 @@
     "video": "home_video",
     "image": "photograph",
     "text": "document",
+    "package": "comic_issue",
+    "software": "video_game",
     "release": "album"
   },
   "media_types": {
@@ -384,5 +419,31 @@
       "extension": "flac",
       "format": "fmt/279"
     }
-  }
+  },
+  "byte_signatures": [
+    {
+      "format": "ines",
+      "offset": 0,
+      "hex": "4e45531a",
+      "for": "an NES cartridge dump in the iNES container"
+    },
+    {
+      "format": "megadrive",
+      "offset": 256,
+      "hex": "5345474120",
+      "for": "a Mega Drive or Genesis cartridge dump, whose header says SEGA at 0x100"
+    },
+    {
+      "format": "n64",
+      "offset": 0,
+      "hex": "80371240",
+      "for": "an N64 cartridge dump in big-endian byte order"
+    },
+    {
+      "format": "iso9660",
+      "offset": 32769,
+      "hex": "4344303031",
+      "for": "a disc image, whose primary volume descriptor says CD001 at 0x8001"
+    }
+  ]
 }
