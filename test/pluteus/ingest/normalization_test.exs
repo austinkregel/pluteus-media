@@ -217,6 +217,45 @@ defmodule Pluteus.Ingest.NormalizationTest do
     end
   end
 
+  describe "37. A software holding is adopted as its own master and never re-encoded" do
+    test "a cartridge dump is identified from its bytes as software", %{inbox: inbox} do
+      [dump] = ingest!(inbox, %{"Tennis.nes" => rom()})
+
+      assert dump.format == "ines"
+      assert dump.media_class == :software
+      assert dump.essence == :not_applicable
+    end
+
+    test "it takes the Normalized role itself, and no copy is written", %{inbox: inbox} do
+      [dump] = ingest!(inbox, %{"Tennis.nes" => rom()})
+
+      assert [{_, :adopted}] = Normalize.normalize_due()
+      assert Normalize.master_of(dump.digital_item_id).id == dump.id
+
+      assets = from(a in Asset, where: a.digital_item_id == ^dump.digital_item_id)
+      assert Repo.aggregate(assets, :count) == 1
+    end
+
+    test "a second pass leaves it alone", %{inbox: inbox} do
+      ingest!(inbox, %{"Tennis.nes" => rom()})
+      Normalize.normalize_due()
+
+      assert Normalize.normalize_due() == []
+    end
+
+    test "its category without evidence is a video game", %{inbox: inbox} do
+      [dump] = ingest!(inbox, %{"Tennis.nes" => rom()})
+
+      work =
+        Repo.get!(DigitalItem, dump.digital_item_id).manifestation_id
+        |> Catalog.expressions_in()
+        |> hd()
+        |> Map.fetch!(:work_id)
+
+      assert [%{value: "video_game", provenance: :automatic}] = Catalog.categories_of(work)
+    end
+  end
+
   defp ingest!(inbox, files) do
     for {path, bytes} <- files, do: drop!(inbox, path, bytes)
     ids = inbox |> acquire_settled!(@t0) |> acquired()
