@@ -21,6 +21,7 @@ defmodule Pluteus.AnalysisTest do
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
   alias Pluteus.Principals
+  alias Pluteus.Representation.Absence
   alias Pluteus.StorageFixtures
   alias Pluteus.Workers.AnalyseInput
   alias Pluteus.Workers.ScheduleAnalysis
@@ -297,6 +298,53 @@ defmodule Pluteus.AnalysisTest do
 
       {:ok, _} = Ingest.clear_finding(finding.id, actor.id)
       assert [_] = Analysis.due("strict-tool", "1")
+    end
+
+    test "a measurement the tool ran for and left undefined is recorded too",
+         %{inbox: inbox, actor: actor} do
+      # spec-10 §5.2 has no state for a field whose tool ran and produced nothing:
+      # a derivation exists, so *not yet examined* is false, and *attempted,
+      # failed* may not be reported without a finding. Recording the omission is
+      # what makes the condition reach a person rather than read as unexamined.
+      ingest!(inbox, %{"a.flac" => media!(:flac)})
+      [input] = Analysis.inputs()
+      {:ok, description} = Analysis.describe(AnalysisTools.Undefined)
+
+      assert {:ok, _derivation} = Analysis.analyse(AnalysisTools.Undefined, input, description)
+
+      # What it did measure still stands.
+      measured = Annotations.current_bodies([input.input_id], "measurements")[input.input_id]
+      assert Map.has_key?(measured, "spectral_centroid")
+      refute Map.has_key?(measured, "loudness_lufs")
+
+      [finding] = Ingest.open_findings()
+      assert finding.kind == "measurement_undefined"
+      assert finding.input_id == input.input_id
+      assert finding.detail["field"] == "loudness"
+
+      # Permanent, because the same bytes at the same version give the same answer.
+      assert finding.permanent
+
+      # It cannot loop, and clearing it does not cause a re-run: the derivation
+      # stands, so there is nothing left to run at this version either way.
+      assert Analysis.due("pluteus-native", "undefined-case") == []
+
+      {:ok, _} = Ingest.clear_finding(finding.id, actor.id)
+      assert Analysis.due("pluteus-native", "undefined-case") == []
+    end
+
+    test "a field left undefined does not fail the ones the same tool answered",
+         %{inbox: inbox} do
+      ingest!(inbox, %{"a.flac" => media!(:flac)})
+      [input] = Analysis.inputs()
+      {:ok, description} = Analysis.describe(AnalysisTools.Undefined)
+
+      {:ok, _} = Analysis.analyse(AnalysisTools.Undefined, input, description)
+
+      evidence = Absence.for_one(input.input_id)
+
+      # The finding names the field it is about, so it fails that one alone.
+      assert Absence.state(evidence, "loudness", :not_yet_examined) == :attempted_failed
     end
 
     test "a tool that raises on its last attempt is recorded, and the exception kept",
