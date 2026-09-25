@@ -23,6 +23,11 @@ defmodule Pluteus.Annotations.Annotation do
   import Ecto.Changeset
 
   alias Pluteus.Catalog.Res
+  alias Pluteus.Representation.Registry
+
+  @absence "absence"
+
+  @assertions ~w(sought_not_found known_unknowable known_absent)
 
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
@@ -43,6 +48,19 @@ defmodule Pluteus.Annotations.Annotation do
   @spec authored?(t()) :: boolean()
   def authored?(%__MODULE__{principal_id: principal_id}), do: not is_nil(principal_id)
 
+  @doc """
+  The body type whose subject is a named field of its target (spec-02 §6.5).
+  """
+  @spec absence() :: String.t()
+  def absence, do: @absence
+
+  @doc """
+  What such a body may assert, which spec-10 §5.2 makes the three states no
+  deployment may infer from the catalog's silence.
+  """
+  @spec assertions() :: [String.t()]
+  def assertions, do: @assertions
+
   def changeset(annotation, attrs) do
     annotation
     |> cast(attrs, [
@@ -57,6 +75,9 @@ defmodule Pluteus.Annotations.Annotation do
     ])
     |> validate_required([:id, :target_id, :body_type, :body])
     |> validate_provenance()
+    |> validate_absence()
+    |> check_constraint(:body, name: :an_absence_assertion_is_authored)
+    |> check_constraint(:body, name: :an_absence_assertion_names_a_field)
     |> check_constraint(:derivation_id, name: :provenance_is_a_principal_or_a_derivation)
     |> check_constraint(:agent_id, name: :agent_acts_through_a_principal)
     |> check_constraint(:agent_id, name: :agent_link_is_whole)
@@ -68,6 +89,34 @@ defmodule Pluteus.Annotations.Annotation do
     |> foreign_key_constraint(:derivation_id)
     |> foreign_key_constraint(:agent_id, name: :annotations_agent_id_fkey)
   end
+
+  # spec-02 §6.5. The field an absence assertion is about is drawn from a
+  # registry, and the vocabulary is what stops the mechanism becoming a free-text
+  # store of claims about arbitrary keys. Whether the field may be asserted about
+  # this target's kind needs the target's kind, so `Pluteus.Annotations` checks
+  # that where it has already loaded it.
+  defp validate_absence(changeset) do
+    case get_field(changeset, :body_type) do
+      @absence -> validate_change(changeset, :body, &absence_body/2)
+      _other -> changeset
+    end
+  end
+
+  defp absence_body(:body, %{"field" => field, "assertion" => assertion}) do
+    cond do
+      not Registry.named?(field) ->
+        [body: "#{field} is not a field an absence assertion may be about"]
+
+      assertion not in @assertions ->
+        [body: "an absence asserts one of #{Enum.join(@assertions, ", ")}, not #{assertion}"]
+
+      true ->
+        []
+    end
+  end
+
+  defp absence_body(:body, _without_subject),
+    do: [body: "an absence assertion carries the field it is about and what it asserts"]
 
   defp validate_provenance(changeset) do
     case {get_field(changeset, :principal_id), get_field(changeset, :derivation_id)} do
