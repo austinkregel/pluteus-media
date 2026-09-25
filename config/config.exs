@@ -27,7 +27,9 @@ config :pluteus, Pluteus.Changes.Release, start: true, interval: 1_000
 config :pluteus, Oban,
   engine: Oban.Engines.Basic,
   repo: Pluteus.Repo,
-  queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2],
+  # Two derivatives at a time: generating one reads a whole master and writes a new
+  # file, so the bound here is the disks' rather than the scheduler's.
+  queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2, presentation: 2],
   # Finished jobs are kept a week for inspection, then pruned. Nothing is known
   # only to a job: a failure a person must act on is a finding.
   pruner: [max_age: {7, :days}],
