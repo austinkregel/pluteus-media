@@ -19,13 +19,12 @@ defmodule PluteusWeb.ComposedNameTest do
   alias Pluteus.Repo
   alias Pluteus.Representation.ComposedName
 
-  @viewer "ada@household.test"
-
   setup %{conn: conn} do
     {:ok, principal} = Principals.create_principal(%{role: "member"})
-    {:ok, _} = Principals.bind_identity(principal.id, issuer(), @viewer)
+    viewer = a_subject()
+    {:ok, _} = Principals.bind_identity(principal.id, issuer(), viewer)
 
-    %{conn: through_proxy(conn, @viewer), principal: principal}
+    %{conn: through_proxy(conn, viewer), principal: principal}
   end
 
   describe "a name resolves per principal at the render boundary" do
