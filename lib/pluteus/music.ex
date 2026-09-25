@@ -186,7 +186,7 @@ defmodule Pluteus.Music do
     credits = effective_credits(Map.values(works))
     items = digital_items_of(album_ids ++ track_ids)
     assets = assets_of(Map.values(items))
-    probes = Annotations.current_bodies(album_ids ++ track_ids, "probe")
+    probes = probes_of(album_ids ++ track_ids, items, assets)
     measurements = Annotations.current_bodies(track_ids, "measurements")
     agents = for {_key, list} <- credits, credit <- list, credit.agent_id, do: credit.agent_id
     masters = for {{_item, :normalized}, asset} <- assets, do: asset.id
@@ -348,6 +348,29 @@ defmodule Pluteus.Music do
           select: {{a.digital_item_id, r.role_class}, a}
       )
     )
+  end
+
+  # spec-04 §6.1 records a probe against the asset whose bytes it read, so the
+  # reading for a manifestation is the one on the asset carrying its bytes. That is
+  # the Acquired asset: normalization may re-encode, and what a client is told about
+  # the release is what arrived.
+  defp probes_of(manifestation_ids, items, assets) do
+    acquired =
+      Map.new(manifestation_ids, fn manifestation_id ->
+        {manifestation_id, assets[{items[manifestation_id], :acquired}]}
+      end)
+
+    bodies =
+      acquired
+      |> Map.values()
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(& &1.id)
+      |> Annotations.current_bodies("probe")
+
+    Map.new(acquired, fn
+      {manifestation_id, nil} -> {manifestation_id, nil}
+      {manifestation_id, asset} -> {manifestation_id, bodies[asset.id]}
+    end)
   end
 
   defp extents_of(track_ids) do
