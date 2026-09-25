@@ -6,7 +6,44 @@ defmodule Pluteus.Catalog.AddressingTest do
   use Pluteus.DataCase, async: true
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.DeepLink
+
+  describe "§8.4, a selector type's basis is the columns it records its region in" do
+    test "every selector type has one, and every column in it is a field of the schema" do
+      fields = Address.__schema__(:fields)
+
+      for selector_type <- Address.selector_types() do
+        basis = Address.basis(selector_type)
+
+        assert basis != [], "#{selector_type} records its region nowhere"
+
+        for column <- basis do
+          assert column in fields, "#{selector_type}'s basis names #{column}, which is no column"
+        end
+      end
+    end
+
+    test "spatiotemporal is exactly a time range and a region, and nothing further" do
+      assert Address.basis(:spatiotemporal) ==
+               Address.basis(:temporal) ++ Address.basis(:spatial)
+    end
+
+    test "no other pair of types shares a column" do
+      types = Address.selector_types() -- [:spatiotemporal]
+
+      for one <- types, other <- types, one != other do
+        other_basis = Address.basis(other)
+        shared = Enum.filter(Address.basis(one), &(&1 in other_basis))
+
+        assert shared == [], "#{one} and #{other} both record in #{inspect(shared)}"
+      end
+    end
+
+    test "a type the closed set does not name raises" do
+      assert_raise KeyError, fn -> Address.basis(:volumetric) end
+    end
+  end
 
   describe "§8.5, a page is addressed at manifestation and below" do
     test "page forty-two of a scanned edition is accepted" do
