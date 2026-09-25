@@ -234,6 +234,13 @@ that risk assessments published against the registry apply. [PRONOM] is the
 established registry; DROID and Siegfried are the identification tools against
 it.
 
+Where PRONOM holds no byte signature for a format the household keeps, a
+deployment signature supplies one and the identifier is that signature's name
+([spec-04] §5.1). The rule above is unchanged by it: the bytes are still what
+decides, and a format PRONOM answers for still takes its PUID. What such an entry
+forgoes is the published risk assessment, so a format identified this way carries
+no decoder-support horizon and a report of holdings by format says so.
+
 Implementations SHOULD be able to report holdings by format, so that "what do we
 hold in formats losing decoder support" is answerable.
 
@@ -405,6 +412,10 @@ backups has a copy, not a backup.
 
 ### 11.2 Informative
 
+- **[spec-04]** *Ingest and Normalization*, this system. §5.2 decides the
+  `essence` value §3.2 requires an asset to record, from the codec and format
+  registry spec-01 §17 holds; §7 is when normalization runs over the bytes §4
+  governs.
 - **[spec-05]** *Metadata Acquisition and Matching*, this system. §8.4 equates
   res through §8.3's vocabulary and raises §8.5's candidates into it.
 - **[PRONOM]** The National Archives (UK) format registry.
