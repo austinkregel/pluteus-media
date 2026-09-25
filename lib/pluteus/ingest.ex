@@ -113,14 +113,29 @@ defmodule Pluteus.Ingest do
         }
       end)
 
-    {count, _} =
-      Repo.insert_all(Finding, rows,
-        on_conflict: :nothing,
-        conflict_target:
-          {:unsafe_fragment, "(location) WHERE location IS NOT NULL AND cleared_at IS NULL"}
-      )
+    record_stray(rows)
+  end
 
-    count
+  # In batches, because the wire protocol carries at most 65535 parameters in one
+  # statement and a finding spends nine of them. A single insert therefore fails
+  # outright somewhere past seven thousand stray files — and a deployment that has
+  # that many is exactly one whose operator needs the report, so the pass would
+  # crash every night for the reason it was most needed.
+  @per_statement 1_000
+
+  defp record_stray(rows) do
+    rows
+    |> Enum.chunk_every(@per_statement)
+    |> Enum.reduce(0, fn batch, recorded ->
+      {count, _} =
+        Repo.insert_all(Finding, batch,
+          on_conflict: :nothing,
+          conflict_target:
+            {:unsafe_fragment, "(location) WHERE location IS NOT NULL AND cleared_at IS NULL"}
+        )
+
+      recorded + count
+    end)
   end
 
   @doc """
