@@ -289,8 +289,12 @@ defmodule Pluteus.Presentation.Text do
   # poppler and tesseract both write their complaints to standard error and their answer
   # to standard output, so the two are kept apart: a syntax warning about a trailer is
   # not part of a publication's text.
+  #
+  # tesseract is built against OpenMP and will otherwise take a thread per core. The
+  # queue that runs it already bounds how many readings happen at once, and the two
+  # bounds multiplied leave nothing for the deployment to answer requests on.
   defp run(command, args) do
-    case System.cmd(command, args, stderr_to_stdout: false) do
+    case System.cmd(command, args, stderr_to_stdout: false, env: [{"OMP_THREAD_LIMIT", "2"}]) do
       {output, 0} ->
         {:ok, output}
 
