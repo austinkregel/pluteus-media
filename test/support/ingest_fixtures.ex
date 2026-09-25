@@ -256,8 +256,13 @@ defmodule Pluteus.IngestFixtures do
     ["-i", path, "-map_metadata", "1", "-map_chapters", "1"]
   end
 
+  # Bounded to two threads: the suite runs many of these at once, and ffmpeg's default
+  # is a thread per core. Unbounded, a handful of concurrent encodes oversubscribe the
+  # machine and the scheduler starvation shows up as unrelated tests timing out.
   defp ffmpeg!(args) do
-    case System.cmd("ffmpeg", ["-loglevel", "error", "-y" | args], stderr_to_stdout: true) do
+    arguments = ["-loglevel", "error", "-y", "-threads", "2" | args]
+
+    case System.cmd("ffmpeg", arguments, stderr_to_stdout: true) do
       {_output, 0} -> :ok
       {output, status} -> raise "ffmpeg exited #{status}: #{output}"
     end
