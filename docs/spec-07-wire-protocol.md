@@ -383,8 +383,9 @@ refused with error 43.
 | `transcoding` | 1 | `getTranscodeDecision`, `getTranscodeStream` (§6.7) |
 | `transcodeOffset` | 1 | the start offset `getTranscodeStream` accepts (§6.7) |
 
-An extension not listed MUST NOT be advertised. `sonicSimilarity` waits for
-spec-09.
+An extension not listed MUST NOT be advertised. spec-09 §15.2 adds
+`sonicSimilarity` to this set, and adds `getSimilarSongs` and `getSimilarSongs2`
+to §6.3's Browsing group.
 
 ### 6.3 Endpoints
 
@@ -503,7 +504,11 @@ the release's master, which is a transcode under spec-08 §13.1.
 refuses a track of a release held in one file: a cut of a release's master is
 not the bytes that arrived.
 
-`getCoverArt` serves the cover image as stored; `size` waits for spec-10.
+`getCoverArt` serves the cover image, and its integer `size` maps to the smallest
+presentation profile at or above it (§4.6; spec-10 §11.1 fixes the mapping). The
+response names the profile it served. This is the one place on any surface where a
+dimension is accepted, and it is accepted by being translated into §4.6's closed
+set rather than by widening it.
 
 ### 6.8 Errors
 
@@ -638,9 +643,12 @@ consumption data, which travels only on a principal's own topic.
 
 ### 9.2 Informative
 
+- **[spec-09]** *Search, Ranking and Recommendation*, this system. §15.2 is the
+  extension and the two Browsing endpoints §6.2 and §6.3 gain, and §9 is the
+  ranking this document's alphabetical ordering (§1.2) gives way to.
 - **[spec-10]** *Presentation*, this system. §5.2 is the state vocabulary §4.1
   carries, §6.3 the composed name, §9.1 which kinds negotiate to an interface,
-  §20 the presentation profiles §4.6 serves, and §18 the surface §3.4 admits a
-  key on.
+  §20 the presentation profiles §4.6 serves, §11.1 the mapping §6.7's `size`
+  takes, and §18 the surface §3.4 admits a key on.
 - **[notes-02]** [Protocol landscape](notes/02-protocol-landscape.md): the
   survey this surface was chosen from, and the clients it serves.
