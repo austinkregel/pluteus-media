@@ -297,34 +297,57 @@ defmodule Pluteus.Consumption do
   @doc """
   Sets a bookmark, which is the principal's resume position with a comment
   (spec-07 §6.5).
+
+  **No threshold is applied.** [spec-10] §13.2's floor and ceiling are what a
+  reporting *session* is weighed by; a bookmark is a person's explicit act, and
+  discarding one for being near the start would silently drop what they asked to
+  keep.
   """
-  @spec bookmark(Ecto.UUID.t(), Ecto.UUID.t(), non_neg_integer(), String.t() | nil) ::
+  @spec bookmark(
+          Ecto.UUID.t(),
+          Ecto.UUID.t(),
+          Ecto.UUID.t(),
+          non_neg_integer(),
+          String.t() | nil
+        ) ::
           {:ok, ResumePosition.t()} | {:error, Ecto.Changeset.t()}
-  def bookmark(principal_id, res_id, position_ms, comment) do
+  def bookmark(principal_id, res_id, device_id, position_ms, comment) do
     %ResumePosition{}
     |> ResumePosition.changeset(%{
       principal_id: principal_id,
       res_id: res_id,
-      position_ms: position_ms,
+      device_id: device_id,
+      position: position_ms,
+      unit: :millisecond,
+      reported_at: DateTime.utc_now(),
+      sequence: 0,
+      playing: false,
       comment: comment
     })
     |> Repo.insert(
-      on_conflict: {:replace, [:position_ms, :comment, :updated_at]},
-      conflict_target: [:principal_id, :res_id]
+      on_conflict:
+        {:replace, [:position, :unit, :reported_at, :sequence, :playing, :comment, :updated_at]},
+      conflict_target: [:principal_id, :res_id, :device_id]
     )
   end
 
   @spec bookmarks(Ecto.UUID.t()) :: [ResumePosition.t()]
   def bookmarks(principal_id), do: Events.resumable(principal_id)
 
+  @doc """
+  Removes the principal's bookmark on a res, from every device that holds one.
+
+  A position is kept per device (spec-01 §11.4), so deleting one res's bookmark
+  deletes as many rows as the principal has devices holding a position for it.
+  """
   @spec delete_bookmark(Ecto.UUID.t(), Ecto.UUID.t()) :: :ok | {:error, :not_found}
   def delete_bookmark(principal_id, res_id) do
     case Repo.delete_all(
            from r in ResumePosition,
              where: r.principal_id == ^principal_id and r.res_id == ^res_id
          ) do
-      {1, _} -> :ok
       {0, _} -> {:error, :not_found}
+      {removed, _} when removed > 0 -> :ok
     end
   end
 
