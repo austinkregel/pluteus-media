@@ -57,7 +57,7 @@ defmodule PluteusWeb.AbsenceTest do
         assert is_binary(body[key]), "#{key} is not a plain value"
       end
 
-      assert Enum.sort(Map.keys(body) -- ~w(name nomens categories related own)) ==
+      assert Enum.sort(Map.keys(body) -- ~w(name nomens categories geometry related own)) ==
                Enum.sort(@envelope)
     end
 
