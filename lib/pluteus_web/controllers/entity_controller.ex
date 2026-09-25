@@ -38,7 +38,7 @@ defmodule PluteusWeb.EntityController do
         profile = Native.profile(conn)
 
         json(conn, %{
-          "items" => Enum.map(shown, &Representation.of(&1, profile)),
+          "items" => Representation.of_many(shown, profile),
           "after" => if(more == [], do: nil, else: List.last(shown).id)
         })
 
