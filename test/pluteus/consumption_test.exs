@@ -32,7 +32,7 @@ defmodule Pluteus.ConsumptionTest do
 
   test "every function takes the principal whose data it reads or writes first" do
     assert Enum.sort(Consumption.__info__(:functions)) == [
-             bookmark: 4,
+             bookmark: 5,
              bookmarks: 1,
              create_playlist: 3,
              delete_bookmark: 2,
@@ -230,18 +230,49 @@ defmodule Pluteus.ConsumptionTest do
     test "are the principal's resume positions, with a comment", %{
       ada: ada,
       bo: bo,
+      devices: devices,
       songs: [song | _]
     } do
-      {:ok, _} = Consumption.bookmark(ada.id, song, 61_000, "the solo")
-      {:ok, _} = Consumption.bookmark(ada.id, song, 62_000, "after the solo")
+      phone = devices["phone"]
 
-      assert [%{position_ms: 62_000, comment: "after the solo"}] = Consumption.bookmarks(ada.id)
-      assert Events.resume_position(ada.id, song).position_ms == 62_000
+      {:ok, _} = Consumption.bookmark(ada.id, song, phone, 61_000, "the solo")
+      {:ok, _} = Consumption.bookmark(ada.id, song, phone, 62_000, "after the solo")
+
+      assert [%{position: 62_000, comment: "after the solo"}] = Consumption.bookmarks(ada.id)
+      assert Events.resume_position(ada.id, song).position == 62_000
       assert Consumption.bookmarks(bo.id) == []
 
       assert {:error, :not_found} = Consumption.delete_bookmark(bo.id, song)
       assert :ok = Consumption.delete_bookmark(ada.id, song)
       assert Consumption.bookmarks(ada.id) == []
+    end
+
+    test "a bookmark is kept wherever a session's report would be discarded", %{
+      ada: ada,
+      devices: devices,
+      songs: [song | _]
+    } do
+      # [spec-10] §13.2's floor is what a reporting session is weighed by. A
+      # bookmark is a person's explicit act, so one near the start is kept where a
+      # session's report of the same position would be discarded as barely begun.
+      {:ok, bookmark} = Consumption.bookmark(ada.id, song, devices["phone"], 1_000, "the intro")
+
+      assert bookmark.position == 1_000
+      refute bookmark.playing
+    end
+
+    test "a bookmark is one per device, as every position is", %{
+      ada: ada,
+      devices: devices,
+      songs: [song | _]
+    } do
+      {:ok, _} = Consumption.bookmark(ada.id, song, devices["phone"], 61_000, "on the phone")
+      {:ok, _} = Consumption.bookmark(ada.id, song, devices["desk"], 4_000, "at the desk")
+
+      # Two rows, and the continue surface shows one entry for the res.
+      assert [_, _] = Events.positions_for(ada.id, song)
+      assert [one] = Consumption.bookmarks(ada.id)
+      assert one.res_id == song
     end
   end
 
