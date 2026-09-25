@@ -19,6 +19,7 @@ defmodule Pluteus.Workers.GeneratePresentationAsset do
     unique: [keys: [:subject_id, :profile], states: :incomplete, period: :infinity]
 
   alias Pluteus.Presentation.Generate
+  alias Pluteus.Presentation.Registry
 
   @doc """
   Queues generation of one artefact, if it is not already queued.
@@ -28,6 +29,22 @@ defmodule Pluteus.Workers.GeneratePresentationAsset do
     %{subject_id: subject_id, profile: profile}
     |> new()
     |> Oban.insert()
+  end
+
+  @doc """
+  Queues the profiles §20 generates at ingest for a subject that has just been placed.
+
+  §11.6 permits generating an artefact at ingest where it is cheap and universally
+  needed, and names those in the registry rather than here. A profile that does not
+  apply to the subject is queued and cancels itself, which keeps the decision about
+  what applies in one place instead of two that could disagree.
+  """
+  @spec queue_at_ingest(Ecto.UUID.t()) :: [String.t()]
+  def queue_at_ingest(subject_id) do
+    for profile <- Registry.generated_at_ingest(),
+        {:ok, _job} = queue(subject_id, profile) do
+      profile
+    end
   end
 
   @impl Oban.Worker
