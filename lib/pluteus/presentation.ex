@@ -18,6 +18,11 @@ defmodule Pluteus.Presentation do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Catalog.AssetRole
+  alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Lifecycle.RecycledRes
+  alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Presentation.Asset
   alias Pluteus.Presentation.Registry
   alias Pluteus.Repo
@@ -191,4 +196,68 @@ defmodule Pluteus.Presentation do
   """
   @spec profile_for_size(pos_integer() | nil) :: map()
   def profile_for_size(size), do: Registry.image_profile_for_size(size)
+
+  @doc """
+  The broad class of the bytes a res is drawn from, or nil where it carries none.
+
+  spec-04 §5.3's class is recorded on the acquisition, and the acquisition's
+  identifier is the acquired asset's (spec-04 §6.1), so this is one join from the
+  res to what the bytes turned out to be.
+  """
+  @spec class_of(Ecto.UUID.t()) :: atom() | nil
+  def class_of(res_id) do
+    Repo.one(
+      from a in Acquisition,
+        join: d in DigitalItem,
+        on: d.id == a.digital_item_id,
+        join: r in AssetRole,
+        on: r.asset_id == a.id and r.role_class == :acquired,
+        where: d.manifestation_id == ^res_id or d.id == ^res_id or a.id == ^res_id,
+        order_by: [asc: a.id],
+        limit: 1,
+        select: a.media_class
+    )
+  end
+
+  @doc """
+  The asset a derivative of this res would be generated from, or nil.
+
+  The Normalized master, because a derivative should be drawn from the copy the
+  deployment intends to keep reading. Its absence is what distinguishes an artefact
+  waiting to be generated from one there is nothing to generate: a manifestation the
+  household describes but holds no file for has neither (spec-01 §5.2).
+  """
+  @spec source_for(Ecto.UUID.t()) :: Pluteus.Catalog.Asset.t() | nil
+  def source_for(res_id) do
+    Repo.one(
+      from a in Pluteus.Catalog.Asset,
+        join: d in DigitalItem,
+        on: d.id == a.digital_item_id,
+        join: r in AssetRole,
+        on: r.asset_id == a.id and r.role_class == :normalized,
+        where: d.manifestation_id == ^res_id or d.id == ^res_id or a.id == ^res_id,
+        where: a.id not in subquery(from(b in RecycledRes, select: b.res_id)),
+        where: a.id not in subquery(from(t in Tombstone, select: t.res_id)),
+        order_by: [asc: a.id],
+        limit: 1
+    )
+  end
+
+  @doc """
+  Whether a profile is one this subject can have at all (§11.1).
+
+  §11 groups its artefacts by the kind of thing they are made from, and each profile
+  names the broad classes it applies to. A waveform of a photograph is not an
+  artefact that has not been generated yet; it is not an artefact.
+
+  A subject whose class is unknown — nothing has been placed under it — applies to
+  nothing, because there are no bytes to derive from.
+  """
+  @spec applies?(map(), Ecto.UUID.t()) :: boolean()
+  def applies?(profile, subject_id) do
+    case class_of(subject_id) do
+      nil -> false
+      class -> Atom.to_string(class) in Map.fetch!(profile, "classes")
+    end
+  end
 end
