@@ -45,6 +45,7 @@ defmodule Pluteus.Representation do
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
+  alias Pluteus.Presentation.Geometry
   alias Pluteus.Repo
   alias Pluteus.Representation.Absence
   alias Pluteus.Representation.ComposedName
@@ -73,6 +74,11 @@ defmodule Pluteus.Representation do
     res_ids = Enum.map(res_list, & &1.id)
     evidence = Absence.for_res(res_ids)
     measurements = Annotations.current_bodies(res_ids, @measurements)
+    categories = Catalog.categories_of_many(res_ids)
+
+    # [spec-10] §11.2 requires a visual res's dimensions in this call, so a surface
+    # can reserve a box before it asks for any bytes.
+    geometry = Geometry.for_res(res_ids)
 
     # Both reads are per profile: §7.3 makes a non-null assigner a name specific to
     # that agent, so one person's word for a thing never reaches another.
@@ -89,6 +95,8 @@ defmodule Pluteus.Representation do
       context = %{
         evidence: Map.fetch!(evidence, res.id),
         measurements: Map.get(measurements, res.id, %{}),
+        categories: Map.get(categories, res.id, []),
+        geometry: geometry[res.id],
         resolved: resolved[res.id],
         nomens: Map.get(nomens, res.id, []),
         composed: composed[res.id]
@@ -107,9 +115,10 @@ defmodule Pluteus.Representation do
       "nomens" => Field.of(Enum.map(context.nomens, &nomen/1), absent(context, "nomens")),
       "categories" =>
         Field.of(
-          Enum.map(Catalog.categories_of(res.id), &category/1),
+          Enum.map(context.categories, &category/1),
           absent(context, "categories")
         ),
+      "geometry" => Field.of(geometry(context.geometry), absent(context, "geometry")),
       "related" => related(res, context),
       "own" => own(res, context)
     }
@@ -125,6 +134,13 @@ defmodule Pluteus.Representation do
 
   defp absent(context, field, otherwise \\ :not_yet_examined),
     do: Absence.state(context.evidence, field, otherwise)
+
+  # §11.2's dimensions and the ratio that follows from them. A res nobody has probed
+  # reports *not yet examined* rather than a zero-sized box.
+  defp geometry(nil), do: nil
+
+  defp geometry(%{width: width, height: height, aspect_ratio: aspect_ratio}),
+    do: %{"width" => width, "height" => height, "aspect_ratio" => aspect_ratio}
 
   defp name(nil), do: nil
   defp name(%Nomen{nomen_string: nomen_string}), do: nomen_string
