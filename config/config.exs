@@ -45,6 +45,9 @@ config :pluteus, Oban,
       {"30 4 * * *", Pluteus.Workers.FindStrayBytes},
       # spec-03 §5.2: verification is scheduled, not incidental.
       {"0 * * * *", Pluteus.Workers.ScheduleVerification},
+      # [spec-10] §11.6: the derivative cache is bounded, and the bound is kept by a
+      # pass that records having run.
+      {"20 * * * *", Pluteus.Workers.EvictPresentationAssets},
       # spec-01 §14.1: the recycle-bin window closes on its own.
       {"0 3 * * *", Pluteus.Workers.PurgeExpired}
     ]
@@ -67,6 +70,15 @@ config :pluteus, Pluteus.Ingest,
     software: 90 * 86_400,
     companion: 90 * 86_400
   }
+
+# [spec-10] §11.6. The derivative cache's bound, which is capacity rather than
+# vocabulary and so is configured here and not in §20's registry. Age and size both
+# bound it: a library browsed daily never idles out, and one browsed once never
+# reaches the ceiling. The period is what a run is called overdue against.
+config :pluteus, Pluteus.Presentation,
+  byte_ceiling: 5 * 1024 * 1024 * 1024,
+  idle_seconds: 30 * 86_400,
+  eviction_period_seconds: 3_600
 
 # spec-04 §8. The deriving tools that run, and the wire schema versions a tool
 # response may carry.
