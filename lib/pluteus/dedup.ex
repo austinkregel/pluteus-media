@@ -94,10 +94,19 @@ defmodule Pluteus.Dedup do
   under the earlier one's expression. Whichever of the work and expression it
   was placed under are left holding nothing are recycled, attributed to the
   deciding principal, so one work remains.
+
+  `:same_work` is the level above it, and is carried out the same way one level
+  up: the later one's expressions are realized under the earlier one's work, and
+  the work they left is recycled if it is holding nothing. **Both expressions
+  remain**, because that is the whole of what this decision says — a live
+  recording and a studio recording of one song realize one work and are not one
+  realization, and two dumps of one game stand in the same relation (spec-04
+  §6.9). A pair that is also one expression is decided `:same_expression`; there
+  is no decision that splits an expression back apart.
   """
   @spec decide(
           Ecto.UUID.t(),
-          :same_holding | :same_expression | :distinct,
+          :same_holding | :same_expression | :same_work | :distinct,
           Ecto.UUID.t(),
           DateTime.t()
         ) :: {:ok, Candidate.t()} | {:error, term()}
@@ -132,6 +141,13 @@ defmodule Pluteus.Dedup do
     end
   end
 
+  defp carry_out(:same_work, candidate, principal_id, now) do
+    case resolve_same_work(candidate, principal_id, now) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
   defp carry_out(_decision, _candidate, _principal_id, _now), do: :ok
 
   defp resolve_same_expression(
@@ -147,6 +163,54 @@ defmodule Pluteus.Dedup do
       [] -> {:error, :first_embodies_no_expression}
       [_ | _] -> {:error, :first_embodies_several_expressions}
     end
+  end
+
+  defp resolve_same_work(
+         %Candidate{left_id: first_id, right_id: second_id},
+         principal_id,
+         now
+       ) do
+    first = manifestation_of!(first_id)
+    second = manifestation_of!(second_id)
+
+    case works_realized_by(first) do
+      [kept] -> realize_under(kept, Catalog.expressions_in(second), principal_id, now)
+      [] -> {:error, :first_embodies_no_expression}
+      [_ | _] -> {:error, :first_realizes_several_works}
+    end
+  end
+
+  defp works_realized_by(manifestation_id) do
+    manifestation_id
+    |> Catalog.expressions_in()
+    |> Enum.map(& &1.work_id)
+    |> Enum.uniq()
+  end
+
+  # Every expression the pair's later half embodies is realized under the surviving
+  # work. The expressions themselves are untouched: §8.3's *same work* says the two
+  # realize one creation and says nothing about the realizations being one.
+  defp realize_under(work_id, expressions, principal_id, now) do
+    moving = Enum.reject(expressions, &(&1.work_id == work_id))
+
+    for expression <- moving do
+      {:ok, _} = Catalog.realize(work_id, expression.id)
+    end
+
+    moving
+    |> Enum.map(& &1.work_id)
+    |> Enum.uniq()
+    |> Enum.filter(&(Catalog.expressions_of(&1) == []))
+    |> recycle_each(principal_id, now)
+  end
+
+  defp recycle_each(res_ids, principal_id, now) do
+    Enum.reduce_while(res_ids, :ok, fn res_id, :ok ->
+      case Lifecycle.recycle(res_id, principal_id, now: now) do
+        {:ok, _recycling} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {res_id, reason}}}
+      end
+    end)
   end
 
   defp move_under(manifestation_id, expression_id, principal_id, now) do
@@ -187,12 +251,7 @@ defmodule Pluteus.Dedup do
       if expression_counts[expression.work_id] == 1, do: expression.work_id, else: expression.id
     end)
     |> Enum.uniq()
-    |> Enum.reduce_while(:ok, fn res_id, :ok ->
-      case Lifecycle.recycle(res_id, principal_id, now: now) do
-        {:ok, _recycling} -> {:cont, :ok}
-        {:error, reason} -> {:halt, {:error, {res_id, reason}}}
-      end
-    end)
+    |> recycle_each(principal_id, now)
   end
 
   defp manifestation_of!(res_id) do
