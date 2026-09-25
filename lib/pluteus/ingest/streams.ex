@@ -117,6 +117,40 @@ defmodule Pluteus.Ingest.Streams do
   end
 
   @doc """
+  The chapters a container declares, each with its title and its range in
+  milliseconds ([spec-10] §11.3).
+
+  A chapter list needs no presentation asset and §20 names no profile for one, because
+  the probe already reads it: it is the container's own metadata rather than something
+  derived from the bytes. A container declaring none has none, which is what §11.3's
+  "where present" means.
+  """
+  @spec chapters(map() | nil) :: [map()]
+  def chapters(nil), do: []
+
+  def chapters(probe) do
+    probe
+    |> Map.get("chapters", [])
+    |> Enum.map(fn chapter ->
+      %{
+        "title" => get_in(chapter, ["tags", "title"]),
+        "start_ms" => milliseconds(chapter["start_time"]),
+        "end_ms" => milliseconds(chapter["end_time"])
+      }
+    end)
+    |> Enum.reject(&(&1["start_ms"] == nil or &1["end_ms"] == nil))
+  end
+
+  defp milliseconds(nil), do: nil
+
+  defp milliseconds(seconds) when is_binary(seconds) do
+    case Float.parse(seconds) do
+      {value, _rest} -> round(value * 1000)
+      :error -> nil
+    end
+  end
+
+  @doc """
   The container's duration in milliseconds.
   """
   @spec duration_ms(map()) :: non_neg_integer()
