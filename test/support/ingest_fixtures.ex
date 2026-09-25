@@ -187,7 +187,9 @@ defmodule Pluteus.IngestFixtures do
       ["-disposition:a:0", "comment", "-disposition:a:1", "default"]
   end
 
-  defp args(:ffv1, opts, _dir), do: moving(opts) ++ ["-c:v", "ffv1"]
+  defp args(:ffv1, opts, dir),
+    do: moving(opts) ++ chapters(opts[:chapters], dir) ++ ["-c:v", "ffv1"]
+
   defp args(:x264_444, _opts, _dir), do: moving() ++ ["-c:v", "libx264", "-pix_fmt", "yuv444p"]
   defp args(:png, _opts, _dir), do: still()
   defp args(:jpeg, _opts, _dir), do: still()
@@ -207,6 +209,29 @@ defmodule Pluteus.IngestFixtures do
 
   defp tags(tags),
     do: Enum.flat_map(tags, fn {key, value} -> ["-metadata", "#{key}=#{value}"] end)
+
+  # Chapters travel in a metadata file rather than on the command line, so they are
+  # written beside the output and read back in as a second input.
+  defp chapters(nil, _dir), do: []
+
+  defp chapters(chapters, dir) do
+    path = Path.join(dir, "chapters.txt")
+
+    body =
+      Enum.map_join(chapters, "\n", fn {title, {from_ms, to_ms}} ->
+        """
+        [CHAPTER]
+        TIMEBASE=1/1000
+        START=#{from_ms}
+        END=#{to_ms}
+        title=#{title}
+        """
+      end)
+
+    File.write!(path, ";FFMETADATA1\n" <> body)
+
+    ["-i", path, "-map_metadata", "1", "-map_chapters", "1"]
+  end
 
   defp ffmpeg!(args) do
     case System.cmd("ffmpeg", ["-loglevel", "error", "-y" | args], stderr_to_stdout: true) do
