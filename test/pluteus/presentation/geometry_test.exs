@@ -25,8 +25,11 @@ defmodule Pluteus.Presentation.GeometryTest do
     %{inbox: inbox!()}
   end
 
+  # Under a prefix of its own, because two async tests dropping one relative path
+  # contend on the sighting and acquisition rows for as long as the slower one runs.
   defp ingest!(inbox, files) do
-    for {path, bytes} <- files, do: drop!(inbox, path, bytes)
+    prefix = unique_prefix()
+    for {path, bytes} <- files, do: drop!(inbox, Path.join(prefix, path), bytes)
     ids = inbox |> acquire_settled!(@t0) |> acquired()
     Place.place_due(inbox)
     ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.sort_by(& &1.inbox_path)
