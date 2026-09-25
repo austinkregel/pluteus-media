@@ -33,6 +33,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Consumption
   alias Pluteus.Consumption.Rating
   alias Pluteus.Consumption.Star
+  alias Pluteus.ConsumptionFixtures
   alias Pluteus.Dedup
   alias Pluteus.Events
   alias Pluteus.Events.Event
@@ -819,9 +820,16 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
 
     test "and so is the position they had reached" do
-      %{principal: principal, work: work} = a_household_member()
+      %{principal: principal} = a_household_member()
 
-      {:ok, _} = Events.set_resume_position(principal.id, work.id, 1_820_000)
+      resumable = ConsumptionFixtures.resumable_work!(principal.id)
+
+      ConsumptionFixtures.position!(
+        principal.id,
+        resumable.work.id,
+        resumable.device.id,
+        1_820_000
+      )
 
       Principals.rebind_issuer(
         "https://auth.example/realms/home",
@@ -829,7 +837,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
         "b4c2"
       )
 
-      assert Events.resume_position(principal.id, work.id).position_ms == 1_820_000
+      assert Events.resume_position(principal.id, resumable.work.id).position == 1_820_000
     end
 
     test "nothing but the identity row holds the composite" do
@@ -878,15 +886,22 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
 
     test "a resumption list does not carry what somebody else left part-way" do
-      %{principal: ada, work: work} = a_household_member()
+      %{principal: ada} = a_household_member()
       %{principal: bo} = another_household_member()
 
-      {:ok, _} = Events.set_resume_position(ada.id, work.id, 1_820_000)
-      {:ok, _} = Events.set_resume_position(bo.id, work.id, 640_000)
+      resumable = ConsumptionFixtures.resumable_work!(ada.id)
+      {:ok, bo_device} = Principals.bind_device(bo.id, "bo's television")
+
+      ConsumptionFixtures.position!(ada.id, resumable.work.id, resumable.device.id, 1_820_000)
+      ConsumptionFixtures.position!(bo.id, resumable.work.id, bo_device.id, 640_000)
 
       assert [position] = Events.resumable(ada.id)
-      assert position.position_ms == 1_820_000
-      assert Events.resume_position(ada.id, work.id).position_ms == 1_820_000
+      assert position.position == 1_820_000
+      assert Events.resume_position(ada.id, resumable.work.id).position == 1_820_000
+
+      # Each sees only their own, though the res and the moment are shared.
+      assert [theirs] = Events.resumable(bo.id)
+      assert theirs.position == 640_000
     end
 
     test "no function in the events module answers without being told whose events" do
@@ -896,12 +911,15 @@ defmodule Pluteus.Catalog.ConformanceTest do
                for_principal: 1,
                play_count: 3,
                plays: 3,
+               positions_for: 2,
                record: 3,
                record: 4,
                record: 5,
+               report_position: 1,
                resumable: 1,
+               resumable: 2,
                resume_position: 2,
-               set_resume_position: 3
+               resume_position: 3
              ]
     end
   end
@@ -1520,6 +1538,89 @@ defmodule Pluteus.Catalog.ConformanceTest do
       assert_raise Postgrex.Error, ~r/a res does not change kind: person to artist/, fn ->
         Repo.update_all(from(r in Res, where: r.id == ^artist.id), set: [kind: :artist])
       end
+    end
+  end
+
+  describe "40. Two devices reporting different positions produce two positions" do
+    test "each names its device, unit, reporting time, session sequence and playing flag" do
+      %{principal: principal} = a_household_member()
+
+      resumable = ConsumptionFixtures.resumable_work!(principal.id)
+      {:ok, television} = Principals.bind_device(principal.id, "the television")
+
+      ConsumptionFixtures.position!(
+        principal.id,
+        resumable.work.id,
+        resumable.device.id,
+        900_000,
+        sequence: 7,
+        playing: false
+      )
+
+      ConsumptionFixtures.position!(
+        principal.id,
+        resumable.work.id,
+        television.id,
+        1_500_000,
+        sequence: 3,
+        playing: true
+      )
+
+      # Two devices holding different positions for one principal and one res is
+      # the ordinary case, not the error case (§11.4).
+      assert [_, _] = positions = Events.positions_for(principal.id, resumable.work.id)
+
+      for position <- positions do
+        for field <- ResumePosition.required() do
+          refute is_nil(Map.fetch!(position, field)),
+                 "a position carries no #{field}"
+        end
+      end
+
+      by_device = Map.new(positions, &{&1.device_id, &1})
+
+      assert by_device[resumable.device.id].sequence == 7
+      refute by_device[resumable.device.id].playing
+      assert by_device[television.id].sequence == 3
+      assert by_device[television.id].playing
+      assert by_device[television.id].unit == :millisecond
+    end
+
+    test "a second report from one device replaces that device's position and no other" do
+      %{principal: principal} = a_household_member()
+
+      resumable = ConsumptionFixtures.resumable_work!(principal.id)
+      {:ok, television} = Principals.bind_device(principal.id, "the television")
+
+      ConsumptionFixtures.position!(principal.id, resumable.work.id, resumable.device.id, 900_000)
+      ConsumptionFixtures.position!(principal.id, resumable.work.id, television.id, 1_500_000)
+      ConsumptionFixtures.position!(principal.id, resumable.work.id, resumable.device.id, 950_000)
+
+      assert [_, _] = positions = Events.positions_for(principal.id, resumable.work.id)
+
+      by_device = Map.new(positions, &{&1.device_id, &1.position})
+
+      assert by_device[resumable.device.id] == 950_000
+      assert by_device[television.id] == 1_500_000
+    end
+
+    test "a position above the ceiling is not kept, and the res is recorded as consumed" do
+      %{principal: principal} = a_household_member()
+
+      resumable = ConsumptionFixtures.resumable_work!(principal.id)
+
+      # spec-01 §11.3 makes *completed* the deployment's to establish rather than
+      # a client's to report, so a surface and a count cannot disagree.
+      assert {:discarded, :consumed} =
+               ConsumptionFixtures.report(
+                 principal.id,
+                 resumable.work.id,
+                 resumable.device.id,
+                 7_100_000
+               )
+
+      assert Events.positions_for(principal.id, resumable.work.id) == []
+      assert Events.play_count(principal.id, resumable.work.id, "completed") == 1
     end
   end
 
