@@ -198,25 +198,36 @@ defmodule Pluteus.Presentation do
   def profile_for_size(size), do: Registry.image_profile_for_size(size)
 
   @doc """
-  The broad class of the bytes a res is drawn from, or nil where it carries none.
+  What the bytes behind a res turned out to be: the broad class spec-04 §5.3 recorded,
+  and for a companion the kind §4.6 recognized it as. Nil where no bytes were placed.
 
-  spec-04 §5.3's class is recorded on the acquisition, and the acquisition's
-  identifier is the acquired asset's (spec-04 §6.1), so this is one join from the
-  res to what the bytes turned out to be.
+  The kind refines the class because a companion's category *is* its kind (§6.3), and
+  a cover and a lyrics file are as unalike as an image and a document. Without it,
+  either every companion could have an image profile or none could.
   """
-  @spec class_of(Ecto.UUID.t()) :: atom() | nil
-  def class_of(res_id) do
+  @spec classification(Ecto.UUID.t()) :: {atom(), String.t() | nil} | nil
+  def classification(res_id) do
     Repo.one(
       from a in Acquisition,
-        join: d in DigitalItem,
-        on: d.id == a.digital_item_id,
-        join: r in AssetRole,
-        on: r.asset_id == a.id and r.role_class == :acquired,
-        where: d.manifestation_id == ^res_id or d.id == ^res_id or a.id == ^res_id,
+        where: a.digital_item_id == subquery(digital_item_of(res_id)),
         order_by: [asc: a.id],
         limit: 1,
-        select: a.media_class
+        select: {a.media_class, a.companion_kind}
     )
+  end
+
+  # A manifestation, a digital item or an asset all name one holding, and everything
+  # here hangs off its digital item. Resolving that first is what lets an asset be a
+  # subject even where the asset asked about is not the one a derivative is drawn
+  # from: a cover whose original was re-encoded is still the same holding.
+  defp digital_item_of(res_id) do
+    from d in DigitalItem,
+      left_join: a in Pluteus.Catalog.Asset,
+      on: a.digital_item_id == d.id,
+      where: d.manifestation_id == ^res_id or d.id == ^res_id or a.id == ^res_id,
+      order_by: [asc: d.id],
+      limit: 1,
+      select: d.id
   end
 
   @doc """
@@ -231,11 +242,9 @@ defmodule Pluteus.Presentation do
   def source_for(res_id) do
     Repo.one(
       from a in Pluteus.Catalog.Asset,
-        join: d in DigitalItem,
-        on: d.id == a.digital_item_id,
         join: r in AssetRole,
         on: r.asset_id == a.id and r.role_class == :normalized,
-        where: d.manifestation_id == ^res_id or d.id == ^res_id or a.id == ^res_id,
+        where: a.digital_item_id == subquery(digital_item_of(res_id)),
         where: a.id not in subquery(from(b in RecycledRes, select: b.res_id)),
         where: a.id not in subquery(from(t in Tombstone, select: t.res_id)),
         order_by: [asc: a.id],
@@ -255,9 +264,10 @@ defmodule Pluteus.Presentation do
   """
   @spec applies?(map(), Ecto.UUID.t()) :: boolean()
   def applies?(profile, subject_id) do
-    case class_of(subject_id) do
+    case classification(subject_id) do
       nil -> false
-      class -> Atom.to_string(class) in Map.fetch!(profile, "classes")
+      {:companion, kind} -> kind in Map.fetch!(profile, "companion_kinds")
+      {class, _no_kind} -> Atom.to_string(class) in Map.fetch!(profile, "classes")
     end
   end
 end
