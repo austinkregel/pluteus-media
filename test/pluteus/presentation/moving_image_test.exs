@@ -32,8 +32,12 @@ defmodule Pluteus.Presentation.MovingImageTest do
     %{inbox: inbox!()}
   end
 
+  # Under a prefix of its own, because two async tests dropping one relative path
+  # contend on the sighting and acquisition rows for as long as the slower one runs, and
+  # encoding three quarters of a minute of video is slow.
   defp ingest!(inbox, files) do
-    for {path, bytes} <- files, do: drop!(inbox, path, bytes)
+    prefix = unique_prefix()
+    for {path, bytes} <- files, do: drop!(inbox, Path.join(prefix, path), bytes)
     ids = inbox |> acquire_settled!(@t0) |> acquired()
     Place.place_due(inbox)
     Normalize.normalize_due()
@@ -188,7 +192,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
 
   describe "§11.6's at-ingest set is generated once a holding has a master" do
     test "normalizing a photograph queues the registry's profiles", %{inbox: inbox} do
-      drop!(inbox, "holiday/IMG_0001.png", media!(:png))
+      drop!(inbox, Path.join(unique_prefix(), "holiday/IMG_0001.png"), media!(:png))
       inbox |> acquire_settled!(@t0) |> acquired()
       Place.place_due(inbox)
 
@@ -203,7 +207,9 @@ defmodule Pluteus.Presentation.MovingImageTest do
 
     test "the ones that do not apply cancel themselves, and the rest are made",
          %{inbox: inbox} do
-      drop!(inbox, "holiday/IMG_0001.png", media!(:png))
+      path = Path.join(unique_prefix(), "holiday/IMG_0001.png")
+
+      drop!(inbox, path, media!(:png))
       inbox |> acquire_settled!(@t0) |> acquired()
       Place.place_due(inbox)
       NormalizeHoldings.perform(%Oban.Job{})
@@ -215,7 +221,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
       assert made == 2
       assert refused == 2
 
-      [photo] = Ingest.acquisitions_from("holiday/IMG_0001.png")
+      [photo] = Ingest.acquisitions_from(path)
       artefacts = Presentation.for_subject(manifestation_of(photo))
       locations = Enum.map(artefacts, & &1.location)
       on_exit(fn -> for location <- locations, do: Storage.delete(location) end)
