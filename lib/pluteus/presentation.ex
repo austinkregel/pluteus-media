@@ -25,6 +25,7 @@ defmodule Pluteus.Presentation do
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Presentation.Asset
   alias Pluteus.Presentation.Registry
+  alias Pluteus.Presentation.Waveform
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -190,6 +191,46 @@ defmodule Pluteus.Presentation do
   @spec current?(Asset.t(), String.t()) :: boolean()
   def current?(%Asset{source_digest: source_digest}, digest_now),
     do: source_digest == digest_now
+
+  @doc """
+  The profile to serve a waveform at, for a surface that wants this many points per
+  second (§11.4, criterion 30).
+
+  The coarsest profile that supports the zoom, because a coarser one would have to be
+  stretched. Nil where no profile reaches it: a surface asking for finer than anything
+  measured is told so rather than handed an artefact to interpolate, since decimating
+  a stored waveform is a coarser view of the same shape and interpolating one draws a
+  shape the audio does not have.
+
+  Where two profiles reach the zoom equally — which happens for a short recording,
+  whose fixed-count overview is as dense as a rate-based detail — the one §20 generates
+  at ingest wins, because it is already there and the other would be encoded to say the
+  same thing.
+  """
+  @spec waveform_for_zoom(number(), non_neg_integer()) :: map() | nil
+  def waveform_for_zoom(points_per_second, duration_ms) do
+    at_ingest = Registry.generated_at_ingest()
+
+    [Registry.waveform_overview() | Registry.waveform_detail()]
+    |> Enum.filter(&Waveform.supports_zoom?(resolution_of(&1, duration_ms), points_per_second))
+    |> Enum.min_by(
+      fn profile ->
+        {Waveform.resolution(resolution_of(profile, duration_ms)),
+         if(Map.fetch!(profile, "name") in at_ingest, do: 0, else: 1)}
+      end,
+      fn -> nil end
+    )
+  end
+
+  defp resolution_of(profile, duration_ms), do: Map.put(profile, "duration_ms", duration_ms)
+
+  @doc """
+  Whether an artefact a surface holds can be drawn at this zoom without inventing
+  anything (criterion 30).
+  """
+  @spec supports_zoom?(Asset.t(), number()) :: boolean()
+  def supports_zoom?(%Asset{descriptor: descriptor}, points_per_second),
+    do: Waveform.supports_zoom?(descriptor, points_per_second)
 
   @doc """
   The profile an OpenSubsonic `size` maps to (spec-07 §6.7, §11.1).
