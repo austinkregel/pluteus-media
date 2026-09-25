@@ -36,6 +36,7 @@ defmodule Pluteus.Analysis do
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
   alias Pluteus.Repo
+  alias Pluteus.Representation.Registry, as: FieldRegistry
   alias Pluteus.Storage
 
   @type input :: %{
@@ -293,9 +294,16 @@ defmodule Pluteus.Analysis do
     end
   end
 
-  # The tool has run by now, outside any transaction; recording what it measured
-  # is the only part that writes, and it is the deployment's own write.
+  # The tool has run by now, outside any transaction. Only the recording writes,
+  # and it writes as the deployment.
   defp record(name, version, input, master, measurements) do
+    result = record_measurements(name, version, input, master, measurements)
+    record_undefined(name, version, input, measurements)
+
+    result
+  end
+
+  defp record_measurements(name, version, input, master, measurements) do
     Actor.as(Principals.system!().id, fn ->
       {:ok, derivation} =
         Annotations.record_derivation(%{
@@ -320,6 +328,46 @@ defmodule Pluteus.Analysis do
 
       {:ok, derivation}
     end)
+  end
+
+  # A registry-named field the tool answers for and left unmeasured gets a finding
+  # naming that field. spec-10 §5.2 reports *attempted, failed* only where a finding
+  # stands, so without one the derivation would make the field read *not yet
+  # examined*. Naming the field keeps the tool's other measurements answered.
+  #
+  # Permanent: the same bytes at the same version measure the same, so there is
+  # nothing to retry. Clearing it records that a person has seen it. To say more
+  # than "a tool could not", they assert *known unknowable* (spec-02 §6.5), which
+  # outranks the finding.
+  defp record_undefined(name, version, input, measurements) do
+    for field <- undefined(name, input.input_id, measurements) do
+      Ingest.record_finding(%{
+        stage: :analyse,
+        kind: "measurement_undefined",
+        permanent: true,
+        detail: %{"field" => field},
+        input_id: input.input_id,
+        tool_version_id: Repo.get_by!(ToolVersion, tool: name, version: version).id
+      })
+    end
+  end
+
+  defp undefined(tool, input_id, measurements) do
+    case Lifecycle.state(input_id) do
+      {:live, %{kind: kind}} ->
+        for descriptor <- FieldRegistry.derived_fields(kind),
+            descriptor["derived"]["tool"] == tool,
+            not Map.has_key?(measurements, descriptor["derived"]["key"]),
+            do: descriptor["name"]
+
+      # Recycled or purged while the tool was running. What it measured is still
+      # recorded; nothing further is recorded against a res on its way out.
+      {:recycled, _res, _recycling} ->
+        []
+
+      {:purged, _res, _tombstone} ->
+        []
+    end
   end
 
   defp fail(name, version, input, kind, permanent, reason, outcome) do
