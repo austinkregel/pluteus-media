@@ -1,0 +1,44 @@
+{
+  "absence_fields": [
+    {
+      "name": "creators",
+      "kinds": ["work"],
+      "for": "nobody is recorded as having made this, and a person has looked. spec-02 6.5's photographer case"
+    },
+    {
+      "name": "credits",
+      "kinds": ["work"],
+      "for": "who is credited on this, where a person has established that nothing more is findable"
+    },
+    {
+      "name": "time_span",
+      "kinds": ["work", "expression", "manifestation"],
+      "for": "when this was made or captured. spec-02 6.5's date case, which a scan of an undated letter reaches"
+    },
+    {
+      "name": "digital_items",
+      "kinds": ["manifestation"],
+      "for": "the household describes this and holds no file for it. Zero digital items establishes not_held on its own (spec-01 5.2); an assertion here says a person has decided no file will be found"
+    },
+    {
+      "name": "assets",
+      "kinds": ["digital_item"],
+      "for": "every stored copy is lost. Zero assets establishes not_held on its own (spec-01 5.5)"
+    },
+    {
+      "name": "language",
+      "kinds": ["nomen"],
+      "for": "this name belongs to no language in the relevant sense, asserted rather than left null. spec-01 7.2 makes null mean absent and gives no column for unknown"
+    },
+    {
+      "name": "loudness",
+      "kinds": ["manifestation"],
+      "derived": {
+        "tool": "pluteus-native",
+        "body_type": "measurements",
+        "key": "loudness_lufs"
+      },
+      "for": "integrated loudness in LUFS. The derived source is what makes not_yet_examined and attempted_failed distinguishable for a field, since a signal entirely below the absolute gate has no loudness to report"
+    }
+  ]
+}
