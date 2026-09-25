@@ -1,0 +1,64 @@
+{
+  "resume_thresholds": {
+    "music_recording": {
+      "regime": "proportional", "unit": "millisecond",
+      "floor": 0.05, "ceiling": 0.95, "minimum_length_ms": 600000
+    },
+    "album": {
+      "regime": "proportional", "unit": "millisecond",
+      "floor": 0.05, "ceiling": 0.95, "minimum_length_ms": 600000
+    },
+    "audiobook": {
+      "regime": "absolute", "unit": "millisecond",
+      "floor_ms": 60000, "ceiling_remaining_ms": 300000, "minimum_length_ms": 600000
+    },
+    "podcast_episode": {
+      "regime": "absolute", "unit": "millisecond",
+      "floor_ms": 30000, "ceiling_remaining_ms": 60000, "minimum_length_ms": 300000
+    },
+    "film": {
+      "regime": "absolute", "unit": "millisecond",
+      "floor_ms": 120000, "ceiling_remaining_ms": 180000, "minimum_length_ms": 600000
+    },
+    "television_episode": {
+      "regime": "absolute", "unit": "millisecond",
+      "floor_ms": 60000, "ceiling_remaining_ms": 90000, "minimum_length_ms": 300000
+    },
+    "home_video": {
+      "regime": "proportional", "unit": "millisecond",
+      "floor": 0.05, "ceiling": 0.95, "minimum_length_ms": 300000
+    },
+    "document": {
+      "regime": "proportional", "unit": "page",
+      "floor": 0.02, "ceiling": 0.95, "minimum_length_pages": 20
+    },
+    "ebook": {
+      "regime": "proportional", "unit": "page",
+      "floor": 0.02, "ceiling": 0.95, "minimum_length_pages": 20
+    },
+    "comic_issue": {
+      "regime": "proportional", "unit": "page",
+      "floor": 0.05, "ceiling": 0.95, "minimum_length_pages": 8
+    },
+    "photograph": { "regime": "none" },
+    "scan": { "regime": "none" },
+    "video_game": { "regime": "none" },
+    "cover_art": { "regime": "none" },
+    "lyrics": { "regime": "none" },
+    "subtitles": { "regime": "none" },
+    "cue_sheet": { "regime": "none" },
+    "description": { "regime": "none" },
+    "metadata": { "regime": "none" }
+  },
+
+  "reporting_interval_ms": 10000,
+
+  "backwards_threshold": {
+    "millisecond": 60000,
+    "page": 5,
+    "character": 2000,
+    "word": 400
+  },
+
+  "inactivity_period_ms": 1800000
+}
