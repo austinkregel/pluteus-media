@@ -26,21 +26,28 @@ Writing the rule is not the same as following it. Before finishing any file,
 re-read it for sentences whose subject is the document, the code, or a previous
 version of either.
 
-## 2. No output-filtering shell commands
+## 2. A command's output is never filtered before it is seen
 
-Enforced by `.claude/hooks/block-filter-pipes.py`. Blocked in Bash: `grep`,
-`head`, `tail`, `sed`, `awk`, `cut`, `sort`, `uniq`, `tr`, `column`, `less`,
-`more`, `fold`, `nl`, `rg`, `ag`, `ack`.
+Enforced by the stackmap plugin's `no-truncate.mjs`, which denies a pipeline
+whose later stages include `grep`, `head`, `tail`, `sed`, `awk`, `cut`, `sort`,
+`uniq`, `tr`, `column`, `less`, `more`, `fold`, `nl`, `rg`, `ag` or `ack` unless
+`tee` is the stage immediately after the producer.
 
-They discard or buffer output before it is seen, which hides the part that
-mattered. Instead:
+A filter on a live stream discards the part that mattered before anyone can see
+it, and the command has to be run again to get it back. A filter on a file does
+not, because the file can be read again. So:
 
 - Run the command and read all of its output.
-- Capture large output: `<command> | tee /tmp/out.txt`, then Read the file.
-  `tee` is allowed because it preserves the stream and the file can be re-read
-  without re-running the command.
-- Search files with the Grep and Glob tools.
+- Capture large output first: `<command> 2>&1 | tee /tmp/out.txt`, then filter or
+  Read the file. Filtering the saved file is fine.
 - Read part of a file with Read's `offset` and `limit`.
+
+Two things the hook does not catch, which are still violations:
+
+- A filter reached through another program, `docker compose run app grep …`
+  among them. The guard reads the command, not what the command runs.
+- A file read or edited by script — `node -e`, `python -c`, `sed -i` — rather
+  than with Read, Edit and Write.
 
 ## 3. Everything runs in a container
 
