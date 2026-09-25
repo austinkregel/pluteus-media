@@ -39,6 +39,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Recycling
   alias Pluteus.Lifecycle.Tombstone
+  alias Pluteus.Presentation.Asset, as: PresentationAsset
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -174,7 +175,18 @@ defmodule Pluteus.Lifecycle do
   @spec purge(Recycling.t(), DateTime.t()) :: {:ok, map()}
   def purge(%Recycling{} = recycling, now) do
     res_ids = contents(recycling.id)
-    locations = Repo.all(from a in Asset, where: a.id in ^res_ids, select: a.location)
+
+    # A derivative's bytes are gathered with the holding's. Nothing else will find
+    # them afterwards: `Ingest.find_stray_bytes/1` walks the holdings layout, and a
+    # presentation location sits outside it, so a leak here is visible only as the
+    # finding below.
+    locations =
+      Repo.all(from a in Asset, where: a.id in ^res_ids, select: a.location) ++
+        Repo.all(
+          from p in PresentationAsset,
+            where: p.subject_id in ^res_ids or p.source_asset_id in ^res_ids,
+            select: p.location
+        )
 
     {:ok, _changes} =
       Multi.new()
@@ -422,6 +434,14 @@ defmodule Pluteus.Lifecycle do
   # already gone. The res rows themselves are kept as tombstones.
   defp delete_structure(multi, ids) do
     [
+      # First, because a presentation asset references the asset it was drawn from
+      # and that reference deletes nothing on its own. Purging a res takes its
+      # derivatives with it: they are regenerable from bytes that are also going
+      # (spec-01 §13.7).
+      presentation_assets:
+        from(p in PresentationAsset,
+          where: p.subject_id in ^ids or p.source_asset_id in ^ids
+        ),
       annotations: from(n in Annotation, where: n.id in ^ids),
       verifications: from(v in Verification, where: v.asset_id in ^ids),
       assets: from(a in Asset, where: a.id in ^ids),
