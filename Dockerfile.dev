@@ -31,6 +31,22 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# [spec-10] §11.5's text artefacts and §11.2's tiled pyramid.
+#
+# poppler-utils extracts a publication's text and its per-word positions, which are
+# the substrate for search and for anchoring an annotation to a phrase. tesseract-ocr
+# does the same for a scan, where the text is in the pixels rather than in the file;
+# its English data is the only language pack installed, and a household holding
+# another adds that pack rather than changing this.
+#
+# libvips reads and writes a tiled pyramid without holding the whole image, which is
+# what makes a 600dpi scan tileable at all: ffmpeg would decode the full frame per
+# tile, and above §20's threshold that is gigabytes per request.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       poppler-utils tesseract-ocr tesseract-ocr-eng libvips-tools \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app
