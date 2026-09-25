@@ -96,6 +96,15 @@ defmodule Pluteus.Presentation.Registry do
   def assumed_aspect_ratio(category), do: Map.fetch!(fetch("assumed_aspect_ratio"), category)
 
   @doc """
+  Every category the registry names a ratio for, which is every category presented
+  as a holding.
+  """
+  @spec categories_with_ratio() :: [String.t()]
+  def categories_with_ratio do
+    for {category, ratio} <- fetch("assumed_aspect_ratio"), ratio != nil, do: category
+  end
+
+  @doc """
   The pixel count above which a scan is tiled rather than served by profile, and
   the tile geometry (spec-10 §11.2).
   """
