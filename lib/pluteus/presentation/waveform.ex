@@ -83,8 +83,11 @@ defmodule Pluteus.Presentation.Waveform do
   # Mono, because §20 asks for one channel: a stereo waveform drawn as one shape is
   # two shapes overlaid, and the registry says which this is.
   defp decode(location, target, sample_rate) do
+    # Bounded for the reason `Pluteus.Presentation.Generate` bounds its own: the queue
+    # already says how many of these run at once, and decoding one recording is no
+    # reason to take every core.
     args =
-      ~w(-loglevel error -nostdin -y -i) ++
+      ~w(-loglevel error -nostdin -y -threads 2 -i) ++
         [Storage.path(location)] ++
         ["-ac", "1", "-ar", Integer.to_string(sample_rate), "-f", "s16le", target]
 
