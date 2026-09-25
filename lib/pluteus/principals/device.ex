@@ -6,6 +6,13 @@ defmodule Pluteus.Principals.Device do
   played on it is the binding principal's. A television everyone uses is
   bound to whoever authenticated it last, and switching viewer is switching
   principal.
+
+  **`label` is a display string and never an identifier.** Identity is the
+  device's own `id`, which is what a resume position, an event and a play queue
+  are keyed by ([spec-01] §11.4). Two devices of one principal may carry the same
+  label; the only cost is that a surface naming the player shows them alike, which
+  is a legibility question for whoever names them rather than anything the model
+  rests on.
   """
 
   use Ecto.Schema
