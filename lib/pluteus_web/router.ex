@@ -49,6 +49,11 @@ defmodule PluteusWeb.Router do
       get "/#{path}/:id", EntityController, :show, assigns: %{kind: kind}
       delete "/#{path}/:id", EntityController, :delete, assigns: %{kind: kind}
       post "/#{path}/:id/categories", WriteController, :categorize, assigns: %{kind: kind}
+
+      # [spec-10] §11.1. Inside this comprehension so the kind stays fixed by the
+      # path, as §9.1 requires of every entity URI.
+      get "/#{path}/:id/presentation/:profile", PresentationController, :show,
+        assigns: %{kind: kind}
     end
 
     get "/assets/:id/content", ContentController, :show
