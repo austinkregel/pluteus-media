@@ -906,6 +906,10 @@ and `category presentation` are read by this document and are not restated here.
   detected segment marker anchors nothing a person asserted.
 - **[spec-05]** *Metadata Acquisition and Matching*, this system. §14 and
   criterion 30 are why §6.4 consults nothing outside the household.
-- **[spec-09]** *Search, Ranking and Recommendation*, not yet written.
+- **[spec-09]** *Search, Ranking and Recommendation*, this system. §12 and its
+  criterion 43 draw §6.4's prohibition on an outbound query triggered by a render
+  over the ranking operations too, so no path a person reaches by pressing play
+  or by asking for something like this leaves the household. §8 generates the
+  sets a session plays and specifies no part of playing them.
 - **[RFC8628]** OAuth 2.0 Device Authorization Grant, by which a television
   enrols (spec-07 §3.4).
