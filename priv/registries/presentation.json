@@ -1,0 +1,89 @@
+{
+  "image_profiles": [
+    { "name": "image-160", "width": 160, "format": "jpeg", "quality": 82,
+      "for": "a list row, and a grid tile at one device pixel per CSS pixel" },
+    { "name": "image-320", "width": 320, "format": "jpeg", "quality": 82,
+      "for": "a grid tile at 1x, a list row at 2x" },
+    { "name": "image-640", "width": 640, "format": "jpeg", "quality": 82,
+      "for": "an entity page's cover at 1x, a grid tile at 2x" },
+    { "name": "image-1280", "width": 1280, "format": "jpeg", "quality": 80,
+      "for": "a full-width detail, and a television poster at 1x" },
+    { "name": "image-2048", "width": 2048, "format": "jpeg", "quality": 78,
+      "for": "a photograph, a comic page or a scan in its viewer" }
+  ],
+  "default_image_profile": "image-640",
+  "placeholder_profile": {
+    "name": "image-blur-16", "width": 16, "format": "jpeg", "quality": 40,
+    "for": "the blurred approximation spec-10 5.4 permits as a loading state, computed from the image's own pixels"
+  },
+
+  "assumed_aspect_ratio": {
+    "album": 1.0,
+    "music_recording": 1.0,
+    "audiobook": 1.0,
+    "podcast_episode": 1.0,
+    "film": 0.6667,
+    "television_episode": 0.6667,
+    "video_game": 0.6667,
+    "home_video": 1.7778,
+    "photograph": 1.5,
+    "scan": 0.7071,
+    "document": 0.7071,
+    "ebook": 0.625,
+    "comic_issue": 0.6471,
+    "cover_art": 1.0,
+    "lyrics": null,
+    "subtitles": null,
+    "cue_sheet": null,
+    "description": null,
+    "metadata": null
+  },
+
+  "tiling": {
+    "threshold_pixels": 16000000,
+    "tile_size": 512,
+    "format": "jpeg",
+    "compliance_level": 1
+  },
+
+  "trickplay": {
+    "name": "trickplay-320",
+    "frame_interval_ms": 10000,
+    "frame_width": 320,
+    "tile_columns": 10,
+    "tile_rows": 10,
+    "format": "jpeg",
+    "quality": 75
+  },
+
+  "key_frame": {
+    "name": "keyframe",
+    "regime": "proportional",
+    "proportion": 0.1,
+    "minimum_ms": 10000,
+    "maximum_ms": 600000,
+    "width": 1280,
+    "format": "jpeg"
+  },
+
+  "waveform_profiles": {
+    "overview": { "name": "waveform-overview-1000", "points": 1000, "bits": 8, "channels": 1 },
+    "detail": [
+      { "name": "waveform-detail-10", "points_per_second": 10, "bits": 8, "channels": 1 },
+      { "name": "waveform-detail-100", "points_per_second": 100, "bits": 8, "channels": 1 }
+    ]
+  },
+
+  "text_profiles": [
+    { "name": "text-extracted", "media_type": "text/plain; charset=utf-8" },
+    { "name": "text-word-positions", "media_type": "application/json" },
+    { "name": "text-position-list", "media_type": "application/json" }
+  ],
+
+  "generated_at_ingest": [
+    "image-160",
+    "image-320",
+    "waveform-overview-1000",
+    "keyframe"
+  ]
+}
