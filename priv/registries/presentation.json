@@ -77,14 +77,21 @@
   "waveform_profiles": {
     "overview": {
       "name": "waveform-overview-1000",
-      "classes": ["audio"],
-      "points": 1000, "bits": 8, "channels": 1
+      "classes": ["audio"], "companion_kinds": [],
+      "points": 1000, "bits": 8, "channels": 1,
+      "media_type": "application/json",
+      "sample_rate": 8000,
+      "for": "what a transport bar draws: a constant few kilobytes for a track or a nine-hour recording"
     },
     "detail": [
-      { "name": "waveform-detail-10", "classes": ["audio"],
-        "points_per_second": 10, "bits": 8, "channels": 1 },
-      { "name": "waveform-detail-100", "classes": ["audio"],
-        "points_per_second": 100, "bits": 8, "channels": 1 }
+      { "name": "waveform-detail-10", "classes": ["audio"], "companion_kinds": [],
+        "points_per_second": 10, "bits": 8, "channels": 1,
+        "media_type": "application/json", "sample_rate": 8000,
+        "for": "inspecting a passage" },
+      { "name": "waveform-detail-100", "classes": ["audio"], "companion_kinds": [],
+        "points_per_second": 100, "bits": 8, "channels": 1,
+        "media_type": "application/json", "sample_rate": 8000,
+        "for": "inspecting a single word or transient" }
     ]
   },
 
