@@ -14,15 +14,15 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
   describe "3. sub alone is never accepted: the proxy's identity is paired with its issuer" do
     test "a principal mapped under another issuer is not the one served", %{conn: conn} do
       {:ok, elsewhere} = Principals.create_principal(%{role: "member"})
+      viewer = a_subject()
 
-      {:ok, _} =
-        Principals.bind_identity(elsewhere.id, "https://elsewhere.test", "ada@household.test")
+      {:ok, _} = Principals.bind_identity(elsewhere.id, "https://elsewhere.test", viewer)
 
       {:ok, %{work: work}} = Catalog.create_work("The Dig")
 
-      assert get(through_proxy(conn, "ada@household.test"), "/works/#{work.id}").status == 200
+      assert get(through_proxy(conn, viewer), "/works/#{work.id}").status == 200
 
-      served = Principals.principal_for(issuer(), "ada@household.test")
+      served = Principals.principal_for(issuer(), viewer)
       refute served.id == elsewhere.id
     end
   end
@@ -30,39 +30,49 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
   describe "the proxy is the only way identity arrives" do
     setup do
       {:ok, principal} = Principals.create_principal(%{role: "member"})
-      {:ok, _} = Principals.bind_identity(principal.id, issuer(), "ada@household.test")
+      viewer = a_subject()
+      {:ok, _} = Principals.bind_identity(principal.id, issuer(), viewer)
       {:ok, %{work: work}} = Catalog.create_work("The Dig")
-      %{principal: principal, work: work}
+      %{principal: principal, work: work, viewer: viewer}
     end
 
-    test "identity headers without the proxy's secret are not read", %{conn: conn, work: work} do
+    test "identity headers without the proxy's secret are not read", %{
+      conn: conn,
+      work: work,
+      viewer: viewer
+    } do
       conn =
         conn
-        |> put_req_header("x-authentik-email", "ada@household.test")
+        |> put_req_header("x-authentik-email", viewer)
         |> get("/works/#{work.id}")
 
       assert conn.status == 401
     end
 
-    test "a wrong secret is the same as none", %{conn: conn, work: work} do
+    test "a wrong secret is the same as none", %{conn: conn, work: work, viewer: viewer} do
       conn =
         conn
         |> put_req_header("x-pluteus-proxy-secret", "guessed")
-        |> put_req_header("x-authentik-email", "ada@household.test")
+        |> put_req_header("x-authentik-email", viewer)
         |> get("/works/#{work.id}")
 
       assert conn.status == 401
     end
 
-    test "through the proxy the member is served", %{conn: conn, work: work} do
-      assert get(through_proxy(conn, "ada@household.test"), "/works/#{work.id}").status == 200
+    test "through the proxy the member is served", %{conn: conn, work: work, viewer: viewer} do
+      assert get(through_proxy(conn, viewer), "/works/#{work.id}").status == 200
     end
 
-    test "a retired principal is refused", %{conn: conn, work: work, principal: principal} do
+    test "a retired principal is refused", %{
+      conn: conn,
+      work: work,
+      principal: principal,
+      viewer: viewer
+    } do
       {:ok, admin} = Principals.create_principal(%{role: "administrator"})
       {:ok, _} = Administration.retire_principal(admin, principal.id)
 
-      conn = get(through_proxy(conn, "ada@household.test"), "/works/#{work.id}")
+      conn = get(through_proxy(conn, viewer), "/works/#{work.id}")
 
       assert conn.status == 403
       assert Jason.decode!(conn.resp_body)["title"] == "retired"
@@ -74,9 +84,10 @@ defmodule PluteusWeb.PrincipalsConformanceTest do
       conn: conn
     } do
       {:ok, %{work: work}} = Catalog.create_work("The Dig")
+      cousin = a_subject("cousin")
 
-      assert get(through_proxy(conn, "cousin@elsewhere.test"), "/works/#{work.id}").status == 200
-      assert Principals.principal_for(issuer(), "cousin@elsewhere.test").role == "member"
+      assert get(through_proxy(conn, cousin), "/works/#{work.id}").status == 200
+      assert Principals.principal_for(issuer(), cousin).role == "member"
     end
   end
 
