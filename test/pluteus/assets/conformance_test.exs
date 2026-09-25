@@ -499,6 +499,46 @@ defmodule Pluteus.Assets.ConformanceTest do
       assert {:live, _} = Lifecycle.state(reading.id)
       assert {:recycled, _, _} = Lifecycle.state(context.rescan_expression.id)
     end
+
+    test "same work keeps both expressions and recycles only the work they left",
+         context do
+      [first_expression] = Catalog.expressions_in(context.manifestation.id)
+
+      assert {:ok, %{decision: :same_work}} =
+               Dedup.decide(context.candidate.id, :same_work, context.principal.id)
+
+      # spec-03 §8.3's level above *same expression*: one work, two realizations of
+      # it. A live take and a studio take of one song stand in this relation, and so
+      # do two dumps of one game (spec-04 §6.9, criterion 40).
+      assert {:live, _} = Lifecycle.state(context.rescan_expression.id)
+      assert {:live, _} = Lifecycle.state(first_expression.id)
+      assert [%{id: still_its_own}] = Catalog.expressions_in(context.rescan.id)
+      assert still_its_own == context.rescan_expression.id
+
+      realizing = context.manifestation.id |> works_of() |> hd()
+      assert works_of(context.rescan.id) == [realizing]
+
+      assert [_, _] = Catalog.expressions_of(realizing)
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan_work.id)
+    end
+
+    test "same work leaves a work that still realizes something alone", context do
+      {:ok, %{expression: reading}} =
+        Catalog.add_expression(context.rescan_work.id, "Letter from Ada, read aloud")
+
+      {:ok, _} = Dedup.decide(context.candidate.id, :same_work, context.principal.id)
+
+      assert {:live, _} = Lifecycle.state(context.rescan_work.id)
+      assert {:live, _} = Lifecycle.state(reading.id)
+      assert {:live, _} = Lifecycle.state(context.rescan_expression.id)
+    end
+  end
+
+  defp works_of(manifestation_id) do
+    manifestation_id
+    |> Catalog.expressions_in()
+    |> Enum.map(& &1.work_id)
+    |> Enum.uniq()
   end
 
   defp attrs(overrides \\ []) do
