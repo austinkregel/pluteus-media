@@ -626,12 +626,28 @@ item carrying the issue manifestation, and a page is a `page` selector on it
 (§5.3). A trade paperback collecting issues is an aggregate (spec-01 §5.3) and
 MUST NOT be given a whole-part relation to the issues' works.
 
-**Video game.** The game is the work. A regional release carrying a translated
-script is a parallel expression, by §6.4's test; a revision that changes nothing
-but defects is another manifestation of one expression. Placement cannot tell
-these apart from the bytes — a dump says it differs from another dump, not how —
-so it places each dump as a manifestation of one expression and leaves the
-distinction to matching (spec-05 §9.5) or to a person.
+**Video game.** The game is the work, and two dumps of it are two expressions of
+that work — the relation a live recording and a studio recording of one song
+stand in. A regional release carrying a translated script is a parallel
+expression by §6.4's test; a revision differing only in defects is a second
+expression too, because it is a different combination of signs and nothing about
+it is the same realization.
+
+**Placement does not group them.** A dump carries no embedded tags, §4.5 forbids
+consulting its name, and spec-01 §4.3's identifiers are not in the bytes either,
+so nothing at placement can know two dumps are of one game. Each is placed as a
+work of its own, and the two are brought together afterwards by the *same work*
+decision of spec-03 §8.3, reached through matching (spec-05 §9.5's digest
+registries) or by a person. That decision moves the expressions under one work
+and recycles the emptied one.
+
+*Same work* and not *same expression*, which is the level below it. Two dumps
+have different bytes, and a household that merges them into one expression
+asserts the two realize one combination of signs — a claim about content that
+nothing has established. *Same work* asserts only that they are the same game,
+which is what the evidence supports. A person who knows two dumps are of one
+release may go on to decide *same expression* for them; the reverse, splitting an
+expression back apart, is not a decision spec-03 §8.3 offers.
 
 Normalization re-encodes none of these. A package and a software holding have no
 standard format in the registry, and §7 therefore adopts each as its own master.
@@ -869,8 +885,9 @@ place.
     part sequence, not a release of tracks.
 39. A podcast episode is a work positioned within its serial work at
     manifestation level, and a comic issue likewise within its series.
-40. Two dumps of one game are placed as two manifestations of one expression,
-    and whether one is a parallel expression is left to matching or to a person.
+40. Two dumps of one game are each placed as a work of their own, because nothing
+    in the bytes groups them, and the *same work* decision of spec-03 §8.3 leaves
+    them as two expressions of one work.
 
 ---
 
