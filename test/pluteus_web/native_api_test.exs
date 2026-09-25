@@ -25,10 +25,17 @@ defmodule PluteusWeb.NativeApiTest do
 
       body = conn |> get("/works/#{work.id}") |> json_response(200)
 
-      assert %{"id" => id, "kind" => "work", "state" => "live", "name" => "Kind of Blue"} = body
+      assert %{"id" => id, "kind" => "work", "state" => "live"} = body
       assert id == work.id
-      assert body["related"]["expressions"] == [expression.id]
-      assert Enum.all?(body["related"], fn {_relation, value} -> not is_map(value) end)
+      assert body["name"] == %{"state" => "held", "value" => "Kind of Blue"}
+      assert body["related"]["expressions"] == %{"state" => "held", "value" => [expression.id]}
+
+      # A field term is a map, carrying a value and its state (spec-07 §4.1). What
+      # a related field holds is an identifier or a list of them, and never
+      # another res's representation.
+      for {_relation, field} <- body["related"], value = field["value"] do
+        assert Enum.all?(List.wrap(value), &is_binary/1)
+      end
     end
 
     test "a member's name outranks placement's, and language picks among them", %{conn: conn} do
@@ -39,7 +46,8 @@ defmodule PluteusWeb.NativeApiTest do
       |> post("/nomens", %{"res_id" => work.id, "nomen_string" => "Symphony", "language" => "en"})
       |> json_response(201)
 
-      assert %{"name" => "Symphony"} = conn |> get("/works/#{work.id}") |> json_response(200)
+      assert %{"name" => %{"state" => "held", "value" => "Symphony"}} =
+               conn |> get("/works/#{work.id}") |> json_response(200)
 
       conn
       |> post("/nomens", %{"res_id" => work.id, "nomen_string" => "Sinfonie", "language" => "de"})
@@ -50,7 +58,7 @@ defmodule PluteusWeb.NativeApiTest do
           conn
           |> get("/works/#{work.id}", %{"language" => language})
           |> json_response(200)
-          |> Map.fetch!("name")
+          |> get_in(["name", "value"])
         end
 
       assert names == ["Symphony", "Sinfonie"]
