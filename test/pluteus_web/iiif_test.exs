@@ -28,14 +28,14 @@ defmodule PluteusWeb.IiifTest do
   alias Pluteus.Storage
 
   @t0 ~U[2026-09-18 12:00:00.000000Z]
-  @viewer "ada@household.test"
 
   setup %{conn: conn} do
     _system = Principals.system!()
     {:ok, principal} = Principals.create_principal(%{role: "member"})
-    {:ok, _} = Principals.bind_identity(principal.id, issuer(), @viewer)
+    viewer = a_subject()
+    {:ok, _} = Principals.bind_identity(principal.id, issuer(), viewer)
 
-    %{conn: through_proxy(conn, @viewer), inbox: inbox!()}
+    %{conn: through_proxy(conn, viewer), inbox: inbox!()}
   end
 
   # Under a prefix of its own, because two async tests dropping one relative path
