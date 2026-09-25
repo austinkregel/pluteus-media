@@ -355,8 +355,17 @@ Placement writes a holding's work, expression, manifestation, digital item and
 asset in one transaction, with the asset taking the acquisition's identifier.
 No asset exists before its digital item does. The same transaction records the
 placement on the acquisition record and turns its probe output into derived
-annotations on the manifestation. The asset's verification interval (spec-03
-§3.2) is the one the deployment configures for its broad class.
+annotations on **the asset whose bytes were probed**. The asset's verification
+interval (spec-03 §3.2) is the one the deployment configures for its broad class.
+
+**The asset and not the manifestation.** spec-02 §4.1 makes a derivation's input
+the res the tool ran over, and the tool ran over one file. A digital item realized
+by parts (§6.9) has an asset per part under one manifestation, so recording each
+part's probe against the manifestation makes every part's reading the current run
+of ffprobe over that input and supersedes the one before it: a multi-file audiobook
+would keep only the probe of whichever part was placed last, and the rest would be
+retained as superseded without anything having gone wrong. A reader wanting the
+probe for a manifestation reads it from the asset carrying the bytes it means.
 
 Placement of a file waits until its inbox directory has settled: until no file
 in the directory is still being written or awaiting identification. A
