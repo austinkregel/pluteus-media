@@ -11,22 +11,24 @@ defmodule PluteusWeb.ConformanceTest do
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
 
-  @viewer "ada@household.test"
-
   setup %{conn: conn} do
     {:ok, principal} = Principals.create_principal(%{role: "member"})
-    {:ok, _} = Principals.bind_identity(principal.id, issuer(), @viewer)
+    viewer = a_subject()
+    {:ok, _} = Principals.bind_identity(principal.id, issuer(), viewer)
     {:ok, %{work: work, expression: expression}} = Catalog.create_work("The Dig")
 
     %{
-      conn: through_proxy(conn, @viewer),
+      conn: through_proxy(conn, viewer),
+      viewer: viewer,
       principal: principal,
       work: work,
       expression: expression
     }
   end
 
-  defp viewer, do: through_proxy(build_conn(), @viewer)
+  # A second request as the same person, on a connection that carries none of the first
+  # one's state.
+  defp viewer(subject), do: through_proxy(build_conn(), subject)
 
   describe "27. A recycled entity returns 410 with no-store and a type distinct from purged" do
     test "a live entity is served", %{conn: conn, work: work} do
@@ -58,10 +60,11 @@ defmodule PluteusWeb.ConformanceTest do
     test "a purged one is gone too, under a different problem type", %{
       conn: conn,
       work: work,
-      principal: principal
+      principal: principal,
+      viewer: viewer
     } do
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
-      recycled = get(viewer(), "/works/#{work.id}")
+      recycled = get(viewer(viewer), "/works/#{work.id}")
 
       {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
       purged = get(conn, "/works/#{work.id}")
@@ -88,9 +91,13 @@ defmodule PluteusWeb.ConformanceTest do
       assert conn.status == 404
     end
 
-    test "an expression's identifier names no work", %{conn: conn, expression: expression} do
+    test "an expression's identifier names no work", %{
+      conn: conn,
+      expression: expression,
+      viewer: viewer
+    } do
       assert get(conn, "/works/#{expression.id}").status == 404
-      assert get(viewer(), "/expressions/#{expression.id}").status == 200
+      assert get(viewer(viewer), "/expressions/#{expression.id}").status == 200
     end
   end
 
@@ -98,10 +105,11 @@ defmodule PluteusWeb.ConformanceTest do
     test "the work answers at the URI it always had", %{
       conn: conn,
       work: work,
-      principal: principal
+      principal: principal,
+      viewer: viewer
     } do
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
-      assert get(viewer(), "/works/#{work.id}").status == 410
+      assert get(viewer(viewer), "/works/#{work.id}").status == 410
 
       {:ok, _} = Lifecycle.restore(recycling.id)
 
@@ -113,10 +121,11 @@ defmodule PluteusWeb.ConformanceTest do
       conn: conn,
       work: work,
       expression: expression,
-      principal: principal
+      principal: principal,
+      viewer: viewer
     } do
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
-      assert get(viewer(), "/expressions/#{expression.id}").status == 410
+      assert get(viewer(viewer), "/expressions/#{expression.id}").status == 410
 
       {:ok, _} = Lifecycle.restore(recycling.id)
 
