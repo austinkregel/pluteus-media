@@ -32,6 +32,7 @@ defmodule PluteusWeb.PresentationController do
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Asset
   alias Pluteus.Presentation.Registry
+  alias Pluteus.Workers.GeneratePresentationAsset
   alias PluteusWeb.Native
   alias PluteusWeb.Problem
   alias PluteusWeb.StoredBytes
@@ -137,6 +138,9 @@ defmodule PluteusWeb.PresentationController do
     end
   end
 
+  # 202 queues the work and says so; the job's uniqueness is what keeps a page of
+  # tiles asking at once from encoding the same artefact many times. 204 queues
+  # nothing, because there is nothing to generate from.
   defp awaited(conn, subject_id, profile) do
     conn = put_resp_header(conn, "presentation-profile", profile)
 
@@ -145,6 +149,7 @@ defmodule PluteusWeb.PresentationController do
         send_resp(conn, 204, "")
 
       _source ->
+        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, profile)
         send_resp(conn, 202, "")
     end
   end
