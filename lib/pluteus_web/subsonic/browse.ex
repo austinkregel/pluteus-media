@@ -13,8 +13,11 @@ defmodule PluteusWeb.Subsonic.Browse do
   alias Pluteus.Music
   alias Pluteus.Music.Album
   alias Pluteus.Music.Song
+  alias Pluteus.Presentation
+  alias Pluteus.Presentation.Generate
   alias Pluteus.Storage
   alias PluteusWeb.ContentController
+  alias PluteusWeb.StoredBytes
   alias PluteusWeb.Subsonic.Request
   alias PluteusWeb.Subsonic.Response
   alias PluteusWeb.Subsonic.Shape
@@ -231,6 +234,12 @@ defmodule PluteusWeb.Subsonic.Browse do
 
   # The cover-art companion linked to the release, or else the picture embedded
   # in the first of the songs that carries one.
+  #
+  # §6.7's integer `size` is the one dimension any surface accepts, and [spec-10]
+  # §11.1 has it accepted by translation rather than by widening: it maps to the
+  # smallest profile at or above it, and the response names what it served. A client
+  # here has no retry affordance and cannot read a 202, so the artefact is generated
+  # while it waits rather than queued behind it.
   defp cover(conn, %Album{} = album, songs) do
     case Music.companion(album.id, "cover_art") do
       nil ->
@@ -240,9 +249,61 @@ defmodule PluteusWeb.Subsonic.Browse do
         end
 
       asset ->
+        graded(conn, asset)
+    end
+  end
+
+  defp graded(conn, asset) do
+    profile =
+      conn |> Request.optional("size") |> requested_width() |> Presentation.profile_for_size()
+
+    name = Map.fetch!(profile, "name")
+
+    case held_or_generated(asset.id, name) do
+      {:ok, artefact} ->
+        {:ok, served} = Presentation.serve(artefact)
+
+        conn
+        |> Plug.Conn.put_resp_header("presentation-profile", name)
+        |> StoredBytes.send_stored(served.location,
+          content_type: served.media_type,
+          etag: served.digest
+        )
+
+      :none ->
+        # Nothing could be made of these bytes. The cover as stored is still the
+        # cover, and §17.1 makes the absence of a derivative not an error.
         ContentController.serve(conn, asset)
     end
   end
+
+  defp held_or_generated(subject_id, profile) do
+    case Presentation.get(subject_id, profile) do
+      %Presentation.Asset{} = held ->
+        {:ok, held}
+
+      nil ->
+        case Generate.run(subject_id, profile) do
+          {:ok, made} -> {:ok, made}
+          _refused_or_failed -> :none
+        end
+    end
+  end
+
+  # A size that is not a positive integer names no width, and the default profile
+  # answers. §6.7 does not make a malformed size an error, and refusing one would
+  # deny a client its cover over a query string it can no longer change.
+  defp requested_width(nil), do: nil
+
+  defp requested_width(size) when is_binary(size) do
+    case Integer.parse(size) do
+      {width, ""} when width > 0 -> width
+      _not_a_width -> nil
+    end
+  end
+
+  defp requested_width(size) when is_integer(size) and size > 0, do: size
+  defp requested_width(_not_a_width), do: nil
 
   defp song_cover(conn, id, profile) do
     case Music.song(id, profile) do
