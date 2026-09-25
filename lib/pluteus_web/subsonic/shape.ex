@@ -31,10 +31,12 @@ defmodule PluteusWeb.Subsonic.Shape do
       starred: Consumption.starred_at(principal_id, res_ids),
       ratings: Consumption.ratings(principal_id, res_ids),
       plays: Events.plays(principal_id, res_ids, "played"),
+      # One entry per res: a position is kept per device (spec-01 §11.4), and
+      # `bookmarks/1` answers with the one [spec-10] §13.3 shows.
       bookmarks:
         principal_id
         |> Consumption.bookmarks()
-        |> Map.new(&{&1.res_id, &1.position_ms})
+        |> Map.new(&{&1.res_id, &1.position})
     }
   end
 
