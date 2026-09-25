@@ -190,7 +190,7 @@ defmodule PluteusWeb.Subsonic.Own do
        "bookmark" =>
          for bookmark <- bookmarks, song = songs[bookmark.res_id], song do
            %{
-             "position" => bookmark.position_ms,
+             "position" => bookmark.position,
              "username" => principal_id(conn),
              "comment" => bookmark.comment,
              "created" => Shape.timestamp(bookmark.inserted_at),
@@ -210,6 +210,7 @@ defmodule PluteusWeb.Subsonic.Own do
         Consumption.bookmark(
           principal_id(conn),
           song.id,
+          conn.assigns.device.id,
           position,
           Request.optional(conn, "comment")
         )
