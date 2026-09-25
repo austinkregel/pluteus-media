@@ -54,6 +54,14 @@ defmodule PluteusWeb.Router do
       # path, as §9.1 requires of every entity URI.
       get "/#{path}/:id/presentation/:profile", PresentationController, :show,
         assigns: %{kind: kind}
+
+      # §11.2's tiled pyramid, under the IIIF Image API grammar. The grammar's own
+      # segments are the route, so a viewer that already speaks it needs to know
+      # nothing about this deployment but the identifier.
+      get "/#{path}/:id/iiif/info.json", IiifController, :information, assigns: %{kind: kind}
+
+      get "/#{path}/:id/iiif/:region/:size/:rotation/:quality", IiifController, :tile,
+        assigns: %{kind: kind}
     end
 
     get "/assets/:id/content", ContentController, :show
