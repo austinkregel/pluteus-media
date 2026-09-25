@@ -428,6 +428,82 @@ defmodule Pluteus.Catalog do
   def categories_of(res_id), do: Repo.all(from c in Category, where: c.res_id == ^res_id)
 
   @doc """
+  The work a res belongs to, or nil where it belongs to none.
+
+  A category is recorded on the work ([spec-04] §6.3), so a question about what
+  kind of thing a manifestation is is a question about its work. A work is its
+  own; an expression names one (§6.1); a manifestation, an item and a digital item
+  reach one through what they embody or carry; a reified address reaches one
+  through its target.
+
+  A manifestation embodying expressions of several works (§5.3) answers with the
+  first by identifier, so the answer is the same on every call.
+  """
+  @spec work_of(Ecto.UUID.t()) :: Ecto.UUID.t() | nil
+  def work_of(res_id) do
+    case Repo.get(Res, res_id) do
+      nil -> nil
+      %Res{kind: kind} -> work_of(kind, res_id)
+    end
+  end
+
+  defp work_of(:work, id), do: id
+
+  defp work_of(:expression, id),
+    do: Repo.one(from e in Expression, where: e.id == ^id, select: e.work_id)
+
+  defp work_of(:manifestation, id) do
+    Repo.one(
+      from e in Embodiment,
+        join: x in Expression,
+        on: x.id == e.expression_id,
+        where: e.manifestation_id == ^id,
+        order_by: x.work_id,
+        limit: 1,
+        select: x.work_id
+    )
+  end
+
+  defp work_of(:digital_item, id) do
+    from(d in DigitalItem, where: d.id == ^id, select: d.manifestation_id)
+    |> Repo.one()
+    |> through(:manifestation)
+  end
+
+  defp work_of(:item, id) do
+    from(i in Item, where: i.id == ^id, select: i.manifestation_id)
+    |> Repo.one()
+    |> through(:manifestation)
+  end
+
+  defp work_of(:address, id) do
+    case Repo.one(from a in Address, where: a.id == ^id, select: a.target_id) do
+      nil -> nil
+      target_id -> work_of(target_id)
+    end
+  end
+
+  # None of these is a rendering of anything, so none belongs to a work. A kind
+  # added to the model reaches no clause here and raises, which is the question
+  # being asked rather than answered by default.
+  defp work_of(kind, _id)
+       when kind in [
+              :res,
+              :asset,
+              :person,
+              :collective_agent,
+              :artist,
+              :nomen,
+              :place,
+              :time_span,
+              :annotation
+            ],
+       do: nil
+
+  defp through(nil, _kind), do: nil
+  defp through(id, kind), do: work_of(kind, id)
+
+  @doc """
   Every asset holding a copy of the given digital item.
   """
   @spec assets_of(Ecto.UUID.t()) :: [Asset.t()]
