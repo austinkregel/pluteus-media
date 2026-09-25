@@ -40,7 +40,15 @@ defmodule Pluteus.Backup do
   # operational state, rebuilt by the schedule, and so are inbox sightings,
   # which the next pass over the inbox takes again. What is playing now is
   # stale by the time any backup could be restored.
-  @excluded ~w(tool_versions derivations oban_jobs oban_peers inbox_sightings now_playing)
+  #
+  # A presentation asset is regenerable from the master it names ([spec-10] §11.1),
+  # which is why it is evictable at all; copying one would spend capacity on
+  # something the deployment throws away on purpose. Its eviction log is the record
+  # of that throwing away, and means nothing once the rows it counted are gone.
+  @excluded ~w(
+    tool_versions derivations oban_jobs oban_peers inbox_sightings now_playing
+    presentation_assets presentation_evictions
+  )
 
   @doc """
   Every table, classified as backed up whole, backed up in part, or excluded.
