@@ -1,19 +1,25 @@
 {
   "image_profiles": [
     { "name": "image-160", "width": 160, "format": "jpeg", "quality": 82,
+      "classes": ["image", "video", "text", "package"],
       "for": "a list row, and a grid tile at one device pixel per CSS pixel" },
     { "name": "image-320", "width": 320, "format": "jpeg", "quality": 82,
+      "classes": ["image", "video", "text", "package"],
       "for": "a grid tile at 1x, a list row at 2x" },
     { "name": "image-640", "width": 640, "format": "jpeg", "quality": 82,
+      "classes": ["image", "video", "text", "package"],
       "for": "an entity page's cover at 1x, a grid tile at 2x" },
     { "name": "image-1280", "width": 1280, "format": "jpeg", "quality": 80,
+      "classes": ["image", "video", "text", "package"],
       "for": "a full-width detail, and a television poster at 1x" },
     { "name": "image-2048", "width": 2048, "format": "jpeg", "quality": 78,
+      "classes": ["image", "video", "text", "package"],
       "for": "a photograph, a comic page or a scan in its viewer" }
   ],
   "default_image_profile": "image-640",
   "placeholder_profile": {
     "name": "image-blur-16", "width": 16, "format": "jpeg", "quality": 40,
+    "classes": ["image", "video", "text", "package"],
     "for": "the blurred approximation spec-10 5.4 permits as a loading state, computed from the image's own pixels"
   },
 
@@ -48,6 +54,7 @@
 
   "trickplay": {
     "name": "trickplay-320",
+    "classes": ["video"],
     "frame_interval_ms": 10000,
     "frame_width": 320,
     "tile_columns": 10,
@@ -58,6 +65,7 @@
 
   "key_frame": {
     "name": "keyframe",
+    "classes": ["video"],
     "regime": "proportional",
     "proportion": 0.1,
     "minimum_ms": 10000,
@@ -67,17 +75,26 @@
   },
 
   "waveform_profiles": {
-    "overview": { "name": "waveform-overview-1000", "points": 1000, "bits": 8, "channels": 1 },
+    "overview": {
+      "name": "waveform-overview-1000",
+      "classes": ["audio"],
+      "points": 1000, "bits": 8, "channels": 1
+    },
     "detail": [
-      { "name": "waveform-detail-10", "points_per_second": 10, "bits": 8, "channels": 1 },
-      { "name": "waveform-detail-100", "points_per_second": 100, "bits": 8, "channels": 1 }
+      { "name": "waveform-detail-10", "classes": ["audio"],
+        "points_per_second": 10, "bits": 8, "channels": 1 },
+      { "name": "waveform-detail-100", "classes": ["audio"],
+        "points_per_second": 100, "bits": 8, "channels": 1 }
     ]
   },
 
   "text_profiles": [
-    { "name": "text-extracted", "media_type": "text/plain; charset=utf-8" },
-    { "name": "text-word-positions", "media_type": "application/json" },
-    { "name": "text-position-list", "media_type": "application/json" }
+    { "name": "text-extracted", "classes": ["text", "package"],
+      "media_type": "text/plain; charset=utf-8" },
+    { "name": "text-word-positions", "classes": ["image", "text", "package"],
+      "media_type": "application/json" },
+    { "name": "text-position-list", "classes": ["text", "package"],
+      "media_type": "application/json" }
   ],
 
   "generated_at_ingest": [
