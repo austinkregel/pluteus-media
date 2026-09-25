@@ -17,15 +17,14 @@ defmodule PluteusWeb.AbsenceTest do
   alias Pluteus.Principals
   alias Pluteus.Representation.Field
 
-  @viewer "ada@household.test"
-
   @envelope ~w(id kind state)
 
   setup %{conn: conn} do
     {:ok, principal} = Principals.create_principal(%{role: "member"})
-    {:ok, _} = Principals.bind_identity(principal.id, issuer(), @viewer)
+    viewer = a_subject()
+    {:ok, _} = Principals.bind_identity(principal.id, issuer(), viewer)
 
-    %{conn: through_proxy(conn, @viewer), principal: principal}
+    %{conn: through_proxy(conn, viewer), principal: principal}
   end
 
   describe "22. Every field carries a value and a state, and none is carried by its omission" do
