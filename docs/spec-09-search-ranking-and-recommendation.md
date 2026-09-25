@@ -1071,6 +1071,9 @@ where spec-01 §11.2 holds the rest of it.
 
 ## 19. What this document rests on elsewhere
 
+Thirteen things this document needs belong to the specifications that own the
+concepts, and are specified there rather than here.
+
 | What this document needs | Where it is specified |
 | --- | --- |
 | a derivation recording the terms of every value that entered it (§4.2) | spec-02 §4.1 |
