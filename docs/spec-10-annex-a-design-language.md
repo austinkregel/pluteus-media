@@ -3,8 +3,8 @@
 **Companion to Specification 10**
 **Status:** Draft
 **Version:** 0.2
-**Normative status:** Normative for the interface (spec-10 §4.2) and for the
-token definition a television client's theme is generated from (spec-10 §18).
+**Normative status:** Normative for the interface (spec-10 §4.2), at both of the
+distances A.1.6 resolves it for.
 
 ## Scope
 
@@ -127,9 +127,9 @@ floor, and MUST NOT change colour, border width, radius or elevation. It MUST
 NOT apply to a surface reached by a remote, to a control that changes the mode
 itself, or to a menu, dialog or validation message.
 
-`distance: far` is emitted only into a client theme (A.10). The interface does
-not carry it, because spec-10 §4.3 establishes that the interface does not
-reach the television.
+`distance: far` is the same interface rendered across a room (A.10.3), not a
+separate artefact. The deployment ships no client of its own, so there is nowhere
+else for it to go.
 
 Neither may be inferred (spec-10 §4.4).
 
@@ -1054,16 +1054,37 @@ a desktop column count at twice the type size.
 | `near` | 40rem, 48rem, 64rem, 80rem |
 | `far` | none; a single-column, shelf-based layout |
 
-A.1.6 already confines `far` to the client build, which is what makes this
-consistent rather than merely stated.
+A single column at `far` is not a breakpoint set withheld; it is the layout a
+shelf-based surface has at any width, because a person across a room scans one
+row at a time.
 
-### A.10.3 The client theme
+### A.10.3 The interface across a room
 
-The same token file resolved at `distance: far`, emitted as the client's own
-theme in the form that platform accepts. Because that platform has no cascade
-and no inheritance, the artefact is a flat table consumed by each component
-explicitly, and the component library carries the propagation the platform does
-not provide. The values are the same; only the carrier differs.
+`distance: far` is the deployment's **own interface rendered across a room**, not
+a theme handed to another program. The deployment ships no client on any platform:
+spec-10 §18.1's television contract is met by a community client already in a
+platform's store, and such a client carries its own design language and takes
+nothing from here.
+
+So `far` needs no second artefact and no second carrier. It is a resolver context
+like the other four (A.1.6), emitted into the same stylesheet, and it is carried by
+the cascade and inheritance A.10.1's layers already rest on. What changes at `far`
+is the root size (A.3.3), the focus ring's width (A.5), the target floors (A.4.2)
+and the breakpoint set (A.10.2). The `sys` role names do not change, so no template
+distinguishes the two distances.
+
+**A Roku is not a surface this reaches**, and spec-10 §4.3 is unqualified about
+why: it runs no browser, so no stylesheet arrives at it. What `far` serves is a
+screen far from its reader that renders pages — a laptop or tablet across a room, a
+desktop on a large panel, a television whose own browser the household chooses to
+use. §4.4 makes that a declaration recorded against the device rather than
+something the page detects, which is what keeps the two distances from being
+guessed at.
+
+A deployment that later shipped a client of its own would need these values in that
+platform's form. The definition is format-neutral and nothing here forbids emitting
+them, but this annex specifies no such artefact, because no such client exists to
+consume one.
 
 ---
 
