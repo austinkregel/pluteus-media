@@ -260,6 +260,25 @@ container. On placement, the probe output becomes derived annotations of the
 probing tool on the manifestation (spec-02 §4), since re-running the probe
 regenerates them from the asset.
 
+**Where PRONOM holds no byte signature for a format, the deployment MAY hold one
+of its own**, and the format is then that signature's name rather than a PUID. A
+registry (spec-01 §17) gives per format the offset, the bytes expected there, and
+the essence that follows; an entry MUST identify the format from the content
+alone. PRONOM answers a match on the filename's extension for some formats and
+spec-03 §6 refuses it, correctly: the same name can hold anything. A signature
+read at an offset is not that refusal reversed — it is the rule of this section
+applied where the registry PRONOM offers has no entry to apply.
+
+Console and computer software is the case, and it is not a marginal one: a
+household that holds cartridge and disc dumps holds a media class PRONOM will
+identify none of. Without this the class is unreachable, and §5.3's `software`,
+§6.3's `video game` and every rule resting on them would describe a holding that
+could not enter the catalog.
+
+A format a PUID names MUST take the PUID. A deployment signature is for a format
+PRONOM does not answer for at all, so the two never compete for one file, and a
+format identifier is a PUID wherever one exists.
+
 **A metadata document inside a container is an embedded tag, not a companion.**
 A `ComicInfo.xml` or `MetronInfo.xml` within a `.cbz`, and an OPF package within
 an `.epub`, describe the thing they are inside rather than a sibling file.
