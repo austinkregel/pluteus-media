@@ -325,6 +325,8 @@ defmodule PluteusWeb.Subsonic.Browse do
         System.cmd("ffmpeg", [
           "-v",
           "error",
+          "-threads",
+          "2",
           "-i",
           Storage.path(original.location),
           "-map",
