@@ -187,7 +187,7 @@ defmodule Pluteus.IngestFixtures do
       ["-disposition:a:0", "comment", "-disposition:a:1", "default"]
   end
 
-  defp args(:ffv1, _opts, _dir), do: moving() ++ ["-c:v", "ffv1"]
+  defp args(:ffv1, opts, _dir), do: moving(opts) ++ ["-c:v", "ffv1"]
   defp args(:x264_444, _opts, _dir), do: moving() ++ ["-c:v", "libx264", "-pix_fmt", "yuv444p"]
   defp args(:png, _opts, _dir), do: still()
   defp args(:jpeg, _opts, _dir), do: still()
@@ -198,7 +198,11 @@ defmodule Pluteus.IngestFixtures do
     ["-f", "lavfi", "-i", "sine=frequency=#{frequency}:duration=#{duration}"]
   end
 
-  defp moving, do: ["-f", "lavfi", "-i", "testsrc=duration=1:size=64x48:rate=5"]
+  defp moving(opts \\ []) do
+    duration = Keyword.get(opts, :duration, 1)
+    ["-f", "lavfi", "-i", "testsrc=duration=#{duration}:size=64x48:rate=5"]
+  end
+
   defp still, do: ["-f", "lavfi", "-i", "testsrc=size=64x48", "-frames:v", "1"]
 
   defp tags(tags),
