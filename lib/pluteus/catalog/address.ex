@@ -148,6 +148,34 @@ defmodule Pluteus.Catalog.Address do
   def unit(%__MODULE__{selector_type: :text_quote}), do: nil
   def unit(%__MODULE__{selector_type: :track}), do: nil
 
+  @basis %{
+    temporal: [:start_ms, :end_ms],
+    spatial: [:x_percent, :y_percent, :width_percent, :height_percent],
+    spatiotemporal: [:start_ms, :end_ms, :x_percent, :y_percent, :width_percent, :height_percent],
+    text_position: [:text_unit, :start_offset, :end_offset],
+    text_quote: [:quote_exact, :quote_prefix, :quote_suffix],
+    page: [:page_number],
+    track: [
+      :stream_kind,
+      :stream_language,
+      :stream_disposition,
+      :stream_channels,
+      :stream_ordinal
+    ]
+  }
+
+  @doc """
+  The columns a selector type records its region in — the whole of §8.4's basis
+  for that type, and nothing belonging to another.
+
+  The `*_columns_match_selector_type` constraints hold each group to all-or-none,
+  so this is a statement of which columns a type has rather than a guess from
+  which ones are null. A page selector has no `start_ms`; a null there would be a
+  field carried by its omission, which [spec-07] §4.1 forbids a representation.
+  """
+  @spec basis(atom()) :: [atom()]
+  def basis(selector_type), do: Map.fetch!(@basis, selector_type)
+
   def changeset(address, attrs) do
     address
     |> cast(attrs, @castable)
