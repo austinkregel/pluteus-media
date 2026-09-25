@@ -420,6 +420,17 @@
       "format": "fmt/279"
     }
   },
+  "category_evidence": [
+    {
+      "tag": "genre",
+      "classes": ["audio"],
+      "values": {
+        "audiobook": "audiobook",
+        "podcast": "podcast_episode"
+      },
+      "for": "the genre a distributor set and a tagger wrote. Matched whole and case-folded, so 'Audiobook' decides and 'Audiobooks & Spoken Word' does not"
+    }
+  ],
   "byte_signatures": [
     {
       "format": "ines",
