@@ -12,6 +12,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Assets
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.DigitalItem
@@ -22,6 +23,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Place
+  alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
@@ -58,16 +60,63 @@ defmodule Pluteus.Ingest.PlacementTest do
       assert Repo.get!(Asset, photo.id).verification_interval_seconds == configured.image
     end
 
-    test "the probe's reading becomes a derived annotation on the manifestation",
+    test "the probe's reading becomes a derived annotation on the asset it read",
          %{inbox: inbox} do
       [track] = ingest!(inbox, %{"KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1))})
-      manifestation = manifestation_of(track)
 
+      # §6.1. The asset takes the acquisition's identifier, so the probe's input is
+      # the acquisition's own id, and spec-02 §4.1's "res the tool ran over" is the
+      # file rather than the manifestation over it.
       assert [%{body_type: "probe", body: body, derivation_id: derivation_id}] =
-               Annotations.current_on(manifestation)
+               Annotations.current_on(track.id)
 
       assert body == track.probe
-      assert Annotations.current_derivation("ffprobe", manifestation).id == derivation_id
+      assert Annotations.current_derivation("ffprobe", track.id).id == derivation_id
+      assert Annotations.current_on(manifestation_of(track)) == []
+    end
+
+    test "a second asset of one digital item keeps its own reading", %{inbox: inbox} do
+      [track] = ingest!(inbox, %{"KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1))})
+      version = Streams.ffprobe_version()
+
+      {:ok, %{asset: part_two}} =
+        Catalog.create_asset(
+          track.digital_item_id,
+          %{
+            location: StorageFixtures.stored!("02.png", StorageFixtures.png("part two")),
+            essence: :lossless,
+            verification_interval_seconds: 86_400,
+            roles: [%{role_class: :acquired, role: "original"}]
+          },
+          "02.flac"
+        )
+
+      {:ok, derivation} =
+        Annotations.record_derivation(%{
+          tool: "ffprobe",
+          version: version,
+          input_id: part_two.id,
+          parameters: %{},
+          derived_at: DateTime.utc_now()
+        })
+
+      {:ok, _} =
+        Annotations.annotate(%{
+          target_id: part_two.id,
+          body_type: "probe",
+          body: %{"format" => %{"duration" => "9.0"}},
+          derivation_id: derivation.id
+        })
+
+      # Both readings are ffprobe's at one version. Keyed on the manifestation the
+      # two assets share, the second would be the current run and the first would be
+      # retained as superseded; keyed on each asset, each is current over its own
+      # input and nothing is lost.
+      assert [_] = Annotations.current_on(track.id)
+      assert [_] = Annotations.current_on(part_two.id)
+      assert Annotations.superseded_on(track.id) == []
+      assert Annotations.current_derivation("ffprobe", track.id).input_id == track.id
+      assert Annotations.current_derivation("ffprobe", part_two.id).input_id == part_two.id
     end
   end
 
@@ -97,6 +146,115 @@ defmodule Pluteus.Ingest.PlacementTest do
       track = Enum.find(placed, &(&1.inbox_path == "KoB/01.flac"))
       assert Catalog.category_of(work_of_release(track), Place.category_scheme()) == "album"
     end
+  end
+
+  describe "the category from the file's own tags outranks the class default (§6.3)" do
+    test "a genre the registry names decides the category", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "spoken/chapter-01.flac" => media!(:flac, tags: %{"genre" => "Audiobook"}),
+          "shows/episode-12.flac" => media!(:flac, tags: %{"genre" => "Podcast"}),
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1))
+        })
+
+      assert categories(placed) == %{
+               "spoken/chapter-01.flac" => "audiobook",
+               "shows/episode-12.flac" => "podcast_episode",
+               "KoB/01.flac" => "music_recording"
+             }
+    end
+
+    test "the value is matched whole and case-folded, never as a substring",
+         %{inbox: inbox} do
+      # A substring match would make "Podcast Theme Music" a podcast episode. The
+      # class default answers instead, and §6.2's correction surface is what a
+      # member reaches for when it is wrong.
+      placed =
+        ingest!(inbox, %{
+          "a/loud.flac" => media!(:flac, tags: %{"genre" => "AUDIOBOOK"}),
+          "b/wide.flac" => media!(:flac, tags: %{"genre" => "Audiobooks & Spoken Word"}),
+          "c/theme.flac" => media!(:flac, tags: %{"genre" => "Podcast Theme Music"})
+        })
+
+      assert categories(placed) == %{
+               "a/loud.flac" => "audiobook",
+               "b/wide.flac" => "music_recording",
+               "c/theme.flac" => "music_recording"
+             }
+    end
+
+    test "a rule decides only for the broad classes it names", %{inbox: inbox} do
+      # An audiobook is audio. A still image whose genre tag reads Audiobook is a
+      # photograph, because the class the bytes decided rules the tag out.
+      placed = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+
+      assert categories(placed) == %{"holiday/IMG_0001.png" => "photograph"}
+      refute Registry.category_from_tags(:image, %{"genre" => "audiobook"})
+      assert Registry.category_from_tags(:audio, %{"genre" => "audiobook"}) == "audiobook"
+    end
+
+    test "a tag the registry does not name decides nothing" do
+      assert Registry.category_from_tags(:audio, %{}) == nil
+      assert Registry.category_from_tags(:audio, %{"mood" => "audiobook"}) == nil
+      assert Registry.category_from_tags(:audio, %{"genre" => "Jazz"}) == nil
+    end
+  end
+
+  describe "placement records how much of the holding there is (spec-01 §8.4)" do
+    test "a sounding holding carries its duration on the manifestation", %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1), duration: 3)
+        })
+
+      extent = Addressing.get_extent(manifestation_of(track), :millisecond)
+
+      assert extent.magnitude == Streams.duration_ms(track.probe)
+      assert_in_delta extent.magnitude, 3_000, 200
+    end
+
+    test "a moving holding carries one too", %{inbox: inbox} do
+      [film] = ingest!(inbox, %{"home/birthday.mkv" => media!(:ffv1)})
+
+      assert Addressing.get_extent(manifestation_of(film), :millisecond).magnitude > 0
+    end
+
+    test "a still holding carries none: there is no length to be part way through",
+         %{inbox: inbox} do
+      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+
+      assert Addressing.get_extent(manifestation_of(photo), :millisecond) == nil
+    end
+
+    test "the figure is what a position within the holding is a fraction of",
+         %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1), duration: 4)
+        })
+
+      manifestation = manifestation_of(track)
+      whole = Addressing.get_extent(manifestation, :millisecond).magnitude
+
+      {:ok, %{address: address}} =
+        Catalog.create_address(manifestation, %{
+          selector_type: :temporal,
+          start_ms: div(whole, 4),
+          end_ms: div(whole, 2)
+        })
+
+      {start_at, end_at} = Addressing.normalized_position(address)
+
+      assert_in_delta start_at, 0.25, 0.01
+      assert_in_delta end_at, 0.5, 0.01
+    end
+  end
+
+  defp categories(placed) do
+    Map.new(
+      placed,
+      &{&1.inbox_path, Catalog.category_of(work_of(&1), Place.category_scheme())}
+    )
   end
 
   describe "5. A file dropped again after its holding was recycled is a new acquisition" do
