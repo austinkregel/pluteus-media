@@ -38,6 +38,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Events
   alias Pluteus.Events.Event
   alias Pluteus.Events.ResumePosition
+  alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Principals
@@ -1621,6 +1622,51 @@ defmodule Pluteus.Catalog.ConformanceTest do
 
       assert Events.positions_for(principal.id, resumable.work.id) == []
       assert Events.play_count(principal.id, resumable.work.id, "completed") == 1
+    end
+
+    test "the whole extent is the catalog's, so a session cannot decide what finished" do
+      %{principal: principal} = a_household_member()
+
+      resumable = ConsumptionFixtures.resumable_work!(principal.id)
+      whole = Addressing.get_extent(resumable.work.id, :millisecond).magnitude
+
+      # §13.2's ceiling is measured against §8.4's recorded figure. Shortening it
+      # in the catalog turns a position that was kept into one that finishes the
+      # res, and nothing a session sends can do that.
+      assert {:ok, _} =
+               ConsumptionFixtures.report(
+                 principal.id,
+                 resumable.work.id,
+                 resumable.device.id,
+                 div(whole, 2)
+               )
+
+      {:ok, _} = Addressing.record_extent(resumable.work.id, :millisecond, div(whole, 2) + 1_000)
+
+      assert {:discarded, :consumed} =
+               ConsumptionFixtures.report(
+                 principal.id,
+                 resumable.work.id,
+                 resumable.device.id,
+                 div(whole, 2)
+               )
+    end
+
+    test "a res whose extent nobody recorded cannot be reported against" do
+      %{principal: principal} = a_household_member()
+
+      {:ok, catalogued} = Catalog.create_work("An Unmeasured Film")
+
+      {:ok, _} =
+        Catalog.categorize(catalogued.work.id, Place.category_scheme(), "film", :automatic)
+
+      {:ok, device} = Principals.bind_device(principal.id, "a television")
+
+      # §13.2's floor and ceiling have nothing to be measured against, and a
+      # threshold chosen without one would be a value the registry does not hold.
+      assert_raise ArgumentError, fn ->
+        ConsumptionFixtures.report(principal.id, catalogued.work.id, device.id, 900_000)
+      end
     end
   end
 
