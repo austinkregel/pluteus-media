@@ -29,6 +29,7 @@ defmodule Pluteus.Annotations do
   alias Pluteus.Catalog.Res
   alias Pluteus.Lifecycle
   alias Pluteus.Repo
+  alias Pluteus.Representation.Registry, as: FieldRegistry
 
   @doc """
   Records one run of a tool over an input.
@@ -90,6 +91,7 @@ defmodule Pluteus.Annotations do
     Multi.new()
     |> Multi.insert(:res, Res.changeset(%Res{}, %{kind: :annotation}))
     |> Multi.run(:agent_kind, fn repo, _changes -> agent_kind(repo, attrs[:agent_id]) end)
+    |> Multi.run(:absence_subject, fn repo, _changes -> absence_subject(repo, attrs) end)
     |> Multi.insert(:annotation, fn %{res: res, agent_kind: agent_kind} ->
       attrs = attrs |> Map.put(:id, res.id) |> put_agent_kind(agent_kind)
       Annotation.changeset(%Annotation{}, attrs)
@@ -323,4 +325,41 @@ defmodule Pluteus.Annotations do
 
   defp put_agent_kind(attrs, nil), do: attrs
   defp put_agent_kind(attrs, kind), do: Map.put(attrs, :agent_kind, kind)
+
+  # spec-02 §6.5. The registry names which kinds a field may be asserted about, so
+  # "no assets" is refused about a work and accepted about a digital item. The
+  # changeset checks the vocabulary; the kind needs the target, which is here.
+  defp absence_subject(repo, attrs) do
+    if attrs[:body_type] == Annotation.absence() do
+      about(repo, attrs[:target_id], get_in(attrs, [:body, "field"]))
+    else
+      {:ok, nil}
+    end
+  end
+
+  # A body naming no field is refused by the changeset, and a target that is not
+  # there by the foreign key, so neither is decided here. Nor is a field outside
+  # the vocabulary: the changeset owns that question and names the field in its
+  # message, where a kind mismatch here would report the wrong thing.
+  defp about(_repo, _target_id, field) when not is_binary(field), do: {:ok, nil}
+
+  defp about(repo, target_id, field) do
+    if FieldRegistry.named?(field) do
+      about_kind(repo, target_id, field)
+    else
+      {:ok, nil}
+    end
+  end
+
+  defp about_kind(repo, target_id, field) do
+    case repo.get(Res, target_id) do
+      nil ->
+        {:ok, nil}
+
+      %Res{kind: kind} ->
+        if FieldRegistry.about?(field, kind),
+          do: {:ok, kind},
+          else: {:error, {:absence_not_about, field, kind}}
+    end
+  end
 end
