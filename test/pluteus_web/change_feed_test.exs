@@ -19,11 +19,16 @@ defmodule PluteusWeb.ChangeFeedTest do
   alias Phoenix.Socket.Message
   alias Pluteus.Actor
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Category
+  alias Pluteus.Catalog.Embodiment
+  alias Pluteus.Catalog.Expression
+  alias Pluteus.Catalog.Manifestation
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Res
+  alias Pluteus.Catalog.Work
   alias Pluteus.Changes.Release
   alias Pluteus.Consumption
-  alias Pluteus.Events
+  alias Pluteus.ConsumptionFixtures
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias PluteusWeb.CatalogChannel
@@ -141,10 +146,12 @@ defmodule PluteusWeb.ChangeFeedTest do
       {:ok, theirs} = connect_as("other-" <> subject)
       {:ok, _reply, _channel} = subscribe_and_join(theirs, PrincipalChannel, other_topic)
 
-      {:ok, %{res: res}} =
-        Actor.as(principal.id, fn -> Catalog.create_named_res(:time_span, "1959") end)
+      # A position is weighed against its category ([spec-10] §13.2), so it is
+      # reported against a categorized work rather than a bare res.
+      resumable =
+        Actor.as(principal.id, fn -> ConsumptionFixtures.resumable_work!(principal.id) end)
 
-      {:ok, _} = Events.set_resume_position(principal.id, res.id, 1_000)
+      ConsumptionFixtures.position!(principal.id, resumable.work.id, resumable.device.id)
 
       assert_receive %Message{topic: ^own_topic, event: "changed", payload: payload}, 1_000
       assert payload == %{"data" => "resume_positions"}
@@ -182,12 +189,12 @@ defmodule PluteusWeb.ChangeFeedTest do
       {:ok, own} = connect_as(subject)
       {:ok, _reply, _channel} = subscribe_and_join(own, PrincipalChannel, own_topic)
 
-      {:ok, %{res: res}} =
-        Actor.as(principal.id, fn -> Catalog.create_named_res(:time_span, "1959") end)
+      resumable =
+        Actor.as(principal.id, fn -> ConsumptionFixtures.resumable_work!(principal.id) end)
 
       {:error, :abandoned} =
         Repo.transaction(fn ->
-          {:ok, _} = Events.set_resume_position(principal.id, res.id, 1_000)
+          ConsumptionFixtures.position!(principal.id, resumable.work.id, resumable.device.id)
           Repo.rollback(:abandoned)
         end)
 
@@ -296,8 +303,22 @@ defmodule PluteusWeb.ChangeFeedTest do
     Repo.query!("DELETE FROM events WHERE principal_id = $1", [id])
     Repo.query!("DELETE FROM devices WHERE principal_id = $1", [id])
 
+    # These tests commit for real, so they clean up after themselves rather than
+    # rolling back. A work is five rows and two links, every one of them keyed on a
+    # res identifier about to be removed, so each goes before its res does.
     {:ok, _} =
       Actor.as(principal_id, fn ->
+        Repo.delete_all(from c in Category, where: c.res_id in ^res_ids)
+
+        Repo.delete_all(
+          from e in Embodiment,
+            where: e.expression_id in ^res_ids or e.manifestation_id in ^res_ids
+        )
+
+        Repo.delete_all(from m in Manifestation, where: m.id in ^res_ids)
+        Repo.delete_all(from e in Expression, where: e.id in ^res_ids)
+        Repo.delete_all(from w in Work, where: w.id in ^res_ids)
+
         Repo.delete_all(from n in Nomen, where: n.id in ^res_ids or n.res_id in ^res_ids)
         {:ok, Repo.delete_all(from r in Res, where: r.id in ^res_ids)}
       end)
