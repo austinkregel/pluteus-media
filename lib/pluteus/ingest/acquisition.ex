@@ -24,7 +24,7 @@ defmodule Pluteus.Ingest.Acquisition do
 
   @states ~w(recorded stored identified placed vanished)a
   @essences ~w(lossy lossless unknown not_applicable)a
-  @media_classes ~w(companion audio video image text)a
+  @media_classes ~w(companion audio video image text package software)a
 
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
