@@ -225,4 +225,18 @@ defmodule Pluteus.IngestFixtures do
     %%EOF
     """
   end
+
+  @doc """
+  A cartridge dump in the iNES container: the four magic bytes, the twelve-byte
+  header giving one 16 KiB program bank and one 8 KiB character bank, and banks
+  of that size holding nothing.
+
+  The bytes are the container's, not a game's.
+  """
+  @spec rom() :: binary()
+  def rom do
+    header = "NES\x1a" <> <<1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>
+
+    header <> :binary.copy(<<0>>, 16_384) <> :binary.copy(<<0>>, 8_192)
+  end
 end
