@@ -428,6 +428,20 @@ defmodule Pluteus.Catalog do
   def categories_of(res_id), do: Repo.all(from c in Category, where: c.res_id == ^res_id)
 
   @doc """
+  The categories of each of many res, keyed by identifier.
+
+  A page of res costs one query for them rather than one each, which is what
+  [spec-10] §11.2 asks of everything a tile needs. A res carrying none is absent.
+  """
+  @spec categories_of_many([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => [Category.t()]}
+  def categories_of_many([]), do: %{}
+
+  def categories_of_many(res_ids) do
+    Repo.all(from c in Category, where: c.res_id in ^res_ids, order_by: [c.res_id, c.scheme])
+    |> Enum.group_by(& &1.res_id)
+  end
+
+  @doc """
   The work a res belongs to, or nil where it belongs to none.
 
   A category is recorded on the work ([spec-04] §6.3), so a question about what
