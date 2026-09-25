@@ -13,7 +13,7 @@ defmodule Pluteus.Dedup.Candidate do
   import Ecto.Changeset
 
   @signals ~w(digest perceptual external_identifier member)a
-  @decisions ~w(same_holding same_expression distinct)a
+  @decisions ~w(same_holding same_expression same_work distinct)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
