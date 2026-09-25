@@ -61,6 +61,8 @@ config :pluteus, Pluteus.Ingest,
     video: 90 * 86_400,
     image: 90 * 86_400,
     text: 90 * 86_400,
+    package: 90 * 86_400,
+    software: 90 * 86_400,
     companion: 90 * 86_400
   }
 
