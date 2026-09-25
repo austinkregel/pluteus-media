@@ -737,11 +737,12 @@ threshold, where a graded profile set is smaller and simpler.
 dimensions and aspect ratio before it fetches an image, so that a rendered
 collection does not shift as images arrive.
 
-Those dimensions are the probe's, which spec-04 §5.1 already records as a
-derived annotation on the manifestation. This document does not reclassify
-them: it requires that they be **queryable from the catalog layer in one
-batched call**, alongside the names §6.1 resolves. A work's tile takes the
-geometry of the manifestation §8.1 resolves for it.
+Those dimensions are the probe's, which spec-04 §6.1 records as a derived
+annotation on the asset whose bytes were probed. This document does not
+reclassify them: it requires that they be **queryable from the catalog layer in
+one batched call**, alongside the names §6.1 resolves. A manifestation's geometry
+is that of the asset carrying its bytes, and a work's tile takes the geometry of
+the manifestation §8.1 resolves for it.
 
 Where the probe has not run, the geometry is *not yet examined* (§5.2) and the
 surface MUST reserve a box of the aspect ratio §20 names for the category
