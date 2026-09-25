@@ -84,6 +84,66 @@ defmodule Pluteus.Catalog.ResolutionTest do
     end
   end
 
+  describe "a range matches a tag by [RFC4647] §3.3.1 basic filtering" do
+    test "a tag matches the range it equals and the range it extends" do
+      assert Resolution.matches?("en", "en")
+      assert Resolution.matches?("en-GB", "en")
+      assert Resolution.matches?("en-Latn-GB", "en")
+      assert Resolution.matches?("en-GB-oxendict", "en-GB")
+    end
+
+    test "a range is never satisfied by a tag less specific than itself" do
+      refute Resolution.matches?("en", "en-GB")
+      refute Resolution.matches?("en-Latn", "en-Latn-GB")
+    end
+
+    test "a subtag boundary is required, so one tag is not a prefix of another by letters" do
+      refute Resolution.matches?("english", "en")
+      refute Resolution.matches?("enm", "en")
+    end
+
+    test "case is ignored, since [RFC5646] §2.1 makes a tag case-insensitive" do
+      assert Resolution.matches?("EN-gb", "en-GB")
+      assert Resolution.matches?("en-latn-gb", "EN")
+    end
+
+    test "an untagged nomen is untagged under every range" do
+      refute Resolution.matches?(nil, "en")
+      refute Resolution.matches?("en", nil)
+    end
+
+    test "clause 2 takes a regional variant where the profile asks for the language" do
+      british = nomen("Colour Chart", language: "en-GB", provenance: :automatic)
+      german = nomen("Farbtafel", language: "de")
+
+      chosen = Resolution.choose([british, german], %Profile{language: "en"})
+
+      assert chosen.nomen_string == "Colour Chart"
+    end
+
+    test "a profile asking for a variant does not take the bare language through clause 2" do
+      # `en` does not match the range `en-GB`, so clause 2 finds nothing, and
+      # clause 4 answers with the untagged name rather than the English one.
+      english = nomen("Color Chart", language: "en", provenance: :automatic)
+      untagged = nomen("The Chart")
+
+      chosen = Resolution.choose([english, untagged], %Profile{language: "en-GB"})
+
+      assert chosen.nomen_string == "The Chart"
+    end
+
+    test "where every candidate is tagged, a variant request falls to clause 3" do
+      english = nomen("Color Chart", language: "en", provenance: :automatic)
+      german = nomen("Farbtafel", language: "de")
+
+      chosen = Resolution.choose([english, german], %Profile{language: "en-GB"})
+
+      # Clause 3 picks the language of the nomen the ordering would select. Both
+      # are household names, so provenance decides: :local outranks :automatic.
+      assert chosen.nomen_string == "Farbtafel"
+    end
+  end
+
   describe "11. Resolution of one res and profile returns the same nomen across calls" do
     test "clause 3 answers alike however the candidates arrive" do
       nomens = [
