@@ -10,6 +10,12 @@ defmodule Pluteus.Catalog.Resolution do
   Nothing here writes. §7.4 confines resolution to output, leaving search free
   to match against every name a res carries rather than only the chosen one.
 
+  **Language narrows the candidates before the ordering chooses among them**, per
+  [spec-10] §6.1, which adopts [IIIF-PRES] §4.4's selection as a filter. That
+  inverts the precedence §7.4 describes, where a personal nomen comes first and
+  language is a later tiebreak: a name in a language the person cannot read is
+  not a better answer for being personal.
+
   Two res linked as one thing (§7.5) resolve over the names of both, so a
   household row and the seed a later release ships for the same concept answer
   alike, and the local name wins by the rule that makes a correction outrank a
@@ -83,16 +89,70 @@ defmodule Pluteus.Catalog.Resolution do
   end
 
   @doc """
+  The nomens each of many res carries that a profile may see, keyed by res
+  identifier. A res carrying none is absent.
+
+  §7.3 makes a non-null assigner a name specific to that agent, so a profile sees
+  the household's shared vocabulary and its own person's variants on it, and
+  nobody else's. One person's word for a thing stays with that person.
+
+  Unlike `resolve_many/2` this does not follow §7.5's links: these are the nomens
+  the res itself carries, which is what a representation reports.
+  """
+  @spec visible_many([Ecto.UUID.t()], Profile.t()) :: %{Ecto.UUID.t() => [Nomen.t()]}
+  def visible_many(res_ids, %Profile{} = profile) do
+    res_ids
+    |> visible(profile)
+    |> Repo.all()
+    |> Enum.group_by(& &1.res_id)
+  end
+
+  @doc """
   Picks one nomen from a set, independently of the order they arrive in.
 
   Separated from the query because that independence is the whole of §7.4's
   determinism requirement, and a database returns rows in whatever order suits
   its plan. Every preference can tie; the identifier cannot, so the ordering is
   total and the same set always yields the same answer.
+
+  [spec-10] §6.1's language filter narrows the set first, and the ordering chooses
+  within what survives.
   """
   @spec choose([Nomen.t()], Profile.t()) :: Nomen.t()
   def choose(nomens, %Profile{} = profile) do
-    Enum.min_by(nomens, &rank(&1, profile))
+    nomens |> candidates(profile) |> Enum.min_by(&rank/1)
+  end
+
+  # [spec-10] §6.1's four clauses, in that order.
+  #
+  # A profile naming no language narrows nothing: a nil language expresses no
+  # preference and does not ask for names that are themselves untagged (Profile).
+  defp candidates(nomens, %Profile{language: nil}), do: nomens
+
+  defp candidates(nomens, %Profile{language: language}) do
+    {tagged, untagged} = Enum.split_with(nomens, & &1.language)
+    matching = Enum.filter(tagged, &(&1.language == language))
+
+    cond do
+      tagged == [] -> nomens
+      matching != [] -> matching
+      untagged == [] -> one_language(tagged)
+      true -> untagged
+    end
+  end
+
+  # Clause 3, which applies only where every candidate carries a language. Clause
+  # 4 takes the untagged names wherever any exist, which is the household's
+  # commonest shape because §7.2 leaves its own vocabulary deliberately untagged.
+  #
+  # [IIIF-PRES] leaves this choice of language to the client. §6.1 does not,
+  # because §7.4 requires the same res and profile to resolve alike across calls:
+  # the language is that of the nomen the ordering would select, so the choice is
+  # as total as the ordering is.
+  defp one_language(tagged) do
+    chosen = Enum.min_by(tagged, &rank/1).language
+
+    Enum.filter(tagged, &(&1.language == chosen))
   end
 
   # One hop only. §7.5 describes a local row and a seed standing for one thing,
@@ -157,18 +217,20 @@ defmodule Pluteus.Catalog.Resolution do
 
   # Lower sorts first. Every component is decided by data already on the row, so
   # the comparison is stable across calls and across processes.
-  defp rank(nomen, profile) do
+  #
+  # Language is not a component. [spec-10] §6.1's filter decides the question
+  # before the ordering runs, so every candidate reaching here stands in the same
+  # relation to the profile's language. As a tiebreak it would also contradict
+  # Profile: under a profile naming no language it would score an untagged nomen
+  # above a tagged one, preferring the names a nil language does not ask for.
+  defp rank(nomen) do
     {
       personal_before_household(nomen),
       Enum.find_index(Nomen.provenance_rank(), &(&1 == nomen.provenance)),
-      language_match(nomen, profile),
       nomen.id
     }
   end
 
   defp personal_before_household(%Nomen{assigner_id: nil}), do: 1
   defp personal_before_household(_nomen), do: 0
-
-  defp language_match(%Nomen{language: language}, %Profile{language: language}), do: 0
-  defp language_match(_nomen, _profile), do: 1
 end
