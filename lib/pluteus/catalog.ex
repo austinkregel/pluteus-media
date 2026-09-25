@@ -764,6 +764,61 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
+  The work each of many res belongs to, keyed by identifier.
+
+  The batched form of `work_of/1`, for the kinds a surface draws: a work is its own, an
+  expression names one, and a manifestation, an item or a digital item reaches one
+  through what it embodies or carries. A kind that belongs to no work is absent rather
+  than present with a nil, and nothing here walks a reified address, which `work_of/1`
+  does one at a time.
+  """
+  @spec works_of_many([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => Ecto.UUID.t()}
+  def works_of_many([]), do: %{}
+
+  def works_of_many(res_ids) do
+    direct = Map.new(Repo.all(from w in Work, where: w.id in ^res_ids, select: {w.id, w.id}))
+
+    from_expressions =
+      Map.new(Repo.all(from e in Expression, where: e.id in ^res_ids, select: {e.id, e.work_id}))
+
+    Enum.reduce(
+      [direct, from_expressions, through_manifestations(res_ids), through_carriers(res_ids)],
+      %{},
+      &Map.merge(&2, &1)
+    )
+  end
+
+  # A manifestation embodying expressions of several works answers with the first by
+  # identifier, so the answer is the same on every call, as `work_of/1` does.
+  defp through_manifestations(res_ids) do
+    Map.new(
+      Repo.all(
+        from e in Embodiment,
+          join: x in Expression,
+          on: x.id == e.expression_id,
+          where: e.manifestation_id in ^res_ids,
+          order_by: [desc: x.work_id],
+          select: {e.manifestation_id, x.work_id}
+      )
+    )
+  end
+
+  defp through_carriers(res_ids) do
+    Map.new(
+      Repo.all(
+        from d in DigitalItem,
+          join: e in Embodiment,
+          on: e.manifestation_id == d.manifestation_id,
+          join: x in Expression,
+          on: x.id == e.expression_id,
+          where: d.id in ^res_ids,
+          order_by: [desc: x.work_id],
+          select: {d.id, x.work_id}
+      )
+    )
+  end
+
+  @doc """
   Moves an expression under another work, which is LRM-R2 restated for an
   expression already recorded.
 
