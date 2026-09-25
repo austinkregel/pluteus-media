@@ -16,6 +16,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
+  alias Pluteus.Ingest.Streams
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Generate
   alias Pluteus.Presentation.Registry
@@ -123,6 +124,40 @@ defmodule Pluteus.Presentation.MovingImageTest do
 
       assert Generate.run(manifestation_of(track), "trickplay-320") ==
                {:refused, :profile_does_not_apply}
+    end
+  end
+
+  describe "a chapter list is the container's own, and needs no artefact" do
+    test "the chapters a container declares are read from the probe", %{inbox: inbox} do
+      [film] =
+        ingest!(inbox, %{
+          "home/holiday.mkv" =>
+            media!(:ffv1,
+              duration: 12,
+              chapters: [{"Arrival", {0, 4_000}}, {"The Beach", {4_000, 12_000}}]
+            )
+        })
+
+      # §20 names no chapter profile, and this is why: the list is the container's own
+      # metadata, which the probe already reads.
+      assert [first, second] = Streams.chapters(film.probe)
+
+      assert first["title"] == "Arrival"
+      assert first["start_ms"] == 0
+      assert_in_delta first["end_ms"], 4_000, 50
+
+      assert second["title"] == "The Beach"
+      assert_in_delta second["start_ms"], 4_000, 50
+    end
+
+    test "a container declaring none has none", %{inbox: inbox} do
+      [film] = ingest!(inbox, %{"home/birthday.mkv" => media!(:ffv1)})
+
+      assert Streams.chapters(film.probe) == []
+    end
+
+    test "a probe that never ran has none" do
+      assert Streams.chapters(nil) == []
     end
   end
 
