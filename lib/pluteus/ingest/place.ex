@@ -22,6 +22,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Actor
   alias Pluteus.Annotations
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
@@ -201,28 +202,36 @@ defmodule Pluteus.Ingest.Place do
         automatic(Path.basename(acquisition.inbox_path))
       )
 
-    record_probe(acquisition, manifestation_id)
+    record_probe(acquisition)
+    record_extent(acquisition, manifestation_id)
     record_analysis_source(manifestation_id, digital_item.id)
 
     acquisition |> Acquisition.placed_changeset(digital_item.id) |> Repo.update!()
     :placed
   end
 
-  defp record_probe(%Acquisition{probe: nil}, _manifestation_id), do: :ok
+  # §6.1. The probe's input is the asset whose bytes it read, which is the res
+  # spec-02 §4.1 requires a derivation name. A digital item realized by parts has
+  # an asset per part under one manifestation, and a probe recorded against the
+  # manifestation would make each part's reading supersede the last.
+  #
+  # The asset takes the acquisition's identifier (§6.1), so the acquisition's own
+  # identifier is the asset's.
+  defp record_probe(%Acquisition{probe: nil}), do: :ok
 
-  defp record_probe(acquisition, manifestation_id) do
+  defp record_probe(acquisition) do
     {:ok, derivation} =
       Annotations.record_derivation(%{
         tool: "ffprobe",
         version: Streams.ffprobe_version(),
-        input_id: manifestation_id,
-        parameters: %{"asset" => acquisition.id},
+        input_id: acquisition.id,
+        parameters: %{},
         derived_at: DateTime.utc_now()
       })
 
     {:ok, _} =
       Annotations.annotate(%{
-        target_id: manifestation_id,
+        target_id: acquisition.id,
         body_type: "probe",
         body: acquisition.probe,
         derivation_id: derivation.id
@@ -230,6 +239,43 @@ defmodule Pluteus.Ingest.Place do
 
     :ok
   end
+
+  # spec-01 §8.4. How much of the holding there is, in the unit its medium is
+  # measured along. Every normalized position is a fraction of this figure, and
+  # [spec-10] §13.2 weighs a reported position against it, so a holding without one
+  # can carry an address but cannot say where in the whole that address sits.
+  #
+  # It goes on the manifestation, which is where the bytes are. An expression
+  # embodied by two manifestations has two lengths, so the figure is not the
+  # expression's to hold.
+  defp record_extent(acquisition, manifestation_id) do
+    case extent_of(acquisition) do
+      nil ->
+        :ok
+
+      {unit, magnitude} ->
+        {:ok, _} = Addressing.record_extent(manifestation_id, unit, magnitude)
+        :ok
+    end
+  end
+
+  # A sounding or moving holding is measured in time, which its container states.
+  # A container that states no duration is a holding of unknown length: the figure
+  # is recorded where it is known and never invented, and the absence surfaces
+  # where a position is asked for rather than here.
+  defp extent_of(%Acquisition{media_class: class, probe: probe})
+       when class in [:audio, :video] and is_map(probe) do
+    case get_in(probe, ["format", "duration"]) do
+      nil -> nil
+      _stated -> measured(:millisecond, Streams.duration_ms(probe))
+    end
+  end
+
+  defp extent_of(%Acquisition{}), do: nil
+
+  # §8.4's magnitude is how much there is, so nothing is not a quantity of it.
+  defp measured(_unit, magnitude) when magnitude <= 0, do: nil
+  defp measured(unit, magnitude), do: {unit, magnitude}
 
   defp record_analysis_source(manifestation_id, digital_item_id) do
     now = DateTime.utc_now()
@@ -609,10 +655,29 @@ defmodule Pluteus.Ingest.Place do
 
   # --- Common -----------------------------------------------------------------------
 
+  # §6.3 decides the category from evidence, and from the broad class only where
+  # evidence decides nothing. The evidence read here is the file's own embedded
+  # tags, which is what distinguishes an audiobook from a music recording: both
+  # are one audio file of a text or a performance, and the bytes alone cannot say
+  # which.
   defp categorize(work_id, acquisition) do
-    value = Registry.default_category(acquisition.media_class, acquisition.companion_kind)
+    value = evidence(acquisition) || class_default(acquisition)
     {:ok, _} = Catalog.categorize(work_id, @category_scheme, value, :automatic)
   end
+
+  # A companion's category is its kind (§4.6), which the name already established,
+  # so there is nothing for a tag to decide.
+  defp evidence(%Acquisition{media_class: :companion}), do: nil
+
+  defp evidence(%Acquisition{} = acquisition) do
+    Registry.category_from_tags(
+      acquisition.media_class,
+      Streams.tags(acquisition.probe)
+    )
+  end
+
+  defp class_default(%Acquisition{} = acquisition),
+    do: Registry.default_category(acquisition.media_class, acquisition.companion_kind)
 
   defp title(acquisition) do
     Streams.first(Streams.tags(acquisition.probe), ["title"]) ||
