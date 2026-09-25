@@ -13,7 +13,7 @@ dependency. Everything else builds on it.
 
 | Spec | Covers | Status |
 |---|---|---|
-| [01 — Catalog Data Model](docs/spec-01-catalog-data-model.md) | Identifiers, IFLA LRM entities, assets, nomens, addressing, principals, preservation, deletion. 37 conformance criteria. | Draft, amended |
+| [01 — Catalog Data Model](docs/spec-01-catalog-data-model.md) | Identifiers, IFLA LRM entities, assets, nomens, addressing, principals, preservation, deletion. 43 conformance criteria. | Draft, amended |
 | [01 Annex A — Worked WEMI Mappings](docs/spec-01-annex-a-wemi-mappings.md) | §5–6 applied to seven media classes. Non-normative. | Draft |
 | [02 — Annotations and Derived Data](docs/spec-02-annotations-and-derived-data.md) | Bodies attached to §8 addresses. Provenance, model versioning, supersession. The one abstraction spanning audio segments, video scenes, document chunks, OCR words, face tags. | Draft |
 | [03 — Assets, Storage and Preservation](docs/spec-03-assets-storage-and-preservation.md) | Normalization, checksum scheduling, format risk, backup scope, dedupe. | Draft |
@@ -22,9 +22,9 @@ dependency. Everything else builds on it.
 | [06 — Principals, Auth and Authorization](docs/spec-06-principals-auth-and-authorization.md) | Principals and roles, identity from a forward-authenticating proxy, household boundary, per-principal scoping, audit. | Draft |
 | [07 — Wire Protocol](docs/spec-07-wire-protocol.md) | Native API, change notification, client keys, and an OpenSubsonic surface for existing music clients. | Draft |
 | [08 — Playback and Transcode Negotiation](docs/spec-08-playback-and-transcode-negotiation.md) | The session, the delivery and the rendition. Declared capability, the path decision, track selection and subtitles, seeking, capacity allocated per principal. 47 conformance criteria; §19 says where the thirteen things it rests on are specified. | Draft |
-| 09 — Search, Ranking and Recommendation | Feature vectors, taste modelling, playlist generation and sequencing. | Not started |
+| [09 — Search, Ranking and Recommendation](docs/spec-09-search-ranking-and-recommendation.md) | The four operations — search, ranking, similarity, recommendation — and which one reads a principal. The terms gate: what a derived body may be computed from, refused at computation rather than filtered afterwards. Regions as the unit of comparison, component sets over a principal's preferences and over an agent, set generation and sequencing, faces, and what may leave the household. 64 conformance criteria; §19 says where the thirteen things it rests on are specified. | Draft |
 | [10 — Presentation](docs/spec-10-presentation.md) | The render boundary. Surfaces, absence, names at the point of display, browsing without ranking, presentation profiles, the transport, continuity, correction, and the television client contract. 60 conformance criteria; §19 says where the eight things it rests on are specified. | Draft |
-| [10 Annex A — Design Language](docs/spec-10-annex-a-design-language.md) | Tokens, colour, type, space, focus, motion, iconography, components. Heroicons 2.2.0 is the icon base; A.8 gives the construction and reduction rules for the twelve glyphs drawn on top of it. Normative for the interface; values are a registry. | Draft |
+| [10 Annex A — Design Language](docs/spec-10-annex-a-design-language.md) | Tokens, colour, type, space, focus, motion, iconography, components. Heroicons 2.2.0 is the icon base; A.8 gives the construction and reduction rules for the fifteen glyphs drawn on top of it. Normative for the interface; values are a registry. | Draft |
 
 **01, 02, 03 and 06 gate implementation.** No specification carries an open
 item; the last four, in spec-01, were closed in favour of the answers recorded
@@ -67,7 +67,9 @@ before spec-05 and spec-10 were written. Twenty-four criteria have been added
 since, across spec-01, spec-02, spec-03, spec-04, spec-06 and spec-07, and none
 of them is met yet. None of spec-08 is built: no rendition is produced, no
 session exists, and spec-01 criteria 33 and 40 are unmet because nothing yet
-opens a delivery or counts a session's reports.
+opens a delivery or counts a session's reports. None of spec-09 is built either:
+there is no ranker, no similarity, no taste model, and `sonicSimilarity` is not
+advertised.
 
 Analysis runs in two tools: one on the BEAM, and a Python sidecar in
 [sidecar/](sidecar/) on an internal network it shares only with the app, with
@@ -100,4 +102,5 @@ names what in it the specifications supersede. The
 [Elixir package reference](docs/notes/04-elixir-package-reference.md) remains
 current.
 
-[docs/drafts/](docs/drafts/) — the decision logs behind spec-01 and spec-08.
+[docs/drafts/](docs/drafts/) — the decision logs behind spec-01, spec-08 and
+spec-09.
