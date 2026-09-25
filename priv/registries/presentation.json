@@ -46,10 +46,16 @@
   },
 
   "tiling": {
+    "name": "image-tiled",
+    "classes": ["image", "text", "package"],
+    "companion_kinds": [],
     "threshold_pixels": 16000000,
     "tile_size": 512,
     "format": "jpeg",
-    "compliance_level": 1
+    "media_type": "application/zip",
+    "compliance_level": 0,
+    "extra_features": ["regionByPct", "sizeByW"],
+    "for": "a scan past the threshold, served under the IIIF Image API grammar rather than as a graded profile"
   },
 
   "trickplay": {
@@ -96,7 +102,7 @@
   },
 
   "text_profiles": [
-    { "name": "text-extracted", "classes": ["text", "package"],
+    { "name": "text-extracted", "classes": ["image", "text", "package"],
       "companion_kinds": ["lyrics", "subtitles", "description"],
       "media_type": "text/plain; charset=utf-8" },
     { "name": "text-word-positions", "classes": ["image", "text", "package"],
