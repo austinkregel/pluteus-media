@@ -91,6 +91,32 @@ defmodule Pluteus.Ingest.Streams do
   end
 
   @doc """
+  The pixel dimensions of a file's first visual stream, or nil where it has none.
+
+  A still image is one video stream to a probe, so this answers a photograph and a
+  film alike. Cover art embedded beside audio is an attached picture and is passed
+  over: its dimensions are the artwork's, not the holding's ([spec-10] §11.2).
+  """
+  @spec dimensions(map() | nil) :: {pos_integer(), pos_integer()} | nil
+  def dimensions(nil), do: nil
+
+  def dimensions(probe) do
+    probe
+    |> Map.get("streams", [])
+    |> Enum.find(fn stream ->
+      stream["codec_type"] == "video" and get_in(stream, ["disposition", "attached_pic"]) != 1
+    end)
+    |> case do
+      %{"width" => width, "height" => height}
+      when is_integer(width) and is_integer(height) and width > 0 and height > 0 ->
+        {width, height}
+
+      _no_visual_stream ->
+        nil
+    end
+  end
+
+  @doc """
   The container's duration in milliseconds.
   """
   @spec duration_ms(map()) :: non_neg_integer()
