@@ -29,12 +29,16 @@ defmodule Pluteus.Presentation.Registry do
   This is the closed set §11.1 names, and it is what a refusal lists.
   """
   @spec profile_names() :: [String.t()]
-  def profile_names do
-    Enum.map(image_profiles(), & &1["name"]) ++
-      [placeholder_profile()["name"], trickplay()["name"], key_frame()["name"]] ++
-      [waveform_overview()["name"]] ++
-      Enum.map(waveform_detail(), & &1["name"]) ++
-      Enum.map(text_profiles(), & &1["name"])
+  def profile_names, do: Enum.map(profiles(), & &1["name"])
+
+  @doc """
+  Every profile the deployment serves, across all families.
+  """
+  @spec profiles() :: [map()]
+  def profiles do
+    image_profiles() ++
+      [placeholder_profile(), tiling(), trickplay(), key_frame(), waveform_overview()] ++
+      waveform_detail() ++ text_profiles()
   end
 
   @doc """
@@ -43,12 +47,7 @@ defmodule Pluteus.Presentation.Registry do
   """
   @spec profile(String.t()) :: {:ok, map()} | :error
   def profile(name) do
-    all =
-      image_profiles() ++
-        [placeholder_profile(), trickplay(), key_frame(), waveform_overview()] ++
-        waveform_detail() ++ text_profiles()
-
-    case Enum.find(all, &(&1["name"] == name)) do
+    case Enum.find(profiles(), &(&1["name"] == name)) do
       nil -> :error
       found -> {:ok, found}
     end
