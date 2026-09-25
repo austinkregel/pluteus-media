@@ -49,9 +49,14 @@ truth for expressions.** A fluid size is two endpoint tokens and a generated
 
 ### A.1.3 Units
 
-Every dimension primitive is expressed in `rem`, except the root font size
-itself, which is the one `px` primitive and the anchor the `rem` scale resolves
-against.
+Every dimension primitive that participates in the scale is expressed in `rem`.
+The root font size is the anchor that scale resolves against and is in `px`.
+
+Three further primitives are in `px`, and the set is closed: the hairline and the
+component border width of A.4.3, which are a fixed thinness rather than a
+proportion of the type size, and the pill radius, which A.1.2's admissible units
+cannot express as a proportion. **A `px` dimension outside those four is an
+error**, and the lint A.1.5 requires enforces the list rather than the unit.
 
 The first reason is the reader: a `rem` honours the browser font-size
 preference a person has set, and a `px` overrides it. The second is A.3.3: the
@@ -248,28 +253,47 @@ metres, where a hue distinction does not.
 
 So colour follows what the bytes already decide. spec-04 §5.3 records a broad
 class per holding, and spec-04 §6.3's finer category — which bytes cannot decide
-— is the glyph's (A.8.2).
+— is the glyph's (A.8.6).
 
 | Class | OKLCH | sRGB | Hue family | Covers |
 | --- | --- | --- | --- | --- |
-| video | `oklch(0.72 0.146 275)` | `#8b9bff` | indigo | film, television, home video |
-| audio | `oklch(0.72 0.150 75)` | `#da950b` | amber | music recording |
+| video | `oklch(0.72 0.146 275)` | `#8b9bff` | indigo | film, television episode, home video |
+| audio | `oklch(0.72 0.150 75)` | `#da950b` | amber | music recording, audiobook, podcast episode |
+| software | `oklch(0.72 0.170 138)` | `#6abd4b` | green | video game |
 | image | `oklch(0.72 0.126 185)` | `#08beaf` | teal | photograph, scan |
-| text | `oklch(0.72 0.160 12)` | `#f7758a` | rose | document, ebook |
+| text, package | `oklch(0.72 0.160 12)` | `#f7758a` | rose | document, ebook, comic issue |
 
 The hue families are borrowed from a widely used general-purpose palette; the
-lightness is this system's own, so the invariant holds. All four span **6.58:1 to
+lightness is this system's own, so the invariant holds. All five span **6.58:1 to
 7.53:1** against step 02, a spread of 0.95, which is one assertion in continuous
 integration. Every pair is at least 134 rgb units apart.
+
+**Six classes, five colours.** sRGB at this lightness has room for a fifth hue
+and not a sixth. Measured across the whole wheel, the best available sixth falls
+**95 rgb units** from its nearest neighbour while staying inside the band above — against a tightest existing pair of 134. Abandoning the
+band buys 130 units at hue 328, at a chroma of 0.296 that out-saturates the
+artwork A.2.1 keeps the interface clear of. The choice is therefore which two
+classes share a hue, not whether any do.
+
+**`package` takes text's rose**, because a comic issue is read a page at a time
+on the reader spec-10 §12.1 adapts from the one a document and an ebook get: the
+group is the one a person is already in, and A.8.6's glyph carries the difference.
+`software` takes a hue of its own because nothing else in the catalog is run
+rather than read, heard or watched, so it groups with nothing.
 
 | Role | Value |
 | --- | --- |
 | `sys.color.class.<broad class>` | per class, above |
 | `sys.color.on.class` | `#16181c` |
 
+There is a token per class, and `sys.color.class.package` and
+`sys.color.class.text` resolve to one `base` primitive. Both names exist, so a
+release that finds a sixth hue worth spending gives package a value and touches
+no template — which is the semantic tier doing the job A.1.4 describes.
+
 `on.class` is a token rather than a constant because a solid's readable
 foreground varies by hue. At one lightness it does not have to: one dark ink
-reaches 6.66:1 on the least contrasting of the four. A class added at another
+reaches 6.66:1 on the least contrasting of the five. A class added at another
 lightness is what the token absorbs.
 
 A companion (spec-04 §4.6) carries no class colour, because a companion is never
@@ -560,7 +584,7 @@ there. On a pointer surface it is shown when a person is navigating by key.
 
 | Token | Value |
 | --- | --- |
-| `sys.color.focus.ring` | `oklch(0.62 0.012 264)` / `#828690` |
+| `sys.color.focus.ring` | `oklch(0.62 0.012 264)` / `#82868e` |
 | `sys.border.focus.width` at `near` | 0.125rem / 2 px |
 | `sys.border.focus.width` at `far` | 0.125rem / 4 px |
 
@@ -602,10 +626,25 @@ darkens nothing.
 
 **A tonal step alone cannot carry a boundary.** Step 03 on step 02 measures
 1.10:1, far below the 3:1 [WCAG22] §1.4.11 requires of a boundary that must be
-perceived. Any elevated surface whose edge is functionally significant MUST
-therefore carry a border at step 06 or 07 — measured against the surface it sits
-on, not assumed — and where that pairing does not reach 3:1 the boundary uses
-`sys.color.focus.ring`'s role rather than a ramp step.
+perceived.
+
+**No border step reaches 3:1 against an elevation surface either.** Measured
+against steps 01 to 05, step 06 spans 1.63:1 down to 1.16:1 and step 07 spans
+2.05:1 down to 1.46:1; step 08, which is a hovered value rather than a resting
+border, reaches 2.99:1 at its best. An elevated surface whose edge is functionally
+significant MUST therefore carry `sys.color.border.strong`, which resolves to the
+same primitive as the focus ring and clears 3:1 against every surface in the ramp
+— 5.17:1 at step 01 falling to 3.68:1 at step 05.
+
+It is a role of its own rather than a reference to `sys.color.focus.ring` because
+A.2.7 rebinds the semantic tier to system colour keywords in their defined pairs:
+a boundary binds to `ButtonBorder` and a focus indicator to `Highlight`, and one
+name cannot be both. Steps 06 and 07 remain correct for a separator and for a
+control's own edge, where the edge is not the sole carrier of anything.
+
+This is the rule and not an exception, because in this ramp no border step and no
+surface pair reach the ratio. A deployment that retunes the ramp measures again;
+the obligation is the ratio, not the step.
 
 A shadow MAY be added for depth and MUST NOT be the sole carrier of any
 boundary, state or affordance: it does not survive forced colours and it does
@@ -777,10 +816,18 @@ A.2.6 makes the glyph the carrier of category. One glyph per value of spec-04
 | television episode | video | a screen on a stand | `tv` |
 | home video | video | a camcorder: a body and a lens wedge | `video-camera` |
 | music recording | audio | a disk: a centre hole and one groove | drawn |
+| audiobook | audio | an open book with one sound arc rising clear of its outer edge | drawn |
+| podcast episode | audio | a microphone: a capsule on a stem, on a base | `microphone` |
 | photograph | image | a print: a frame with a horizon and a sun | `photo` |
 | scan | image | a sheet with a folded corner, crossed by a scanner bar | drawn |
 | document | text | a sheet with a folded corner and text lines | `document-text` |
 | ebook | text | an open book: two facing pages | `book-open` |
+| comic issue | package | a page of unequal panels: one wide above, two below | drawn |
+| video game | software | a gamepad: a body with a directional cross and two buttons | drawn |
+
+A companion kind is a value of that registry and takes no glyph, for A.2.6's
+reason for giving it no colour: it is never presented as a holding (spec-10
+§12.2), so nothing draws it.
 
 *music recording* is drawn because the base set offers a notated pitch. The unit
 a household holds is a recording, and a disk says that; a quaver says something
@@ -797,17 +844,34 @@ of paper. The scanner bar crossing **beyond** the sheet's edges is what separate
 them, and it must still separate them at 16 px. The sheet keeps its folded corner
 at every grid and loses its text lines, so the bar is the entire signal.
 
+*audiobook* against *ebook* is the same problem and takes the same answer, since
+both are an open book. The arc rising **clear of** the book's outer edge is the
+separator, and at 16 the pages reduce to one knocked-out region and the arc to a
+single stroke outside it — A.8.5's restatement of a thin feature as a solid one,
+applied so that the signal is the part that sits outside the silhouette. These
+two are also the pair where class colour helps least, because rose and amber are
+the tightest pair in A.2.6 at 134 rgb units, which is a further reason the glyph
+carries it.
+
+*comic issue* against *photograph* needs less care than it looks to: both are a
+frame, but a print carries a horizon and a sun inside one field while a comic
+page is divided, and A.8.5's rule that a divider becomes two knocked-out frames
+makes the division the shape rather than a line that could thin away.
+
 A category the registry adds needs a glyph before it is presentable. It does not
-need a colour: it takes its class's.
+need a colour: it takes its class's, and A.2.6 gives every class one.
 
 ### A.8.7 The drawn inventory
 
-Twelve glyphs are drawn because nothing in the base set's 324 serves them. Each
+Fifteen glyphs are drawn because nothing in the base set's 324 serves them. Each
 carries all three grids.
 
 | Glyph | Why the base set does not serve it |
 | --- | --- |
 | music recording | `musical-note` is a notated pitch |
+| audiobook | `book-open` is the ebook; nothing in the set is a book that is heard |
+| comic issue | no panelled page; `squares-2x2` is a grid control and `rectangle-stack` a stack of cards |
+| video game | no gamepad; `puzzle-piece` means an extension and `cpu-chip` means hardware |
 | scan | no scanner mark |
 | previous, next | `backward` and `forward` are scans; a step is a different command |
 | back 10s, forward 30s | no seek-by-interval mark |
@@ -1055,6 +1119,6 @@ vocabulary here is `subtle` / bare / `strong` / `solid`.
   document, which is why A.2.4 adopts values rather than claiming conformance.
 
 Values marked as computed or measured in this annex — the ramp, the class-colour
-contrast band, the angular figures in A.3.3, the subsetting ratio in A.3.5, the
-chroma variation in A.2.1 — were derived rather than cited, and are recorded so
-that they can be re-derived.
+contrast band and the hue-separation figures beside it, the angular figures in
+A.3.3, the subsetting ratio in A.3.5, the chroma variation in A.2.1 — were
+derived rather than cited, and are recorded so that they can be re-derived.
