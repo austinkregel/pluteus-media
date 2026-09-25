@@ -14,6 +14,23 @@ defmodule Pluteus.Ingest.StrayBytesTest do
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
 
+  test "a pass over more stray bytes than one statement can carry still completes" do
+    # The wire protocol carries 65535 parameters and a finding spends nine, so a single
+    # insert fails somewhere past seven thousand files. A deployment with that many
+    # stray files is precisely the one whose operator needs the report, and before this
+    # was batched the pass crashed every night for exactly that reason.
+    locations =
+      for _ <- 1..7_400 do
+        location = Ingest.location_for(UUIDv7.generate())
+        :ok = Storage.put(location, "x")
+        location
+      end
+
+    on_exit(fn -> for location <- locations, do: Storage.delete(location) end)
+
+    assert Ingest.find_stray_bytes() >= 7_400
+  end
+
   test "stray bytes are a finding, recorded once, and nothing is deleted" do
     id = UUIDv7.generate()
     location = Ingest.location_for(id)
