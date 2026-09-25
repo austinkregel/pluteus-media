@@ -197,8 +197,11 @@ defmodule Pluteus.Ingest.Normalize do
     target = Storage.path(location)
     File.mkdir_p!(Path.dirname(target))
 
+    # Two threads: the ingest queue already says how many holdings normalize at once, and
+    # ffmpeg's default of one thread per core multiplied by that leaves nothing for the
+    # deployment to answer on.
     args =
-      ["-loglevel", "error", "-nostdin", "-i", Storage.path(source)] ++
+      ["-loglevel", "error", "-nostdin", "-threads", "2", "-i", Storage.path(source)] ++
         ["-map", "0", "-c", "copy", "-c:a", standard["codec"], "-f", standard["muxer"], target]
 
     case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
@@ -227,6 +230,8 @@ defmodule Pluteus.Ingest.Normalize do
       "-loglevel",
       "error",
       "-nostdin",
+      "-threads",
+      "2",
       "-i",
       Storage.path(location),
       "-map",
