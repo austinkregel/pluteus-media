@@ -173,6 +173,33 @@ defmodule Pluteus.Ingest.Registry do
   def image_container?(format_name), do: format_name in registry()["image_containers"]
 
   @doc """
+  The category the file's own embedded tags name, or nil where they name none
+  (spec-04 §6.3).
+
+  A rule names one tag, the broad classes it may decide for, and a closed map from
+  tag value to category. The value is matched **whole and case-folded**: `genre`
+  reading `Audiobook` decides, and `Audiobooks & Spoken Word` does not. A substring
+  match would make a genre of "Podcast Theme Music" a podcast episode, which is the
+  guess §6.2's correction surface exists to avoid needing.
+
+  The classes are a guard on plausibility: an audiobook is audio, so a video file
+  whose genre reads `Audiobook` is not placed as one.
+
+  A miss is nil, and §6.3's class default answers.
+  """
+  @spec category_from_tags(atom(), map()) :: String.t() | nil
+  def category_from_tags(class, tags) do
+    class = Atom.to_string(class)
+
+    Enum.find_value(registry()["category_evidence"], fn rule ->
+      if class in rule["classes"], do: rule["values"][folded(tags[rule["tag"]])]
+    end)
+  end
+
+  defp folded(nil), do: nil
+  defp folded(value), do: value |> String.trim() |> String.downcase()
+
+  @doc """
   The category placement records where evidence decides nothing (spec-04 §6.3).
   """
   @spec default_category(atom(), String.t() | nil) :: String.t()
