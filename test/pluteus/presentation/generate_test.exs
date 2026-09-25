@@ -177,11 +177,13 @@ defmodule Pluteus.Presentation.GenerateTest do
              ]
     end
 
-    test "a family with no generator says so rather than writing an image",
+    test "a family with no generator says so rather than writing something else",
          %{inbox: inbox} do
-      [track] = ingest!(inbox, %{"KoB/01.flac" => media!(:flac)})
+      [document] = ingest!(inbox, %{"letters/note.txt" => "a note\n"})
 
-      assert Generate.run(manifestation_of(track), "waveform-overview-1000") ==
+      # Extracting text needs an extractor this deployment does not carry. Asking for
+      # one is answered plainly rather than by writing an image under its name.
+      assert Generate.run(manifestation_of(document), "text-extracted") ==
                {:refused, :no_generator}
     end
   end
