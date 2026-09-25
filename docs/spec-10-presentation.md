@@ -51,7 +51,7 @@ specifies the search surface and what a result carries, not the order results
 arrive in. Metadata matching (spec-05); this document presents the provenance
 a match carries, and spec-05 says how the value was arrived at.
 
-Wire form is spec-07's. Seven things this document needs are specified by the
+Wire form is spec-07's. Eight things this document needs are specified by the
 documents that own the concepts rather than here; §19 says where each one lives.
 
 The values of the design language are [ANNEX-A].
@@ -613,8 +613,10 @@ MUST carry §6.2's three slots on every result. It MUST be reachable from every
 mode, and reaching it MUST NOT discard an active facet set: a query is one more
 term over the current selection, and §9.3's chips carry it.
 
-Ranking is spec-09's. Until spec-09, results are ordered by the ordering of
-§6.4 and the surface says so.
+Ranking is spec-09's, and spec-09 §9 supersedes the order this section would
+otherwise fix. Where the deployment has configured no ranker, results are
+ordered by §6.4 and **the surface says which order it is in**, because a
+scannable list whose order is unexplained reads as a ranking nobody can check.
 
 ---
 
@@ -819,7 +821,26 @@ is the shape it takes.
 | photograph | viewer in a justified grid | `spatial` | image profiles, geometry |
 | scan | scan beside its transcript | `spatial`, `page`, `text_quote` | image profiles or tiles, word positions |
 | document, ebook | reader | `text_quote`, `text_position`, `page` | extracted text, position list |
+| comic issue | page reader | `page`, `spatial` | image profiles, geometry |
+| video game | its entity page, and no player | — | cover profiles |
 | companion kinds | never its own surface | — | — |
+
+**A comic issue's pages are images and are not photographs.** spec-04 §5.3 makes
+the `.cbz` one holding whose parts are addressed by a `page` selector, so the
+pages are never browse entries and never reach a photograph grid (§12.2). The
+page reader is the reader of the row above with an image where its text would be:
+a position in a page count, two-page spreads where the pages were drawn as
+spreads, and a `spatial` selector for a panel someone wants to point at. Its
+cover is its first page rather than a companion, so nothing is generated to stand
+for a holding that already has one (§11.6, criterion 9).
+
+**A video game has no player, and the surface says so rather than offering
+one.** The deployment runs no emulator, so the holding is catalogued, described
+and its bytes reachable as an asset (spec-07 §4.4), and there is no playback to
+offer. Under §17.2 a control with nothing behind it is absent, so the entity page
+carries no primary action of the kind §8.4's band 2 names — which is the one
+category where that band is empty, and it is empty because the household holds a
+thing this deployment does not run, not because anything failed.
 
 ### 12.2 Three rules across all of them
 
@@ -1474,8 +1495,9 @@ though there is nothing.
 ## 19. What this document rests on elsewhere
 
 Eight things this document needs belong to the specifications that own the
-concepts, and are specified there rather than here. Six are properties of the
-wire, the seventh is a kind of annotation, and the eighth is how bytes are made.
+concepts, and are specified there rather than here. Five are properties of the
+wire, the sixth is consumption data the catalog holds, the seventh is a kind of
+annotation, and the eighth is how bytes are made.
 
 | What this document needs | Where it is specified |
 | --- | --- |
@@ -1589,7 +1611,7 @@ that another principal's consumption datum answers as absent applies unchanged.
 
 An implementation conforms if it satisfies all of the following.
 
-**Machine-checkable (1–33)**
+**Machine-checkable (1–46)**
 
 1. Resolving a name, selecting an expression, and attaching consumption are
    recomputed per request and write nothing to the catalog.
@@ -1752,8 +1774,10 @@ An implementation conforms if it satisfies all of the following.
 - **[spec-05]** *Metadata Acquisition and Matching*, this system. §15.3's
   provenance rules govern what its matches render as, and its §11 maps onto
   §5.2's states.
-- **[spec-09]** *Search, Ranking and Recommendation*, not yet written. §9.5
-  orders results until it exists.
+- **[spec-09]** *Search, Ranking and Recommendation*, this system. §9 supersedes
+  §9.5's ordering; §11 reports §5.2's states in a ranked result; §15.1 is why a
+  search, a similarity and a recommendation are paths of their own rather than
+  second addresses §10.1 forbids.
 - **[W3C-ANNO]** W3C, *Web Annotation Data Model*. Its `creator` and
   `generator` distinction is spec-02 §3.2's authored and derived split under
   other names, and its selector types correspond closely to spec-01 §8.3's.
