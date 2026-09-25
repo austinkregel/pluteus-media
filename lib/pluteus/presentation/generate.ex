@@ -34,6 +34,11 @@ defmodule Pluteus.Presentation.Generate do
   alias Pluteus.Presentation.Waveform
   alias Pluteus.Storage
 
+  # ffmpeg takes a thread per core by default. The queue that runs generation already
+  # bounds how many of these happen at once, and a derivative of one still image has no
+  # use for the whole machine.
+  @threads ~w(-threads 2)
+
   @doc """
   Generates one artefact, or records why it could not.
 
@@ -290,6 +295,7 @@ defmodule Pluteus.Presentation.Generate do
         [Storage.path(source)] ++
         ["-vf", "scale=w=min(#{width}\\,iw):h=-2"] ++
         ["-frames:v", "1", "-update", "1", "-map_metadata", "-1"] ++
+        @threads ++
         quality(declared) ++
         [target]
 
@@ -484,7 +490,7 @@ defmodule Pluteus.Presentation.Generate do
       ~w(-loglevel error -nostdin -y -ss) ++
         [format_seconds(at_ms), "-i", Storage.path(source)] ++
         ["-vf", "scale=w=min(#{width}\\,iw):h=-2", "-frames:v", "1", "-update", "1"] ++
-        ["-map_metadata", "-1", target]
+        ["-map_metadata", "-1"] ++ @threads ++ [target]
 
     case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
       {_output, 0} -> :ok
@@ -509,7 +515,8 @@ defmodule Pluteus.Presentation.Generate do
     args =
       ~w(-loglevel error -nostdin -y -i) ++
         [Storage.path(source)] ++
-        ["-vf", chain, "-frames:v", "1", "-update", "1", "-map_metadata", "-1", target]
+        ["-vf", chain, "-frames:v", "1", "-update", "1", "-map_metadata", "-1"] ++
+        @threads ++ [target]
 
     case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
       {_output, 0} ->
