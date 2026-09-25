@@ -8,6 +8,7 @@ defmodule PluteusWeb.PresentationTest do
   """
 
   use PluteusWeb.ConnCase, async: true
+  use Oban.Testing, repo: Pluteus.Repo
 
   import Pluteus.IngestFixtures
 
@@ -23,6 +24,7 @@ defmodule PluteusWeb.PresentationTest do
   alias Pluteus.Repo
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
+  alias Pluteus.Workers.GeneratePresentationAsset
 
   @t0 ~U[2026-09-18 12:00:00.000000Z]
   @viewer "ada@household.test"
@@ -145,6 +147,50 @@ defmodule PluteusWeb.PresentationTest do
       assert conn.status == 202
       assert get_resp_header(conn, "presentation-profile") == ["image-2048"]
       assert conn.resp_body == ""
+
+      assert_enqueued(
+        worker: GeneratePresentationAsset,
+        args: %{subject_id: manifestation, profile: "image-2048"}
+      )
+    end
+
+    test "asking twice queues one job, which is the generating state",
+         %{conn: conn, inbox: inbox} do
+      {_photo, manifestation} = a_photograph(inbox)
+      path = "/manifestations/#{manifestation}/presentation/image-1280"
+
+      assert get(conn, path).status == 202
+      assert get(conn, path).status == 202
+
+      # The job's uniqueness is why the row needs no state column: a page of tiles
+      # asking at once does not encode the same artefact many times.
+      assert [_one] = all_enqueued(worker: GeneratePresentationAsset)
+    end
+
+    test "nothing is queued where there is nothing to generate from", %{conn: conn} do
+      {:ok, %{manifestation: manifestation}} = Catalog.create_work("A Described Photograph")
+
+      get(conn, "/manifestations/#{manifestation.id}/presentation/image-320")
+
+      assert all_enqueued(worker: GeneratePresentationAsset) == []
+    end
+
+    test "the queued job makes the artefact the next request serves",
+         %{conn: conn, inbox: inbox} do
+      {_photo, manifestation} = a_photograph(inbox)
+      path = "/manifestations/#{manifestation}/presentation/image-320"
+
+      assert get(conn, path).status == 202
+
+      assert %{success: 1} = Oban.drain_queue(queue: :presentation)
+
+      made = Presentation.get(manifestation, "image-320")
+      on_exit(fn -> Storage.delete(made.location) end)
+
+      served = get(conn, path)
+
+      assert served.status == 200
+      assert get_resp_header(served, "presentation-profile") == ["image-320"]
     end
 
     test "not generated, with nothing to generate from, is 204", %{conn: conn} do
