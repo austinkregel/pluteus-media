@@ -5,7 +5,12 @@ defmodule Pluteus.ConsumptionFixtures do
   spec-01 §11.4 makes a position the property of a device, and [spec-10] §13.2
   weighs it against its category and the medium's whole extent — so even a test
   that only needs a position to exist needs a categorized work, a bound device and
-  an extent. This assembles the three.
+  a recorded extent. This assembles the three.
+
+  The extent is recorded on the work rather than on a manifestation, because these
+  positions are reported against the work directly. Placement records it on the
+  manifestation it carries (spec-04 §6.1); a test that needs that shape goes
+  through ingest rather than through here.
 
   The default position sits well inside the film band of `continuity.json`: a film
   discards anything under two minutes as barely begun, so a test that wants a
@@ -13,6 +18,7 @@ defmodule Pluteus.ConsumptionFixtures do
   """
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Events
   alias Pluteus.Ingest.Place
   alias Pluteus.Principals
@@ -31,6 +37,8 @@ defmodule Pluteus.ConsumptionFixtures do
     {:ok, _} =
       Catalog.categorize(catalogued.work.id, Place.category_scheme(), category, :automatic)
 
+    {:ok, _} = Addressing.record_extent(catalogued.work.id, :millisecond, @extent)
+
     {:ok, device} = Principals.bind_device(principal_id, "a test device")
 
     Map.put(catalogued, :device, device)
@@ -39,8 +47,9 @@ defmodule Pluteus.ConsumptionFixtures do
   @doc """
   Reports a position as a playing session would, and returns the row kept.
 
-  `:playing`, `:sequence`, `:reported_at`, `:unit` and `:extent` are overridable,
-  which is what §13.3's conflict cases need.
+  `:playing`, `:sequence`, `:reported_at` and `:unit` are overridable, which is
+  what §13.3's conflict cases need. The extent is not: §13.2 reads it from the
+  catalog, so a test that needs a different one records it there.
   """
   @spec position!(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), non_neg_integer(), keyword()) ::
           Events.ResumePosition.t()
@@ -65,8 +74,7 @@ defmodule Pluteus.ConsumptionFixtures do
       unit: Keyword.get(opts, :unit, :millisecond),
       reported_at: Keyword.get(opts, :reported_at, DateTime.utc_now()),
       sequence: Keyword.get(opts, :sequence, 1),
-      playing: Keyword.get(opts, :playing, true),
-      extent: Keyword.get(opts, :extent, @extent)
+      playing: Keyword.get(opts, :playing, true)
     })
   end
 
