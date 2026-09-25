@@ -27,7 +27,12 @@ defmodule Pluteus.Formats do
   def identify(location) do
     path = Storage.path(location)
 
-    case System.cmd(siegfried!(), ["-json", path], stderr_to_stdout: true) do
+    # Siegfried writes its report to standard output and its complaints to standard
+    # error, and the two are kept apart: merged, a complaint about the file lands in
+    # front of the JSON and the parse raises instead of the report being read. What a
+    # complaint says is in the report as well, under `errors`, which is where the
+    # clause below reads it from.
+    case System.cmd(siegfried!(), ["-json", path]) do
       {report, 0} -> report |> Jason.decode!() |> from_report()
       {output, status} -> {:error, {:siegfried, status, String.trim(output)}}
     end
