@@ -18,6 +18,7 @@ defmodule Pluteus.Presentation.GenerateTest do
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Generate
   alias Pluteus.Presentation.Orientation
+  alias Pluteus.Presentation.Registry
   alias Pluteus.Principals
   alias Pluteus.Storage
 
@@ -28,8 +29,11 @@ defmodule Pluteus.Presentation.GenerateTest do
     %{inbox: inbox!()}
   end
 
+  # Under a prefix of its own, because two async tests dropping one relative path
+  # contend on the sighting and acquisition rows for as long as the slower one runs.
   defp ingest!(inbox, files) do
-    for {path, bytes} <- files, do: drop!(inbox, path, bytes)
+    prefix = unique_prefix()
+    for {path, bytes} <- files, do: drop!(inbox, Path.join(prefix, path), bytes)
     ids = inbox |> acquire_settled!(@t0) |> acquired()
     Place.place_due(inbox)
     Normalize.normalize_due()
@@ -177,14 +181,39 @@ defmodule Pluteus.Presentation.GenerateTest do
              ]
     end
 
-    test "a family with no generator says so rather than writing something else",
-         %{inbox: inbox} do
-      [document] = ingest!(inbox, %{"letters/note.txt" => "a note\n"})
+    test "every profile the registry names has a generator", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "holiday/IMG_0001.png" => media!(:png),
+          "KoB/01.flac" => media!(:flac, duration: 2),
+          "home/party.mkv" => media!(:ffv1, duration: 45),
+          "letters/note.txt" => "a note\n"
+        })
 
-      # Extracting text needs an extractor this deployment does not carry. Asking for
-      # one is answered plainly rather than by writing an image under its name.
-      assert Generate.run(manifestation_of(document), "text-extracted") ==
-               {:refused, :no_generator}
+      subjects = Map.new(placed, &{&1.media_class, manifestation_of(&1)})
+
+      # A registry entry nothing can make is a name a surface may ask for and never be
+      # answered, so a profile added to §20 with no generator fails here rather than
+      # answering 202 for ever. One applicable subject each is enough to prove the
+      # dispatch reaches a generator, and a refusal for any other reason proves it too:
+      # the tiling profile refuses a small image for being under the threshold, which
+      # only a generator can decide.
+      for profile <- Registry.profiles() do
+        name = Map.fetch!(profile, "name")
+        classes = Enum.map(Map.fetch!(profile, "classes"), &String.to_existing_atom/1)
+
+        case Enum.find_value(classes, &subjects[&1]) do
+          nil ->
+            :no_subject_of_that_class
+
+          subject ->
+            result = Generate.run(subject, name)
+
+            refute result == {:refused, :no_generator}, "#{name} reaches no generator"
+
+            with {:ok, made} <- result, do: on_exit(fn -> Storage.delete(made.location) end)
+        end
+      end
     end
   end
 
