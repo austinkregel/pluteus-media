@@ -1,25 +1,25 @@
 {
   "image_profiles": [
     { "name": "image-160", "width": 160, "format": "jpeg", "quality": 82,
-      "classes": ["image", "video", "text", "package"],
+      "classes": ["image", "video", "text", "package"], "companion_kinds": ["cover_art"],
       "for": "a list row, and a grid tile at one device pixel per CSS pixel" },
     { "name": "image-320", "width": 320, "format": "jpeg", "quality": 82,
-      "classes": ["image", "video", "text", "package"],
+      "classes": ["image", "video", "text", "package"], "companion_kinds": ["cover_art"],
       "for": "a grid tile at 1x, a list row at 2x" },
     { "name": "image-640", "width": 640, "format": "jpeg", "quality": 82,
-      "classes": ["image", "video", "text", "package"],
+      "classes": ["image", "video", "text", "package"], "companion_kinds": ["cover_art"],
       "for": "an entity page's cover at 1x, a grid tile at 2x" },
     { "name": "image-1280", "width": 1280, "format": "jpeg", "quality": 80,
-      "classes": ["image", "video", "text", "package"],
+      "classes": ["image", "video", "text", "package"], "companion_kinds": ["cover_art"],
       "for": "a full-width detail, and a television poster at 1x" },
     { "name": "image-2048", "width": 2048, "format": "jpeg", "quality": 78,
-      "classes": ["image", "video", "text", "package"],
+      "classes": ["image", "video", "text", "package"], "companion_kinds": ["cover_art"],
       "for": "a photograph, a comic page or a scan in its viewer" }
   ],
   "default_image_profile": "image-640",
   "placeholder_profile": {
     "name": "image-blur-16", "width": 16, "format": "jpeg", "quality": 40,
-    "classes": ["image", "video", "text", "package"],
+    "classes": ["image", "video", "text", "package"], "companion_kinds": ["cover_art"],
     "for": "the blurred approximation spec-10 5.4 permits as a loading state, computed from the image's own pixels"
   },
 
@@ -90,10 +90,13 @@
 
   "text_profiles": [
     { "name": "text-extracted", "classes": ["text", "package"],
+      "companion_kinds": ["lyrics", "subtitles", "description"],
       "media_type": "text/plain; charset=utf-8" },
     { "name": "text-word-positions", "classes": ["image", "text", "package"],
+      "companion_kinds": [],
       "media_type": "application/json" },
     { "name": "text-position-list", "classes": ["text", "package"],
+      "companion_kinds": [],
       "media_type": "application/json" }
   ],
 
