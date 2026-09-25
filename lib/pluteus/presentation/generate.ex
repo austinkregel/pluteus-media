@@ -29,6 +29,7 @@ defmodule Pluteus.Presentation.Generate do
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Orientation
   alias Pluteus.Presentation.Registry
+  alias Pluteus.Presentation.Waveform
   alias Pluteus.Storage
 
   @doc """
@@ -56,12 +57,27 @@ defmodule Pluteus.Presentation.Generate do
 
   defp declared(profile), do: Registry.profile(profile)
 
-  # Only the image family is made here. The others are named by §20 and their
-  # generators are separate pieces of work; asking for one answers plainly rather
-  # than writing an image under its name.
+  # The family is read off what the profile declares about itself rather than from its
+  # name, so a registry that renames a profile does not need this to change. A waveform
+  # states a point count or a rate, a key frame states where to take it, a sheet states
+  # its tiling, and an image states only a width.
+  defp generate(subject_id, %{"points" => _} = declared, source),
+    do: waveform(subject_id, declared, source)
+
+  defp generate(subject_id, %{"points_per_second" => _} = declared, source),
+    do: waveform(subject_id, declared, source)
+
+  defp generate(subject_id, %{"tile_columns" => _} = declared, source),
+    do: trickplay(subject_id, declared, source)
+
+  defp generate(subject_id, %{"proportion" => _} = declared, source),
+    do: key_frame(subject_id, declared, source)
+
   defp generate(subject_id, %{"width" => _} = declared, source),
     do: image(subject_id, declared, source)
 
+  # A text profile's generator needs an extractor this deployment does not carry, so
+  # asking for one says so rather than writing something else under its name.
   defp generate(_subject_id, _declared, _source), do: {:refused, :no_generator}
 
   defp image(subject_id, declared, %Asset{} = source) do
@@ -80,36 +96,101 @@ defmodule Pluteus.Presentation.Generate do
          :ok <- turned(source.location, dimensions, orientation) do
       {width, height} = dimensions
 
-      Presentation.record(%{
-        subject_id: subject_id,
-        profile: profile,
-        ordinal: 0,
-        location: location,
-        media_type: media_type(Map.fetch!(declared, "format")),
-        size: measured.size,
-        digest: measured.digest,
-        digest_algorithm: measured.digest_algorithm,
+      record(subject_id, declared, source, location, measured, %{
         width: width,
         height: height,
-        descriptor: descriptor(declared, orientation),
-        source_asset_id: source.id,
-        source_digest: source.digest,
-        generated_at: DateTime.utc_now(),
-        last_served_at: DateTime.utc_now()
+        descriptor: descriptor(declared, orientation)
       })
     else
-      {:error, kind, detail} ->
-        _ = Storage.delete(location)
+      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+    end
+  end
 
-        Ingest.record_finding(%{
-          stage: :normalize,
-          kind: kind,
-          permanent: false,
-          detail: Map.merge(detail, %{subject: subject_id, profile: profile}),
-          input_id: subject_id
-        })
+  # §11.4. The peaks are written as JSON with the resolution beside them, because the
+  # numbers alone do not say how finely they were measured and criterion 30 turns on
+  # exactly that.
+  defp waveform(subject_id, declared, %Asset{} = source) do
+    profile = Map.fetch!(declared, "name")
+    location = Presentation.location_for(subject_id, profile, 0, "json")
+    duration_ms = duration_of(source.location)
 
-        {:error, kind, detail}
+    points = Waveform.points(declared, duration_ms)
+
+    with {:ok, peaks} <- Waveform.peaks(source.location, points, sample_rate(declared)),
+         descriptor = waveform_descriptor(declared, duration_ms, peaks),
+         :ok <- write(location, Jason.encode!(%{"resolution" => descriptor, "peaks" => peaks})),
+         {:ok, measured} <- measure(location) do
+      record(subject_id, declared, source, location, measured, %{
+        width: nil,
+        height: nil,
+        descriptor: descriptor
+      })
+    else
+      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+    end
+  end
+
+  # §11.3. One still for the poster position and a link preview, taken at a proportion
+  # of the duration bounded at both ends: a short clip does not take frame zero, and a
+  # long film does not take a frame far enough in to spoil it.
+  defp key_frame(subject_id, declared, %Asset{} = source) do
+    profile = Map.fetch!(declared, "name")
+    location = Presentation.location_for(subject_id, profile, 0, "jpg")
+    at_ms = frame_position(declared, duration_of(source.location))
+
+    with :ok <- still_at(source.location, location, declared, at_ms),
+         {:ok, measured} <- measure(location),
+         {:ok, {width, height}} <- dimensions_of(location) do
+      record(subject_id, declared, source, location, measured, %{
+        width: width,
+        height: height,
+        descriptor: %{
+          "width" => Map.fetch!(declared, "width"),
+          "taken_at_ms" => at_ms,
+          "format" => Map.fetch!(declared, "format")
+        }
+      })
+    else
+      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+    end
+  end
+
+  # §11.3. Frames at a fixed interval, tiled, with the index a client needs to go from
+  # a time to a tile and a rectangle within it. The frames are extracted once; the
+  # index is what lets the same extraction serve the interface's scrubber and a
+  # client's own packaging.
+  defp trickplay(subject_id, declared, %Asset{} = source) do
+    profile = Map.fetch!(declared, "name")
+    location = Presentation.location_for(subject_id, profile, 0, "jpg")
+    duration_ms = duration_of(source.location)
+    interval_ms = Map.fetch!(declared, "frame_interval_ms")
+    columns = Map.fetch!(declared, "tile_columns")
+    rows = Map.fetch!(declared, "tile_rows")
+
+    frames = div(duration_ms, interval_ms)
+
+    # A recording shorter than one interval has no frames at that interval, and a sheet
+    # of none is not a narrower sheet. It is refused rather than written empty or
+    # written at an interval other than the one the index declares.
+    with true <- frames > 0,
+         :ok <- sheet(source.location, location, declared, frames),
+         {:ok, measured} <- measure(location),
+         {:ok, {width, height}} <- dimensions_of(location) do
+      record(subject_id, declared, source, location, measured, %{
+        width: width,
+        height: height,
+        descriptor: %{
+          "frame_interval_ms" => interval_ms,
+          "frame_width" => Map.fetch!(declared, "frame_width"),
+          "tile_columns" => columns,
+          "tile_rows" => rows,
+          "frames" => min(frames, columns * rows),
+          "format" => Map.fetch!(declared, "format")
+        }
+      })
+    else
+      false -> {:refused, :shorter_than_one_interval}
+      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
     end
   end
 
@@ -220,7 +301,143 @@ defmodule Pluteus.Presentation.Generate do
   defp extension("webp"), do: "webp"
   defp extension("png"), do: "png"
 
-  defp media_type("jpeg"), do: "image/jpeg"
-  defp media_type("webp"), do: "image/webp"
-  defp media_type("png"), do: "image/png"
+  defp media_type(%{"media_type" => media_type}), do: media_type
+  defp media_type(%{"format" => format}), do: image_media_type(format)
+
+  defp image_media_type("jpeg"), do: "image/jpeg"
+  defp image_media_type("webp"), do: "image/webp"
+  defp image_media_type("png"), do: "image/png"
+
+  # The one place a row is written, so every family records the same things about
+  # itself and the source it came from.
+  defp record(subject_id, declared, %Asset{} = source, location, measured, own) do
+    Presentation.record(%{
+      subject_id: subject_id,
+      profile: Map.fetch!(declared, "name"),
+      ordinal: 0,
+      location: location,
+      media_type: media_type(declared),
+      size: measured.size,
+      digest: measured.digest,
+      digest_algorithm: measured.digest_algorithm,
+      width: own.width,
+      height: own.height,
+      descriptor: own.descriptor,
+      source_asset_id: source.id,
+      source_digest: source.digest,
+      generated_at: DateTime.utc_now(),
+      last_served_at: DateTime.utc_now()
+    })
+  end
+
+  defp failed(subject_id, profile, location, kind, detail) do
+    _ = Storage.delete(location)
+
+    Ingest.record_finding(%{
+      stage: :normalize,
+      kind: kind,
+      permanent: false,
+      detail: Map.merge(detail, %{subject: subject_id, profile: profile}),
+      input_id: subject_id
+    })
+
+    {:error, kind, detail}
+  end
+
+  defp write(location, bytes) do
+    target = Storage.path(location)
+    File.mkdir_p!(Path.dirname(target))
+
+    case File.write(target, bytes) do
+      :ok -> :ok
+      {:error, reason} -> {:error, "derivative_not_written", %{reason: inspect(reason)}}
+    end
+  end
+
+  # A recording whose container states no duration cannot be measured along, and
+  # §11.4's point count and §11.3's interval are both measured along it.
+  defp duration_of(location) do
+    case Probe.probe(location) do
+      {:ok, probe} ->
+        case get_in(probe, ["format", "duration"]) do
+          nil -> 0
+          _stated -> Streams.duration_ms(probe)
+        end
+
+      {:error, _unprobeable} ->
+        0
+    end
+  end
+
+  defp sample_rate(declared), do: Map.fetch!(declared, "sample_rate")
+
+  defp waveform_descriptor(declared, duration_ms, peaks) do
+    declared
+    |> Map.take(["points", "points_per_second", "bits", "channels"])
+    |> Map.merge(%{"duration_ms" => duration_ms, "points_measured" => length(peaks)})
+  end
+
+  # §20's proportion, bounded at both ends.
+  defp frame_position(declared, duration_ms) do
+    proportion = Map.fetch!(declared, "proportion")
+    minimum = Map.fetch!(declared, "minimum_ms")
+    maximum = Map.fetch!(declared, "maximum_ms")
+
+    duration_ms
+    |> Kernel.*(proportion)
+    |> round()
+    |> max(0)
+    |> min(maximum)
+    |> then(fn at ->
+      if duration_ms > minimum, do: max(at, min(minimum, duration_ms)), else: 0
+    end)
+  end
+
+  defp still_at(source, location, declared, at_ms) do
+    target = Storage.path(location)
+    File.mkdir_p!(Path.dirname(target))
+
+    width = Map.fetch!(declared, "width")
+
+    args =
+      ~w(-loglevel error -nostdin -y -ss) ++
+        [format_seconds(at_ms), "-i", Storage.path(source)] ++
+        ["-vf", "scale=w=min(#{width}\\,iw):h=-2", "-frames:v", "1", "-update", "1"] ++
+        ["-map_metadata", "-1", target]
+
+    case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
+      {_output, 0} -> :ok
+      {output, status} -> {:error, "key_frame_not_taken", %{status: status, output: output}}
+    end
+  end
+
+  defp sheet(source, location, declared, frames) do
+    target = Storage.path(location)
+    File.mkdir_p!(Path.dirname(target))
+
+    interval_ms = Map.fetch!(declared, "frame_interval_ms")
+    width = Map.fetch!(declared, "frame_width")
+    columns = Map.fetch!(declared, "tile_columns")
+    rows = Map.fetch!(declared, "tile_rows")
+
+    chain =
+      "fps=1/#{interval_ms / 1000}," <>
+        "scale=w=#{width}:h=-2," <>
+        "tile=#{columns}x#{rows}"
+
+    args =
+      ~w(-loglevel error -nostdin -y -i) ++
+        [Storage.path(source)] ++
+        ["-vf", chain, "-frames:v", "1", "-update", "1", "-map_metadata", "-1", target]
+
+    case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
+      {_output, 0} ->
+        :ok
+
+      {output, status} ->
+        {:error, "trickplay_not_tiled", %{status: status, output: output, frames: frames}}
+    end
+  end
+
+  defp format_seconds(milliseconds), do: :erlang.float_to_binary(milliseconds / 1000, decimals: 3)
 end
