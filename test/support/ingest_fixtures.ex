@@ -227,6 +227,30 @@ defmodule Pluteus.IngestFixtures do
   end
 
   @doc """
+  A JPEG carrying an EXIF `Orientation` tag.
+
+  ffmpeg writes no EXIF, so the APP1 segment is assembled here and spliced in after
+  the image's own marker: six bytes of `Exif\\0\\0`, a big-endian TIFF header, and an
+  IFD0 of one entry holding tag 0x0112.
+
+  The pixels are `still/0`'s 64 by 48, so a derivative of an image stating 5 to 8 is
+  taller than it is wide and one stating 1 to 4 is not.
+  """
+  @spec oriented_jpeg(1..8) :: binary()
+  def oriented_jpeg(orientation) do
+    <<0xFF, 0xD8, rest::binary>> = media!(:jpeg)
+
+    ifd =
+      <<0x00, 0x01>> <>
+        <<0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, orientation::16, 0x00, 0x00>> <>
+        <<0x00, 0x00, 0x00, 0x00>>
+
+    exif = "Exif" <> <<0, 0>> <> "MM" <> <<0x00, 0x2A, 0x00, 0x00, 0x00, 0x08>> <> ifd
+
+    <<0xFF, 0xD8>> <> <<0xFF, 0xE1, byte_size(exif) + 2::16>> <> exif <> rest
+  end
+
+  @doc """
   A cartridge dump in the iNES container: the four magic bytes, the twelve-byte
   header giving one 16 KiB program bank and one 8 KiB character bank, and banks
   of that size holding nothing.
