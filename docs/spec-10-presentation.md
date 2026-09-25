@@ -320,6 +320,22 @@ spec-01 §7.4's ordering chooses within it. Its clauses, in order:
 4. Where only some candidates have a language and none matches, the candidates
    are those carrying none.
 
+**Matching is [RFC4647] §3.3.1 basic filtering, not string equality.** The
+profile carries a language range and a nomen carries a language tag. The tag
+matches where it equals the range, or extends it at a subtag boundary; the
+comparison MUST ignore case. A profile asking for `en` is therefore matched by
+`en`, `en-GB` and `en-Latn-GB`, and a profile asking for `en-GB` is matched by
+`en-GB` and `en-GB-oxendict` but not by `en`. A range is satisfied by a tag more
+specific than itself and never by one less specific: a person who asked for
+British English can read a name marked only English, but the deployment does not
+know that a name marked British English is what a person asking for English
+wants, and §7.4's ordering is what chooses between them.
+
+This is not the inference spec-01 §7.2 forbids. A tag reading `en-GB` states its
+own subtags, and reading it as English is reading what it says. What §7.2 forbids
+is supplying a language for a name that carries none, and an untagged nomen is
+untagged under every range.
+
 Clause 4 is the household's commonest shape, because spec-01 §7.2 makes the
 household's own vocabulary deliberately untagged. Clause 3 therefore requires
 the word *all*: without it, clause 3 swallows clause 4 and a seeded name in a
@@ -1752,8 +1768,7 @@ An implementation conforms if it satisfies all of the following.
   path §18.4 answers with, §9 the seek §12.3's transport drives, §12 what a
   session reports into §13, and §15 the failures §17.1 renders.
 - **[ANNEX-A]** *Annex A — Design Language*, companion to this specification.
-  Normative for the interface and for the token definition a client's theme is
-  generated from.
+  Normative for the interface, at both the distances its A.1.6 resolves it for.
 - **[IFLA-LRM]** as in spec-01 §18.1. §8.1 orders by §5.6's representative
   expression; §8.3 rests on §5.7's account of an aggregate and §5.8's of a
   serial.
@@ -1767,6 +1782,8 @@ An implementation conforms if it satisfies all of the following.
 - **[JELLYFIN]** *Jellyfin Server API*, as published in its OpenAPI document,
   for the projection of §18.
 - **[MEDIA-FRAGS]** W3C, *Media Fragments URI 1.0*, as adopted by spec-01 §9.1.
+- **[RFC4647]** Phillips, A., Davis, M., *Matching of Language Tags*, BCP 47.
+  §3.3.1 basic filtering is the matching §6.1's clause 2 applies.
 - **[RFC2119]**, **[RFC8174]** as in spec-01 §18.1.
 
 ### 23.2 Informative
