@@ -750,6 +750,28 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
+  Moves an expression under another work, which is LRM-R2 restated for an
+  expression already recorded.
+
+  `embody/2` adds an embodiment because LRM-R3 is many to many; LRM-R2 is 1 to M
+  and lives in a column, so realizing an expression under another work replaces
+  the one it had rather than adding to it. That asymmetry is the relations', not a
+  choice made here.
+
+  This is how spec-03 §8.3's *same work* decision is carried out: two expressions
+  that turn out to realize one creation are brought under one work, and neither is
+  merged into the other.
+  """
+  @spec realize(Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, Expression.t()} | {:error, Ecto.Changeset.t()}
+  def realize(work_id, expression_id) do
+    Expression
+    |> Repo.get!(expression_id)
+    |> Expression.changeset(%{work_id: work_id})
+    |> Repo.update()
+  end
+
+  @doc """
   Every expression realizing the given work.
   """
   @spec expressions_of(Ecto.UUID.t()) :: [Expression.t()]
