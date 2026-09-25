@@ -45,6 +45,7 @@ defmodule Pluteus.Representation do
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
+  alias Pluteus.Ingest.Place
   alias Pluteus.Presentation.Geometry
   alias Pluteus.Repo
   alias Pluteus.Representation.Absence
@@ -77,8 +78,12 @@ defmodule Pluteus.Representation do
     categories = Catalog.categories_of_many(res_ids)
 
     # [spec-10] §11.2 requires a visual res's dimensions in this call, so a surface
-    # can reserve a box before it asks for any bytes.
+    # can reserve a box before it asks for any bytes. Where no probe has run the ratio
+    # to reserve is §20's for the category, which lives on the work (spec-04 §6.3), so
+    # the work is reached for the whole page at once.
     geometry = Geometry.for_res(res_ids)
+    works = Catalog.works_of_many(res_ids)
+    work_categories = Catalog.categories_of_many(Map.values(works))
 
     # Both reads are per profile: §7.3 makes a non-null assigner a name specific to
     # that agent, so one person's word for a thing never reaches another.
@@ -97,6 +102,7 @@ defmodule Pluteus.Representation do
         measurements: Map.get(measurements, res.id, %{}),
         categories: Map.get(categories, res.id, []),
         geometry: geometry[res.id],
+        work_category: work_category(works[res.id], work_categories),
         resolved: resolved[res.id],
         nomens: Map.get(nomens, res.id, []),
         composed: composed[res.id]
@@ -123,6 +129,7 @@ defmodule Pluteus.Representation do
       "own" => own(res, context)
     }
     |> put_composed_name(context.composed)
+    |> put_reserved_ratio(context)
   end
 
   # §6.3 makes the composed name the surface's own rather than a field of the res,
@@ -131,6 +138,25 @@ defmodule Pluteus.Representation do
 
   defp put_composed_name(representation, composed),
     do: Map.put(representation, "composed_name", composed)
+
+  # §11.2's ratio to reserve, which is the surface's own like the composed name: the
+  # measured one where the bytes have been probed, and §20's for the category where
+  # they have not. It carries no state, because it is always answerable — that is the
+  # whole point of it, since a tile with no ratio collapses to nothing.
+  defp put_reserved_ratio(representation, context) do
+    case Geometry.reserve(context.geometry, context.work_category) do
+      nil -> representation
+      ratio -> Map.put(representation, "reserve_aspect_ratio", ratio)
+    end
+  end
+
+  defp work_category(nil, _work_categories), do: nil
+
+  defp work_category(work_id, work_categories) do
+    work_categories
+    |> Map.get(work_id, [])
+    |> Enum.find_value(&if(&1.scheme == Place.category_scheme(), do: &1.value))
+  end
 
   defp absent(context, field, otherwise \\ :not_yet_examined),
     do: Absence.state(context.evidence, field, otherwise)
