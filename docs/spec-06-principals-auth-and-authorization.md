@@ -3,7 +3,7 @@
 **Specification 06**
 **Status:** Draft
 **Version:** 0.2
-**Depends on:** spec-01 (Catalog Data Model)
+**Depends on:** spec-01 (Catalog Data Model), spec-07 (Wire Protocol)
 **Obsoletes:** nothing
 
 ## Abstract
@@ -429,6 +429,8 @@ household that wants this prevented needs a distinction §6.2 does not provide.
 ### 9.1 Normative
 
 - **[spec-01]** *Catalog Data Model*, this system.
+- **[spec-07]** *Wire Protocol*, this system. §3.4 names the two surfaces §3.2
+  exempts from forward authentication and admits a client key on.
 - **[RFC8628]** Denniss, W., et al., *OAuth 2.0 Device Authorization Grant*.
 - **[RFC2119]**, **[RFC8174]** as in spec-01 §18.1.
 
