@@ -1438,6 +1438,8 @@ here:
 - Codecs and formats and their essence: lossy, lossless, not applicable, or,
   for codecs with both modes, decided by the stream's parameters ([spec-04]
   §5.2)
+- Byte signatures for formats [PRONOM] holds none for: per format the offset, the
+  bytes expected there, and the essence that follows ([spec-04] §5.1)
 - Companion file patterns, and the names and patterns an inbox never acquires
   ([spec-04] §4.1, §4.6)
 - Annotation body types, feature names, and feature groups ([spec-02] §6.1, §6.4)
@@ -1474,6 +1476,11 @@ here:
 - **[spec-03]** *Assets, Storage and Preservation*, this system. Normative for
   how §13's obligations are met, including reversibility verification (§13.2)
   and deduplication.
+- **[spec-04]** *Ingest and Normalization*, this system. §3 is the System
+  principal most platform events are attributed to (§11.2); §5.2 decides the
+  essence the codec and format registry records (§17); §4.1 and §4.6 hold the
+  inbox and companion patterns §17 names; §6.5 is why a `track` selector
+  identifies a stream by kind rather than by index (§8.5).
 - **[spec-05]** *Metadata Acquisition and Matching*, this system. §8.1 is what
   puts a nomen's language in §7.2's unknown state.
 - **[spec-06]** *Principals, Authentication and Authorization*, this system.
