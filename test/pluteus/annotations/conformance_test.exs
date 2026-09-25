@@ -482,6 +482,76 @@ defmodule Pluteus.Annotations.ConformanceTest do
     end
   end
 
+  describe "12. A body whose subject is a named field carries a field name from the registry" do
+    test "an assertion about a field the registry names is accepted", context do
+      for assertion <- Annotation.assertions() do
+        assert {:ok, absence} = absence(context, context.work.id, "creators", assertion)
+
+        assert absence.body == %{"field" => "creators", "assertion" => assertion}
+        assert Annotation.authored?(absence)
+      end
+    end
+
+    test "a field the registry does not name is refused", context do
+      assert {:error, changeset} =
+               absence(context, context.work.id, "mood", "known_absent")
+
+      assert %{body: [message]} = errors_on(changeset)
+      assert message =~ "mood"
+    end
+
+    test "an assertion outside the three §6.5 admits is refused", context do
+      assert {:error, changeset} =
+               absence(context, context.work.id, "creators", "probably_absent")
+
+      assert %{body: [_ | _]} = errors_on(changeset)
+    end
+
+    test "a body naming no field has no subject, and is refused", context do
+      assert {:error, changeset} =
+               Annotations.annotate(%{
+                 target_id: context.work.id,
+                 body_type: Annotation.absence(),
+                 body: %{"assertion" => "known_absent"},
+                 principal_id: context.principal.id
+               })
+
+      assert %{body: [_ | _]} = errors_on(changeset)
+    end
+
+    test "a field the registry names for another kind is refused about this one", context do
+      # `creators` is a work's. An expression is a rendering of the work, and the
+      # question of who made it is asked of the work.
+      assert {:error, {:absence_not_about, "creators", :expression}} =
+               absence(context, context.recording.id, "creators", "sought_not_found")
+    end
+
+    test "only a person may write one: a derived body is refused", context do
+      derivation = derivation!("describer", "1", context.work.id)
+
+      assert {:error, changeset} =
+               Annotations.annotate(%{
+                 target_id: context.work.id,
+                 body_type: Annotation.absence(),
+                 body: %{"field" => "creators", "assertion" => "sought_not_found"},
+                 derivation_id: derivation.id
+               })
+
+      # A tool that looked and could not has produced a finding (spec-04 §9),
+      # which records what the deployment attempted rather than what is so.
+      assert %{body: [_ | _]} = errors_on(changeset)
+    end
+  end
+
+  defp absence(context, target_id, field, assertion) do
+    Annotations.annotate(%{
+      target_id: target_id,
+      body_type: Annotation.absence(),
+      body: %{"field" => field, "assertion" => assertion},
+      principal_id: context.principal.id
+    })
+  end
+
   defp derivation!(tool, version, input_id, minute \\ 0) do
     {:ok, derivation} =
       Annotations.record_derivation(%{
