@@ -16,6 +16,11 @@ defmodule Pluteus.Catalog.Resolution do
   language is a later tiebreak: a name in a language the person cannot read is
   not a better answer for being personal.
 
+  The profile carries a language *range* and a nomen a language *tag*, matched by
+  [RFC4647] §3.3.1 basic filtering — see `matches?/2`. The filter is applied in
+  `choose/2` rather than in the query, because a range matches a tag by its subtag
+  boundaries and pushing that into SQL would trade a readable rule for a `LIKE`.
+
   Two res linked as one thing (§7.5) resolve over the names of both, so a
   household row and the seed a later release ships for the same concept answer
   alike, and the local name wins by the rule that makes a correction outrank a
@@ -129,9 +134,9 @@ defmodule Pluteus.Catalog.Resolution do
   # preference and does not ask for names that are themselves untagged (Profile).
   defp candidates(nomens, %Profile{language: nil}), do: nomens
 
-  defp candidates(nomens, %Profile{language: language}) do
+  defp candidates(nomens, %Profile{language: range}) do
     {tagged, untagged} = Enum.split_with(nomens, & &1.language)
-    matching = Enum.filter(tagged, &(&1.language == language))
+    matching = Enum.filter(tagged, &matches?(&1.language, range))
 
     cond do
       tagged == [] -> nomens
@@ -139,6 +144,29 @@ defmodule Pluteus.Catalog.Resolution do
       untagged == [] -> one_language(tagged)
       true -> untagged
     end
+  end
+
+  @doc """
+  Whether a nomen's language tag is matched by a profile's language range,
+  following [RFC4647] §3.3.1 basic filtering ([spec-10] §6.1).
+
+  A tag matches a range it equals, and a range it extends at a subtag boundary, so
+  `en` is matched by `en-GB` and `en-GB` is not matched by `en`. A range is
+  satisfied by a tag more specific than itself and never by one less specific.
+
+  Case is ignored, because [RFC5646] §2.1 makes a tag case-insensitive and the
+  conventional casing of a script or region subtag is a convention rather than
+  part of the tag's identity.
+  """
+  @spec matches?(String.t() | nil, String.t() | nil) :: boolean()
+  def matches?(nil, _range), do: false
+  def matches?(_tag, nil), do: false
+
+  def matches?(tag, range) do
+    tag = String.downcase(tag)
+    range = String.downcase(range)
+
+    tag == range or String.starts_with?(tag, range <> "-")
   end
 
   # Clause 3, which applies only where every candidate carries a language. Clause
