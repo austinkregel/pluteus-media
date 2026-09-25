@@ -2,9 +2,11 @@ defmodule PluteusWeb.PresentationTest do
   @moduledoc """
   The presentation-asset surface ([spec-10] §11.1 and §11.6).
 
-  Asserts spec-10 criterion 27's main clause — a request by arbitrary dimensions is
-  refused, and a request by profile name is served and names the profile — and §16's
-  rule that the absence of a presentation asset is never an error.
+  Asserts spec-10 criterion 27 and spec-07 criterion 25, which are the same rule from
+  the two sides: a presentation asset is served by profile name, a request naming
+  dimensions is refused, the response names the profile served, and an ungenerated
+  artefact is not an error. The OpenSubsonic exception both criteria carry is asserted
+  in `PluteusWeb.SubsonicBrowseTest`, which is where that surface lives.
   """
 
   use PluteusWeb.ConnCase, async: true
