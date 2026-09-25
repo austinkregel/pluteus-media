@@ -48,6 +48,13 @@ config :phoenix,
 # container sees through the bind mount.
 config :pluteus, Pluteus.Storage, root: Path.expand("../tmp/storage/test", __DIR__)
 
+# A small ceiling and a short idle period, so a test can reach both bounds with a
+# handful of artefacts rather than with five gigabytes of them.
+config :pluteus, Pluteus.Presentation,
+  byte_ceiling: 10_000,
+  idle_seconds: 3_600,
+  eviction_period_seconds: 3_600
+
 config :pluteus, Pluteus.Ingest,
   settle_seconds: 60,
   verification_interval_seconds: %{
