@@ -29,6 +29,8 @@ defmodule Pluteus.Presentation.Generate do
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Orientation
   alias Pluteus.Presentation.Registry
+  alias Pluteus.Presentation.Text
+  alias Pluteus.Presentation.Tiles
   alias Pluteus.Presentation.Waveform
   alias Pluteus.Storage
 
@@ -70,14 +72,24 @@ defmodule Pluteus.Presentation.Generate do
   defp generate(subject_id, %{"tile_columns" => _} = declared, source),
     do: trickplay(subject_id, declared, source)
 
+  defp generate(subject_id, %{"tile_size" => _} = declared, source),
+    do: pyramid(subject_id, declared, source)
+
   defp generate(subject_id, %{"proportion" => _} = declared, source),
     do: key_frame(subject_id, declared, source)
 
   defp generate(subject_id, %{"width" => _} = declared, source),
     do: image(subject_id, declared, source)
 
-  # A text profile's generator needs an extractor this deployment does not carry, so
-  # asking for one says so rather than writing something else under its name.
+  defp generate(subject_id, %{"name" => "text-extracted"} = declared, source),
+    do: text(subject_id, declared, source, :extracted)
+
+  defp generate(subject_id, %{"name" => "text-word-positions"} = declared, source),
+    do: text(subject_id, declared, source, :word_positions)
+
+  defp generate(subject_id, %{"name" => "text-position-list"} = declared, source),
+    do: text(subject_id, declared, source, :position_list)
+
   defp generate(_subject_id, _declared, _source), do: {:refused, :no_generator}
 
   defp image(subject_id, declared, %Asset{} = source) do
@@ -105,6 +117,75 @@ defmodule Pluteus.Presentation.Generate do
       {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
     end
   end
+
+  # §11.2. Past §20's threshold a graded profile either throws away what the scan was
+  # made for or sends the whole thing to look at one corner, so the pyramid is built
+  # instead. Below the threshold it is refused: a profile set is smaller and simpler
+  # there, and §11.2 says so.
+  defp pyramid(subject_id, declared, %Asset{} = source) do
+    profile = Map.fetch!(declared, "name")
+    location = Presentation.location_for(subject_id, profile, 0, "zip")
+
+    with {:ok, {width, height}} <- dimensions_of(source.location),
+         true <- Tiles.tiled?(width, height),
+         :ok <- Tiles.build(source.location, location),
+         {:ok, measured} <- measure(location) do
+      record(subject_id, declared, source, location, measured, %{
+        width: width,
+        height: height,
+        descriptor: %{
+          "tile_size" => Map.fetch!(declared, "tile_size"),
+          "compliance_level" => Map.fetch!(declared, "compliance_level"),
+          "extra_features" => Map.fetch!(declared, "extra_features"),
+          "width" => width,
+          "height" => height
+        }
+      })
+    else
+      false -> {:refused, :below_the_tiling_threshold}
+      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+    end
+  end
+
+  # §11.5. Each of the three is one reading of the publication, written in the form
+  # the registry states: the text as text, the other two as JSON. Every artefact records
+  # which reader produced it, because text read out of a file and text guessed from
+  # pixels are not equally reliable and a transcript nobody can tell was guessed is
+  # worse than one labelled as guessed.
+  defp text(subject_id, declared, %Asset{} = source, artefact) do
+    profile = Map.fetch!(declared, "name")
+    extension = if artefact == :extracted, do: "txt", else: "json"
+    location = Presentation.location_for(subject_id, profile, 0, extension)
+    class = Presentation.classification(subject_id) |> elem(0)
+
+    with {:ok, read} <- read_text(source.location, class, artefact),
+         :ok <- write(location, serialize(artefact, read)),
+         {:ok, measured} <- measure(location) do
+      record(subject_id, declared, source, location, measured, %{
+        width: nil,
+        height: nil,
+        descriptor: text_descriptor(artefact, read)
+      })
+    else
+      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+    end
+  end
+
+  defp read_text(location, class, :extracted), do: Text.extracted(location, class)
+  defp read_text(location, class, :word_positions), do: Text.word_positions(location, class)
+  defp read_text(location, class, :position_list), do: Text.position_list(location, class)
+
+  defp serialize(:extracted, %{text: text}), do: text
+  defp serialize(:word_positions, %{words: words}), do: Jason.encode!(%{"words" => words})
+  defp serialize(:position_list, index), do: Jason.encode!(index)
+
+  defp text_descriptor(:extracted, %{text: text, source: source}),
+    do: %{"source" => source, "characters" => String.length(text)}
+
+  defp text_descriptor(:word_positions, %{words: words, source: source}),
+    do: %{"source" => source, "words" => length(words), "units" => "percent"}
+
+  defp text_descriptor(:position_list, index), do: index
 
   # §11.4. The peaks are written as JSON with the resolution beside them, because the
   # numbers alone do not say how finely they were measured and criterion 30 turns on
