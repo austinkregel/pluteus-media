@@ -58,10 +58,25 @@ defmodule Pluteus.Ingest.Identify do
     end
   end
 
+  # §5.1. PRONOM answers first; a deployment signature answers what it leaves
+  # unknown, from the content at a stated offset.
   defp format(location) do
     case Formats.identify(location) do
-      {:ok, format} -> {:ok, format}
-      {:error, reason} -> {:error, {"format_unidentifiable", %{reason: inspect(reason)}}}
+      {:ok, format} ->
+        if format == Formats.unknown(), do: {:ok, by_signature(location)}, else: {:ok, format}
+
+      {:error, reason} ->
+        {:error, {"format_unidentifiable", %{reason: inspect(reason)}}}
+    end
+  end
+
+  defp by_signature(location) do
+    location
+    |> Storage.leading(Registry.signature_span())
+    |> Registry.byte_signature()
+    |> case do
+      nil -> Formats.unknown()
+      format -> format
     end
   end
 
