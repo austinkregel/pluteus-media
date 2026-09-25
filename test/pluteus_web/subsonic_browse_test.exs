@@ -182,17 +182,57 @@ defmodule PluteusWeb.SubsonicBrowseTest do
   end
 
   describe "cover art and lyrics" do
-    test "an album's cover is its cover companion, as stored", context do
+    test "27. an album's cover is served at a profile, and the response names it",
+         context do
       response = raw(context, "getCoverArt", %{"id" => context.album})
 
+      # [spec-10] §11.1: the cover is a graded derivative of the companion's bytes,
+      # not the companion as stored, and the header says which grade.
       assert response.status == 200
-      assert response.resp_body == context.library.cover
-      assert get_resp_header(response, "content-type") == ["image/png"]
+      assert get_resp_header(response, "presentation-profile") == ["image-640"]
+      assert get_resp_header(response, "content-type") == ["image/jpeg"]
+      assert <<0xFF, 0xD8, _rest::binary>> = response.resp_body
+    end
+
+    test "27. an integer size maps to the smallest profile at or above it", context do
+      for {size, expected} <- [
+            {1, "image-160"},
+            {160, "image-160"},
+            {161, "image-320"},
+            {300, "image-320"},
+            {640, "image-640"},
+            {1000, "image-1280"}
+          ] do
+        response = raw(context, "getCoverArt", %{"id" => context.album, "size" => "#{size}"})
+
+        assert get_resp_header(response, "presentation-profile") == [expected],
+               "size #{size} did not map to #{expected}"
+      end
+    end
+
+    test "27. a size above the widest profile is served the widest, and named",
+         context do
+      response = raw(context, "getCoverArt", %{"id" => context.album, "size" => "8000"})
+
+      # The closed set is not widened by asking for more than it holds; refusing
+      # instead would deny a 4K television its cover.
+      assert get_resp_header(response, "presentation-profile") == ["image-2048"]
+    end
+
+    test "a size that names no width takes the default profile", context do
+      for size <- ["", "wide", "-10", "0", "320px"] do
+        response = raw(context, "getCoverArt", %{"id" => context.album, "size" => size})
+
+        assert get_resp_header(response, "presentation-profile") == ["image-640"],
+               "#{inspect(size)} was not treated as naming no width"
+      end
     end
 
     test "a song with no companion of its own falls to its album's", context do
       response = raw(context, "getCoverArt", %{"id" => context.so_what})
-      assert response.resp_body == context.library.cover
+
+      assert response.status == 200
+      assert get_resp_header(response, "presentation-profile") == ["image-640"]
     end
 
     test "with no companion, the picture embedded in the track", context do
