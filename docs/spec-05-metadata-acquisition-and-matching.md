@@ -543,10 +543,11 @@ term is not met by declining to record it.
 
 TMDB's prohibition reaches further than this document. A feature vector or an
 embedding computed over TMDB content is the use that term forbids, and spec-09
-will be written against a catalog that contains it. The provider registry is
-where that is knowable before the code that would violate it is written, and a
-value's provider MUST remain recoverable from the match record for exactly this
-reason.
+§4.1 classes it as a use-class prohibition binding the computation rather than
+the display. The provider registry is where that is knowable before the code that
+would violate it is written, and a value's provider MUST remain recoverable from
+the match record for exactly this reason: spec-09 §4.2 refuses the computation on
+the terms the record carries, and a body that exists is evidence it occurred.
 
 ### 6.5 Snapshot and supersession
 
@@ -1009,9 +1010,10 @@ comes from the file and from a corpus, and none of it leaves the house.
 | IPTC `By-line`, XMP `dc:creator` | a credit, and the agent it names |
 | IPTC and XMP keywords | categories, with automatic provenance |
 
-spec-01 §6.3 leaves the refinement set for LRM-R33 and LRM-R35 OPEN and calls it
-a registry. The two refinements in the table above are what a household's own
-photographs need, and §15 names them.
+spec-01 §6.3 requires LRM-R33 and LRM-R35 be refined and carries the refinement
+set as a registry. The two refinements in the table above are what a household's
+own photographs need; spec-01 §6.3's table already carries both, cited to this
+section, and §15 holds what their entries say.
 
 **A coordinate is not a place name.** A gazetteer answers with the nearest named
 place and a distance, which is a resemblance. Rather than discard it or assert
@@ -1327,9 +1329,10 @@ hardening:
   that a malformed value does not reach a query or a join.
 
 **The terms in §6.4 are a security control as much as a legal one.** A provider's
-prohibition on machine-learning use binds spec-09, which has not been written;
-recording each value's provider on the match record is what makes it possible to
-honour the term later rather than discovering it cannot be honoured at all.
+prohibition on machine-learning use binds the gate spec-09 §4.2 states; recording
+each value's provider on the match record is what makes that gate answerable,
+since it refuses a computation on the terms of every value that entered it and
+cannot be enforced after the fact.
 
 ---
 
@@ -1424,8 +1427,10 @@ the level destroys a relation rather than a value.
 
 ### 17.2 Informative
 
-- **[spec-09]** *Search, Ranking and Recommendation*, not yet written. §6.4's
-  terms bind it.
+- **[spec-09]** *Search, Ranking and Recommendation*, this system. Its §4.1
+  classes each of §6.4's terms by what the term restricts, and its §4.2 is the
+  gate they bind; its §5.2 and §12.3 consume the measurements §8.6 imports, and
+  its §14.3 rests on §9.7 having made a face authored.
 - **[spec-10]** *Presentation*, this system. §5.2's states are what §11 maps
   onto, §15 is the correction surface a candidate reaches a person through, and
   §16 is where §8.4's equations are reported.
