@@ -13,8 +13,10 @@ defmodule Pluteus.Principals.ConformanceTest do
   alias Pluteus.Annotations.Annotation
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Profile
+  alias Pluteus.ConsumptionFixtures
   alias Pluteus.Events
   alias Pluteus.Events.Event
+  alias Pluteus.Events.ResumePosition
   alias Pluteus.Household
   alias Pluteus.Household.TrustBoundary
   alias Pluteus.Lifecycle
@@ -109,7 +111,14 @@ defmodule Pluteus.Principals.ConformanceTest do
       assert is_nil(ada.person_id)
 
       assert {:ok, _} = Events.record(ada.id, work.id, "played")
-      assert {:ok, _} = Events.set_resume_position(ada.id, work.id, 60_000)
+
+      # A position is a device's (spec-01 §11.4) and is weighed against its
+      # category and the medium's extent ([spec-10] §13.2), so resuming needs all
+      # three rather than a bare number.
+      resumable = ConsumptionFixtures.resumable_work!(ada.id)
+
+      assert %ResumePosition{} =
+               ConsumptionFixtures.position!(ada.id, resumable.work.id, resumable.device.id)
 
       assert {:ok, _} =
                Annotations.annotate(%{
@@ -204,23 +213,32 @@ defmodule Pluteus.Principals.ConformanceTest do
   describe "10. Principal A cannot observe principal B's events through any endpoint" do
     test "lists, counts and resumption are each one principal's", %{ada: ada, bo: bo, work: work} do
       {:ok, _} = Events.record(bo.id, work.id, "played")
-      {:ok, _} = Events.set_resume_position(bo.id, work.id, 900_000)
+
+      resumable = ConsumptionFixtures.resumable_work!(bo.id)
+      ConsumptionFixtures.position!(bo.id, resumable.work.id, resumable.device.id)
 
       assert Events.for_principal(ada.id) == []
       assert Events.play_count(ada.id, work.id, "played") == 0
       assert Events.resumable(ada.id) == []
+      assert Events.positions_for(ada.id, resumable.work.id) == []
+      assert is_nil(Events.resume_position(ada.id, resumable.work.id))
     end
 
     test "nothing in the events module answers without being told whose events" do
+      # `report_position/1` takes one argument, and it is a report carrying the
+      # principal whose position it is. Adding a function that reads across
+      # principals is how §11.2 would be violated, so this list is the assertion
+      # and not a formality: a name added here has to be justified by the reader.
       for {function, arity} <- Pluteus.Events.__info__(:functions), arity > 0 do
         assert function in [
                  :for_principal,
                  :play_count,
                  :plays,
+                 :positions_for,
                  :record,
+                 :report_position,
                  :resumable,
-                 :resume_position,
-                 :set_resume_position
+                 :resume_position
                ]
       end
     end
