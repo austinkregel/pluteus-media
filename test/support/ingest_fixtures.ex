@@ -32,6 +32,22 @@ defmodule Pluteus.IngestFixtures do
   end
 
   @doc """
+  A directory name no other test will use, to drop a set of files under.
+
+  `inbox_sightings` is keyed on the relative path and `acquisitions` carries a unique
+  index on it, so two async tests dropping the same relative path contend on those rows:
+  each holds its own uncommitted, and the second waits for the first to finish. The
+  Repo's timeout is longer than a test's, so a slow test holding a common path does not
+  fail — it makes some other test using that path fail instead, somewhere else.
+
+  One prefix per set rather than one per file, so files dropped together keep the
+  relative order their names give them, and a directory's companions still share a
+  directory.
+  """
+  @spec unique_prefix() :: String.t()
+  def unique_prefix, do: "t#{System.unique_integer([:positive])}"
+
+  @doc """
   Writes bytes into the inbox at a relative path.
   """
   @spec drop!(Path.t(), String.t(), binary()) :: Path.t()
@@ -127,6 +143,7 @@ defmodule Pluteus.IngestFixtures do
   defp output_name(:x264_444), do: "out.mkv"
   defp output_name(:png), do: "out.png"
   defp output_name(:jpeg), do: "out.jpg"
+  defp output_name(:large_still), do: "out.png"
 
   defp args(:flac, opts, dir) do
     art =
@@ -194,6 +211,12 @@ defmodule Pluteus.IngestFixtures do
   defp args(:png, _opts, _dir), do: still()
   defp args(:jpeg, _opts, _dir), do: still()
 
+  # Just past [spec-10] §20's sixteen-megapixel threshold, which is where a graded
+  # profile set gives way to a tiled pyramid. Just past rather than well past, because
+  # every pixel of it is encoded, decoded and then tiled by whatever uses it.
+  defp args(:large_still, _opts, _dir),
+    do: ["-f", "lavfi", "-i", "testsrc=size=4100x4000", "-frames:v", "1"]
+
   defp tone(opts) do
     frequency = Keyword.get(opts, :frequency, 440)
     duration = Keyword.get(opts, :duration, 2)
@@ -253,6 +276,36 @@ defmodule Pluteus.IngestFixtures do
     trailer<</Root 1 0 R>>
     %%EOF
     """
+  end
+
+  @doc """
+  A scan: dark words on white paper, large enough for OCR to read.
+
+  Rendered rather than drawn, so the test exercises the reader on real glyph shapes
+  rather than on text the fixture also wrote out.
+  """
+  @spec words_on_paper(String.t()) :: binary()
+  def words_on_paper(words \\ "Dear Ada") do
+    dir = Path.join(System.tmp_dir!(), "pluteus-scan-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+
+    try do
+      out = Path.join(dir, "scan.png")
+
+      ffmpeg!([
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=white:s=600x200,drawtext=text='#{words}':fontcolor=black:fontsize=64:x=40:y=60",
+        "-frames:v",
+        "1",
+        out
+      ])
+
+      File.read!(out)
+    after
+      File.rm_rf!(dir)
+    end
   end
 
   @doc """
