@@ -29,14 +29,14 @@ defmodule PluteusWeb.PresentationTest do
   alias Pluteus.Workers.GeneratePresentationAsset
 
   @t0 ~U[2026-09-18 12:00:00.000000Z]
-  @viewer "ada@household.test"
 
   setup %{conn: conn} do
     _system = Principals.system!()
     {:ok, principal} = Principals.create_principal(%{role: "member"})
-    {:ok, _} = Principals.bind_identity(principal.id, issuer(), @viewer)
+    viewer = a_subject()
+    {:ok, _} = Principals.bind_identity(principal.id, issuer(), viewer)
 
-    %{conn: through_proxy(conn, @viewer), principal: principal, inbox: inbox!()}
+    %{conn: through_proxy(conn, viewer), principal: principal, inbox: inbox!()}
   end
 
   defp ingest!(inbox, files) do
