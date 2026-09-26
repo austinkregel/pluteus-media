@@ -187,8 +187,16 @@ defmodule PluteusWeb.ClientKeysTest do
     end
   end
 
-  describe "15. The extensions advertised are exactly spec-07's" do
+  describe "15. The extensions advertised are the four this deployment implements" do
+    @tag :criterion_15_awaits_spec_08
     test "four, each at version 1", %{conn: conn, key: key} do
+      # spec-07 §6.2 names six. The other two, `transcoding` and `transcodeOffset`,
+      # describe `getTranscodeDecision` and `getTranscodeStream`, which are spec-08's and
+      # are not built — and §6.2 forbids advertising an extension that is not there.
+      #
+      # So criterion 15 does not hold yet, and this asserts what the deployment does
+      # rather than what the criterion says. A test claiming "exactly spec-07's" while
+      # asserting four of six is worse than an open gap, because it reads as coverage.
       body =
         conn
         |> via_proxy()
@@ -201,6 +209,35 @@ defmodule PluteusWeb.ClientKeysTest do
                %{"name" => "indexBasedQueue", "versions" => [1]},
                %{"name" => "songLyrics", "versions" => [1]}
              ]
+    end
+  end
+
+  describe "spec-06 17. A key identifies its principal only on the exempt surface, only through the proxy, and not once its device is revoked" do
+    test "all three conditions together, so no one of them carries the rule alone",
+         %{conn: conn, key: key, device_id: id} do
+      principal = Principals.principal_for(issuer(), "ada@example.test")
+
+      # On the exempt surface, through the proxy: the key names its principal.
+      body =
+        conn
+        |> via_proxy()
+        |> get("/rest/tokenInfo", %{"apiKey" => key, "f" => "json"})
+        |> json_response(200)
+
+      assert body["subsonic-response"]["tokenInfo"]["username"] == principal.id
+
+      # The same key off the exempt surface reaches nothing, whatever it names.
+      assert get(conn, "/works", %{"apiKey" => key}).status == 401
+
+      # And on the exempt surface without the proxy's assertion it is not read, so the
+      # key is never the whole of a request's authentication.
+      assert conn |> get("/rest/ping", %{"apiKey" => key}) |> Map.fetch!(:status) == 401
+
+      # Revoking the device ends it, without touching the principal.
+      conn |> through_proxy("ada@example.test") |> delete("/devices/#{id}") |> json_response(200)
+
+      assert error_code(conn, %{"apiKey" => key}) == 44
+      assert Principals.principal_for(issuer(), "ada@example.test").id == principal.id
     end
   end
 
