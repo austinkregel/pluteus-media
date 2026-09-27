@@ -1,0 +1,57 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/resolver.json",
+  "version": "2025.10",
+  "name": "Pluteus design language",
+  "description": "A.1.1 requires contexts be expressed with the Resolver Module as modifiers over a resolution order, not as separate files of separate names. A.1.6 declares five modifiers; each names its default context first, whose override is empty because the default is what tokens.json already holds. Order is significant and the later overrides the earlier, so theme resolves before contrast, which narrows what theme chose, and distance and density resolve last because A.1.6 makes them different axes that must not be merged.",
+  "sets": {
+    "language": {
+      "description": "The default resolution: theme dark, distance near, density comfortable, contrast normal, motion full.",
+      "sources": [{ "$ref": "tokens.json" }]
+    }
+  },
+  "modifiers": {
+    "theme": {
+      "description": "A.1.6: colour only. Dark is the default, and A.2.3 requires the light theme be a separately tuned ramp rather than an inversion of it.",
+      "contexts": {
+        "dark": [],
+        "light": [{ "$ref": "contexts/light.json" }]
+      }
+    },
+    "contrast": {
+      "description": "A.1.6: colour only. Nothing publishes high-contrast values for a twelve-step ramp, so `more` remaps which step each role resolves to rather than introducing colours — every value it reaches already exists in the ramp.",
+      "contexts": {
+        "normal": [],
+        "more": [{ "$ref": "contexts/more.json" }]
+      }
+    },
+    "distance": {
+      "description": "A.1.6: root size, target minimums, focus-ring width, safe inset, optical size, focus-move duration and class-colour lightness. Most of those move on their own because they are authored in rem and the root doubles; the file carries what does not.",
+      "contexts": {
+        "near": [],
+        "far": [{ "$ref": "contexts/far.json" }]
+      }
+    },
+    "density": {
+      "description": "A.1.6: spacing and control height only, and it must not change text size, colour, border width, radius or elevation, nor reduce a target below A.4.2's floor. A different axis from distance and never merged with it.",
+      "contexts": {
+        "comfortable": [],
+        "compact": [{ "$ref": "contexts/compact.json" }]
+      }
+    },
+    "motion": {
+      "description": "A.1.6: durations. A.7 requires transform and position durations resolve to zero while short opacity transitions are retained, and the duration tokens are named by what they are for rather than by what they animate — so the rule is mapped onto them by purpose: `state`, the shortest and the one a control's own change of appearance uses, is retained, and the three that move something are zeroed. That mapping is a reading of A.7 rather than something it states, and design_test.exs records it as such.",
+      "contexts": {
+        "full": [],
+        "reduced": [{ "$ref": "contexts/reduced.json" }]
+      }
+    }
+  },
+  "resolutionOrder": [
+    { "$ref": "#/sets/language" },
+    { "$ref": "#/modifiers/theme" },
+    { "$ref": "#/modifiers/contrast" },
+    { "$ref": "#/modifiers/distance" },
+    { "$ref": "#/modifiers/density" },
+    { "$ref": "#/modifiers/motion" }
+  ]
+}
