@@ -19,9 +19,22 @@ defmodule PluteusWeb.Subsonic.Retrieval do
 
   @endpoints ~w(stream download)
 
+  @behaviour PluteusWeb.Subsonic.Surface
+
+  @impl true
   @spec endpoints() :: [String.t()]
   def endpoints, do: @endpoints
 
+  # Streaming, which spec-08 §14.1 makes a grant recorded with the credential and
+  # checked on every request. Not also `read_catalog`: resolving the song is how
+  # the asset is found, so a credential that may stream but could not resolve one
+  # could not stream anything. `download` has no other home among the three names
+  # the specs give, and it is the one classification they do not settle.
+  @impl true
+  @spec operations(String.t()) :: [atom()]
+  def operations(endpoint) when endpoint in @endpoints, do: [:stream]
+
+  @impl true
   @spec handle(String.t(), Plug.Conn.t()) :: Plug.Conn.t()
   def handle(endpoint, conn) do
     with {:ok, id} <- Request.id(conn, "id"),
