@@ -22,6 +22,8 @@ defmodule Pluteus.Ingest do
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.Sighting
   alias Pluteus.Lifecycle
+  alias Pluteus.PlatformEvents
+  alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -332,6 +334,14 @@ defmodule Pluteus.Ingest do
       |> Repo.insert!()
 
     Repo.delete_all(from s in Sighting, where: s.inbox_path == ^relative)
+
+    # spec-01 §11.2's platform class, and §11.1's "a file arriving". Announced here
+    # rather than at placement, so a file that never identifies is still an arrival
+    # the household saw; its subject is the acquisition, there being nothing
+    # catalogued yet to name. Attributed to the System principal explicitly, because
+    # acquisition sets no actor — it writes no catalog row.
+    {:ok, _event} =
+      PlatformEvents.record("acquired", {:acquisition, acquisition.id}, Principals.system!().id)
 
     {:acquired,
      isolated(:acquire, %{acquisition_id: acquisition.id}, fn ->
