@@ -60,7 +60,7 @@ defmodule PluteusWeb.WriteController do
     do: Native.invalid(conn, "an annotation needs a target_id, body_type and body")
 
   def decide(conn, %{"id" => id, "decision" => decision})
-      when decision in ~w(same_holding same_expression distinct) do
+      when decision in ~w(same_holding same_manifestation same_expression same_work distinct) do
     Native.write(
       conn,
       fn -> Dedup.decide(id, String.to_existing_atom(decision), conn.assigns.principal.id) end,
@@ -71,7 +71,11 @@ defmodule PluteusWeb.WriteController do
   end
 
   def decide(conn, _params),
-    do: Native.invalid(conn, "a decision is same_holding, same_expression or distinct")
+    do:
+      Native.invalid(
+        conn,
+        "a decision is same_holding, same_manifestation, same_expression, same_work or distinct"
+      )
 
   def restore(conn, %{"id" => id}) do
     Native.write(conn, fn -> Lifecycle.restore(id) end, fn conn, restored ->
