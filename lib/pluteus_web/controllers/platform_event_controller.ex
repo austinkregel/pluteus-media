@@ -34,9 +34,16 @@ defmodule PluteusWeb.PlatformEventController do
     %{
       "id" => event.id,
       "type" => event.type,
-      "res" => event.res_id,
+      "subject" => subject(event),
       "recorded_by" => event.recorded_by,
       "occurred_at" => event.occurred_at
     }
   end
+
+  # Named rather than carried as one of two fields with the other null: spec-01
+  # §11.1's "a file arriving" precedes anything catalogued, so `acquired` is about
+  # an acquisition and everything after placement is about a res. A client reading
+  # the kind knows which resource the identifier belongs to.
+  defp subject(%{res_id: nil, acquisition_id: id}), do: %{"kind" => "acquisition", "id" => id}
+  defp subject(%{res_id: id}), do: %{"kind" => "res", "id" => id}
 end
