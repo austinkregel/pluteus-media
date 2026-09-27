@@ -1,0 +1,23 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "distance: far — the same interface rendered across a room (A.10.3), not a separate artefact. Most of what A.1.6 lists moves on its own, because every size is authored in rem and the root doubles from 16px to 32px: the type scale, the four target floors, the radii and the focus width all double without an override. What is here is what does not follow from the root.",
+  "base": {
+    "hue": {
+      "$type": "color",
+      "$description": "A.1.6 makes class-colour lightness a distance override and A.2.6 supplies one lightness with no far counterpart, so 0.80 is derived here. Raising lightness buys contrast against the dark ground and spends separation between the classes, because hues converge toward white: at 0.80 the band is 8.98:1 to 9.95:1 against step 02 with a spread of 0.98, and the closest pair is 115 rgb units. The floor is visible one step further on — at 0.84 the five classes sit 97 units apart, which is where A.2.6 rejected a sixth hue at 95. Chroma is reduced at constant lightness and hue where the gamut demands it (A.2.1), which video and text both need.",
+      "video": { "$value": { "colorSpace": "oklch", "components": [0.8, 0.101, 275], "hex": "#aab9ff" }, "$description": "Chroma reduced from 0.146 to fit sRGB." },
+      "audio": { "$value": { "colorSpace": "oklch", "components": [0.8, 0.15, 75], "hex": "#f5ae39" } },
+      "software": { "$value": { "colorSpace": "oklch", "components": [0.8, 0.17, 138], "hex": "#84d765" } },
+      "image": { "$value": { "colorSpace": "oklch", "components": [0.8, 0.126, 185], "hex": "#40d8c8" } },
+      "text": { "$value": { "colorSpace": "oklch", "components": [0.8, 0.116, 12], "hex": "#ff9eaa" }, "$description": "Chroma reduced from 0.160 to fit sRGB." }
+    }
+  },
+  "sys": {
+    "motion": {
+      "duration": {
+        "$type": "duration",
+        "focus-move": { "$value": { "value": 100, "unit": "ms" }, "$description": "A.7 marks the far value provisional pending measurement and states only that it is shorter than the 150ms near value, because no television platform publishes a figure. 100ms is a starting value in the window this reasoning leaves: focus on a remote moves repeatedly and in sequence so per-move duration accumulates into felt latency, which argues down from 150; below roughly 80ms a transition stops reading as a connecting cue and the highlight appears to teleport. To replace it, film the panel at high frame rate, hold a direction on the remote, count frames from highlight-leaves to highlight-settles, and subtract the panel's own input lag." }
+      }
+    }
+  }
+}
