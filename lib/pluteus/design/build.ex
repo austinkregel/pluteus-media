@@ -118,6 +118,15 @@ defmodule Pluteus.Design.Build do
         ]
       end)
 
+    weights =
+      [
+        "",
+        "  /* A.3.5's weights. Tailwind's own namespace, so `font-medium` exists. */"
+      ] ++
+        Enum.map(~w(regular medium semibold), fn name ->
+          "  --font-weight-#{name}: #{css(Tokens.resolve!("sys.weight.#{name}"))};"
+        end)
+
     rest = [
       "",
       "  /* A.4.3's radii and A.7's easings. */",
@@ -140,7 +149,17 @@ defmodule Pluteus.Design.Build do
 
     breaks = Enum.map(@breakpoints, fn {name, at} -> "  --breakpoint-#{name}: #{at};" end)
 
-    block("@theme", declarations ++ scale ++ type ++ rest ++ breaks)
+    # Tailwind's own theme is cleared first, so the only names a utility can be built
+    # from are the design language's. A.1.4 confines templates to `sys` and the lint
+    # A.1.5 requires is what enforces that; this is why a template reaching for a
+    # colour the language does not hold finds no utility to reach with.
+    reset = [
+      "  /* Tailwind's default theme, cleared: A.1.4 admits no third vocabulary. */",
+      "  --*: initial;",
+      ""
+    ]
+
+    block("@theme", reset ++ declarations ++ scale ++ type ++ weights ++ rest ++ breaks)
   end
 
   # Layer 2.
