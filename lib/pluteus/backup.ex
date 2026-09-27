@@ -28,7 +28,7 @@ defmodule Pluteus.Backup do
     aggregations digital_items extents associations principals
     principal_identities events platform_events resume_positions recyclings recycled_res
     tombstones reconstructions duplicate_candidates schema_migrations
-    trust_boundary devices audit_records catalog_writes work_creators
+    trust_boundary devices device_credentials audit_records catalog_writes work_creators
     acquisitions ingest_findings categories release_keys artist_keys
     analysis_sources credits musicbrainz_artists
     stars ratings playlists playlist_entries play_queues play_queue_entries
