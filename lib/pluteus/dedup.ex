@@ -117,16 +117,28 @@ defmodule Pluteus.Dedup do
   @doc """
   Records a person's decision about one pair.
 
-  `:same_holding` records that the two are one holding; bringing them under one
-  manifestation is a catalog operation performed separately, and never the
-  deletion of an asset (§8.3).
+  Every level is carried out with the decision, in one transaction. Each moves
+  children under the surviving res and recycles whichever of the res they left is
+  holding nothing, attributed to the deciding principal. None purges and none
+  deletes an asset (§8.3), so every level stays reversible for spec-01 §14.1's
+  window. The pair's earlier half — the one whose identifier was minted first —
+  is the survivor.
 
-  `:same_expression` is carried out with the decision, in one transaction. The
-  pair names two digital items or two manifestations, and the later of the two
-  — the one whose identifier was minted second — has its manifestation moved
-  under the earlier one's expression. Whichever of the work and expression it
-  was placed under are left holding nothing are recycled, attributed to the
-  deciding principal, so one work remains.
+  `:same_holding` names two digital items. The later one's assets are moved under
+  the earlier one, and the holding they left is recycled, with its manifestation
+  and whatever is above it if they are then holding nothing. The bytes do not
+  move.
+
+  `:same_manifestation` is the level above it. The pair names two digital items or
+  two manifestations, and the later one's manifestation gives up its digital items
+  and its items to the earlier one's, which is then recycled along with any
+  expression it was the only manifestation of.
+
+  `:same_expression` is the level above that. The pair names two digital items or
+  two manifestations, and the later of the two — the one whose identifier was
+  minted second — has its manifestation moved under the earlier one's expression.
+  Whichever of the work and expression it was placed under are left holding
+  nothing are recycled, so one work remains.
 
   `:same_work` is the level above it, and is carried out the same way one level
   up: the later one's expressions are realized under the earlier one's work, and
@@ -136,10 +148,13 @@ defmodule Pluteus.Dedup do
   realization, and two dumps of one game stand in the same relation (spec-04
   §6.9). A pair that is also one expression is decided `:same_expression`; there
   is no decision that splits an expression back apart.
+
+  `:distinct` carries nothing out. The row is the whole of it, and it is what
+  keeps the pair from being raised again (§8.3, [spec-05] §8.5).
   """
   @spec decide(
           Ecto.UUID.t(),
-          :same_holding | :same_expression | :same_work | :distinct,
+          :same_holding | :same_manifestation | :same_expression | :same_work | :distinct,
           Ecto.UUID.t(),
           DateTime.t()
         ) :: {:ok, Candidate.t()} | {:error, term()}
@@ -167,6 +182,20 @@ defmodule Pluteus.Dedup do
     end
   end
 
+  defp carry_out(:same_holding, candidate, principal_id, now) do
+    case resolve_same_holding(candidate, principal_id, now) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp carry_out(:same_manifestation, candidate, principal_id, now) do
+    case resolve_same_manifestation(candidate, principal_id, now) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
   defp carry_out(:same_expression, candidate, principal_id, now) do
     case resolve_same_expression(candidate, principal_id, now) do
       :ok -> :ok
@@ -181,7 +210,57 @@ defmodule Pluteus.Dedup do
     end
   end
 
-  defp carry_out(_decision, _candidate, _principal_id, _now), do: :ok
+  # The row records it and there is nothing to move. Stated rather than left to a
+  # catch-all, so a level added to the vocabulary without a clause here raises
+  # instead of recording a decision it did not carry out.
+  defp carry_out(:distinct, _candidate, _principal_id, _now), do: :ok
+
+  defp resolve_same_holding(
+         %Candidate{left_id: first_id, right_id: second_id},
+         principal_id,
+         now
+       ) do
+    kept = holding_of!(first_id)
+    losing = holding_of!(second_id)
+    manifestation_id = Repo.get!(DigitalItem, losing).manifestation_id
+
+    for asset <- Catalog.assets_of(losing) do
+      {:ok, _} = Catalog.hold(kept, asset.id)
+    end
+
+    with :ok <- recycle_each([losing], principal_id, now) do
+      recycle_emptied_manifestation(manifestation_id, [losing], principal_id, now)
+    end
+  end
+
+  defp resolve_same_manifestation(
+         %Candidate{left_id: first_id, right_id: second_id},
+         principal_id,
+         now
+       ) do
+    kept = manifestation_of!(first_id)
+    losing = manifestation_of!(second_id)
+
+    if kept == losing do
+      {:error, :already_one_manifestation}
+    else
+      move_exemplars(losing, kept, principal_id, now)
+    end
+  end
+
+  # §8.3 moves *children* under the surviving res, and a manifestation's children
+  # are its digital items and its items alike. Leaving the items behind would keep
+  # the losing manifestation live, so two rows would survive a decision that says
+  # they are one.
+  defp move_exemplars(losing, kept, principal_id, now) do
+    exemplars = Catalog.digital_items_of(losing) ++ Catalog.items_of(losing)
+
+    for exemplar <- exemplars do
+      {:ok, _} = Catalog.exemplify(kept, exemplar.id)
+    end
+
+    recycle_emptied_manifestation(losing, [], principal_id, now)
+  end
 
   defp resolve_same_expression(
          %Candidate{left_id: first_id, right_id: second_id},
@@ -292,6 +371,49 @@ defmodule Pluteus.Dedup do
       %Res{kind: :manifestation} -> Repo.get!(Manifestation, res_id).id
       %Res{kind: :digital_item} -> Repo.get!(DigitalItem, res_id).manifestation_id
     end
+  end
+
+  # *same holding* is about the digital item itself, so unlike `manifestation_of!`
+  # there is nothing to reach up to. A pair of manifestations decided one holding
+  # names a level it does not have, and raising is the answer.
+  defp holding_of!(res_id) do
+    %Res{kind: :digital_item} = Repo.get!(Res, res_id)
+    Repo.get!(DigitalItem, res_id).id
+  end
+
+  # Recycling does not delete rows, so a holding just recycled is still returned
+  # by `digital_items_of/1`; `going` is what has already gone. On the
+  # *same manifestation* path it is empty, because the exemplars moved rather than
+  # went.
+  defp recycle_emptied_manifestation(manifestation_id, going, principal_id, now) do
+    if holds_nothing?(manifestation_id, going) do
+      with :ok <- recycle_each([manifestation_id], principal_id, now) do
+        manifestation_id
+        |> emptied_expressions()
+        |> recycle_emptied(principal_id, now)
+      end
+    else
+      :ok
+    end
+  end
+
+  defp holds_nothing?(manifestation_id, going) do
+    holdings = manifestation_id |> Catalog.digital_items_of() |> Enum.map(& &1.id)
+
+    holdings -- going == [] and Catalog.items_of(manifestation_id) == []
+  end
+
+  # Embodiments are not deleted here, unlike on the *same expression* path where a
+  # manifestation moves: this manifestation is going into the bin, and spec-01
+  # §14.3 restores what it held, so removing the link would restore it detached.
+  defp emptied_expressions(manifestation_id) do
+    manifestation_id
+    |> Catalog.expressions_in()
+    |> Enum.filter(fn expression ->
+      expression.id
+      |> Catalog.manifestations_of()
+      |> Enum.all?(&(&1.id == manifestation_id))
+    end)
   end
 
   @doc """
