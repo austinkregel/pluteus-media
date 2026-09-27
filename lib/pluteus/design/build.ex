@@ -59,6 +59,21 @@ defmodule Pluteus.Design.Build do
     "space" => "spacing"
   }
 
+  # The media feature each context answers to, where one exists. A person who has
+  # asked their system for a light theme, more contrast or less motion has already
+  # said so, and the interface must honour it before any script runs — so each
+  # context is emitted a second time under its query, guarded by the absence of the
+  # resolved attribute. Once a script has resolved the modifier the attribute is
+  # present, the query stops applying, and the recorded choice wins.
+  #
+  # `density` and `distance` have no media feature. There is no system signal for how
+  # far away a person is sitting, which is why A.1.6 leaves both to be chosen.
+  @queries %{
+    {"theme", "light"} => "(prefers-color-scheme: light)",
+    {"contrast", "more"} => "(prefers-contrast: more)",
+    {"motion", "reduced"} => "(prefers-reduced-motion: reduce)"
+  }
+
   @doc """
   The whole stylesheet, as one string.
   """
@@ -191,19 +206,42 @@ defmodule Pluteus.Design.Build do
   # Layer 2's context scopes. An attribute on the document root, outside the region
   # the server patches, so it survives navigation (A.10.1).
   defp contexts do
-    Enum.map_join(Tokens.overrides(), "\n", fn {modifier, name} -> context(modifier, name) end)
+    Enum.map_join(Tokens.overrides(), "\n", fn {modifier, name} ->
+      context(modifier, name) <> preference(modifier, name)
+    end)
   end
 
   defp context(modifier, name) do
+    block(~s(:root[data-#{modifier}="#{name}"]), overrides(name))
+  end
+
+  # The same context under its media feature, for a person whose system already
+  # carries the preference and whose browser has no script to resolve it.
+  defp preference(modifier, name) do
+    case @queries[{modifier, name}] do
+      nil ->
+        ""
+
+      query ->
+        declarations = Enum.map_join(overrides(name), "\n", &("  " <> &1))
+
+        "\n@media #{query} {\n" <>
+          ~s|  :root:not([data-#{modifier}]) {\n| <> declarations <> "\n  }\n}\n"
+    end
+  end
+
+  defp overrides(name) do
     declarations =
       name
       |> Tokens.all()
       |> Enum.sort()
       |> Enum.map(fn {path, token} -> declaration(path, token, name) end)
 
+    # A.3.3: `far` changes the root size, which is not a token because the anchor the
+    # whole rem scale resolves against cannot itself be expressed in rem.
     extra = if name == "far", do: ["  --root-size: 32px;"], else: []
 
-    block(~s(:root[data-#{modifier}="#{name}"]), extra ++ declarations)
+    extra ++ declarations
   end
 
   # Layer 3. The `inline` keyword is load-bearing: without it the value is copied at
@@ -228,7 +266,23 @@ defmodule Pluteus.Design.Build do
       "  --spacing: var(--sys-spacing-base);"
     ]
 
-    block("@theme inline", declarations ++ spacing)
+    # A.4.2's target floors and A.4.1's control height, in the namespace that gives
+    # them utilities. Without this a component reaching a target floor has to write the
+    # variable out by hand, and A.4.2's minimum becomes something each one remembers
+    # rather than something it asks for by name.
+    sizes =
+      [
+        "",
+        "  /* A.4.2's targets and the control height, so a component asks for a floor",
+        "   * by name. Registered here rather than in layer 1 because `density`",
+        "   * rebinds the control height. */"
+      ] ++
+        Enum.map(size_paths(), fn path ->
+          name = path |> String.replace_prefix("sys.size.", "") |> String.replace(".", "-")
+          "  --spacing-#{name}: var(#{variable(path)});"
+        end)
+
+    block("@theme inline", declarations ++ spacing ++ sizes)
   end
 
   defp tier(prefix) do
@@ -241,6 +295,13 @@ defmodule Pluteus.Design.Build do
     Tokens.all()
     |> Enum.map(fn {path, _token} -> path end)
     |> Enum.filter(&(String.starts_with?(&1, "sys.type.") and not family?(&1)))
+    |> Enum.sort()
+  end
+
+  defp size_paths do
+    Tokens.all()
+    |> Enum.map(fn {path, _token} -> path end)
+    |> Enum.filter(&String.starts_with?(&1, "sys.size."))
     |> Enum.sort()
   end
 
