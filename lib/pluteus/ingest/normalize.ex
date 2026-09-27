@@ -31,6 +31,7 @@ defmodule Pluteus.Ingest.Normalize do
   alias Pluteus.Ingest.Registry
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.RecycledRes
+  alias Pluteus.PlatformEvents
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.Storage
@@ -107,10 +108,27 @@ defmodule Pluteus.Ingest.Normalize do
     original = Repo.get!(Asset, acquisition.id)
     previous = master_of(acquisition.digital_item_id)
 
-    if re_encodes?(original, standard),
-      do: re_encode(acquisition, original, previous, standard),
-      else: adopt(original, previous)
+    outcome =
+      if re_encodes?(original, standard),
+        do: re_encode(acquisition, original, previous, standard),
+        else: adopt(original, previous)
+
+    announce(outcome, acquisition.digital_item_id)
   end
+
+  # spec-01 §11.2's platform class: the household sees its holdings gain a master,
+  # and this is the deployment's own work, so the System principal records it (§3).
+  # A failure is not one of these — it reaches a person as a finding (§9), which has
+  # a surface of its own. Two clauses and no catch-all, so an outcome added to
+  # `normalize/2` raises rather than going unannounced.
+  defp announce(outcome, digital_item_id) when outcome in [:adopted, :re_encoded] do
+    {:ok, _event} =
+      PlatformEvents.record("normalized", digital_item_id, Principals.system!().id)
+
+    outcome
+  end
+
+  defp announce(:finding, _digital_item_id), do: :finding
 
   defp adopt(original, previous) do
     Actor.as(Principals.system!().id, fn ->
