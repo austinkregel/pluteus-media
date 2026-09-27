@@ -17,6 +17,7 @@ defmodule Pluteus.ConsumptionFixtures do
   position to survive cannot use an arbitrary small number.
   """
 
+  alias Pluteus.Authorization
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Events
@@ -39,7 +40,8 @@ defmodule Pluteus.ConsumptionFixtures do
 
     {:ok, _} = Addressing.record_extent(catalogued.work.id, :millisecond, @extent)
 
-    {:ok, device} = Principals.bind_device(principal_id, "a test device")
+    {:ok, %{device: device}} =
+      Principals.bind_device(principal_id, "a test device", Authorization.grantable())
 
     Map.put(catalogued, :device, device)
   end
