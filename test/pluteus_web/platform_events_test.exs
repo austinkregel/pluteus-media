@@ -15,6 +15,7 @@ defmodule PluteusWeb.PlatformEventsTest do
   alias Pluteus.Catalog
   alias Pluteus.Events
   alias Pluteus.Events.PlatformEvent
+  alias Pluteus.Events.Registry
   alias Pluteus.PlatformEvents
   alias Pluteus.Principals
 
@@ -94,6 +95,42 @@ defmodule PluteusWeb.PlatformEventsTest do
 
       assert Events.for_principal(bo.id) == []
       assert [%{type: "played"}] = Events.for_principal(ada.id)
+    end
+  end
+
+  describe "§11.3's platform types, and which of them this deployment records" do
+    test "a member correcting a category produces a household-visible event",
+         %{conn: conn, ada: ada, ada_subject: ada_subject, bo_subject: bo_subject} do
+      {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
+
+      conn
+      |> through_proxy(ada_subject)
+      |> post("/works/#{work.id}/categories", %{"scheme" => "genre", "value" => "Jazz"})
+      |> json_response(201)
+
+      # §11.2: the class is decided by what the event records and not by who acted,
+      # so a member's correction is a platform event and the household sees it —
+      # including Bo, who did not make it.
+      body = conn |> through_proxy(bo_subject) |> get("/platform-events") |> json_response(200)
+
+      assert [%{"type" => "corrected", "res" => res, "recorded_by" => by}] =
+               body["platform_events"]
+
+      assert res == work.id
+      assert by == ada.id
+    end
+
+    test "the types this deployment records, and the two it does not" do
+      # A ledger rather than an introspection: each of these four is asserted where
+      # its own machinery is tested. It fails if a recorder is added without moving
+      # a name across, or if a type is added to the registry without deciding.
+      #
+      # `matched` is spec-05 §8's and waits with it. `acquired` is §11.1's "a file
+      # arriving", which happens before any res exists — and `platform_events.res_id`
+      # is NOT NULL, so recording one is a schema question rather than a call.
+      recorded = ~w(placed normalized verified corrected)
+
+      assert Registry.types(:platform) -- recorded == ~w(acquired matched)
     end
   end
 
