@@ -841,11 +841,63 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
+  Moves a digital item under another manifestation, which is §5.3's extension of
+  LRM-R4 restated for a digital item already recorded.
+
+  The parent lives in a column, as `realize/2`'s does, so this replaces the
+  manifestation the digital item had rather than adding to it.
+
+  This is how spec-03 §8.3's *same manifestation* decision is carried out: the
+  digital items of two manifestation rows standing for one manifestation are
+  brought under one of them, and no holding is merged into another.
+  """
+  @spec exemplify(Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, DigitalItem.t()} | {:error, Ecto.Changeset.t()}
+  def exemplify(manifestation_id, digital_item_id) do
+    DigitalItem
+    |> Repo.get!(digital_item_id)
+    |> DigitalItem.changeset(%{manifestation_id: manifestation_id})
+    |> Repo.update()
+  end
+
+  @doc """
+  Moves an asset under another digital item.
+
+  §5.5 makes the holding an asset's own column, so this replaces the one it had.
+  The bytes do not move and nothing is deleted: this is how spec-03 §8.3's *same
+  holding* decision is carried out, and §8.3 forbids a resolution to delete an
+  asset.
+  """
+  @spec hold(Ecto.UUID.t(), Ecto.UUID.t()) :: {:ok, Asset.t()} | {:error, Ecto.Changeset.t()}
+  def hold(digital_item_id, asset_id) do
+    Asset
+    |> Repo.get!(asset_id)
+    |> Asset.changeset(%{digital_item_id: digital_item_id})
+    |> Repo.update()
+  end
+
+  @doc """
   Every expression realizing the given work.
   """
   @spec expressions_of(Ecto.UUID.t()) :: [Expression.t()]
   def expressions_of(work_id) do
     Repo.all(from e in Expression, where: e.work_id == ^work_id)
+  end
+
+  @doc """
+  Every digital item the given manifestation is exemplified by.
+  """
+  @spec digital_items_of(Ecto.UUID.t()) :: [DigitalItem.t()]
+  def digital_items_of(manifestation_id) do
+    Repo.all(from d in DigitalItem, where: d.manifestation_id == ^manifestation_id)
+  end
+
+  @doc """
+  Every physical item the given manifestation is exemplified by.
+  """
+  @spec items_of(Ecto.UUID.t()) :: [Item.t()]
+  def items_of(manifestation_id) do
+    Repo.all(from i in Item, where: i.manifestation_id == ^manifestation_id)
   end
 
   @doc """
