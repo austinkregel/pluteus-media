@@ -41,6 +41,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.Tombstone
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
@@ -892,7 +893,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       %{principal: bo} = another_household_member()
 
       resumable = ConsumptionFixtures.resumable_work!(ada.id)
-      {:ok, bo_device} = Principals.bind_device(bo.id, "bo's television")
+      bo_device = PrincipalFixtures.a_device(bo.id, "bo's television")
 
       ConsumptionFixtures.position!(ada.id, resumable.work.id, resumable.device.id, 1_820_000)
       ConsumptionFixtures.position!(bo.id, resumable.work.id, bo_device.id, 640_000)
@@ -1633,7 +1634,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       %{principal: principal} = a_household_member()
 
       resumable = ConsumptionFixtures.resumable_work!(principal.id)
-      {:ok, television} = Principals.bind_device(principal.id, "the television")
+      television = PrincipalFixtures.a_device(principal.id, "the television")
 
       ConsumptionFixtures.position!(
         principal.id,
@@ -1677,7 +1678,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       %{principal: principal} = a_household_member()
 
       resumable = ConsumptionFixtures.resumable_work!(principal.id)
-      {:ok, television} = Principals.bind_device(principal.id, "the television")
+      television = PrincipalFixtures.a_device(principal.id, "the television")
 
       ConsumptionFixtures.position!(principal.id, resumable.work.id, resumable.device.id, 900_000)
       ConsumptionFixtures.position!(principal.id, resumable.work.id, television.id, 1_500_000)
@@ -1746,7 +1747,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       {:ok, _} =
         Catalog.categorize(catalogued.work.id, Place.category_scheme(), "film", :automatic)
 
-      {:ok, device} = Principals.bind_device(principal.id, "a television")
+      device = PrincipalFixtures.a_device(principal.id, "a television")
 
       # §13.2's floor and ceiling have nothing to be measured against, and a
       # threshold chosen without one would be a value the registry does not hold.
