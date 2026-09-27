@@ -1,0 +1,27 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "density: compact. A.1.6 scopes this to spacing and control height only, and forbids it changing text size, colour, border width, radius or elevation, or reducing a target below A.4.2's 24px floor — so nothing else appears here. A.4.1 says the scale is computed from one base value so that a density change is one number; the annex does not supply that number, and 3px is derived here, a 0.75 factor on the comfortable 4px base. Checked: the rhythm step is the minimum separation between two undersized targets and drops 8px to 6px, which with 24px targets puts centres 30px apart, and WCAG 2.2 SC 2.5.8's exception needs 24px. The smallest step becomes sub-pixel at DPR 1, and its only stated use is hairline separation.",
+  "base": {
+    "space": {
+      "$type": "dimension",
+      "025": { "$value": { "value": 0.09375, "unit": "rem" }, "$description": "1.5px." },
+      "050": { "$value": { "value": 0.1875, "unit": "rem" }, "$description": "3px. The compact base, and the one number this whole file follows from." },
+      "100": { "$value": { "value": 0.375, "unit": "rem" }, "$description": "6px." },
+      "150": { "$value": { "value": 0.5625, "unit": "rem" }, "$description": "9px." },
+      "200": { "$value": { "value": 0.75, "unit": "rem" }, "$description": "12px." },
+      "300": { "$value": { "value": 1.125, "unit": "rem" }, "$description": "18px." },
+      "400": { "$value": { "value": 1.5, "unit": "rem" }, "$description": "24px." },
+      "600": { "$value": { "value": 2.25, "unit": "rem" }, "$description": "36px." },
+      "800": { "$value": { "value": 3, "unit": "rem" }, "$description": "48px." },
+      "1200": { "$value": { "value": 4.5, "unit": "rem" }, "$description": "72px." }
+    }
+  },
+  "sys": {
+    "size": {
+      "control": {
+        "$type": "dimension",
+        "height": { "$value": { "value": 2.5, "unit": "rem" }, "$description": "40px, where Material's default button height and Carbon's medium field both sit. Above A.4.2's 24px floor, which is what A.1.6 forbids going below; under sys.size.target.pointer at 44px, which is a recommendation for a precise pointer rather than a floor, and compact is the precise-pointer case." }
+      }
+    }
+  }
+}
