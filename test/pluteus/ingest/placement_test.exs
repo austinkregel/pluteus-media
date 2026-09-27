@@ -27,6 +27,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
+  alias Pluteus.PlatformEvents
   alias Pluteus.Principals
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
@@ -36,6 +37,20 @@ defmodule Pluteus.Ingest.PlacementTest do
   setup do
     system = Principals.system!()
     %{inbox: inbox!(), system: system}
+  end
+
+  describe "placement announces the holding to the household ([spec-01] §11.2)" do
+    test "a placed holding is a platform event of the System principal's",
+         %{inbox: inbox, system: system} do
+      [acquisition] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      digital_item_id = Repo.get!(Acquisition, acquisition.id).digital_item_id
+
+      assert [%{type: "placed", res_id: res_id, recorded_by: by}] =
+               PlatformEvents.about(digital_item_id)
+
+      assert res_id == digital_item_id
+      assert by == system.id
+    end
   end
 
   describe "1. Once placed, a file is an asset with the acquisition's identifier and name" do
