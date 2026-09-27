@@ -22,7 +22,13 @@ defmodule Pluteus.Design.SchemaTest do
       sources = Schema.sources()
       assert sources["format_version"] == "2025.10"
       assert sources["base"] == "https://www.designtokens.org/schemas/2025.10/"
-      assert sources["entry"] == "format.json"
+
+      # A.1.1 pins two documents at this version: the format the token file validates
+      # against, and the Resolver Module contexts are expressed with.
+      assert sources["entries"] == %{
+               "format" => "format.json",
+               "resolver" => "resolver.json"
+             }
 
       schema = Schema.read!("format.json")
       assert schema["$id"] == "https://www.designtokens.org/schemas/2025.10/format.json"
