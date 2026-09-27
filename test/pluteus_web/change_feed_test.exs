@@ -30,6 +30,7 @@ defmodule PluteusWeb.ChangeFeedTest do
   alias Pluteus.Changes.Release
   alias Pluteus.Consumption
   alias Pluteus.ConsumptionFixtures
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias PluteusWeb.CatalogChannel
@@ -174,7 +175,7 @@ defmodule PluteusWeb.ChangeFeedTest do
       {:ok, _} = Consumption.rate(principal.id, res.id, 4)
       {:ok, playlist} = Consumption.create_playlist(principal.id, "Evening", [])
       {:ok, _} = Consumption.update_playlist(principal.id, playlist.id, %{append: [res.id]})
-      {:ok, phone} = Principals.bind_device(principal.id, "phone")
+      phone = PrincipalFixtures.a_device(principal.id, "phone")
       {:ok, _} = Consumption.save_play_queue(principal.id, [res.id], 0, 0, phone.id)
       :ok = Consumption.playing(principal.id, phone.id, res.id)
       {:ok, _} = Consumption.played(principal.id, phone.id, res.id)
@@ -302,7 +303,16 @@ defmodule PluteusWeb.ChangeFeedTest do
     end
 
     Repo.query!("DELETE FROM events WHERE principal_id = $1", [id])
-    Repo.query!("DELETE FROM devices WHERE principal_id = $1", [id])
+
+    # The credential goes before the device: the device is shared and outlives any
+    # one principal's enrolment on it (spec-06 §4.1), so it is removed only once
+    # nothing references it.
+    Repo.query!("DELETE FROM device_credentials WHERE principal_id = $1", [id])
+
+    Repo.query!("""
+    DELETE FROM devices WHERE NOT EXISTS
+      (SELECT 1 FROM device_credentials c WHERE c.device_id = devices.id)
+    """)
 
     # These tests commit for real, so they clean up after themselves rather than
     # rolling back. A work is five rows, two links, a category and an extent, every
