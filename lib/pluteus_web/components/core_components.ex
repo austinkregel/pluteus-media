@@ -1,51 +1,80 @@
 defmodule PluteusWeb.CoreComponents do
   @moduledoc """
-  Provides core UI components.
+  The components every surface is built from, bound to spec-10 Annex A's `sys`
+  vocabulary.
 
-  At first glance, this module may seem daunting, but its goal is to provide
-  core building blocks for your application, such as tables, forms, and
-  inputs. The components consist mostly of markup and are well-documented
-  with doc strings and declarative assigns. You may customize and style
-  them in any way you want, based on your application growth and needs.
+  A.1.4 confines a template to the `sys` tier, so every class here names a semantic
+  role and never a ramp step: `bg-fill-subtle`, not `bg-grey-03`. The utilities exist
+  because `mix design.build` registers each role in Tailwind's theme layer, and the
+  primitives generate utilities too — that they exist is not permission to use them.
 
-  The foundation for styling is Tailwind CSS, a utility-first CSS framework,
-  augmented with daisyUI, a Tailwind CSS plugin that provides UI components
-  and themes. Here are useful references:
+  A.9.5 governs how a variant is chosen. A variant set is enumerated, and an
+  unmapped variant raises rather than resolving to a default, so a typo is an error
+  at the call site instead of a control that renders in the wrong emphasis. Where a
+  set can be checked at compile time it is, through `attr`'s `values`, which
+  `warnings_as_errors` turns into a build failure.
 
-    * [daisyUI](https://daisyui.com/docs/intro/) - a good place to get
-      started and see the available components.
+  ## The emphasis ladder, and why no control is a coloured button
 
-    * [Tailwind CSS](https://tailwindcss.com) - the foundational framework
-      we build on. You will use it for layout, sizing, flexbox, grid, and
-      spacing.
+  A.11 fixes the emphasis vocabulary as `subtle` / bare / `strong` / `solid`, and
+  A.2.6 spends saturation on the class and status colours alone — so emphasis is
+  carried by the neutral ramp, weight and a boundary, and there is no brand-coloured
+  primary action anywhere in the interface.
 
-    * [Heroicons](https://heroicons.com) - see `icon/1` for usage.
+  What a solid fill is for is a measurement rather than a preference. Against
+  `sys.color.on.fill` a solid rung reaches 4.27:1 in the dark theme and 4.96:1 in
+  the light, and no step of the ramp reaches 4.5:1 on either — the midpoint of a
+  neutral ramp is the worst case for both polarities. So a solid fill carries a
+  glyph, a badge or a meter, and a control with a word in it is built from
+  `fill.subtle`, where the surface's own ink reaches 13.71:1 and 14.41:1.
 
-    * [Phoenix.Component](https://hexdocs.pm/phoenix_live_view/Phoenix.Component.html) -
-      the component system used by Phoenix. Some components, such as `<.link>`
-      and `<.form>`, are defined there.
+  ## What is not here
 
+  A.9.3's inventory has twenty-one components and this module holds the four a
+  form and a notice need. Tile, shelf, collection, facet group and chip, entity
+  page, member list, transport, position slider, track picker, queue, reader, scan
+  viewer, correction question and field, finding, identity indicator, principal
+  chooser, absence statement and dialog all wait on the surfaces that hold them.
+  A.9.1's four conditions cannot be met for a component whose states nothing yet
+  enumerates.
   """
   use Phoenix.Component
 
   alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
 
+  # A.4.3's component border, as the one width a control's edge is drawn at. The
+  # `length:` hint is needed because Tailwind cannot tell a width from a colour when
+  # the value is a variable. Functions rather than module attributes because inside a
+  # HEEx template `@name` means an assign, so an attribute would silently render
+  # nothing; the returned string is still a complete literal, which is what A.9.5
+  # requires — a name assembled at run time produces no rule at all.
+  defp edge, do: "border-[length:var(--sys-border-width-component)]"
+
+  # A.4.2's pointer floor, the smallest a control may be on this surface. A remote
+  # surface takes `min-h-target-remote`, which is why the floor is asked for by name
+  # rather than written as a number each control remembers.
+  defp target, do: "min-h-target-pointer"
+
   @doc """
-  Renders flash notices.
+  Renders a notice.
+
+  A.9.3 makes a notice `role="status"` by default and reserves `role="alert"` for a
+  playback failure, because an assertive live region interrupts a screen reader
+  mid-sentence and almost nothing earns that.
 
   ## Examples
 
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:info} phx-mounted={show("#flash")}>Welcome Back!</.flash>
   """
-  attr :id, :string, doc: "the optional id of flash container"
+  attr :id, :string, doc: "the optional id of the notice container"
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
-  attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
-  attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
+  attr :kind, :atom, values: [:info, :error], doc: "which status role the notice carries"
+  attr :rest, :global, doc: "the arbitrary HTML attributes to add to the notice container"
 
-  slot :inner_block, doc: "the optional inner block that renders the flash message"
+  slot :inner_block, doc: "the optional inner block that renders the notice's message"
 
   def flash(assigns) do
     assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
@@ -55,24 +84,35 @@ defmodule PluteusWeb.CoreComponents do
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
-      role="alert"
-      class="toast toast-top toast-end z-50"
+      role={if @kind == :error, do: "alert", else: "status"}
+      class="fixed top-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] sm:w-96"
       {@rest}
     >
       <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
+        "flex items-start gap-3 rounded-lg p-4",
+        "bg-surface-overlay text-on-surface-strong",
+        edge(),
+        @kind == :info && "border-border-component",
+        @kind == :error && "border-status-error"
       ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
+        <.icon
+          name={
+            if @kind == :error,
+              do: "hero-exclamation-circle-mini",
+              else: "hero-information-circle-mini"
+          }
+          class={["shrink-0", @kind == :error && "text-status-error"]}
+        />
+        <div class="grow text-body-sm">
           <p :if={@title} class="font-semibold">{@title}</p>
           <p>{msg}</p>
         </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label="close">
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+        <button
+          type="button"
+          class="shrink-0 rounded-sm text-on-surface-muted hover:text-on-surface-strong"
+          aria-label="close"
+        >
+          <.icon name="hero-x-mark-mini" />
         </button>
       </div>
     </div>
@@ -80,26 +120,52 @@ defmodule PluteusWeb.CoreComponents do
   end
 
   @doc """
-  Renders a button with navigation support.
+  Renders a button, or a link styled as one.
+
+  The variant is A.11's emphasis vocabulary. `bare` has no fill and no edge;
+  `subtle` is the resting control; `strong` adds A.6's significant boundary and a
+  heavier weight, which is how a primary action is distinguished where colour is
+  spent elsewhere; `solid` is a field for a glyph and takes no label, since no ramp
+  step reaches 4.5:1 on a solid fill in both themes.
+
+  An unmapped variant raises, per A.9.5.
 
   ## Examples
 
       <.button>Send!</.button>
-      <.button phx-click="go" variant="primary">Send!</.button>
+      <.button phx-click="go" variant="strong">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :class, :any, default: nil
+  attr :variant, :string, default: "subtle", values: ~w(bare subtle strong solid)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "bare" => ["text-on-surface-strong hover:bg-fill-subtle"],
+      "subtle" => [
+        "bg-fill-subtle hover:bg-fill-subtle-strong text-on-surface-strong",
+        edge(),
+        "border-border-component hover:border-border-component-strong"
+      ],
+      "strong" => [
+        "bg-fill-subtle hover:bg-fill-subtle-strong text-on-surface-strong font-semibold",
+        edge(),
+        "border-border-strong"
+      ],
+      "solid" => ["bg-fill-solid hover:bg-fill-solid-strong text-on-fill"]
+    }
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assign(assigns, :class, [
+        "inline-flex items-center justify-center gap-2 rounded-md px-4 text-body-sm",
+        target(),
+        "transition-colors duration-[var(--sys-motion-duration-state)] ease-standard",
+        "disabled:opacity-50 disabled:pointer-events-none",
+        Map.fetch!(variants, assigns.variant),
+        assigns.class
+      ])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""
@@ -117,11 +183,10 @@ defmodule PluteusWeb.CoreComponents do
   end
 
   @doc """
-  Renders an input with label and error messages.
+  Renders an input with its label and any error messages.
 
-  A `Phoenix.HTML.FormField` may be passed as argument,
-  which is used to retrieve the input name, id, and values.
-  Otherwise all attributes may be passed explicitly.
+  A `Phoenix.HTML.FormField` may be passed as argument, which is used to retrieve
+  the input name, id, and values. Otherwise all attributes may be passed explicitly.
 
   ## Types
 
@@ -205,8 +270,8 @@ defmodule PluteusWeb.CoreComponents do
       end)
 
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
+    <div class="mb-4">
+      <label for={@id} class={["flex items-center gap-3 text-body-sm", target()]}>
         <input
           type="hidden"
           name={@name}
@@ -214,17 +279,19 @@ defmodule PluteusWeb.CoreComponents do
           disabled={@rest[:disabled]}
           form={@rest[:form]}
         />
-        <span class="label">
-          <input
-            type="checkbox"
-            id={@id}
-            name={@name}
-            value="true"
-            checked={@checked}
-            class={@class || "checkbox checkbox-sm"}
-            {@rest}
-          />{@label}
-        </span>
+        <input
+          type="checkbox"
+          id={@id}
+          name={@name}
+          value="true"
+          checked={@checked}
+          class={
+            @class ||
+              ["size-5 shrink-0 rounded-sm bg-fill-subtle", edge(), "border-border-component"]
+          }
+          {@rest}
+        />
+        <span class="text-on-surface-strong">{@label}</span>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -233,20 +300,21 @@ defmodule PluteusWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <select
-          id={@id}
-          name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
-          multiple={@multiple}
-          {@rest}
-        >
-          <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
-        </select>
-      </label>
+    <div class="mb-4">
+      <.label for={@id} label={@label} />
+      <select
+        id={@id}
+        name={@name}
+        class={[
+          @class || field_classes(),
+          @errors != [] && (@error_class || "border-status-error")
+        ]}
+        multiple={@multiple}
+        {@rest}
+      >
+        <option :if={@prompt} value="">{@prompt}</option>
+        {Phoenix.HTML.Form.options_for_select(@options, @value)}
+      </select>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -254,19 +322,18 @@ defmodule PluteusWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <textarea
-          id={@id}
-          name={@name}
-          class={[
-            @class || "w-full textarea",
-            @errors != [] && (@error_class || "textarea-error")
-          ]}
-          {@rest}
-        >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
-      </label>
+    <div class="mb-4">
+      <.label for={@id} label={@label} />
+      <textarea
+        id={@id}
+        name={@name}
+        class={[
+          @class || field_classes(),
+          "min-h-32 py-2",
+          @errors != [] && (@error_class || "border-status-error")
+        ]}
+        {@rest}
+      >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -275,38 +342,62 @@ defmodule PluteusWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <input
-          type={@type}
-          name={@name}
-          id={@id}
-          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={[
-            @class || "w-full input",
-            @errors != [] && (@error_class || "input-error")
-          ]}
-          {@rest}
-        />
-      </label>
+    <div class="mb-4">
+      <.label for={@id} label={@label} />
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={[
+          @class || field_classes(),
+          @errors != [] && (@error_class || "border-status-error")
+        ]}
+        {@rest}
+      />
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
 
-  # Helper used by inputs to generate form errors
+  # An input is something a person operates, so it takes a fill rather than a
+  # surface, and the ring comes from app.css's one `:focus-visible` rule rather than
+  # from each field remembering it.
+  defp field_classes do
+    [
+      "w-full rounded-md bg-fill-subtle px-3 text-body-md text-on-surface-strong",
+      "placeholder:text-on-surface-muted",
+      edge(),
+      "border-border-component",
+      target()
+    ]
+  end
+
+  attr :for, :string, default: nil
+  attr :label, :string, default: nil
+
+  defp label(assigns) do
+    ~H"""
+    <label :if={@label} for={@for} class="mb-1 block text-body-sm text-on-surface-muted">
+      {@label}
+    </label>
+    """
+  end
+
+  # A form error, in words, beside the field it belongs to. The status colour carries
+  # it and the glyph repeats it, because colour as the only visual means fails at
+  # Level A (A.2.6).
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
-      <.icon name="hero-exclamation-circle" class="size-5" />
+    <p class="mt-1 flex items-center gap-2 text-body-sm text-status-error">
+      <.icon name="hero-exclamation-circle-mini" class="shrink-0" />
       {render_slot(@inner_block)}
     </p>
     """
   end
 
   @doc """
-  Renders a header with title.
+  Renders a header with a title, an optional subtitle and optional actions.
   """
   slot :inner_block, required: true
   slot :subtitle
@@ -314,22 +405,22 @@ defmodule PluteusWeb.CoreComponents do
 
   def header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
+    <header class={[@actions != [] && "flex items-start justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="text-lg font-semibold leading-8">
+        <h1 class="text-title-md font-semibold text-on-surface-strong">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-base-content/70">
+        <p :if={@subtitle != []} class="text-body-sm text-on-surface-muted">
           {render_slot(@subtitle)}
         </p>
       </div>
-      <div class="flex-none">{render_slot(@actions)}</div>
+      <div :if={@actions != []} class="flex-none">{render_slot(@actions)}</div>
     </header>
     """
   end
 
   @doc """
-  Renders a table with generic styling.
+  Renders a table.
 
   ## Examples
 
@@ -360,25 +451,29 @@ defmodule PluteusWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
-      <thead>
-        <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
-          <th :if={@action != []}>
+    <table class="w-full text-left text-body-sm text-on-surface-strong">
+      <thead class="text-on-surface-muted">
+        <tr class="border-b border-border-subtle">
+          <th :for={col <- @col} class="py-2 pr-4 font-medium">{col[:label]}</th>
+          <th :if={@action != []} class="py-2">
             <span class="sr-only">Actions</span>
           </th>
         </tr>
       </thead>
       <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
+        <tr
+          :for={row <- @rows}
+          id={@row_id && @row_id.(row)}
+          class="border-b border-border-subtle last:border-0 hover:bg-fill-subtle"
+        >
           <td
             :for={col <- @col}
             phx-click={@row_click && @row_click.(row)}
-            class={@row_click && "hover:cursor-pointer"}
+            class={["py-2 pr-4", @row_click && "cursor-pointer"]}
           >
             {render_slot(col, @row_item.(row))}
           </td>
-          <td :if={@action != []} class="w-0 font-semibold">
+          <td :if={@action != []} class="w-0 py-2">
             <div class="flex gap-4">
               <%= for action <- @action do %>
                 {render_slot(action, @row_item.(row))}
@@ -392,7 +487,7 @@ defmodule PluteusWeb.CoreComponents do
   end
 
   @doc """
-  Renders a data list.
+  Renders a data list of titled values.
 
   ## Examples
 
@@ -407,42 +502,72 @@ defmodule PluteusWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="list">
-      <li :for={item <- @item} class="list-row">
-        <div class="list-col-grow">
-          <div class="font-bold">{item.title}</div>
-          <div>{render_slot(item)}</div>
-        </div>
-      </li>
-    </ul>
+    <dl class="divide-y divide-border-subtle">
+      <div :for={item <- @item} class="flex flex-col gap-1 py-3 sm:flex-row sm:gap-4">
+        <dt class="text-body-sm text-on-surface-muted sm:w-48 sm:shrink-0">{item.title}</dt>
+        <dd class="text-body-md text-on-surface-strong">{render_slot(item)}</dd>
+      </div>
+    </dl>
     """
   end
 
   @doc """
-  Renders a [Heroicon](https://heroicons.com).
+  Renders a [Heroicon](https://heroicons.com) at the size its own grid is drawn for.
 
-  Heroicons come in three styles – outline, solid, and mini.
-  By default, the outline style is used, but solid and mini may
-  be applied by using the `-solid` and `-mini` suffix.
+  A.8.2 binds one variant to each size band — `16/solid` from 16 to 19 px, `20/solid`
+  from 20 to 23, `24/outline` at 24 and above — because the 20 and 16 drawings are
+  separate artwork rather than the 24 scaled down, and below about 20 px an outline's
+  counters close and the glyph reads as a grey lozenge. So the suffix decides the
+  rendered size and `class` never sets it: there is no pairing for a caller to get
+  wrong, because there is no second thing to pass.
 
-  You can customize the size and colors of the icons by setting
-  width, height, and background color classes.
-
-  Icons are extracted from the `deps/heroicons` directory and bundled within
-  your compiled app.css by the plugin in `assets/vendor/heroicons.js`.
+  `size` reaches A.8.2's television figures, 80 px minimum and 96 preferred, and only
+  the 24 grid admits them. Ordered by what the eye receives, a 56 px glyph at three
+  metres subtends 41 arcminutes — optically a 22 px browser icon — so the television
+  sits with the small icons while taking the largest drawing.
 
   ## Examples
 
-      <.icon name="hero-x-mark" />
-      <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+      <.icon name="hero-x-mark-mini" />
+      <.icon name="hero-arrow-path-micro" class="ml-1 motion-safe:animate-spin" />
+      <.icon name="hero-play" size={96} />
   """
   attr :name, :string, required: true
-  attr :class, :any, default: "size-4"
+  attr :size, :integer, default: nil, values: [nil, 80, 96]
+  attr :class, :any, default: nil
 
   def icon(%{name: "hero-" <> _} = assigns) do
+    assigns = assign(assigns, :dimension, dimension(assigns.name, assigns.size))
+
     ~H"""
-    <span class={[@name, @class]} />
+    <span class={[@name, @dimension, @class]} />
     """
+  end
+
+  # The name is passed whole and literal rather than assembled from a glyph and a
+  # size, because A.9.5 is about more than legibility: a class name built at run time
+  # is not seen by the CSS build and produces no rule at all, so the element renders
+  # as nothing rather than as the wrong thing.
+  #
+  # What is still missing is the enumeration. A.9.5 wants `values:` on the glyph name
+  # so a typo fails to compile, and that list arrives with the vendored set — until
+  # then a misspelt glyph renders an empty span.
+  defp dimension(name, nil) do
+    cond do
+      String.ends_with?(name, "-micro") -> "size-4"
+      String.ends_with?(name, "-mini") -> "size-5"
+      true -> "size-6"
+    end
+  end
+
+  defp dimension(name, large) when large in [80, 96] do
+    if String.ends_with?(name, "-micro") or String.ends_with?(name, "-mini") do
+      raise ArgumentError,
+            "#{name} is a small grid and does not reach #{large}px (A.8.2): " <>
+              "the television takes the 24 outline, which is the name without a suffix"
+    end
+
+    if large == 80, do: "size-20", else: "size-24"
   end
 
   ## JS Commands
@@ -450,11 +575,10 @@ defmodule PluteusWeb.CoreComponents do
   def show(js \\ %JS{}, selector) do
     JS.show(js,
       to: selector,
-      time: 300,
+      time: 200,
       transition:
-        {"transition-all ease-out duration-300",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
-         "opacity-100 translate-y-0 sm:scale-100"}
+        {"transition-all ease-enter duration-200", "opacity-0 translate-y-2",
+         "opacity-100 translate-y-0"}
     )
   end
 
@@ -463,8 +587,8 @@ defmodule PluteusWeb.CoreComponents do
       to: selector,
       time: 200,
       transition:
-        {"transition-all ease-in duration-200", "opacity-100 translate-y-0 sm:scale-100",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"}
+        {"transition-all ease-exit duration-200", "opacity-100 translate-y-0",
+         "opacity-0 translate-y-2"}
     )
   end
 
