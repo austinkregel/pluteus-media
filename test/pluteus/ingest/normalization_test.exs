@@ -16,6 +16,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
+  alias Pluteus.PlatformEvents
   alias Pluteus.Principals
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
@@ -149,6 +150,28 @@ defmodule Pluteus.Ingest.NormalizationTest do
           Repo.query!("SET CONSTRAINTS ALL IMMEDIATE")
         end)
       end
+    end
+
+    test "a holding gaining a master is a platform event", %{inbox: inbox} do
+      # spec-01 §11.2's platform class, recorded by the System principal because
+      # normalization is the deployment's own work (spec-04 §3).
+      [track] = ingest!(inbox, %{"a.wav" => media!(:wav)})
+
+      assert [{_, :re_encoded}] = Normalize.normalize_due(standard(@flac))
+
+      # Placement announced the holding already, so this reads the one type.
+      assert [%{type: "normalized", recorded_by: by}] = announced(track, "normalized")
+      assert by == Principals.system!().id
+    end
+
+    test "a failed normalization is no platform event", %{inbox: inbox} do
+      # A failure reaches a person as a finding (§9), which has a surface of its own.
+      # Announcing one here would put it among the records of things that worked.
+      [track] = ingest!(inbox, %{"a.flac" => media!(:flac)})
+
+      assert [{_, :finding}] = Normalize.normalize_due(standard(@eight_bit))
+
+      assert announced(track, "normalized") == []
     end
 
     test "the database refuses a master moved under a holding that has one", %{inbox: inbox} do
@@ -289,6 +312,12 @@ defmodule Pluteus.Ingest.NormalizationTest do
     ids = inbox |> acquire_settled!(@t0) |> acquired()
     Place.place_due(inbox)
     ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.sort_by(& &1.inbox_path)
+  end
+
+  defp announced(track, type) do
+    track.digital_item_id
+    |> PlatformEvents.about()
+    |> Enum.filter(&(&1.type == type))
   end
 
   defp standard(format), do: fn class -> if class == :audio, do: format end
