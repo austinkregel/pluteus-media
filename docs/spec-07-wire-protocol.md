@@ -251,6 +251,22 @@ A write a catalog constraint refuses is answered with problem details naming the
 constraint. A write that raises is answered 500 and is not retried by the
 server.
 
+**What `/devices` names is a credential, not a screen.** [spec-06] §4.1 lets one
+device hold a credential for each of several principals, so each entry is the
+requesting principal's own credential on a device, and `DELETE` revokes that one
+and leaves every other on the same device usable. Two parameters follow from that,
+because without them §4.1 and §6.1 have operations no request could perform:
+
+- `POST /devices` takes either a `label`, which enrols the principal on a new
+  device and names it, or a `device_id`, which takes a further credential on a
+  device that already exists. Both together are refused: the label is the device's,
+  and a second principal enrolling does not rename the screen for the first.
+- `DELETE /devices/{id}` takes an optional `principal_id`, naming whose credential
+  to revoke. Absent, it is the requesting principal's own. Another's is the
+  Administrator power [spec-06] §6.1's row carries, and is refused to anyone else
+  as an absence rather than a prohibition, per §4.2's rule for a res a principal
+  may not reach.
+
 ### 4.4 Bytes
 
 `/assets/{id}/content` serves an asset's stored bytes. It MUST honour byte range
