@@ -36,6 +36,47 @@ defmodule Pluteus.Changes do
   end
 
   @doc """
+  Runs `fun` with its catalog writes reaching no feed entry, and returns what it
+  returns.
+
+  A purge is the one write the feed does not carry (spec-01 §14.2, [spec-07]
+  §5.1). Propagation announces that something changed and never that something is
+  absent: the recycling that preceded the purge was the entry, and a client that
+  missed it is answered 410 on its next request. Feeding the purge would mean
+  retaining it for as long as any client might be away to save that client one
+  request it was going to make regardless.
+
+  Because no write is numbered, `Pluteus.Changes.Release` has nothing to release
+  and the socket pushes nothing either.
+
+  Attribution is unaffected: the trigger still refuses a write with no acting
+  principal, and spec-06 §6.2's record of who purged is the tombstone's
+  `purged_by`.
+
+  This opens a transaction because the setting is local to one; made outside, it
+  would last a single statement. It is cleared before the transaction closes, so a
+  transaction enclosing this one is not left silenced — every production path
+  reaches a purge inside one.
+  """
+  @spec unrecorded((-> result)) :: result when result: term()
+  def unrecorded(fun) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        set("purge")
+        result = fun.()
+        set("")
+        result
+      end)
+
+    result
+  end
+
+  defp set(reason) do
+    Repo.query!("SELECT set_config('pluteus.unrecorded', $1, true)", [reason])
+    :ok
+  end
+
+  @doc """
   Subscribes the caller to `{:released, number}` whenever the feed advances.
   """
   @spec subscribe_released() :: :ok
