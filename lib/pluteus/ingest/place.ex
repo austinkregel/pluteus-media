@@ -33,6 +33,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
+  alias Pluteus.PlatformEvents
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.Storage
@@ -207,6 +208,12 @@ defmodule Pluteus.Ingest.Place do
     record_analysis_source(manifestation_id, digital_item.id)
 
     acquisition |> Acquisition.placed_changeset(digital_item.id) |> Repo.update!()
+
+    # spec-01 §11.2's platform class: what happened to the holdings, which every
+    # member sees. Recorded against the transaction's own principal, which is the
+    # System principal for everything this module does (§3).
+    {:ok, _event} = PlatformEvents.record("placed", digital_item.id, Actor.current())
+
     :placed
   end
 
