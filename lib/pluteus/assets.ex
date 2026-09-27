@@ -129,7 +129,13 @@ defmodule Pluteus.Assets do
   # store rejects fails the insert before reaching here. The clauses are exhaustive
   # over the three §4 names and carry no catch-all, so a fourth raises.
   defp announce(:verified, asset_id, occurred_at),
-    do: PlatformEvents.record("verified", asset_id, Principals.system!().id, occurred_at)
+    do:
+      PlatformEvents.record(
+        "verified",
+        {:res, asset_id},
+        Principals.system!().id,
+        occurred_at
+      )
 
   defp announce(outcome, _asset_id, _occurred_at) when outcome in [:mismatched, :unreadable],
     do: {:ok, :not_announced}
