@@ -85,8 +85,11 @@ defmodule Pluteus.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind pluteus", "esbuild pluteus"],
+      # `design.build` runs ahead of `tailwind` because the stylesheet it writes is
+      # what Tailwind's input imports (spec-10 Annex A.10).
+      "assets.build": ["compile", "design.build", "tailwind pluteus", "esbuild pluteus"],
       "assets.deploy": [
+        "design.build",
         "tailwind pluteus --minify",
         "esbuild pluteus --minify",
         "phx.digest"
