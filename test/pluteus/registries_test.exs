@@ -13,8 +13,25 @@ defmodule Pluteus.RegistriesTest do
 
   alias Pluteus.Catalog.Extent
   alias Pluteus.Continuity
+  alias Pluteus.Design.Tokens
   alias Pluteus.Presentation
   alias Pluteus.Representation
+
+  describe "the design language's token values of Annex A" do
+    test "the token file resolves through accessors and carries every tier" do
+      # Annex A: "Every value below is a starting value, maintained as spec-10 §20's
+      # registry." What the values are, and every figure the annex requires be checked
+      # in continuous integration, are asserted in design/tokens_test.exs; this is the
+      # ledger entry saying the registry is seeded at all.
+      assert [_ | _] = Map.keys(Tokens.all())
+      assert %{"hex" => _hex} = Tokens.resolve!("sys.color.surface.base")
+      assert Tokens.resolve!("base.space.200") == %{"value" => 1, "unit" => "rem"}
+    end
+
+    test "every modifier §A.1.6 declares resolves to a context that overrides something" do
+      assert map_size(Tokens.contexts()) == 5
+    end
+  end
 
   describe "the presentation profiles of §11" do
     test "image profiles are populated" do
@@ -90,7 +107,6 @@ defmodule Pluteus.RegistriesTest do
       projected_api_version
       projected_endpoints
       credential_policy
-      design_language_tokens
     )
 
     # Criterion 46 is met when this list is empty. Seeding one deletes its line
@@ -100,5 +116,6 @@ defmodule Pluteus.RegistriesTest do
 
     refute "image_profiles" in unseeded
     refute "absence_field_names" in unseeded
+    refute "design_language_tokens" in unseeded
   end
 end
