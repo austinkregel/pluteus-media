@@ -23,6 +23,15 @@ defmodule Pluteus.Catalog.Nomen do
   person or a collective agent. It is not a principal: §10.1 keeps the two
   apart, and a person who names things in this household without ever logging
   in has to be recordable.
+
+  `language` takes three values and §7.2 requires all three be distinguishable:
+  a language, absent, or unknown. A null is **absent** — the name belongs to no
+  language in the relevant sense — so unknown is carried by `language_unknown`
+  beside it, and the two cannot both hold. Unknown is the state a name arrives
+  in from a source that stated no language ([spec-05] §8.1), which is what keeps
+  a source's silence from being read as a claim. It is a fact about provenance
+  and not about display: resolution treats unknown and absent alike, because a
+  filter cannot match what nobody has established ([spec-10] §6.1).
   """
 
   use Ecto.Schema
@@ -43,6 +52,7 @@ defmodule Pluteus.Catalog.Nomen do
     nomen_string
     scheme
     language
+    language_unknown
     script
     context_of_use
     reference_source
@@ -57,6 +67,7 @@ defmodule Pluteus.Catalog.Nomen do
     field :nomen_string, :string
     field :scheme, :string
     field :language, :string
+    field :language_unknown, :boolean, default: false
     field :script, :string
     field :context_of_use, :string
     field :reference_source, :string
@@ -88,15 +99,17 @@ defmodule Pluteus.Catalog.Nomen do
   Builds a changeset for a nomen.
 
   `language` and `assigner_id` are absent from the required set on purpose.
-  A null language means the name genuinely belongs to no language (§7.2), and a
+  A null language means the name genuinely belongs to no language (§7.2) rather
+  than one nobody has established, which `language_unknown` carries; and a
   null assigner means the household's shared vocabulary rather than one
-  person's (§7.3). Neither may be inferred when missing.
+  person's (§7.3). None of them may be inferred when missing.
   """
   def changeset(nomen, attrs) do
     nomen
     |> cast(attrs, @castable)
     |> validate_required([:id, :res_id, :nomen_string, :provenance])
     |> check_constraint(:provenance, name: :provenance_must_be_known)
+    |> check_constraint(:language_unknown, name: :an_unknown_language_is_not_also_stated)
     |> foreign_key_constraint(:id)
     |> foreign_key_constraint(:res_id)
     |> check_constraint(:assigner_id, name: :assigner_link_is_whole)
