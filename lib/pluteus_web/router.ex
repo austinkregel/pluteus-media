@@ -74,6 +74,11 @@ defmodule PluteusWeb.Router do
 
     get "/changes", ChangeController, :index
 
+    # §11.2's platform class, which every member reads. The consumption class has
+    # no route: §11.3 forbids the two to share a representation, and each
+    # principal reaches its own consumption through its own surfaces.
+    get "/platform-events", PlatformEventController, :index
+
     get "/findings", FindingController, :index
     get "/findings/:id", FindingController, :show
     post "/findings/:id/clearing", WriteController, :clear_finding
