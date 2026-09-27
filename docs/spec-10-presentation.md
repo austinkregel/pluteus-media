@@ -221,7 +221,7 @@ renders them alike tells the household something false.
 ### 5.2 The states
 
 Every value a surface can show is in exactly one of these states, and **a
-surface MUST distinguish all seven**:
+surface MUST distinguish all eight**:
 
 | State | Means | Established by |
 | --- | --- | --- |
@@ -229,17 +229,26 @@ surface MUST distinguish all seven**:
 | **Not held** | the household does not have the thing | zero digital items (spec-01 §5.2) or zero assets (spec-01 §5.5) |
 | **Not yet examined** | no tool has looked | no derivation for the tool over this input (spec-02 §4.1) |
 | **Attempted, failed** | a tool looked and could not | a finding at the current tool version (spec-04 §9) |
+| **Unknown** | a source was consulted and stated none | the record (spec-01 §7.2, [spec-05] §8.1) |
 | **Sought, not found** | a person looked; it may be findable later | an authored annotation (spec-02 §3.2) |
 | **Known unknowable** | it will not be recovered | an authored annotation |
 | **Known absent** | the thing positively does not exist | an authored annotation |
 
-The first four are established by the catalog and by the derivation record. The
+The first five are established by the catalog and by the derivation record. The
 last three are assertions a person makes and are never inferred from the
 catalog's silence: a deployment MUST NOT report *sought, not found* where
 nobody has looked, and MUST NOT report *known absent* where nothing has said
 so.
 
-Three pairs in that table are the ones an interface is most likely to
+Where a specification makes a null definitionally absent, *known absent* is
+established by the record rather than by an annotation, because the model has
+said so. spec-01 §7.2's `language` is the only field that holds of: a null
+language means the nomen belongs to no language, so reporting it as *not yet
+examined* would say nobody has looked at a question already settled. An
+authored annotation about such a field still outranks the record, which is the
+precedence spec-01 §7.5 gives a correction over an automatic value.
+
+Four pairs in that table are the ones an interface is most likely to
 collapse, and each pair answers a different question:
 
 - *Not yet examined* against *attempted, failed*. The first resolves itself;
@@ -251,6 +260,10 @@ collapse, and each pair answers a different question:
 - *Sought, not found* against *known absent*. The first invites the household
   to keep looking; the second closes the question. Rendering them alike either
   wastes effort or discards a fact.
+- *Unknown* against *known unknowable*. The first is a source's silence and
+  says nothing about whether the value can be had; the second is a person's
+  judgement that it will not be recovered. Collapsing them turns an unanswered
+  question into a closed one.
 
 The last three states are per field, and spec-01 to spec-04 record provenance
 per row. spec-02 §6.5 is the body whose subject is a named field, which is what
@@ -1637,11 +1650,12 @@ An implementation conforms if it satisfies all of the following.
 3. An entity URI of a kind §9.1 names answers with the interface where the
    request's `Accept` header contains `text/html`, and with the spec-07 §4.1
    representation, unchanged, for a header containing `*/*` and no `text/html`.
-4. A representation carries a value and a state for every field, and all seven
+4. A representation carries a value and a state for every field, and all eight
    states of §5.2 are distinguishable in it. No state is inferred from the
    absence of a value: *sought, not found*, *known unknowable* and *known
-   absent* appear only where an authored annotation establishes them, and a
-   field §20's registry does not name reports *not yet examined*.
+   absent* appear only where an authored annotation establishes them, or, for
+   *known absent*, where a specification makes the null definitionally absent;
+   and a field §20's registry does not name reports *not yet examined*.
 5. A res whose only nomens are its identifier-nomen or are excluded by the
    profile carries a composed name, terminating in a noun for its kind, and
    never an identifier.
