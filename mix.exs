@@ -67,6 +67,7 @@ defmodule Pluteus.MixProject do
       {:uuidv7, "~> 1.0"},
       {:oban, "~> 2.24"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_json_schema, "~> 0.11", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false}
     ]
   end
