@@ -26,7 +26,7 @@ defmodule Pluteus.Backup do
     res nomens works expressions manifestations items embodiments work_parts
     manifestation_parts
     aggregations digital_items extents associations principals
-    principal_identities events resume_positions recyclings recycled_res
+    principal_identities events platform_events resume_positions recyclings recycled_res
     tombstones reconstructions duplicate_candidates schema_migrations
     trust_boundary devices audit_records catalog_writes work_creators
     acquisitions ingest_findings categories release_keys artist_keys
