@@ -22,6 +22,7 @@ defmodule Pluteus.Principals.ConformanceTest do
   alias Pluteus.Lifecycle
   alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
+  alias Pluteus.Principals.Device
   alias Pluteus.Principals.DeviceCredential
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
@@ -55,7 +56,7 @@ defmodule Pluteus.Principals.ConformanceTest do
       # cannot be the thing that names one. The criterion's substance — that
       # nothing here holds an (iss, sub) pair — is asserted above, on the row that
       # does name a principal.
-      fields = Pluteus.Principals.Device.__schema__(:fields)
+      fields = Device.__schema__(:fields)
 
       refute :principal_id in fields
       refute :issuer in fields
