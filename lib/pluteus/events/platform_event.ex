@@ -14,6 +14,11 @@ defmodule Pluteus.Events.PlatformEvent do
   There is no principal-scoping column, and that absence is the point: criterion 42
   forbids a platform event to carry, or be combined into, what any principal
   consumed, and a table with nothing to scope by cannot be combined into it.
+
+  **The subject is a res or an acquisition, exactly one.** §11.1 gives "a file
+  arriving" as an event, and an arrival precedes anything catalogued, so `acquired`
+  has no res to name; everything after placement does. The `one_subject` check is
+  what keeps an event from being about both or about nothing.
   """
 
   use Ecto.Schema
@@ -27,6 +32,7 @@ defmodule Pluteus.Events.PlatformEvent do
   schema "platform_events" do
     field :type, :string
     field :res_id, UUIDv7
+    field :acquisition_id, UUIDv7
     field :recorded_by, UUIDv7
     field :occurred_at, :utc_datetime_usec
 
@@ -44,12 +50,14 @@ defmodule Pluteus.Events.PlatformEvent do
   """
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :type, :res_id, :recorded_by, :occurred_at])
-    |> validate_required([:type, :res_id, :recorded_by, :occurred_at])
+    |> cast(attrs, [:id, :type, :res_id, :acquisition_id, :recorded_by, :occurred_at])
+    |> validate_required([:type, :recorded_by, :occurred_at])
     |> validate_inclusion(:type, Registry.types(:platform),
       message: "is not a platform event type the registry names"
     )
+    |> check_constraint(:res_id, name: :one_subject)
     |> foreign_key_constraint(:res_id)
+    |> foreign_key_constraint(:acquisition_id)
     |> foreign_key_constraint(:recorded_by)
   end
 end
