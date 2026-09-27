@@ -9,6 +9,7 @@ defmodule PluteusWeb.ClientSocketTest do
   import PluteusWeb.ConnCase, only: [issuer: 0]
 
   alias Pluteus.Administration
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias PluteusWeb.ClientSocket
   alias PluteusWeb.PrincipalChannel
@@ -33,7 +34,7 @@ defmodule PluteusWeb.ClientSocketTest do
     end
 
     test "a client key is not a credential for it", %{actor: actor} do
-      {:ok, %{key: key}} = Principals.mint_key(actor.id, "Phone")
+      %{key: key} = PrincipalFixtures.a_key(actor.id, "Phone")
       config = Application.fetch_env!(:pluteus, PluteusWeb.ForwardAuth)
       secret = {Keyword.fetch!(config, :secret_header), Keyword.fetch!(config, :secret)}
 
