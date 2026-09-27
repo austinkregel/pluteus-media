@@ -1,11 +1,19 @@
 {
   "base": "https://www.designtokens.org/schemas/2025.10/",
-  "entry": "format.json",
+  "entries": {
+    "format": "format.json",
+    "resolver": "resolver.json"
+  },
   "files": [
     {
       "path": "format.json",
       "sha256": "32e93b780e4e4bca778d0780cb797a560deedc470c608af16576223f7e42915f",
       "url": "https://www.designtokens.org/schemas/2025.10/format.json"
+    },
+    {
+      "path": "resolver.json",
+      "sha256": "a5acd14318f3c347ea2d12b4ab0f873d1340e74e957c454d112672e58b1da977",
+      "url": "https://www.designtokens.org/schemas/2025.10/resolver.json"
     }
   ],
   "format_version": "2025.10"
