@@ -150,6 +150,34 @@ defmodule Pluteus.Ingest.NormalizationTest do
         end)
       end
     end
+
+    test "the database refuses a master moved under a holding that has one", %{inbox: inbox} do
+      # The third route to two live masters, after a role being granted and a master
+      # coming back out of the bin: an asset changing which digital item holds it,
+      # which is what spec-03 §8.3's *same holding* resolution does.
+      [one, two] =
+        ingest!(inbox, %{"a.flac" => media!(:flac), "b.flac" => media!(:flac, frequency: 600)})
+
+      Normalize.normalize_due(standard(@flac))
+
+      refute one.digital_item_id == two.digital_item_id
+      assert Normalize.master_of(one.digital_item_id).id == one.id
+      assert Normalize.master_of(two.digital_item_id).id == two.id
+
+      # The sandbox never commits, so the checks the roles above deferred are still
+      # pending and would fire on the flush below whatever moved the asset. Running
+      # them now leaves the reholding's own check as the only one outstanding, which
+      # is the one this test is about.
+      Repo.query!("SET CONSTRAINTS ALL IMMEDIATE")
+      Repo.query!("SET CONSTRAINTS ALL DEFERRED")
+
+      assert_raise Postgrex.Error, ~r/one_normalized_master/, fn ->
+        Repo.transaction(fn ->
+          {:ok, _} = Catalog.hold(one.digital_item_id, two.id)
+          Repo.query!("SET CONSTRAINTS ALL IMMEDIATE")
+        end)
+      end
+    end
   end
 
   describe "26. A failed normalization is recorded against the digital item" do
