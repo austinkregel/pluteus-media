@@ -26,8 +26,7 @@ defmodule Pluteus.Repo.Migrations.RecordWhatHappenedToTheHoldings do
       add :id, :uuid, primary_key: true
       add :type, :string, null: false
 
-      add :res_id, references(:res, type: :uuid, column: :id, on_delete: :nothing),
-        null: false
+      add :res_id, references(:res, type: :uuid, column: :id, on_delete: :nothing), null: false
 
       add :recorded_by, references(:principals, type: :uuid, on_delete: :nothing), null: false
       add :occurred_at, :utc_datetime_usec, null: false
