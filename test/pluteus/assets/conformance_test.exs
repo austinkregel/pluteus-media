@@ -15,8 +15,10 @@ defmodule Pluteus.Assets.ConformanceTest do
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Reconstruction
   alias Pluteus.Dedup
+  alias Pluteus.Dedup.Candidate
   alias Pluteus.Formats
   alias Pluteus.Lifecycle
+  alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Principals
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
@@ -531,6 +533,155 @@ defmodule Pluteus.Assets.ConformanceTest do
       assert {:live, _} = Lifecycle.state(context.rescan_work.id)
       assert {:live, _} = Lifecycle.state(reading.id)
       assert {:live, _} = Lifecycle.state(context.rescan_expression.id)
+    end
+  end
+
+  # 13. A decision names one of same holding, same manifestation, same expression,
+  # same work or distinct, and resolving it moves children under the surviving
+  # res, recycles only what is left holding nothing, purges nothing, and deletes
+  # no asset.
+  #
+  # Quoted here rather than in the describe because ExUnit bounds a test's
+  # computed name, which includes its describe, at 255 characters.
+  describe "13. The two lower levels move children under the survivor and recycle what emptied" do
+    setup %{letter: letter, principal: principal} do
+      {:ok, %{work: rescan_work, expression: rescan_expression, manifestation: rescan}} =
+        Catalog.create_work("Letter from Ada, rescanned")
+
+      {:ok, %{digital_item: rescan_item}} =
+        Catalog.create_digital_item(rescan.id, "Letter from Ada, rescanned")
+
+      first = stored!(letter.id, bytes: StorageFixtures.png("first scan"))
+      second = stored!(rescan_item.id, bytes: StorageFixtures.png("second scan"))
+
+      {:ok, candidate} = Dedup.propose(rescan_item.id, letter.id, principal.id)
+
+      %{
+        candidate: candidate,
+        first: first,
+        second: second,
+        rescan: rescan,
+        rescan_item: rescan_item,
+        rescan_work: rescan_work,
+        rescan_expression: rescan_expression
+      }
+    end
+
+    test "same holding moves the assets under the survivor and recycles what they left",
+         context do
+      assets_before = Repo.aggregate(Asset, :count)
+
+      assert {:ok, %{decision: :same_holding}} =
+               Dedup.decide(context.candidate.id, :same_holding, context.principal.id)
+
+      held = context.letter.id |> Catalog.assets_of() |> Enum.map(& &1.id) |> Enum.sort()
+      assert held == Enum.sort([context.first.id, context.second.id])
+      assert Catalog.assets_of(context.rescan_item.id) == []
+
+      # Neither asset is deleted and neither goes into the bin with the holding it
+      # left, which is §8.3's "deletes no asset" and "purges nothing".
+      assert Repo.aggregate(Asset, :count) == assets_before
+      assert Repo.aggregate(Tombstone, :count) == 0
+      assert {:live, _} = Lifecycle.state(context.second.id)
+
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan_item.id)
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan.id)
+      assert {:recycled, _, recycling} = Lifecycle.state(context.rescan_work.id)
+      assert context.rescan_expression.id in Lifecycle.contents(recycling.id)
+    end
+
+    test "same holding leaves a manifestation that still holds something alone",
+         %{letter: letter, manifestation: manifestation, principal: principal} do
+      {:ok, %{digital_item: copy}} = Catalog.create_digital_item(manifestation.id, "copy")
+      stored!(copy.id, bytes: StorageFixtures.png("a third scan"))
+      {:ok, pair} = Dedup.propose(copy.id, letter.id, principal.id)
+
+      {:ok, _} = Dedup.decide(pair.id, :same_holding, principal.id)
+
+      assert {:recycled, _, _} = Lifecycle.state(copy.id)
+      assert {:live, _} = Lifecycle.state(manifestation.id)
+      assert {:live, _} = Lifecycle.state(letter.id)
+    end
+
+    test "same holding on a pair of manifestations names a level they do not have",
+         context do
+      {:ok, pair} =
+        Dedup.propose(context.rescan.id, context.manifestation.id, context.principal.id)
+
+      assert_raise MatchError, fn ->
+        Dedup.decide(pair.id, :same_holding, context.principal.id)
+      end
+    end
+
+    test "same manifestation moves the exemplars, both kinds, and recycles what emptied",
+         context do
+      {:ok, %{item: print}} = Catalog.create_item(context.rescan.id, "Ada's print")
+
+      assert {:ok, %{decision: :same_manifestation}} =
+               Dedup.decide(context.candidate.id, :same_manifestation, context.principal.id)
+
+      assert Catalog.digital_items_of(context.rescan.id) == []
+      assert Catalog.items_of(context.rescan.id) == []
+
+      assert context.rescan_item.id in ids(Catalog.digital_items_of(context.manifestation.id))
+      assert print.id in ids(Catalog.items_of(context.manifestation.id))
+
+      # The exemplars moved rather than went, so they stay live; the manifestation
+      # they left is holding nothing and goes, and takes its expression's work with
+      # it because it was that expression's only manifestation.
+      assert {:live, _} = Lifecycle.state(context.rescan_item.id)
+      assert {:live, _} = Lifecycle.state(print.id)
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan.id)
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan_work.id)
+      assert Repo.aggregate(Tombstone, :count) == 0
+    end
+
+    test "same manifestation leaves an expression another manifestation still embodies",
+         context do
+      {:ok, %{manifestation: reissue}} =
+        Catalog.add_manifestation(context.rescan_expression.id, "a reissue")
+
+      {:ok, _} = Dedup.decide(context.candidate.id, :same_manifestation, context.principal.id)
+
+      assert {:recycled, _, _} = Lifecycle.state(context.rescan.id)
+      assert {:live, _} = Lifecycle.state(reissue.id)
+      assert {:live, _} = Lifecycle.state(context.rescan_expression.id)
+      assert {:live, _} = Lifecycle.state(context.rescan_work.id)
+    end
+
+    test "same manifestation on a pair already under one manifestation is refused",
+         %{letter: letter, manifestation: manifestation, principal: principal} do
+      {:ok, %{digital_item: copy}} = Catalog.create_digital_item(manifestation.id, "copy")
+      {:ok, pair} = Dedup.propose(copy.id, letter.id, principal.id)
+
+      assert Dedup.decide(pair.id, :same_manifestation, principal.id) ==
+               {:error, :already_one_manifestation}
+
+      # The rollback takes the decision row with it, so the pair is still open.
+      assert Repo.get!(Candidate, pair.id).decision == nil
+      assert {:live, _} = Lifecycle.state(manifestation.id)
+    end
+
+    test "distinct carries nothing out", context do
+      assets_before = Repo.aggregate(Asset, :count)
+
+      assert {:ok, %{decision: :distinct}} =
+               Dedup.decide(context.candidate.id, :distinct, context.principal.id)
+
+      assert {:live, _} = Lifecycle.state(context.rescan_item.id)
+      assert {:live, _} = Lifecycle.state(context.rescan.id)
+      assert {:live, _} = Lifecycle.state(context.rescan_work.id)
+      assert Repo.aggregate(Asset, :count) == assets_before
+    end
+
+    test "the vocabulary is exactly the five levels §8.3 names" do
+      assert Ecto.Enum.values(Candidate, :decision) == [
+               :same_holding,
+               :same_manifestation,
+               :same_expression,
+               :same_work,
+               :distinct
+             ]
     end
   end
 
