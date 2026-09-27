@@ -23,6 +23,7 @@ defmodule Pluteus.Representation.Field do
     not_held
     not_yet_examined
     attempted_failed
+    unknown
     sought_not_found
     known_unknowable
     known_absent
@@ -31,13 +32,13 @@ defmodule Pluteus.Representation.Field do
   @absent @states -- [:held]
 
   @doc """
-  spec-10 §5.2's seven states. A surface MUST distinguish all of them.
+  spec-10 §5.2's eight states. A surface MUST distinguish all of them.
   """
   @spec states() :: [atom()]
   def states, do: @states
 
   @doc """
-  The six a field carries where it holds no value.
+  The seven a field carries where it holds no value.
   """
   @spec absent_states() :: [atom()]
   def absent_states, do: @absent
@@ -51,7 +52,7 @@ defmodule Pluteus.Representation.Field do
   @doc """
   A field holding none, in the state that establishes why.
 
-  A state outside the six raises rather than reaching the wire: a client that
+  A state outside the seven raises rather than reaching the wire: a client that
   received one it did not know would have no way to tell it from a field this
   deployment does not implement.
   """
