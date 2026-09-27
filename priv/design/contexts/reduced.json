@@ -1,0 +1,14 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "motion: reduced. A.7 requires that under it \"durations of transform and position resolve to zero while short opacity transitions are retained\", and insists it be a resolver context rather than a media query sprinkled through components. The duration tokens are named by what they are for and not by what they animate, so the rule cannot be applied to them as written; it is mapped onto them by purpose instead. `state` is the shortest and is what a control's own change of appearance uses, so it is retained; the three that move something are zeroed. That mapping is a reading of A.7 rather than something A.7 states, and design_test.exs records it as the one place the token set cannot express the rule directly.",
+  "sys": {
+    "motion": {
+      "duration": {
+        "$type": "duration",
+        "container": { "$value": { "value": 0, "unit": "ms" }, "$description": "A container opening or closing moves, so it goes." },
+        "full": { "$value": { "value": 0, "unit": "ms" }, "$description": "A full-screen transition moves, so it goes." },
+        "focus-move": { "$value": { "value": 0, "unit": "ms" }, "$description": "Focus travelling is position, so it goes. The ring still appears; it stops sliding." }
+      }
+    }
+  }
+}
