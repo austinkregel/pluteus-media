@@ -17,7 +17,7 @@ defmodule Pluteus.Administration do
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.Recycling
   alias Pluteus.Principals
-  alias Pluteus.Principals.Device
+  alias Pluteus.Principals.DeviceCredential
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
 
@@ -84,18 +84,31 @@ defmodule Pluteus.Administration do
   end
 
   @doc """
-  Revokes a device. A principal may revoke its own; an Administrator anyone's.
-  """
-  @spec revoke_device(Principal.t(), Ecto.UUID.t(), DateTime.t()) ::
-          {:ok, Device.t()} | {:error, term()}
-  def revoke_device(%Principal{} = actor, device_id, now \\ DateTime.utc_now()) do
-    device = Repo.get!(Device, device_id)
+  Revokes one principal's credential on one device. A principal may revoke its
+  own; an Administrator anyone's.
 
-    audited(actor, "revoke_device", device.principal_id, fn ->
-      with :ok <- permit_device(actor, device) do
-        device
-        |> Device.changeset(%{revoked_at: now, revoked_by: actor.id})
+  The pair names the credential, because a device may hold several and §4.1
+  requires each be separately revocable: revoking one leaves the others usable.
+  Both identifiers are arguments for that reason — there is no longer one
+  principal a device could be said to belong to.
+  """
+  @spec revoke_credential(Principal.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, DeviceCredential.t()} | {:error, term()}
+  def revoke_credential(
+        %Principal{} = actor,
+        device_id,
+        principal_id,
+        now \\ DateTime.utc_now()
+      ) do
+    audited(actor, "revoke_device", principal_id, fn ->
+      with :ok <- permit_credential(actor, principal_id),
+           %DeviceCredential{} = credential <- Principals.credential_on(principal_id, device_id) do
+        credential
+        |> DeviceCredential.revocation_changeset(%{revoked_at: now, revoked_by: actor.id})
         |> Repo.update()
+      else
+        nil -> {:error, :no_such_credential}
+        {:error, reason} -> {:error, reason}
       end
     end)
   end
@@ -146,8 +159,8 @@ defmodule Pluteus.Administration do
     end
   end
 
-  defp permit_device(%Principal{id: id}, %Device{principal_id: id}), do: :ok
-  defp permit_device(actor, _device), do: permit(actor, :revoke_anothers_device)
+  defp permit_credential(%Principal{id: id}, id), do: :ok
+  defp permit_credential(actor, _principal_id), do: permit(actor, :revoke_anothers_device)
 
   # The record is written after the operation, outside its transaction, so a
   # failure that rolled the operation back is still recorded. A raise is
