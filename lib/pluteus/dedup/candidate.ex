@@ -6,6 +6,12 @@ defmodule Pluteus.Dedup.Candidate do
   The pair is stored in one order, so detecting it again meets this row rather
   than creating another, and a decision made here is never reopened by a later
   run.
+
+  One row per pair, whatever raised it. [spec-05] §8.5 makes a candidate matching
+  raised and a candidate a member proposed one kind of thing appearing in one
+  place, so `signal` records the signal that *first* raised the pair rather than
+  every signal that has seen it. A second signal meeting a pair already raised
+  adds nothing, and meeting one already decided must add nothing.
   """
 
   use Ecto.Schema
@@ -41,8 +47,8 @@ defmodule Pluteus.Dedup.Candidate do
     |> validate_required([:left_id, :right_id, :signal, :detected_at, :raised_by])
     |> check_constraint(:left_id, name: :pair_is_ordered)
     |> check_constraint(:raised_by, name: :a_member_candidate_names_its_member)
-    |> unique_constraint([:left_id, :right_id, :signal],
-      name: :duplicate_candidates_left_id_right_id_signal_index
+    |> unique_constraint([:left_id, :right_id],
+      name: :duplicate_candidates_left_id_right_id_index
     )
     |> foreign_key_constraint(:left_id)
     |> foreign_key_constraint(:right_id)
