@@ -1,0 +1,22 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "contrast: more. A.1.6 scopes this to colour only. Nothing publishes high-contrast values for a twelve-step ramp, so this introduces no colour: it moves which step each role resolves to, one rung further from the surface it sits on, which is the practice the ramp's own source documents. Every value reached here already exists in base.grey, so the theme modifier composes with it — resolving contrast after theme means `more` picks a further step of whichever ramp theme chose.",
+  "sys": {
+    "color": {
+      "$type": "color",
+      "surface": {
+        "raised": { "$value": "{base.grey.04}", "$description": "Step 04 rather than 03, so a raised surface separates further from the base it sits on." },
+        "overlay": { "$value": "{base.grey.06}", "$description": "Step 06 rather than 05." }
+      },
+      "on": {
+        "surface": {
+          "muted": { "$value": "{base.grey.12}", "$description": "Step 12 rather than 11. Secondary text stops being secondary by tone, which is the trade this context exists to make: at normal contrast step 11 reaches APCA Lc 60.5 and clears only the secondary floor, and step 12 reaches Lc 95.4 and clears the body floor." }
+        }
+      },
+      "border": {
+        "subtle": { "$value": "{base.grey.07}", "$description": "Step 07 rather than 06." },
+        "component": { "$value": "{base.grey.08}", "$description": "Step 08 rather than 07." }
+      }
+    }
+  }
+}
