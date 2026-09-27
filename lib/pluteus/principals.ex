@@ -13,6 +13,7 @@ defmodule Pluteus.Principals do
   alias Ecto.Multi
   alias Pluteus.Catalog.Res
   alias Pluteus.Principals.Device
+  alias Pluteus.Principals.DeviceCredential
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
@@ -146,61 +147,177 @@ defmodule Pluteus.Principals do
   end
 
   @doc """
-  Binds a device to a principal (spec-06 §4).
+  Enrols a principal on a new device, taking a credential on it (spec-06 §4).
+
+  `granted` is §4.2's recorded grant and has no default; pass
+  `Pluteus.Authorization.grantable_to/1` for everything the role permits.
   """
-  @spec bind_device(Ecto.UUID.t(), String.t(), DateTime.t()) ::
-          {:ok, Device.t()} | {:error, Ecto.Changeset.t()}
-  def bind_device(principal_id, label, now \\ DateTime.utc_now()) do
-    %Device{}
-    |> Device.changeset(%{principal_id: principal_id, label: label, bound_at: now})
+  @spec bind_device(Ecto.UUID.t(), String.t(), [atom()], DateTime.t()) ::
+          {:ok, %{device: Device.t(), credential: DeviceCredential.t()}}
+          | {:error, Ecto.Changeset.t()}
+  def bind_device(principal_id, label, granted, now \\ DateTime.utc_now()) do
+    Multi.new()
+    |> Multi.insert(:device, Device.changeset(%Device{}, %{label: label}))
+    |> Multi.insert(:credential, fn %{device: device} ->
+      credential_changeset(device.id, principal_id, granted, nil, now)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{device: device, credential: credential}} ->
+        {:ok, %{device: device, credential: credential}}
+
+      {:error, _step, changeset, _changes} ->
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Takes a further credential on a device that already exists (spec-06 §4.1).
+
+  The device's label is not given again: it belongs to the device rather than to
+  any credential on it, and a second principal enrolling does not rename the
+  screen for the first.
+  """
+  @spec bind_credential(Ecto.UUID.t(), Ecto.UUID.t(), [atom()], DateTime.t()) ::
+          {:ok, DeviceCredential.t()} | {:error, Ecto.Changeset.t()}
+  def bind_credential(principal_id, device_id, granted, now \\ DateTime.utc_now()) do
+    device_id
+    |> credential_changeset(principal_id, granted, nil, now)
     |> Repo.insert()
   end
 
   @doc """
-  Binds a device to a principal and mints its client key (spec-07 §3.2).
+  Enrols a principal on a new device and mints that credential's client key
+  (spec-07 §3.2).
 
   The key is returned once, here, and never stored: only its digest is. It
   carries 256 bits from the system's secure random source, so a fast digest
   is enough to keep it; it is not a password, and nobody chose it.
   """
-  @spec mint_key(Ecto.UUID.t(), String.t(), DateTime.t()) ::
-          {:ok, %{device: Device.t(), key: String.t()}} | {:error, Ecto.Changeset.t()}
-  def mint_key(principal_id, label, now \\ DateTime.utc_now()) do
-    key = "pk_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+  @spec mint_key(Ecto.UUID.t(), String.t(), [atom()], DateTime.t()) ::
+          {:ok, minted()} | {:error, Ecto.Changeset.t()}
+  def mint_key(principal_id, label, granted, now \\ DateTime.utc_now()) do
+    key = new_key()
 
-    %Device{}
-    |> Device.changeset(%{
-      principal_id: principal_id,
-      label: label,
-      bound_at: now,
-      key_digest: key_digest(key)
-    })
-    |> Repo.insert()
+    Multi.new()
+    |> Multi.insert(:device, Device.changeset(%Device{}, %{label: label}))
+    |> Multi.insert(:credential, fn %{device: device} ->
+      credential_changeset(device.id, principal_id, granted, key_digest(key), now)
+    end)
+    |> Repo.transaction()
     |> case do
-      {:ok, device} -> {:ok, %{device: device, key: key}}
-      {:error, changeset} -> {:error, changeset}
+      {:ok, %{device: device, credential: credential}} ->
+        {:ok, %{device: device, credential: credential, key: key}}
+
+      {:error, _step, changeset, _changes} ->
+        {:error, changeset}
     end
   end
 
   @doc """
-  The principal and device a client key belongs to, or `:invalid_key` where no
-  device holds it, its device is revoked, or its principal is retired.
+  Mints a client key for a principal on a device that already exists
+  (spec-06 §4.1).
   """
-  @spec for_key(String.t()) :: {:ok, Principal.t(), Device.t()} | {:error, :invalid_key}
+  @spec mint_key_for(Ecto.UUID.t(), Device.t(), [atom()], DateTime.t()) ::
+          {:ok, minted()} | {:error, Ecto.Changeset.t()}
+  def mint_key_for(principal_id, %Device{} = device, granted, now \\ DateTime.utc_now()) do
+    key = new_key()
+
+    device.id
+    |> credential_changeset(principal_id, granted, key_digest(key), now)
+    |> Repo.insert()
+    |> case do
+      {:ok, credential} -> {:ok, %{device: device, credential: credential, key: key}}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  @typedoc """
+  A credential and the key shown once for it.
+  """
+  @type minted :: %{device: Device.t(), credential: DeviceCredential.t(), key: String.t()}
+
+  @doc """
+  The principal, device and credential a client key belongs to, or `:invalid_key`
+  where no credential holds it, that credential is revoked, or its principal is
+  retired (spec-07 §3.2).
+
+  A key names one credential, so revoking one leaves every other credential on the
+  same device answering as before, and no credential is reachable by the principal
+  of another (§4.1).
+  """
+  @spec for_key(String.t()) ::
+          {:ok, %{principal: Principal.t(), device: Device.t(), credential: DeviceCredential.t()}}
+          | {:error, :invalid_key}
   def for_key(key) when is_binary(key) do
-    with %Device{revoked_at: nil} = device <- Repo.get_by(Device, key_digest: key_digest(key)),
-         %Principal{retired_at: nil} = principal <- Repo.get!(Principal, device.principal_id) do
-      {:ok, principal, device}
+    with %DeviceCredential{revoked_at: nil} = credential <-
+           Repo.get_by(DeviceCredential, key_digest: key_digest(key)),
+         %Principal{retired_at: nil} = principal <-
+           Repo.get!(Principal, credential.principal_id) do
+      {:ok,
+       %{
+         principal: principal,
+         device: Repo.get!(Device, credential.device_id),
+         credential: credential
+       }}
     else
       _unknown_revoked_or_retired -> {:error, :invalid_key}
     end
   end
 
+  defp new_key, do: "pk_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+
   defp key_digest(key), do: :sha256 |> :crypto.hash(key) |> Base.encode16(case: :lower)
 
+  defp credential_changeset(device_id, principal_id, granted, key_digest, now) do
+    DeviceCredential.changeset(%DeviceCredential{}, %{
+      device_id: device_id,
+      principal_id: principal_id,
+      granted: granted,
+      key_digest: key_digest,
+      bound_at: now
+    })
+  end
+
+  @doc """
+  Every credential a principal holds, its device preloaded.
+
+  This is the unit spec-10 criterion 55 makes revocable, so it is what a surface
+  listing "my devices" shows.
+  """
+  @spec credentials_of(Ecto.UUID.t()) :: [DeviceCredential.t()]
+  def credentials_of(principal_id) do
+    Repo.all(
+      from c in DeviceCredential,
+        where: c.principal_id == ^principal_id,
+        order_by: c.bound_at,
+        preload: [:device]
+    )
+  end
+
+  @doc """
+  Every device a principal holds a credential on, revoked credentials included.
+
+  Revoked ones stay, because a session recorded before a revocation still names
+  the device and a surface reporting that session has to name it too.
+  """
   @spec devices_of(Ecto.UUID.t()) :: [Device.t()]
   def devices_of(principal_id) do
-    Repo.all(from d in Device, where: d.principal_id == ^principal_id, order_by: d.bound_at)
+    Repo.all(
+      from d in Device,
+        join: c in DeviceCredential,
+        on: c.device_id == d.id,
+        where: c.principal_id == ^principal_id,
+        order_by: c.bound_at
+    )
+  end
+
+  @doc """
+  One principal's credential on one device, or nil.
+  """
+  @spec credential_on(Ecto.UUID.t(), Ecto.UUID.t()) :: DeviceCredential.t() | nil
+  def credential_on(principal_id, device_id) do
+    Repo.get_by(DeviceCredential, principal_id: principal_id, device_id: device_id)
   end
 
   @doc """
