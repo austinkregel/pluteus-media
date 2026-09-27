@@ -841,23 +841,36 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
-  Moves a digital item under another manifestation, which is §5.3's extension of
-  LRM-R4 restated for a digital item already recorded.
+  Moves an exemplar under another manifestation, which is LRM-R4 restated for an
+  item already recorded, and §5.3's extension of it for a digital item.
+
+  Both kinds of exemplar are accepted because both stand in that one relation and
+  a manifestation is exemplified by either. Anything else raises: a res that is
+  not an exemplar has no manifestation to be moved between.
 
   The parent lives in a column, as `realize/2`'s does, so this replaces the
-  manifestation the digital item had rather than adding to it.
+  manifestation the exemplar had rather than adding to it.
 
   This is how spec-03 §8.3's *same manifestation* decision is carried out: the
-  digital items of two manifestation rows standing for one manifestation are
-  brought under one of them, and no holding is merged into another.
+  exemplars of two manifestation rows standing for one manifestation are brought
+  under one of them, and neither is merged into the other.
   """
   @spec exemplify(Ecto.UUID.t(), Ecto.UUID.t()) ::
-          {:ok, DigitalItem.t()} | {:error, Ecto.Changeset.t()}
-  def exemplify(manifestation_id, digital_item_id) do
-    DigitalItem
-    |> Repo.get!(digital_item_id)
-    |> DigitalItem.changeset(%{manifestation_id: manifestation_id})
-    |> Repo.update()
+          {:ok, DigitalItem.t() | Item.t()} | {:error, Ecto.Changeset.t()}
+  def exemplify(manifestation_id, exemplar_id) do
+    case Repo.get!(Res, exemplar_id) do
+      %Res{kind: :digital_item} ->
+        DigitalItem
+        |> Repo.get!(exemplar_id)
+        |> DigitalItem.changeset(%{manifestation_id: manifestation_id})
+        |> Repo.update()
+
+      %Res{kind: :item} ->
+        Item
+        |> Repo.get!(exemplar_id)
+        |> Item.changeset(%{manifestation_id: manifestation_id})
+        |> Repo.update()
+    end
   end
 
   @doc """
