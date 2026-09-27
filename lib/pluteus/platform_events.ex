@@ -28,20 +28,40 @@ defmodule Pluteus.PlatformEvents do
   @doc """
   Records that something happened to the holdings, and which principal did it.
 
+  The subject is tagged, `{:res, id}` or `{:acquisition, id}`, because §11.1's "a
+  file arriving" precedes anything catalogued and so has no res to name while
+  everything after placement does. Tagging it makes which of the two a caller means
+  unmissable, and the two clauses carry no catch-all, so a third kind of subject
+  raises rather than being recorded against neither column.
+
   `recorded_by` is the acting principal, usually the System principal's own
   processes (spec-04 §3). It does not decide the class (§11.2) and does not scope
   the read.
   """
-  @spec record(String.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
+  @spec record(String.t(), subject(), Ecto.UUID.t(), DateTime.t()) ::
           {:ok, PlatformEvent.t()} | {:error, Ecto.Changeset.t()}
-  def record(type, res_id, recorded_by, occurred_at \\ DateTime.utc_now()) do
+  def record(type, subject, recorded_by, occurred_at \\ DateTime.utc_now())
+
+  def record(type, {:res, res_id}, recorded_by, occurred_at),
+    do: insert(%{type: type, res_id: res_id, recorded_by: recorded_by, occurred_at: occurred_at})
+
+  def record(type, {:acquisition, acquisition_id}, recorded_by, occurred_at),
+    do:
+      insert(%{
+        type: type,
+        acquisition_id: acquisition_id,
+        recorded_by: recorded_by,
+        occurred_at: occurred_at
+      })
+
+  @typedoc """
+  What an event is about: a res, or the acquisition of bytes not yet catalogued.
+  """
+  @type subject :: {:res, Ecto.UUID.t()} | {:acquisition, Ecto.UUID.t()}
+
+  defp insert(attrs) do
     %PlatformEvent{}
-    |> PlatformEvent.changeset(%{
-      type: type,
-      res_id: res_id,
-      recorded_by: recorded_by,
-      occurred_at: occurred_at
-    })
+    |> PlatformEvent.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -64,6 +84,18 @@ defmodule Pluteus.PlatformEvents do
     Repo.all(
       from e in PlatformEvent,
         where: e.res_id == ^res_id,
+        order_by: [desc: e.occurred_at, desc: e.id]
+    )
+  end
+
+  @doc """
+  Every platform event about one acquisition, most recent first.
+  """
+  @spec about_acquisition(Ecto.UUID.t()) :: [PlatformEvent.t()]
+  def about_acquisition(acquisition_id) do
+    Repo.all(
+      from e in PlatformEvent,
+        where: e.acquisition_id == ^acquisition_id,
         order_by: [desc: e.occurred_at, desc: e.id]
     )
   end
