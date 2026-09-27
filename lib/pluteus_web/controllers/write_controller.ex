@@ -15,7 +15,9 @@ defmodule PluteusWeb.WriteController do
   alias Pluteus.Lifecycle
   alias PluteusWeb.Native
 
-  @nomen_fields ~w(res_id nomen_string language script scheme context_of_use)
+  @nomen_fields ~w(
+    res_id nomen_string language language_unknown script scheme context_of_use
+  )
 
   def create_nomen(conn, params) do
     attrs =
