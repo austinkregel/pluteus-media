@@ -534,6 +534,87 @@ defmodule Pluteus.Assets.ConformanceTest do
     end
   end
 
+  describe "14. A pair decided distinct is not raised again, by a detection run or by matching" do
+    setup %{letter: letter, manifestation: manifestation} do
+      {:ok, %{digital_item: other}} = Catalog.create_digital_item(manifestation.id, "copy")
+      bytes = StorageFixtures.png("the same bytes")
+      stored!(letter.id, bytes: bytes)
+      stored!(other.id, bytes: bytes)
+
+      # The same pair under two of §8.2's signals: identical bytes, and one
+      # external identifier carried by both, which spec-01 §4.3 tolerates. Before
+      # the pair became the key, deciding under one of them left the other free to
+      # raise it again.
+      for res_id <- [letter.id, other.id] do
+        {:ok, _} =
+          Catalog.create_nomen(%{
+            res_id: res_id,
+            nomen_string: "urn:example:letter-1943-04-12",
+            scheme: "example"
+          })
+      end
+
+      %{other: other}
+    end
+
+    test "two signals raise one row, not one each", %{letter: letter} do
+      Dedup.detect()
+
+      assert [%{signal: :digest}] = Dedup.involving(letter.id)
+    end
+
+    test "a later run does not raise it again under the other signal",
+         %{letter: letter, principal: principal} do
+      Dedup.detect()
+      [candidate] = Dedup.involving(letter.id)
+      {:ok, _} = Dedup.decide(candidate.id, :distinct, principal.id)
+
+      assert Dedup.detect() == 0
+      assert [%{decision: :distinct}] = Dedup.involving(letter.id)
+      assert Dedup.open() == []
+    end
+
+    test "a member proposing a decided pair is refused with the decision it carries",
+         %{letter: letter, other: other, principal: principal} do
+      Dedup.detect()
+      [candidate] = Dedup.involving(letter.id)
+      {:ok, _} = Dedup.decide(candidate.id, :distinct, principal.id)
+
+      assert Dedup.propose(other.id, letter.id, principal.id) ==
+               {:error, {:already_decided, :distinct}}
+    end
+
+    test "a member proposing an undecided pair is given the row it already has",
+         %{letter: letter, other: other, principal: principal} do
+      Dedup.detect()
+      [%{id: raised}] = Dedup.involving(letter.id)
+
+      assert {:ok, %{id: ^raised}} = Dedup.propose(other.id, letter.id, principal.id)
+      assert [_one] = Dedup.involving(letter.id)
+    end
+
+    test "the store refuses a second row for one pair", %{letter: letter, other: other} do
+      now = DateTime.utc_now()
+      [left_id, right_id] = Enum.sort([letter.id, other.id])
+
+      Dedup.detect()
+
+      assert_raise Postgrex.Error, ~r/duplicate_candidates_left_id_right_id_index/, fn ->
+        Repo.insert_all("duplicate_candidates", [
+          %{
+            id: Ecto.UUID.dump!(UUIDv7.generate()),
+            left_id: Ecto.UUID.dump!(left_id),
+            right_id: Ecto.UUID.dump!(right_id),
+            signal: "perceptual",
+            detected_at: now,
+            inserted_at: now,
+            updated_at: now
+          }
+        ])
+      end
+    end
+  end
+
   defp works_of(manifestation_id) do
     manifestation_id
     |> Catalog.expressions_in()
