@@ -15,8 +15,10 @@ defmodule Pluteus.Lifecycle do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Multi
+  alias Pluteus.Actor
   alias Pluteus.Annotations.Annotation
   alias Pluteus.Assets
+  alias Pluteus.Changes
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
@@ -171,6 +173,11 @@ defmodule Pluteus.Lifecycle do
   reported and not only the first, and is recorded as a finding against its
   location: the bytes outlive their record, and the finding outlives whatever
   called this.
+
+  None of the catalog writes reaches a feed entry (§14.2): the recycling that
+  preceded this was the notification, and a client that missed it is answered 410
+  on its next request. The bytes are removed after that transaction commits, so
+  they are outside it either way.
   """
   @spec purge(Recycling.t(), DateTime.t()) :: {:ok, map()}
   def purge(%Recycling{} = recycling, now) do
@@ -189,11 +196,13 @@ defmodule Pluteus.Lifecycle do
         )
 
     {:ok, _changes} =
-      Multi.new()
-      |> delete_structure(res_ids)
-      |> Multi.run(:tombstones, fn repo, _changes -> entomb(repo, res_ids, now) end)
-      |> Multi.delete(:recycling, recycling)
-      |> Repo.transaction()
+      Changes.unrecorded(fn ->
+        Multi.new()
+        |> delete_structure(res_ids)
+        |> Multi.run(:tombstones, fn repo, _changes -> entomb(repo, res_ids, now) end)
+        |> Multi.delete(:recycling, recycling)
+        |> Repo.transaction()
+      end)
 
     bytes_not_removed =
       for location <- locations,
@@ -469,10 +478,23 @@ defmodule Pluteus.Lifecycle do
     |> Enum.reduce(multi, fn {name, query}, acc -> Multi.delete_all(acc, name, query) end)
   end
 
+  # The purging principal is the transaction's own, which the trigger has already
+  # refused the purge without. `Actor.current/0` rather than the recycling's
+  # `recycled_by`, because emptying another principal's bin is an Administrator's
+  # act (§14.1) and the tombstone records who purged, not who recycled.
   defp entomb(repo, ids, now) do
+    purged_by = Actor.current()
+
     rows =
       Repo.all(from r in Res, where: r.id in ^ids, select: %{res_id: r.id, kind: r.kind})
-      |> Enum.map(&Map.merge(&1, %{purged_at: now, inserted_at: now, updated_at: now}))
+      |> Enum.map(
+        &Map.merge(&1, %{
+          purged_at: now,
+          purged_by: purged_by,
+          inserted_at: now,
+          updated_at: now
+        })
+      )
 
     {count, _} = repo.insert_all(Tombstone, rows)
     {:ok, count}
