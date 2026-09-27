@@ -1,0 +1,22 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "theme: light. A separately tuned ramp, not an inversion of the dark one (A.2.3). These arrived as sRGB from the household's own design system rather than being authored in OKLCH, so A.2.1's OKLCH-first rule is met for the dark theme and not yet for this one; converting the hex back into OKLCH here would manufacture a precision nobody authored. Only colour is overridden, because A.1.6 scopes theme to colour only.",
+  "base": {
+    "grey": {
+      "$type": "color",
+      "01": { "$value": { "colorSpace": "srgb", "components": [0.988, 0.988, 0.992], "hex": "#fcfcfd" } },
+      "02": { "$value": { "colorSpace": "srgb", "components": [0.976, 0.976, 0.984], "hex": "#f9f9fb" } },
+      "03": { "$value": { "colorSpace": "srgb", "components": [0.941, 0.941, 0.953], "hex": "#f0f0f3" } },
+      "04": { "$value": { "colorSpace": "srgb", "components": [0.910, 0.910, 0.925], "hex": "#e8e8ec" } },
+      "05": { "$value": { "colorSpace": "srgb", "components": [0.878, 0.882, 0.902], "hex": "#e0e1e6" } },
+      "06": { "$value": { "colorSpace": "srgb", "components": [0.851, 0.851, 0.878], "hex": "#d9d9e0" } },
+      "07": { "$value": { "colorSpace": "srgb", "components": [0.804, 0.808, 0.839], "hex": "#cdced6" } },
+      "08": { "$value": { "colorSpace": "srgb", "components": [0.725, 0.733, 0.776], "hex": "#b9bbc6" } },
+      "09": { "$value": { "colorSpace": "srgb", "components": [0.545, 0.553, 0.596], "hex": "#8b8d98" } },
+      "10": { "$value": { "colorSpace": "srgb", "components": [0.502, 0.514, 0.553], "hex": "#80838d" } },
+      "11": { "$value": { "colorSpace": "srgb", "components": [0.376, 0.392, 0.424], "hex": "#60646c" }, "$description": "Low-contrast text. The ramp runs the other way in this theme, so the text steps are the dark end." },
+      "12": { "$value": { "colorSpace": "srgb", "components": [0.110, 0.125, 0.141], "hex": "#1c2024" } },
+      "ring": { "$value": { "colorSpace": "srgb", "components": [0.376, 0.392, 0.424], "hex": "#60646c" }, "$description": "A.5: the ring is measured against the surface of least contrast with it, which is the lightest step in the dark theme and the darkest in this one." }
+    }
+  }
+}
