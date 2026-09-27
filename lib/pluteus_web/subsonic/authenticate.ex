@@ -97,10 +97,20 @@ defmodule PluteusWeb.Subsonic.Authenticate do
 
   defp authenticate(conn, {:refuse, code, message}), do: refuse(conn, code, message)
 
+  # A key names one credential, and the request acts as that credential's
+  # principal and no other (spec-07 §3.3, §3.4). The credential is assigned
+  # because what the request may do is recorded on it (spec-06 §4.2), and a
+  # revoked one is refused whatever else its device holds (§4.1).
   defp authenticate(conn, {:key, key}) do
     case Principals.for_key(key) do
-      {:ok, principal, device} -> conn |> assign(:principal, principal) |> assign(:device, device)
-      {:error, :invalid_key} -> refuse(conn, 44, "Invalid API key")
+      {:ok, %{principal: principal, device: device, credential: credential}} ->
+        conn
+        |> assign(:principal, principal)
+        |> assign(:device, device)
+        |> assign(:credential, credential)
+
+      {:error, :invalid_key} ->
+        refuse(conn, 44, "Invalid API key")
     end
   end
 
