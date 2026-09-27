@@ -19,6 +19,7 @@ defmodule Pluteus.Assets.ConformanceTest do
   alias Pluteus.Formats
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.Tombstone
+  alias Pluteus.PlatformEvents
   alias Pluteus.Principals
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
@@ -123,6 +124,23 @@ defmodule Pluteus.Assets.ConformanceTest do
 
       assert Repo.get!(Asset, asset.id).digest == asset.digest
       assert Storage.read(asset.location) == "not the letter"
+    end
+
+    test "a check that passed is a platform event; one that failed is not", %{letter: letter} do
+      # spec-01 §11.2's platform class, recorded by the System principal because a
+      # scheduled check is the deployment's own work (spec-06 §6.1). A failure goes
+      # to the findings surface instead, so the feed carries what held rather than
+      # what broke.
+      sound = stored!(letter.id)
+      altered = stored!(letter.id)
+      :ok = Storage.put(altered.location, "not the letter")
+
+      {:ok, _} = Assets.verify(sound.id)
+      {:ok, _} = Assets.verify(altered.id)
+
+      assert [%{type: "verified", recorded_by: by}] = PlatformEvents.about(sound.id)
+      assert by == Principals.system!().id
+      assert PlatformEvents.about(altered.id) == []
     end
   end
 
