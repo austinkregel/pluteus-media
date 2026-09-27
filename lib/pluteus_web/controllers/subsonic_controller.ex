@@ -10,6 +10,7 @@ defmodule PluteusWeb.SubsonicController do
 
   use PluteusWeb, :controller
 
+  alias Pluteus.Authorization
   alias PluteusWeb.Subsonic.Browse
   alias PluteusWeb.Subsonic.Lists
   alias PluteusWeb.Subsonic.Own
@@ -32,12 +33,43 @@ defmodule PluteusWeb.SubsonicController do
 
   @surfaces [Browse, Lists, Retrieval, Own]
 
+  @doc """
+  The surfaces whose endpoints carry a grant.
+  """
+  @spec surfaces() :: [module()]
+  def surfaces, do: @surfaces
+
+  @doc """
+  The endpoints answerable with nothing granted (spec-06 §4.2).
+
+  Each reports what this deployment is rather than anything the household holds, so
+  there is nothing for a grant to be about. Pinned here so the set cannot grow
+  quietly.
+  """
+  @spec ungranted() :: [String.t()]
+  def ungranted, do: ~w(ping getLicense getOpenSubsonicExtensions tokenInfo)
+
   def dispatch(conn, %{"endpoint" => endpoint}) do
     endpoint = String.replace_suffix(endpoint, ".view", "")
 
     case Enum.find(@surfaces, &(endpoint in &1.endpoints())) do
       nil -> handle(endpoint, conn)
-      surface -> surface.handle(endpoint, conn)
+      surface -> permitted(conn, surface, endpoint)
+    end
+  end
+
+  # spec-07 §3.4: a key's grant "is checked on every request", and this is the one
+  # point every key-authenticated request passes through. Error 50 is what §6.8
+  # maps "the requesting principal may not" to.
+  defp permitted(conn, surface, endpoint) do
+    credential = conn.assigns.credential
+
+    case Enum.reject(surface.operations(endpoint), &Authorization.granted?(credential, &1)) do
+      [] ->
+        surface.handle(endpoint, conn)
+
+      [refused | _rest] ->
+        Response.error(conn, 50, "This credential does not grant #{refused}")
     end
   end
 
