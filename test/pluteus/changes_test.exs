@@ -11,6 +11,7 @@ defmodule Pluteus.ChangesTest do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Lifecycle
+  alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Repo
 
   @subtype_parents ~w(res)
@@ -52,7 +53,7 @@ defmodule Pluteus.ChangesTest do
       assert before.id in res and later.id in res
     end
 
-    test "recycling, restoring and purging each name the res", %{actor: principal} do
+    test "recycling and restoring each name the res", %{actor: principal} do
       {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
 
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
@@ -61,10 +62,53 @@ defmodule Pluteus.ChangesTest do
 
       {:ok, _} = Lifecycle.restore(recycling.id)
       assert [{"INSERT", _}, {"DELETE", [^id]}] = writes("recycled_res", work.id)
+    end
+  end
 
+  describe "spec-01 43. Purging a res emits no change notification" do
+    test "the recycling is the last thing the feed says about it", %{actor: principal} do
+      {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
+      {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
+
+      before = writes("recycled_res", work.id)
+      assert [{"INSERT", [work.id]}] == before
+
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      # The purge happened, and said nothing. Not the tombstone it wrote, not the
+      # rows it deleted from the structural tables, and not the recycled_res rows
+      # the recycling's own deletion cascaded away.
+      assert {:purged, _, _} = Lifecycle.state(work.id)
+      assert writes("tombstones", work.id) == []
+      assert writes("works", work.id) == [{"INSERT", [work.id]}]
+      assert writes("recycled_res", work.id) == before
+    end
+
+    test "spec-06 15. The purge still records the acting principal", %{actor: principal} do
+      {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
       {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
       {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
-      assert [{"INSERT", [^id]}] = writes("tombstones", work.id)
+
+      # §6.2 requires every catalog write to record the acting principal. With no
+      # feed row to carry it, the tombstone does.
+      assert Repo.get!(Tombstone, work.id).purged_by == principal.id
+    end
+
+    test "a write outside the purge is still recorded, and one with no actor still raises",
+         %{actor: principal} do
+      {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
+      {:ok, recycling} = Lifecycle.recycle(work.id, principal.id)
+      {:ok, _} = Lifecycle.purge(recycling, DateTime.utc_now())
+
+      # The setting is cleared before the purge's transaction closes, so the
+      # transaction enclosing it is not left silenced.
+      {:ok, %{work: after_purge}} = Catalog.create_work("Sketches of Spain")
+      assert [{"INSERT", [_]}] = writes("works", after_purge.id)
+
+      :ok = Pluteus.Actor.set("")
+
+      error = assert_raise Postgrex.Error, fn -> Catalog.create_work("Anonymous") end
+      assert error.postgres.message =~ "no acting principal"
     end
   end
 
