@@ -44,6 +44,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
   alias Pluteus.Principals
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
+  alias Pluteus.Representation
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
 
@@ -1542,6 +1543,91 @@ defmodule Pluteus.Catalog.ConformanceTest do
     end
   end
 
+  # 39. A nomen whose language is unknown is distinguishable from one whose
+  # language is absent, and neither is reported as the other; resolution treats
+  # both as carrying no language.
+  #
+  # Quoted here rather than in the describe because ExUnit bounds a test's
+  # computed name, which includes its describe, at 255 characters.
+  describe "39. Unknown and absent are distinguishable, and neither is reported as the other" do
+    test "a language, an absence and an unknown are three different things" do
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
+
+      {:ok, tagged} =
+        Catalog.create_nomen(%{res_id: work.id, nomen_string: "The Dig", language: "en"})
+
+      {:ok, unknown} =
+        Catalog.create_nomen(%{
+          res_id: work.id,
+          nomen_string: "Sutton Hoo",
+          language_unknown: true
+        })
+
+      {:ok, absent} = Catalog.create_nomen(%{res_id: work.id, nomen_string: "SH-1939"})
+
+      assert {tagged.language, tagged.language_unknown} == {"en", false}
+      assert {unknown.language, unknown.language_unknown} == {nil, true}
+      assert {absent.language, absent.language_unknown} == {nil, false}
+    end
+
+    test "a stated language and an unknown one cannot both hold" do
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
+
+      assert {:error, changeset} =
+               Catalog.create_nomen(%{
+                 res_id: work.id,
+                 nomen_string: "The Dig",
+                 language: "en",
+                 language_unknown: true
+               })
+
+      assert %{language_unknown: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "neither is reported as the other" do
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
+
+      {:ok, unknown} =
+        Catalog.create_nomen(%{
+          res_id: work.id,
+          nomen_string: "Sutton Hoo",
+          language_unknown: true
+        })
+
+      {:ok, absent} = Catalog.create_nomen(%{res_id: work.id, nomen_string: "SH-1939"})
+
+      reported = fn id ->
+        Res |> Repo.get!(id) |> Representation.of(%Profile{}) |> get_in(["own", "language"])
+      end
+
+      assert reported.(unknown.id) == %{"state" => "unknown"}
+      assert reported.(absent.id) == %{"state" => "known_absent"}
+    end
+
+    test "resolution treats both as carrying no language" do
+      # [spec-10] §6.1's fourth clause prefers an untagged name over one in a
+      # language the profile did not ask for. An unknown language is untagged for
+      # that purpose, so it is preferred on exactly the same terms as an absent one.
+      german = a_nomen("Das Grabungsfeld", language: "de")
+      unknown = a_nomen("Sutton Hoo", language_unknown: true)
+      absent = a_nomen("SH-1939")
+
+      assert Resolution.choose([german, unknown], %Profile{language: "en"}) == unknown
+      assert Resolution.choose([german, absent], %Profile{language: "en"}) == absent
+    end
+
+    test "an unknown language never satisfies a language range" do
+      # §6.1's second clause: where anything matches the range, only matches are
+      # candidates. A name whose language nobody established is not one of them —
+      # a filter cannot match what nobody has established (§7.2).
+      unknown = a_nomen("Sutton Hoo", language_unknown: true)
+      english = a_nomen("The Dig", language: "en")
+
+      assert Resolution.choose([unknown, english], %Profile{language: "en"}) == english
+      refute Resolution.matches?(unknown.language, "en")
+    end
+  end
+
   describe "40. Two devices reporting different positions produce two positions" do
     test "each names its device, unit, reporting time, session sequence and playing flag" do
       %{principal: principal} = a_household_member()
@@ -1762,6 +1848,16 @@ defmodule Pluteus.Catalog.ConformanceTest do
       Catalog.create_work("The Dig")
 
     %{work: work, expression: expression, manifestation: manifestation}
+  end
+
+  # `choose/2` is pure, so resolution's language step is exercised over structs
+  # rather than rows. Every nomen here is local and household-assigned, so the
+  # ordering's own components tie and the filter is what the assertion reads.
+  defp a_nomen(string, attrs \\ []) do
+    struct!(
+      %Nomen{id: UUIDv7.generate(), nomen_string: string, provenance: :local},
+      attrs
+    )
   end
 
   defp a_cue, do: %{selector_type: :temporal, start_ms: 140_000, end_ms: 148_000}
