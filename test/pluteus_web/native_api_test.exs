@@ -8,6 +8,7 @@ defmodule PluteusWeb.NativeApiTest do
   import Ecto.Query, only: [from: 2]
 
   alias Pluteus.Catalog
+  alias Pluteus.Dedup
   alias Pluteus.Lifecycle
   alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
@@ -220,6 +221,37 @@ defmodule PluteusWeb.NativeApiTest do
     end
   end
 
+  describe "every decision level spec-03 §8.3 names is reachable over the wire" do
+    test "each of the five is accepted", %{conn: conn} do
+      # One candidate per level, because deciding one resolves it. The guard on the
+      # route is what this is about: it admitted three of the five, so `same_work`
+      # was unreachable although the level shipped.
+      for decision <- ~w(same_holding same_manifestation same_expression same_work distinct) do
+        candidate = a_candidate()
+
+        body =
+          conn
+          |> post("/duplicate-candidates/#{candidate.id}/decision", %{"decision" => decision})
+          |> json_response(200)
+
+        assert body == %{"id" => candidate.id, "decision" => decision}
+      end
+    end
+
+    test "a decision outside the vocabulary is refused naming all five", %{conn: conn} do
+      candidate = a_candidate()
+
+      body =
+        conn
+        |> post("/duplicate-candidates/#{candidate.id}/decision", %{"decision" => "duplicate"})
+        |> json_response(400)
+
+      for level <- ~w(same_holding same_manifestation same_expression same_work distinct) do
+        assert body["detail"] =~ level
+      end
+    end
+  end
+
   describe "writes are attributed to the requesting principal" do
     test "a name written through the API is recorded as the principal's write", %{conn: conn} do
       {:ok, %{work: work}} = Catalog.create_work("Untitled")
@@ -264,6 +296,21 @@ defmodule PluteusWeb.NativeApiTest do
       assert body["type"] =~ "/problems/constraint"
       assert %{"res_id" => [%{"constraint" => "nomens_res_id_fkey"}]} = body["detail"]
     end
+  end
+
+  # Two holdings under two manifestations of two works, so the pair can occupy any
+  # of §8.3's levels and each decision has something to carry out.
+  defp a_candidate do
+    {:ok, member} = Principals.create_principal(%{role: "member"})
+
+    {:ok, %{manifestation: first}} = Catalog.create_work("A scan")
+    {:ok, %{digital_item: one}} = Catalog.create_digital_item(first.id, "a scan")
+
+    {:ok, %{manifestation: second}} = Catalog.create_work("Another scan")
+    {:ok, %{digital_item: two}} = Catalog.create_digital_item(second.id, "another scan")
+
+    {:ok, candidate} = Dedup.propose(one.id, two.id, member.id)
+    candidate
   end
 
   defp page_through(_conn, nil), do: []
