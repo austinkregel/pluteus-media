@@ -54,6 +54,22 @@ defmodule Pluteus.Design.BuildTest do
       end
     end
 
+    test "A.4.2's targets and the control height are reachable as utilities", %{css: css} do
+      # A floor a component has to write out by hand is a floor each one remembers
+      # rather than asks for, so the sizes are registered in the namespace that
+      # generates width and height utilities. In layer 3, because `density` rebinds the
+      # control height and a layer 1 copy would not follow it.
+      inline = scope(css, "@theme inline")
+
+      for path <- Map.keys(Tokens.all()), String.starts_with?(path, "sys.size.") do
+        name = path |> String.replace_prefix("sys.size.", "") |> String.replace(".", "-")
+        runtime = path |> String.replace_prefix("sys.", "sys-") |> String.replace(".", "-")
+
+        assert inline =~ "--spacing-#{name}: var(--#{runtime});",
+               "#{path} has no utility, so a component cannot ask for it by name"
+      end
+    end
+
     test "a colour carries its sRGB fallback before its OKLCH", %{css: css} do
       # A.2.1 requires both be authored and forbids the build computing either. In CSS
       # that is two declarations, the fallback first, so a renderer that cannot read
@@ -72,6 +88,30 @@ defmodule Pluteus.Design.BuildTest do
       for default <- ~w(dark normal near comfortable full) do
         refute css =~ ~s("#{default}"] {),
                "#{default} is a default and needs no scope of its own"
+      end
+    end
+
+    test "a context with a media feature also applies before any script runs", %{css: css} do
+      # A person who has asked their system for a light theme, more contrast or less
+      # motion has already said so, and an interface that honours it only once a script
+      # has run shows them the wrong thing first. Each of those three is emitted a
+      # second time under its query, guarded by the resolved attribute's absence so a
+      # recorded choice wins. The other two have no system signal to read.
+      for {modifier, context, query} <- [
+            {"theme", "light", "(prefers-color-scheme: light)"},
+            {"contrast", "more", "(prefers-contrast: more)"},
+            {"motion", "reduced", "(prefers-reduced-motion: reduce)"}
+          ] do
+        assert css =~ "@media #{query} {\n  :root:not([data-#{modifier}]) {",
+               "#{modifier}/#{context} is unreachable without a script"
+
+        assert declarations(css, ~s|  :root:not([data-#{modifier}])|) ==
+                 declarations(css, ~s|:root[data-#{modifier}="#{context}"]|),
+               "#{modifier}'s query and its attribute scope carry different values"
+      end
+
+      for modifier <- ~w(density distance) do
+        refute css =~ "[data-#{modifier}])", "#{modifier} has no media feature to read"
       end
     end
 
@@ -138,5 +178,16 @@ defmodule Pluteus.Design.BuildTest do
     [_before, rest] = String.split(css, selector <> " {", parts: 2)
     [inside | _after] = String.split(rest, "\n}", parts: 2)
     inside
+  end
+
+  # A scope's declarations, whitespace and order discarded, so a nested copy can be
+  # compared against the scope it must agree with.
+  defp declarations(css, selector) do
+    css
+    |> scope(selector)
+    |> String.split("\n")
+    |> Enum.map(&String.trim/1)
+    |> Enum.filter(&String.ends_with?(&1, ";"))
+    |> Enum.sort()
   end
 end
