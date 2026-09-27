@@ -21,6 +21,7 @@ defmodule Pluteus.Catalog do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Multi
+  alias Pluteus.Actor
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
@@ -40,6 +41,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
   alias Pluteus.Formats
+  alias Pluteus.PlatformEvents
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -402,7 +404,20 @@ defmodule Pluteus.Catalog do
       conflict_target: [:res_id, :scheme, :provenance],
       returning: true
     )
+    |> announce_correction(res_id)
   end
+
+  # spec-01 §11.2's platform class. A member correcting a category produces a
+  # platform event and not a consumption one — the class is decided by what the
+  # event records, not by who acted — so the household sees it, which §11.2 says
+  # in as many words and spec-06 §6.4 repeats. Attributed to the transaction's own
+  # principal, which is the correcting member.
+  defp announce_correction({:ok, category}, res_id) do
+    {:ok, _event} = PlatformEvents.record("corrected", res_id, Actor.current())
+    {:ok, category}
+  end
+
+  defp announce_correction({:error, changeset}, _res_id), do: {:error, changeset}
 
   @doc """
   A res's category in a scheme: a member's correction over an automatic
