@@ -147,8 +147,22 @@ Every res kind has a collection and an entity URI. The entity URIs are spec-01
 | every res of a kind | `/{kind}` |
 | an asset's bytes | `/assets/{id}/content` |
 | the change feed | `/changes` |
+| the household's platform events | `/platform-events` |
 | the principal's own devices | `/devices`, `/devices/{id}` |
 | findings | `/findings`, `/findings/{id}` |
+
+`/platform-events` answers [spec-01] §11.2's platform class — what happened to the
+holdings — which that section makes visible to the household and [spec-06] §6.4
+names among the things a member contributes that the household sees by design.
+Every member is answered every one of them, including those the System principal
+recorded, so the answer is not scoped by the requesting principal.
+
+**There is no resource for the consumption class.** [spec-01] §11.2 scopes a
+consumption event to its principal alone, and §11.3 forbids the two classes to
+share a representation; a principal reaches its own consumption through the
+surfaces that already carry it. The path is `/platform-events` rather than
+`/events` for the same reason: a path that read as covering events in general
+would invite the class that may not be there.
 
 A representation carries the res's identifier and kind, its preferred name
 resolved under the requesting principal's resolution profile (spec-01 §7.4),
