@@ -10,6 +10,7 @@ defmodule PluteusWeb.SubsonicOwnTest do
   alias Pluteus.Events
   alias Pluteus.Lifecycle
   alias Pluteus.MusicFixtures
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
 
   @subject "ada@example.test"
@@ -87,7 +88,7 @@ defmodule PluteusWeb.SubsonicOwnTest do
     end
 
     test "another principal's star, rating, plays or bookmark are never shown", context do
-      {:ok, other_device} = Principals.bind_device(context.other.id, "tv")
+      other_device = PrincipalFixtures.a_device(context.other.id, "tv")
       {:ok, _} = Consumption.star(context.other.id, context.so_what)
       {:ok, _} = Consumption.rate(context.other.id, context.so_what, 5)
       {:ok, _} = Consumption.played(context.other.id, other_device.id, context.so_what)
@@ -315,7 +316,7 @@ defmodule PluteusWeb.SubsonicOwnTest do
     test "another principal's bookmark is neither listed nor deleted", context do
       # The device is the other principal's own: the composite foreign key on
       # `resume_positions` admits no other (spec-01 §11.4).
-      {:ok, theirs} = Principals.bind_device(context.other.id, "their tv")
+      theirs = PrincipalFixtures.a_device(context.other.id, "their tv")
 
       {:ok, _} = Consumption.bookmark(context.other.id, context.so_what, theirs.id, 5_000, nil)
 
