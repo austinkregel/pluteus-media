@@ -5,7 +5,7 @@ defmodule PluteusWeb.AbsenceTest do
   establish a state for reports *not yet examined*.
 
   spec-10 criterion 4: a representation carries a value and a state for every
-  field, and all seven states of §5.2 are distinguishable in it.
+  field, and all eight states of §5.2 are distinguishable in it.
   """
 
   use PluteusWeb.ConnCase, async: true
@@ -97,7 +97,7 @@ defmodule PluteusWeb.AbsenceTest do
     end
   end
 
-  describe "spec-10 criterion 4. All seven states of §5.2 are distinguishable" do
+  describe "spec-10 criterion 4. All eight states of §5.2 are distinguishable" do
     test "held: a value the household has", %{conn: conn} do
       {:ok, %{work: work}} = Catalog.create_work("The Dig")
 
@@ -177,12 +177,41 @@ defmodule PluteusWeb.AbsenceTest do
       end
     end
 
-    test "every one of the seven is reachable, and they are all distinct" do
+    test "unknown: a source was consulted and stated no language", %{conn: conn} do
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
+
+      {:ok, unknown} =
+        Catalog.create_nomen(%{
+          res_id: work.id,
+          nomen_string: "The Dig",
+          language_unknown: true
+        })
+
+      body = conn |> get("/nomens/#{unknown.id}") |> json_response(200)
+
+      assert body["own"]["language"] == %{"state" => "unknown"}
+    end
+
+    test "known absent: a null the model itself settles", %{conn: conn} do
+      # spec-01 §7.2 makes a null language mean the name belongs to no language,
+      # so the record establishes the absence and no annotation is needed. This is
+      # the one field §5.2's rule about the last three states admits.
+      {:ok, %{work: work}} = Catalog.create_work("The Dig")
+
+      {:ok, absent} = Catalog.create_nomen(%{res_id: work.id, nomen_string: "Sutton Hoo"})
+
+      body = conn |> get("/nomens/#{absent.id}") |> json_response(200)
+
+      assert body["own"]["language"] == %{"state" => "known_absent"}
+    end
+
+    test "every one of the eight is reachable, and they are all distinct" do
       assert Field.states() == [
                :held,
                :not_held,
                :not_yet_examined,
                :attempted_failed,
+               :unknown,
                :sought_not_found,
                :known_unknowable,
                :known_absent
