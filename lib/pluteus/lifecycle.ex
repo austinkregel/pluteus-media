@@ -18,7 +18,6 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Actor
   alias Pluteus.Annotations.Annotation
   alias Pluteus.Assets
-  alias Pluteus.Changes
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
@@ -37,6 +36,7 @@ defmodule Pluteus.Lifecycle do
   alias Pluteus.Catalog.Work
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
+  alias Pluteus.Changes
   alias Pluteus.Ingest.Finding
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Recycling
