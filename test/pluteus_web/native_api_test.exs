@@ -9,6 +9,7 @@ defmodule PluteusWeb.NativeApiTest do
 
   alias Pluteus.Catalog
   alias Pluteus.Lifecycle
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.StorageFixtures
@@ -213,7 +214,7 @@ defmodule PluteusWeb.NativeApiTest do
   describe "10. Another principal's consumption datum answers 404" do
     test "another's device cannot be revoked, and is not confirmed to exist", %{conn: conn} do
       {:ok, other} = Principals.create_principal(%{role: "member"})
-      {:ok, %{device: device}} = Principals.mint_key(other.id, "Grace's phone")
+      %{device: device} = PrincipalFixtures.a_key(other.id, "Grace's phone")
 
       assert conn |> delete("/devices/#{device.id}") |> json_response(404)
     end
