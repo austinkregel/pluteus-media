@@ -19,6 +19,19 @@ defmodule Pluteus.Design.TokensTest do
   @ramp ~w(01 02 03 04 05 06 07 08 09 10 11 12)
   @classes ~w(video audio software image text)
 
+  # The two themes, by the file each resolves from. The dark theme is the token file
+  # itself (A.2.3 makes it the default), so it has no context of its own.
+  @themes ~w(tokens light)
+
+  # A.11's emphasis ladder, as pairs of the resting rung and the engaged one. A.1.5
+  # rule 3 keeps a state out of a name, so `strong` is what "hovered" and "active"
+  # both resolve to — which is why the ramp's steps 04 and 05 answer one role.
+  @ladder [
+    {"sys.color.fill.subtle", "sys.color.fill.subtle-strong"},
+    {"sys.color.fill.solid", "sys.color.fill.solid-strong"},
+    {"sys.color.border.component", "sys.color.border.component-strong"}
+  ]
+
   describe "A.1.1. Every file validates against the pinned schema" do
     test "the token file and every context override" do
       format = Schema.resolved("format")
@@ -268,6 +281,99 @@ defmodule Pluteus.Design.TokensTest do
     end
   end
 
+  describe "A.11 and A.2.2. The emphasis ladder sits on the steps whose job it is" do
+    test "every fill and border rung is the ramp step A.2.2 names for that role" do
+      # A.2.2 gives each of the twelve steps "a stated job" and refuses a role without
+      # a written purpose. These seven roles carry A.11's ladder, and each resolves to
+      # the step whose written job it is — so a rung moved to a step that does not say
+      # so fails here rather than being found as a control the wrong shade.
+      assert primitive("sys.color.surface.subtle") == "base.grey.02"
+      assert primitive("sys.color.fill.subtle") == "base.grey.03"
+      assert primitive("sys.color.fill.subtle-strong") == "base.grey.04"
+      assert primitive("sys.color.fill.solid") == "base.grey.09"
+      assert primitive("sys.color.fill.solid-strong") == "base.grey.10"
+      assert primitive("sys.color.border.component") == "base.grey.07"
+      assert primitive("sys.color.border.component-strong") == "base.grey.08"
+    end
+
+    test "each strong rung sits further from the surface than the rung below it" do
+      for theme <- @themes, {below, above} <- @ladder do
+        ground = in_theme("sys.color.surface.base", theme)
+
+        assert Colour.contrast_ratio(in_theme(above, theme), ground) >
+                 Colour.contrast_ratio(in_theme(below, theme), ground),
+               "#{above} is no further from the surface than #{below} under #{theme}"
+      end
+    end
+
+    test "a solid fill carries a glyph or large text, and never body text" do
+      # The measurement a button is designed around. Against its own ink a solid rung
+      # clears WCAG 2 §1.4.11's 3:1 for a component and §1.4.3's 3:1 for large text in
+      # both themes, and 4.5:1 in neither — so nothing may set body text on one. The
+      # APCA figures are asserted in the dark theme only, because A.2.4 scopes its four
+      # floors to it; the light theme answers to WCAG 2 alone, where the same pairing
+      # measures 5.0:1 while APCA reads Lc 41.
+      for solid <- ~w(sys.color.fill.solid sys.color.fill.solid-strong) do
+        ratios =
+          for theme <- @themes,
+              do:
+                Colour.contrast_ratio(
+                  in_theme("sys.color.on.fill", theme),
+                  in_theme(solid, theme)
+                )
+
+        assert Enum.min(ratios) >= 3.0, "#{solid} fails WCAG 2 §1.4.11 against its own ink"
+
+        assert Enum.min(ratios) < 4.5,
+               "#{solid} would carry body text in one theme and not the other"
+
+        measured = Colour.lc(in_theme("sys.color.on.fill", "tokens"), in_theme(solid, "tokens"))
+
+        assert measured >= 60, "#{solid} fails A.2.4's large-text floor against its own ink"
+        assert measured < 75
+      end
+    end
+
+    test "a control with a word in it is a subtle fill, not a solid one" do
+      # Where a solid fill cannot carry body text, the subtle rung with the surface's
+      # own ink does — on both instruments and in both themes — which is what settles
+      # how a labelled control is built rather than leaving it to taste.
+      for theme <- @themes do
+        assert Colour.contrast_ratio(
+                 in_theme("sys.color.on.surface.strong", theme),
+                 in_theme("sys.color.fill.subtle", theme)
+               ) >= 4.5
+      end
+
+      assert Colour.lc(
+               in_theme("sys.color.on.surface.strong", "tokens"),
+               in_theme("sys.color.fill.subtle", "tokens")
+             ) >= 75
+    end
+
+    test "increased contrast keeps the ladder in order and leaves the solid rungs alone" do
+      # A.1.6 resolves theme before contrast, so a remapped role is followed in the
+      # theme rather than in the context's own file. Two things are asserted: what the
+      # context moves still ascends, and it does not move a solid fill — where a step
+      # away from the surface is a step toward the ink, and step 11 would put the ink
+      # at Lc 34, under the non-text floor, in the context that exists to raise it.
+      remapped = Tokens.all("more")
+
+      for theme <- @themes, {below, above} <- @ladder, Map.has_key?(remapped, above) do
+        ground = in_theme("sys.color.surface.base", theme)
+
+        assert Colour.contrast_ratio(under_more(above, theme), ground) >
+                 Colour.contrast_ratio(under_more(below, theme), ground),
+               "#{above} is no further from the surface than #{below} under more/#{theme}"
+      end
+
+      for solid <- ~w(sys.color.fill.solid sys.color.fill.solid-strong) do
+        refute Map.has_key?(remapped, solid),
+               "#{solid} is remapped by increased contrast, which lowers its ink's contrast"
+      end
+    end
+  end
+
   describe "A.2.6. The class colours hold their band and their separation" do
     test "all five span 6.58:1 to 7.53:1 against step 02, with a spread under 1" do
       ground = hex("base.grey.02")
@@ -372,6 +478,35 @@ defmodule Pluteus.Design.TokensTest do
   defp hex(path), do: path |> Tokens.resolve!() |> Map.fetch!("hex") |> Colour.from_hex()
 
   defp resolved_hex(path), do: hex(path)
+
+  # The ramp step a role's reference chain ends at. A.1.4 makes every `sys` colour a
+  # reference, so the chain reaches `base`; a role holding a literal returns its own
+  # path, and the theme lookup then raises rather than measuring one theme twice.
+  defp primitive(dotted) do
+    case Tokens.fetch!(dotted)["$value"] do
+      "{" <> rest -> rest |> String.trim_trailing("}") |> primitive()
+      _literal -> dotted
+    end
+  end
+
+  defp in_theme(dotted, theme), do: dotted |> primitive() |> hex_in(theme)
+
+  # A contrast context rebinds the role and a theme rebinds the primitive, so a role
+  # the context moves is followed in the theme and one it leaves alone keeps its own
+  # primitive. That is A.1.6's resolution order, theme before contrast, rather than a
+  # lookup falling back to a default.
+  defp under_more(dotted, theme) do
+    case Tokens.all("more") do
+      %{^dotted => %{"$value" => "{" <> rest}} ->
+        rest |> String.trim_trailing("}") |> hex_in(theme)
+
+      %{} ->
+        in_theme(dotted, theme)
+    end
+  end
+
+  defp hex_in(path, theme),
+    do: path |> Tokens.resolve!(theme) |> Map.fetch!("hex") |> Colour.from_hex()
 
   defp closest(classes, context) do
     colours =
