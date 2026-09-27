@@ -314,8 +314,8 @@ A decision names the level at which the two are one:
 
 | Decision | Means | Resolution |
 | --- | --- | --- |
-| *same holding* | one digital item | merge the holdings under one manifestation |
-| *same manifestation* | one manifestation | move the digital items under one manifestation |
+| *same holding* | one digital item | move the assets under one digital item |
+| *same manifestation* | one manifestation | move the digital items and items under one manifestation |
 | *same expression* | one expression | move the manifestations under one expression |
 | *same work* | one work | move the expressions under one work |
 | *distinct* | not the same | recorded, and not asked again |
@@ -332,6 +332,11 @@ and recycles whichever of the emptied res are left holding nothing. It MUST NOT
 purge, and it MUST NOT delete an asset; assets are deleted only by the rules in
 §3.3. Because the emptied res are recycled, spec-01 §14.1's window makes the
 decision reversible for thirty days.
+
+Children are every res one level below, so a manifestation's are its digital
+items and its items alike. Moving one kind and not the other would leave the res
+that was decided away still holding something, and therefore still live — two
+rows surviving a decision that says they are one.
 
 This follows spec-01 §7.5's pattern, where an automatic match and a human
 correction are separate rows and the correction wins by preference rather than by
