@@ -4,86 +4,27 @@ defmodule PluteusWeb.Layouts do
 
   `root.html.heex` carries the HTML document shell and is rendered once per
   request, outside the LiveView lifecycle, so its contents do not re-render on
-  live updates.
+  live updates. A.10.1 requires the context attributes live on the document root
+  for the same reason: they sit outside the region the server patches, so they
+  survive navigation.
   """
   use PluteusWeb, :html
 
   embed_templates "layouts/*"
 
   @doc """
-  Renders your app layout.
-
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
-
-  ## Examples
-
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
-      </Layouts.app>
-
-  """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
-
-  attr :current_scope, :map,
-    default: nil,
-    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-
-  slot :inner_block, required: true
-
-  def app(assigns) do
-    ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
-
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
-
-    <.flash_group flash={@flash} />
-    """
-  end
-
-  @doc """
-  Shows the flash group with standard titles and content.
+  Shows the notice group with standard titles and content.
 
   ## Examples
 
       <.flash_group flash={@flash} />
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
+  attr :id, :string, default: "flash-group", doc: "the optional id of the notice container"
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div id={@id}>
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -96,7 +37,7 @@ defmodule PluteusWeb.Layouts do
         hidden
       >
         Attempting to reconnect
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        <.icon name="hero-arrow-path-micro" class="ml-1 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
@@ -108,45 +49,74 @@ defmodule PluteusWeb.Layouts do
         hidden
       >
         Attempting to reconnect
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        <.icon name="hero-arrow-path-micro" class="ml-1 motion-safe:animate-spin" />
       </.flash>
     </div>
     """
   end
 
   @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
+  The five context modifiers A.1.6 declares, and the contexts each admits.
 
-  See <head> in root.html.heex which applies the theme before page load.
+  The order is the resolver's `resolutionOrder`, which puts theme before contrast so
+  that `more` picks a further step of whichever ramp theme chose.
+
+  `system` is offered only where a system signal exists to follow. There is no media
+  feature for how far away a person is sitting or how tightly they want things
+  packed, so density and distance are chosen outright — which is also why the
+  stylesheet emits a media query for three of the five and not all of them.
   """
-  def theme_toggle(assigns) do
+  @spec modifiers() :: [{String.t(), [String.t()]}]
+  def modifiers do
+    [
+      {"theme", ~w(system dark light)},
+      {"contrast", ~w(system normal more)},
+      {"motion", ~w(system full reduced)},
+      {"density", ~w(comfortable compact)},
+      {"distance", ~w(near far)}
+    ]
+  end
+
+  @doc """
+  Renders the controls for A.1.6's five context modifiers.
+
+  Each is a radio group rather than a cycling button: a person choosing a context
+  needs to see which one is in force and what the alternatives are, and a toggle that
+  reveals its states only by being pressed does not say. A.9.4 keeps this out of a
+  listbox, since every row is an action.
+
+  The buttons write the resolved value and the intent onto the document root, which
+  is where the generated stylesheet's scopes are keyed and where they survive a live
+  navigation.
+  """
+  def context_controls(assigns) do
+    assigns = assign(assigns, :modifiers, modifiers())
+
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-      >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
+    <div class="flex flex-col gap-4">
+      <fieldset :for={{modifier, contexts} <- @modifiers} class="flex flex-wrap items-center gap-3">
+        <legend class="sr-only">{modifier}</legend>
+        <span class="w-20 shrink-0 text-body-sm text-on-surface-muted">{modifier}</span>
+        <div class="flex flex-wrap gap-2" role="group" aria-label={modifier}>
+          <button
+            :for={context <- contexts}
+            type="button"
+            class={[
+              "rounded-full px-3 text-body-sm min-h-target-pointer",
+              "border-[length:var(--sys-border-width-component)]",
+              "bg-fill-subtle hover:bg-fill-subtle-strong text-on-surface-strong",
+              "border-border-component hover:border-border-component-strong",
+              "aria-pressed:border-border-strong aria-pressed:font-semibold",
+              "transition-colors duration-[var(--sys-motion-duration-state)] ease-standard"
+            ]}
+            data-modifier={modifier}
+            data-context={context}
+            aria-pressed="false"
+          >
+            {context}
+          </button>
+        </div>
+      </fieldset>
     </div>
     """
   end
