@@ -10,6 +10,7 @@ defmodule Pluteus.ConsumptionTest do
   alias Pluteus.Consumption
   alias Pluteus.Events
   alias Pluteus.Lifecycle
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
 
   setup %{actor: ada} do
@@ -23,8 +24,7 @@ defmodule Pluteus.ConsumptionTest do
 
     devices =
       for {principal, label} <- [{ada, "phone"}, {ada, "desk"}, {bo, "tablet"}], into: %{} do
-        {:ok, device} = Principals.bind_device(principal.id, label)
-        {label, device.id}
+        {label, PrincipalFixtures.a_device(principal.id, label).id}
       end
 
     %{ada: ada, bo: bo, songs: songs, devices: devices}
