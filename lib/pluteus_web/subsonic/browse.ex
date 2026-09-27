@@ -27,9 +27,19 @@ defmodule PluteusWeb.Subsonic.Browse do
   @endpoints ~w(getMusicFolders getIndexes getMusicDirectory getGenres getArtists getArtist
                 getAlbum getSong getArtistInfo2 getAlbumInfo2 getCoverArt getLyricsBySongId)
 
+  @behaviour PluteusWeb.Subsonic.Surface
+
+  @impl true
   @spec endpoints() :: [String.t()]
   def endpoints, do: @endpoints
 
+  # Everything here reads the catalog and nothing else. `getCoverArt` serves a
+  # catalog image rather than a rendition, which spec-07 §6.7 puts in retrieval.
+  @impl true
+  @spec operations(String.t()) :: [atom()]
+  def operations(endpoint) when endpoint in @endpoints, do: [:read_catalog]
+
+  @impl true
   @spec handle(String.t(), Plug.Conn.t()) :: Plug.Conn.t()
   def handle(endpoint, conn) do
     case answer(endpoint, conn) do
