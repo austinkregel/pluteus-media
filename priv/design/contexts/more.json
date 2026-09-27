@@ -5,8 +5,14 @@
     "color": {
       "$type": "color",
       "surface": {
+        "subtle": { "$value": "{base.grey.03}", "$description": "Step 03 rather than 02." },
         "raised": { "$value": "{base.grey.04}", "$description": "Step 04 rather than 03, so a raised surface separates further from the base it sits on." },
         "overlay": { "$value": "{base.grey.06}", "$description": "Step 06 rather than 05." }
+      },
+      "fill": {
+        "$description": "Only the subtle rungs move. A subtle fill is constrained against the surface beneath it, so a step away from that surface improves it. A solid fill is constrained against its own ink, which sits at the far end of the ramp, so every step away from the surface is a step toward the ink: at step 11 `sys.color.on.fill` measures 1.8:1 and Lc 34, below the non-text floor, and the context meant to raise contrast would have lowered it. Steps 09 and 10 already clear every floor that applies to them — 3.81:1 and 4.77:1 against the page, Lc 68.6 and Lc 61.3 against the ink — so there is nothing here for this context to fix.",
+        "subtle": { "$value": "{base.grey.04}", "$description": "Step 04 rather than 03, so a control at rest separates further from the surface under it." },
+        "subtle-strong": { "$value": "{base.grey.05}", "$description": "Step 05 rather than 04, keeping the engaged rung one step above the resting one." }
       },
       "on": {
         "surface": {
@@ -15,7 +21,8 @@
       },
       "border": {
         "subtle": { "$value": "{base.grey.07}", "$description": "Step 07 rather than 06." },
-        "component": { "$value": "{base.grey.08}", "$description": "Step 08 rather than 07." }
+        "component": { "$value": "{base.grey.08}", "$description": "Step 08 rather than 07." },
+        "component-strong": { "$value": "{base.grey.09}", "$description": "Step 09 rather than 08, which is where this context steps outside A.2.2's border scale: without it the engaged rung would resolve to the same step as the resting one and the ladder would lose a rung in the context meant to sharpen it." }
       }
     }
   }
