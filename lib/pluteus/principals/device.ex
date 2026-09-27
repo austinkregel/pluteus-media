@@ -1,34 +1,40 @@
 defmodule Pluteus.Principals.Device do
   @moduledoc """
-  A client bound to the principal who authenticated it (spec-06 §4).
+  The thing that plays: a client a principal has enrolled on (spec-06 §4).
 
-  A device is not an identity and accumulates nothing of its own: whatever is
-  played on it is the binding principal's. A television everyone uses is
-  bound to whoever authenticated it last, and switching viewer is switching
-  principal.
+  A device is not an identity and accumulates nothing of its own (§4, §4.1): what
+  is played on it is the playing principal's, and the device is recorded with an
+  event only as the screen it happened on. It holds no principal, because a
+  credential holds one — see `Pluteus.Principals.DeviceCredential`, which §4.1
+  permits a device to have several of, one per principal, each separately
+  revocable.
 
-  **`label` is a display string and never an identifier.** Identity is the
+  What lives here is what belongs to the device rather than to any credential on
+  it. `label` is a display string and never an identifier: identity is the
   device's own `id`, which is what a resume position, an event and a play queue
-  are keyed by ([spec-01] §11.4). Two devices of one principal may carry the same
-  label; the only cost is that a surface naming the player shows them alike, which
-  is a legibility question for whoever names them rather than anything the model
-  rests on.
+  are keyed by ([spec-01] §11.4). Two devices may carry the same label; the only
+  cost is that a surface naming the player shows them alike, which is a legibility
+  question for whoever names them rather than anything the model rests on.
+
+  `player_number` is the device's on the OpenSubsonic surface, which types a
+  player id as an integer (spec-07 §3.3). It is the device's and not a
+  credential's, because a player is a piece of hardware: one television enrolled
+  for two people is one player.
   """
 
   use Ecto.Schema
 
   import Ecto.Changeset
 
+  alias Pluteus.Principals.DeviceCredential
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
   schema "devices" do
-    field :principal_id, UUIDv7
     field :label, :string
-    field :bound_at, :utc_datetime_usec
-    field :revoked_at, :utc_datetime_usec
-    field :revoked_by, UUIDv7
-    field :key_digest, :string
     field :player_number, :integer, read_after_writes: true
+
+    has_many :credentials, DeviceCredential, foreign_key: :device_id
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -37,10 +43,7 @@ defmodule Pluteus.Principals.Device do
 
   def changeset(device, attrs) do
     device
-    |> cast(attrs, [:principal_id, :label, :bound_at, :revoked_at, :revoked_by, :key_digest])
-    |> validate_required([:principal_id, :label, :bound_at])
-    |> check_constraint(:revoked_at, name: :revocation_is_attributed)
-    |> unique_constraint(:key_digest)
-    |> foreign_key_constraint(:principal_id)
+    |> cast(attrs, [:label])
+    |> validate_required([:label])
   end
 end
