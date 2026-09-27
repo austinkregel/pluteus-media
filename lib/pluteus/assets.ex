@@ -18,6 +18,8 @@ defmodule Pluteus.Assets do
   alias Pluteus.Catalog.Reconstruction
   alias Pluteus.Catalog.Verification
   alias Pluteus.Lifecycle
+  alias Pluteus.PlatformEvents
+  alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.Storage
 
@@ -108,8 +110,29 @@ defmodule Pluteus.Assets do
     |> Multi.run(:asset, fn repo, _changes ->
       mark_verified(repo, asset_id, outcome, occurred_at)
     end)
+    |> Multi.run(:platform_event, fn _repo, %{verification: verification} ->
+      announce(verification.outcome, asset_id, occurred_at)
+    end)
     |> Repo.transaction()
   end
+
+  # spec-01 §11.2's platform class: the household sees its holdings checked, and
+  # this is the deployment's own scheduled work, so the System principal records it
+  # (spec-06 §6.1). In the same transaction as the verification, so the log and the
+  # feed cannot disagree about whether a check happened.
+  #
+  # Only a successful check. A mismatch or an unreadable asset is a finding, which
+  # §9 gives its own surface, and announcing one as an event would put a failure
+  # among the records of things that worked.
+  #
+  # Read from the recorded row rather than from the argument, so an outcome the
+  # store rejects fails the insert before reaching here. The clauses are exhaustive
+  # over the three §4 names and carry no catch-all, so a fourth raises.
+  defp announce(:verified, asset_id, occurred_at),
+    do: PlatformEvents.record("verified", asset_id, Principals.system!().id, occurred_at)
+
+  defp announce(outcome, _asset_id, _occurred_at) when outcome in [:mismatched, :unreadable],
+    do: {:ok, :not_announced}
 
   @doc """
   Reads an asset's bytes, compares them with the digest recorded for it, and
