@@ -122,6 +122,23 @@ defmodule Pluteus.Design.Tokens do
   end
 
   @doc """
+  Every context that overrides something, as `{modifier, context}`.
+
+  A modifier's default context overrides nothing and has no file, because the
+  default is what the token file already holds — so this is what a build iterates
+  rather than every context a modifier declares.
+  """
+  @spec overrides() :: [{String.t(), String.t()}]
+  def overrides do
+    for {modifier, %{"contexts" => contexts}} <- Map.fetch!(resolver(), "modifiers"),
+        {context, sources} <- contexts,
+        sources != [] do
+      {modifier, context}
+    end
+    |> Enum.sort()
+  end
+
+  @doc """
   The resolver manifest: which modifiers are declared, and what each resolves.
   """
   @spec resolver() :: map()
