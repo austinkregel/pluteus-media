@@ -18,6 +18,7 @@ defmodule PluteusWeb.PlatformEventsTest do
   alias Pluteus.Events.Registry
   alias Pluteus.PlatformEvents
   alias Pluteus.Principals
+  alias Pluteus.Repo
 
   setup do
     {:ok, ada} = Principals.create_principal(%{role: "member"})
@@ -37,8 +38,8 @@ defmodule PluteusWeb.PlatformEventsTest do
       {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
       system = Principals.system!()
 
-      {:ok, _} = PlatformEvents.record("placed", work.id, system.id)
-      {:ok, _} = PlatformEvents.record("corrected", work.id, ada.id)
+      {:ok, _} = PlatformEvents.record("placed", {:res, work.id}, system.id)
+      {:ok, _} = PlatformEvents.record("corrected", {:res, work.id}, ada.id)
 
       for subject <- [ada_subject, bo_subject] do
         body =
@@ -48,13 +49,13 @@ defmodule PluteusWeb.PlatformEventsTest do
 
         assert Enum.sort(Enum.map(events, & &1["type"])) == ["corrected", "placed"]
         assert system.id in Enum.map(events, & &1["recorded_by"])
-        assert Enum.all?(events, &(&1["res"] == work.id))
+        assert Enum.all?(events, &(&1["subject"] == %{"kind" => "res", "id" => work.id}))
       end
     end
 
     test "the answer does not depend on who asks", %{conn: conn} = context do
       {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
-      {:ok, _} = PlatformEvents.record("verified", work.id, Principals.system!().id)
+      {:ok, _} = PlatformEvents.record("verified", {:res, work.id}, Principals.system!().id)
 
       answer = fn subject ->
         conn |> through_proxy(subject) |> get("/platform-events") |> json_response(200)
@@ -113,24 +114,22 @@ defmodule PluteusWeb.PlatformEventsTest do
       # including Bo, who did not make it.
       body = conn |> through_proxy(bo_subject) |> get("/platform-events") |> json_response(200)
 
-      assert [%{"type" => "corrected", "res" => res, "recorded_by" => by}] =
+      assert [%{"type" => "corrected", "subject" => subject, "recorded_by" => by}] =
                body["platform_events"]
 
-      assert res == work.id
+      assert subject == %{"kind" => "res", "id" => work.id}
       assert by == ada.id
     end
 
     test "the types this deployment records, and the two it does not" do
-      # A ledger rather than an introspection: each of these four is asserted where
+      # A ledger rather than an introspection: each of these five is asserted where
       # its own machinery is tested. It fails if a recorder is added without moving
       # a name across, or if a type is added to the registry without deciding.
       #
-      # `matched` is spec-05 §8's and waits with it. `acquired` is §11.1's "a file
-      # arriving", which happens before any res exists — and `platform_events.res_id`
-      # is NOT NULL, so recording one is a schema question rather than a call.
-      recorded = ~w(placed normalized verified corrected)
+      # `matched` is spec-05 §8's and waits with it.
+      recorded = ~w(acquired placed normalized verified corrected)
 
-      assert Registry.types(:platform) -- recorded == ~w(acquired matched)
+      assert Registry.types(:platform) -- recorded == ~w(matched)
     end
   end
 
@@ -143,6 +142,7 @@ defmodule PluteusWeb.PlatformEventsTest do
                :id,
                :type,
                :res_id,
+               :acquisition_id,
                :recorded_by,
                :occurred_at,
                :inserted_at,
@@ -158,7 +158,41 @@ defmodule PluteusWeb.PlatformEventsTest do
       # would be violated from this side.
       exported = Pluteus.PlatformEvents.__info__(:functions) |> Enum.sort()
 
-      assert exported == [about: 1, all: 0, all: 1, record: 3, record: 4]
+      assert exported == [
+               about: 1,
+               about_acquisition: 1,
+               all: 0,
+               all: 1,
+               record: 3,
+               record: 4
+             ]
+    end
+
+    test "an event is about exactly one subject, never both and never neither" do
+      {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
+      system = Principals.system!()
+
+      # §11.1 gives "a file arriving" as an event, and an arrival has no res, so the
+      # column cannot be required. The check is what keeps that from becoming an
+      # event about nothing.
+      assert {:error, changeset} = PlatformEvents.record("placed", {:res, nil}, system.id)
+      assert Keyword.has_key?(changeset.errors, :res_id)
+
+      assert_raise Postgrex.Error, ~r/one_subject/, fn ->
+        Repo.query!(
+          """
+          INSERT INTO platform_events
+            (id, type, res_id, acquisition_id, recorded_by, occurred_at, inserted_at, updated_at)
+          VALUES ($1, 'placed', $2, $3, $4, now(), now(), now())
+          """,
+          [
+            Ecto.UUID.dump!(UUIDv7.generate()),
+            Ecto.UUID.dump!(work.id),
+            Ecto.UUID.dump!(UUIDv7.generate()),
+            Ecto.UUID.dump!(system.id)
+          ]
+        )
+      end
     end
 
     test "a platform event about the very res a principal played still names no consumer",
@@ -167,19 +201,21 @@ defmodule PluteusWeb.PlatformEventsTest do
 
       # The hard case for the criterion: the platform event and the consumption
       # event are about the same res, so sharing a res is not what keeps them apart.
-      {:ok, _} = PlatformEvents.record("placed", manifestation.id, Principals.system!().id)
+      {:ok, _} =
+        PlatformEvents.record("placed", {:res, manifestation.id}, Principals.system!().id)
+
       {:ok, _} = Events.record(ada.id, manifestation.id, "played")
 
       body = conn |> through_proxy(bo_subject) |> get("/platform-events") |> json_response(200)
 
       assert [placed] = body["platform_events"]
-      assert placed["res"] == manifestation.id
+      assert placed["subject"] == %{"kind" => "res", "id" => manifestation.id}
 
       # What keeps them apart is that the row names who acted and no one else. Bo
       # learns the manifestation was placed, and by the System principal, and
       # nothing about anybody playing it.
       assert placed["recorded_by"] == Principals.system!().id
-      assert Map.keys(placed) == ~w(id occurred_at recorded_by res type)
+      assert Map.keys(placed) == ~w(id occurred_at recorded_by subject type)
 
       # Ada's answer is the same answer, so a member cannot read their own
       # consumption back out of it either, and Bo's cannot differ from it.
