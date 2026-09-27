@@ -22,8 +22,11 @@ defmodule PluteusWeb.PlatformEventController do
 
   def index(conn, params) do
     case Native.limit(params["limit"]) do
-      {:ok, limit} -> json(conn, %{"platform_events" => Enum.map(PlatformEvents.all(limit), &of/1)})
-      {:error, detail} -> Native.invalid(conn, detail)
+      {:ok, limit} ->
+        json(conn, %{"platform_events" => Enum.map(PlatformEvents.all(limit), &of/1)})
+
+      {:error, detail} ->
+        Native.invalid(conn, detail)
     end
   end
 
