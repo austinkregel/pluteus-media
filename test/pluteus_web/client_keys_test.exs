@@ -8,7 +8,7 @@ defmodule PluteusWeb.ClientKeysTest do
 
   alias Pluteus.Administration
   alias Pluteus.Principals
-  alias Pluteus.Principals.Device
+  alias Pluteus.Principals.DeviceCredential
   alias Pluteus.Repo
 
   setup %{conn: conn} do
@@ -23,11 +23,12 @@ defmodule PluteusWeb.ClientKeysTest do
 
   describe "2. A client key is shown once and stored only as a digest" do
     test "the key is returned at minting and never listed", %{conn: conn, key: key, device_id: id} do
-      device = Repo.get!(Device, id)
+      principal = Principals.principal_for(issuer(), "ada@example.test")
+      credential = Repo.get_by!(DeviceCredential, device_id: id, principal_id: principal.id)
 
       assert String.starts_with?(key, "pk_")
-      assert device.key_digest == :sha256 |> :crypto.hash(key) |> Base.encode16(case: :lower)
-      refute device.key_digest == key
+      assert credential.key_digest == :sha256 |> :crypto.hash(key) |> Base.encode16(case: :lower)
+      refute credential.key_digest == key
 
       listed = conn |> through_proxy("ada@example.test") |> get("/devices") |> json_response(200)
       assert [%{"id" => ^id, "holds_key" => true} = entry] = listed["devices"]
@@ -61,13 +62,16 @@ defmodule PluteusWeb.ClientKeysTest do
       assert error_code(conn, %{"apiKey" => key}) == 44
     end
 
-    test "another principal cannot revoke the device", %{conn: conn, device_id: id} do
+    test "another principal cannot revoke the credential", %{conn: conn, device_id: id} do
+      principal = Principals.principal_for(issuer(), "ada@example.test")
+
       assert conn
              |> through_proxy("grace@example.test")
              |> delete("/devices/#{id}")
              |> json_response(404)
 
-      assert Repo.get!(Device, id).revoked_at == nil
+      assert Repo.get_by!(DeviceCredential, device_id: id, principal_id: principal.id).revoked_at ==
+               nil
     end
   end
 
