@@ -1,0 +1,50 @@
+{
+  "consumption": [
+    {
+      "name": "started",
+      "for": "a principal began playing, reading or viewing a res"
+    },
+    {
+      "name": "progressed",
+      "for": "a principal's session reported a position within a res"
+    },
+    {
+      "name": "completed",
+      "for": "a position passed the ceiling spec-10 13.2 names for the category. Not reported by a client, so that a surface and a count cannot disagree about what finishing means"
+    },
+    {
+      "name": "played",
+      "for": "a principal played a res through. The scrobble a client reports on the OpenSubsonic surface, spec-07 6.6"
+    },
+    {
+      "name": "read",
+      "for": "a principal read a res whose category is not played, such as a letter or a comic issue"
+    }
+  ],
+  "platform": [
+    {
+      "name": "acquired",
+      "for": "bytes entered the inbox and were recorded, spec-04 4"
+    },
+    {
+      "name": "placed",
+      "for": "an acquisition was placed in the catalog, spec-04 6"
+    },
+    {
+      "name": "normalized",
+      "for": "a holding gained its normalized master, spec-04 7"
+    },
+    {
+      "name": "verified",
+      "for": "an asset's bytes were read back and matched their digest, spec-03 4"
+    },
+    {
+      "name": "matched",
+      "for": "an external identifier or a corpus entry was equated with a res, spec-05 8"
+    },
+    {
+      "name": "corrected",
+      "for": "a member corrected what the deployment recorded, spec-01 7.5"
+    }
+  ]
+}
