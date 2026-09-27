@@ -15,6 +15,7 @@ defmodule PluteusWeb.Subsonic.Own do
   sees and sends back are positions among what it was shown.
   """
 
+  alias Pluteus.Authorization
   alias Pluteus.Consumption
   alias Pluteus.Music
   alias Pluteus.Principals
@@ -26,9 +27,27 @@ defmodule PluteusWeb.Subsonic.Own do
                 updatePlaylist deletePlaylist getPlayQueue savePlayQueue getPlayQueueByIndex
                 savePlayQueueByIndex getBookmarks createBookmark deleteBookmark getUser)
 
+  @behaviour PluteusWeb.Subsonic.Surface
+
+  # These shape songs into their answer, so they read the catalog as well as the
+  # principal's own data.
+  @with_songs ~w(getPlaylist getPlayQueue getPlayQueueByIndex getBookmarks)
+
+  @impl true
   @spec endpoints() :: [String.t()]
   def endpoints, do: @endpoints
 
+  # `getUser` reports the requesting principal's own record and reaches nothing of
+  # the household's, so it needs nothing granted.
+  @impl true
+  @spec operations(String.t()) :: [atom()]
+  def operations("getUser"), do: []
+
+  def operations(endpoint) when endpoint in @with_songs, do: [:read_catalog, :own_consumption]
+
+  def operations(endpoint) when endpoint in @endpoints, do: [:own_consumption]
+
+  @impl true
   @spec handle(String.t(), Plug.Conn.t()) :: Plug.Conn.t()
   def handle(endpoint, conn) do
     case answer(endpoint, conn) do
@@ -230,24 +249,32 @@ defmodule PluteusWeb.Subsonic.Own do
 
   # --- The principal ------------------------------------------------------------
 
+  # Every role flag comes from the credential's recorded grant and none from the
+  # principal's role. spec-06 §4.2 forbids a credential's grant to widen when its
+  # principal's role changes, and a flag computed from the role does exactly that.
+  #
+  # `adminRole` is always false, because no grant may name an administrative
+  # operation at all (§4.2, and the `grant_is_grantable` check).
   defp answer("getUser", conn) do
     with {:ok, username} <- Request.required(conn, "username"),
          :ok <- own(conn, username) do
-      principal = conn.assigns.principal
+      credential = conn.assigns.credential
+      streams = Authorization.granted?(credential, :stream)
+      own_consumption = Authorization.granted?(credential, :own_consumption)
 
       {:ok, "user",
        %{
-         "username" => principal.id,
-         "scrobblingEnabled" => true,
-         "adminRole" => principal.role == "administrator",
+         "username" => conn.assigns.principal.id,
+         "scrobblingEnabled" => own_consumption,
+         "adminRole" => false,
          "settingsRole" => false,
-         "downloadRole" => true,
+         "downloadRole" => streams,
          "uploadRole" => false,
-         "playlistRole" => true,
+         "playlistRole" => own_consumption,
          "coverArtRole" => false,
          "commentRole" => false,
          "podcastRole" => false,
-         "streamRole" => true,
+         "streamRole" => streams,
          "jukeboxRole" => false,
          "shareRole" => false,
          "videoConversionRole" => false,
