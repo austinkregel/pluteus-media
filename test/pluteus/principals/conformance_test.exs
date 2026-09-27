@@ -20,8 +20,9 @@ defmodule Pluteus.Principals.ConformanceTest do
   alias Pluteus.Household
   alias Pluteus.Household.TrustBoundary
   alias Pluteus.Lifecycle
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
-  alias Pluteus.Principals.Device
+  alias Pluteus.Principals.DeviceCredential
   alias Pluteus.Principals.Identity
   alias Pluteus.Principals.Principal
 
@@ -40,13 +41,25 @@ defmodule Pluteus.Principals.ConformanceTest do
 
   describe "1. Events, authored annotations and devices reference a principal locally" do
     test "none of them can hold an external identity" do
-      for schema <- [Event, Annotation, Device] do
+      for schema <- [Event, Annotation, DeviceCredential] do
         fields = schema.__schema__(:fields)
 
         assert :principal_id in fields
         refute :issuer in fields
         refute :subject in fields
       end
+    end
+
+    test "a device references no principal at all, because its credential does" do
+      # spec-06 §4.1 lets a device hold a credential per principal, so the device
+      # cannot be the thing that names one. The criterion's substance — that
+      # nothing here holds an (iss, sub) pair — is asserted above, on the row that
+      # does name a principal.
+      fields = Pluteus.Principals.Device.__schema__(:fields)
+
+      refute :principal_id in fields
+      refute :issuer in fields
+      refute :subject in fields
     end
   end
 
@@ -311,8 +324,8 @@ defmodule Pluteus.Principals.ConformanceTest do
           {@issuer, "admin@household.test"}
         )
 
-      {:ok, device} = Principals.bind_device(ada.id, "living-room TV")
-      {:ok, _} = Administration.revoke_device(admin, device.id)
+      device = PrincipalFixtures.a_device(ada.id, "living-room TV")
+      {:ok, _} = Administration.revoke_credential(admin, device.id, ada.id)
       {:ok, recycling} = Lifecycle.recycle(work.id, ada.id)
       {:ok, _} = Administration.empty_deletion(admin, recycling.id)
       {:ok, _} = Administration.retire_principal(admin, bo.id)
