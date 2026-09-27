@@ -28,6 +28,11 @@ pluteus-*.tar
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
 
+# The design language's stylesheet is generated from priv/design by
+# `mix design.build`, which `assets.build` runs. The token file is the source of
+# truth for its values (spec-10 Annex A.1.2), so this is output.
+/assets/css/tokens.css
+
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
 
