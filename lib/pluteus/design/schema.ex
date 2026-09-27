@@ -46,11 +46,19 @@ defmodule Pluteus.Design.Schema do
   end
 
   @doc """
-  The entry schema, resolved and ready to validate with.
+  One of the pinned schemas, resolved and ready to validate with.
+
+  `"format"` is the one the token file validates against; `"resolver"` is the
+  Resolver Module, which A.1.1 requires contexts be expressed with rather than as
+  separate files of separate names.
   """
-  @spec resolved() :: ExJsonSchema.Schema.Root.t()
-  def resolved do
-    sources() |> Map.fetch!("entry") |> read!() |> ExJsonSchema.Schema.resolve()
+  @spec resolved(String.t()) :: ExJsonSchema.Schema.Root.t()
+  def resolved(entry \\ "format") do
+    sources()
+    |> Map.fetch!("entries")
+    |> Map.fetch!(entry)
+    |> read!()
+    |> ExJsonSchema.Schema.resolve()
   end
 
   @doc """
