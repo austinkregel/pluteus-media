@@ -4,29 +4,90 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Pluteus" suffix=" · Phoenix Framework">
+    <.live_title default="Pluteus">
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
     <script>
+      // Annex A.10.1's context attributes. Two are recorded per modifier — the
+      // resolved value and the person's intent — so that "follow the system" is a
+      // third state rather than a lost one. Inline and ahead of the body, because an
+      // attribute written after the first paint is a flash of the wrong theme.
+      //
+      // A browser refusing site data throws on the first read here and nothing below
+      // runs. That is the intended behaviour: with no attribute on the root, the
+      // generated stylesheet's `prefers-color-scheme`, `prefers-contrast` and
+      // `prefers-reduced-motion` queries are what renders, which is why they exist.
       (() => {
-        const setTheme = (theme) => {
-          if (theme === "system") {
-            localStorage.removeItem("phx:theme");
-            document.documentElement.removeAttribute("data-theme");
-          } else {
-            localStorage.setItem("phx:theme", theme);
-            document.documentElement.setAttribute("data-theme", theme);
-          }
+        // Each modifier that has a system signal, with the context its query means
+        // and the context its absence means.
+        const systems = {
+          theme: ["(prefers-color-scheme: light)", "light", "dark"],
+          contrast: ["(prefers-contrast: more)", "more", "normal"],
+          motion: ["(prefers-reduced-motion: reduce)", "reduced", "full"]
         };
-        if (!document.documentElement.hasAttribute("data-theme")) {
-          setTheme(localStorage.getItem("phx:theme") || "system");
-        }
-        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
-        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
+
+        // The token file's own default resolution. A modifier absent from `systems`
+        // has no media feature to read, so its intent is always an outright choice.
+        const defaults = {
+          theme: "dark",
+          contrast: "normal",
+          motion: "full",
+          density: "comfortable",
+          distance: "near"
+        };
+
+        const root = document.documentElement;
+        const key = (modifier) => `pluteus:${modifier}`;
+
+        const intentOf = (modifier) =>
+          localStorage.getItem(key(modifier)) ||
+          (systems[modifier] ? "system" : defaults[modifier]);
+
+        const resolve = (modifier, intent) => {
+          const system = systems[modifier];
+          if (!system || intent !== "system") return intent;
+          const [query, matched, otherwise] = system;
+          return window.matchMedia(query).matches ? matched : otherwise;
+        };
+
+        const apply = (modifier) => {
+          const intent = intentOf(modifier);
+          root.setAttribute(`data-${modifier}`, resolve(modifier, intent));
+          root.setAttribute(`data-${modifier}-intent`, intent);
+          document.querySelectorAll(`[data-modifier="${modifier}"]`).forEach((button) => {
+            button.setAttribute("aria-pressed", String(button.dataset.context === intent));
+          });
+        };
+
+        const modifiers = Object.keys(defaults);
+        modifiers.forEach(apply);
+
+        // A system preference changing mid-session moves the resolved value without
+        // touching the intent, which is the whole reason the two are separate.
+        Object.entries(systems).forEach(([modifier, [query]]) => {
+          window.matchMedia(query).addEventListener("change", () => apply(modifier));
+        });
+
+        window.addEventListener("storage", (event) => {
+          const modifier = (event.key || "").replace(/^pluteus:/, "");
+          if (modifiers.includes(modifier)) apply(modifier);
+        });
+
+        document.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-modifier][data-context]");
+          if (!button) return;
+          const {modifier, context} = button.dataset;
+          if (context === "system") localStorage.removeItem(key(modifier));
+          else localStorage.setItem(key(modifier), context);
+          apply(modifier);
+        });
+
+        // The buttons do not exist when this runs, so their pressed state is set once
+        // the document has them.
+        document.addEventListener("DOMContentLoaded", () => modifiers.forEach(apply));
       })();
     </script>
   </head>
