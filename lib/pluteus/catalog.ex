@@ -113,8 +113,8 @@ defmodule Pluteus.Catalog do
   @spec upsert_nomen(map()) :: {:ok, Nomen.t()} | {:error, Ecto.Changeset.t() | atom()}
   def upsert_nomen(attrs) do
     replaceable = ~w(
-      res_id assigner_id provenance nomen_string scheme language script
-      context_of_use reference_source intended_audience script_conversion
+      res_id assigner_id provenance nomen_string scheme language language_unknown
+      script context_of_use reference_source intended_audience script_conversion
       assigner_kind updated_at
     )a
 
