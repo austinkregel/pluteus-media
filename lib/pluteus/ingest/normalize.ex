@@ -123,7 +123,7 @@ defmodule Pluteus.Ingest.Normalize do
   # `normalize/2` raises rather than going unannounced.
   defp announce(outcome, digital_item_id) when outcome in [:adopted, :re_encoded] do
     {:ok, _event} =
-      PlatformEvents.record("normalized", digital_item_id, Principals.system!().id)
+      PlatformEvents.record("normalized", {:res, digital_item_id}, Principals.system!().id)
 
     outcome
   end
