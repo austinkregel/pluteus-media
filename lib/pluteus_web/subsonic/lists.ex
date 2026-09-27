@@ -27,9 +27,26 @@ defmodule PluteusWeb.Subsonic.Lists do
   @endpoints ~w(getAlbumList getAlbumList2 getRandomSongs getSongsByGenre getNowPlaying
                 getStarred getStarred2 search2 search3)
 
+  @behaviour PluteusWeb.Subsonic.Surface
+
+  # These order by the requesting principal's own consumption — highest, frequent,
+  # recent, starred — or report their own sessions, so they need it granted as well
+  # as the catalog. `getAlbumList` is classified by that widest reading rather than
+  # by its `type` parameter, since making the answer depend on a parameter would
+  # make authorization depend on validation order.
+  @consumption ~w(getAlbumList getAlbumList2 getNowPlaying getStarred getStarred2)
+
+  @impl true
   @spec endpoints() :: [String.t()]
   def endpoints, do: @endpoints
 
+  @impl true
+  @spec operations(String.t()) :: [atom()]
+  def operations(endpoint) when endpoint in @consumption, do: [:read_catalog, :own_consumption]
+
+  def operations(endpoint) when endpoint in @endpoints, do: [:read_catalog]
+
+  @impl true
   @spec handle(String.t(), Plug.Conn.t()) :: Plug.Conn.t()
   def handle(endpoint, conn) do
     case answer(endpoint, conn) do
