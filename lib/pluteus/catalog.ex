@@ -413,7 +413,7 @@ defmodule Pluteus.Catalog do
   # in as many words and spec-06 §6.4 repeats. Attributed to the transaction's own
   # principal, which is the correcting member.
   defp announce_correction({:ok, category}, res_id) do
-    {:ok, _event} = PlatformEvents.record("corrected", res_id, Actor.current())
+    {:ok, _event} = PlatformEvents.record("corrected", {:res, res_id}, Actor.current())
     {:ok, category}
   end
 
