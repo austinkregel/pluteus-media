@@ -32,9 +32,20 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks},
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
+// Show progress bar on live navigation and form submits.
+//
+// topbar paints a canvas, so it needs a resolved colour rather than a variable, and
+// the colour is read again on each show because a theme change between two
+// navigations would otherwise leave the bar in the previous theme. No shadow: A.6
+// makes a shadow decorative and it does not survive forced colours, so there is
+// nothing to spend a hardcoded colour on.
+const ring = () =>
+  getComputedStyle(document.documentElement).getPropertyValue("--sys-color-focus-ring").trim()
+
+window.addEventListener("phx:page-loading-start", _info => {
+  topbar.config({barColors: {0: ring()}})
+  topbar.show(300)
+})
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // connect if there are any LiveViews on the page
