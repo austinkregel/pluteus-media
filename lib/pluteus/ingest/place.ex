@@ -212,7 +212,7 @@ defmodule Pluteus.Ingest.Place do
     # spec-01 §11.2's platform class: what happened to the holdings, which every
     # member sees. Recorded against the transaction's own principal, which is the
     # System principal for everything this module does (§3).
-    {:ok, _event} = PlatformEvents.record("placed", digital_item.id, Actor.current())
+    {:ok, _event} = PlatformEvents.record("placed", {:res, digital_item.id}, Actor.current())
 
     :placed
   end
