@@ -394,7 +394,8 @@ defmodule Pluteus.Representation do
     %{
       "nomen_string" => Field.held(nomen.nomen_string),
       "provenance" => Field.held(nomen.provenance),
-      "language" => field(nomen.language, context, as: "language"),
+      "language" =>
+        field(nomen.language, context, as: "language", otherwise: language_absence(nomen)),
       "script" => field(nomen.script, context, as: "script"),
       "scheme" => field(nomen.scheme, context, as: "scheme"),
       "context_of_use" => field(nomen.context_of_use, context, as: "context_of_use"),
@@ -428,6 +429,14 @@ defmodule Pluteus.Representation do
   defp field(value, context, options) do
     Field.of(value, absent(context, options[:as], options[:otherwise] || :not_yet_examined))
   end
+
+  # spec-01 §7.2 settles a null language rather than leaving it open: the name
+  # belongs to no language in the relevant sense. So the absence is established
+  # by the record, and a state saying nobody has looked would be false. Unknown
+  # is the third value, carried beside the null. A person's own assertion about
+  # the field outranks both, which `Absence.state/3` applies.
+  defp language_absence(%Nomen{language_unknown: true}), do: :unknown
+  defp language_absence(%Nomen{language_unknown: false}), do: :known_absent
 
   defp address_provenance(%Address{derivation_id: nil}), do: "authored"
   defp address_provenance(%Address{}), do: "derived"
