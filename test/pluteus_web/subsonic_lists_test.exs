@@ -12,6 +12,7 @@ defmodule PluteusWeb.SubsonicListsTest do
   alias Pluteus.Consumption
   alias Pluteus.Ingest.Place
   alias Pluteus.MusicFixtures
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias Pluteus.Principals.Device
   alias Pluteus.Repo
@@ -28,7 +29,7 @@ defmodule PluteusWeb.SubsonicListsTest do
       |> json_response(201)
 
     {:ok, other} = Principals.create_principal(%{role: "member"})
-    {:ok, tv} = Principals.bind_device(other.id, "tv")
+    tv = PrincipalFixtures.a_device(other.id, "tv")
 
     %{
       conn: via_proxy(conn),
