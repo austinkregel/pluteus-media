@@ -12,12 +12,40 @@ defmodule Pluteus.Ingest.AcquisitionTest do
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Identify
+  alias Pluteus.PlatformEvents
+  alias Pluteus.Principals
   alias Pluteus.Storage
 
   @t0 ~U[2026-09-18 12:00:00.000000Z]
 
   setup do
     %{inbox: inbox!()}
+  end
+
+  describe "a file arriving is announced to the household ([spec-01] §11.1, §11.2)" do
+    test "the arrival names the acquisition, there being nothing catalogued yet",
+         %{inbox: inbox} do
+      drop!(inbox, "so-what.flac", media!(:flac))
+
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      assert [%{type: "acquired", res_id: nil, recorded_by: by}] =
+               PlatformEvents.about_acquisition(id)
+
+      assert by == Principals.system!().id
+    end
+
+    test "a file that never identifies was still an arrival the household saw",
+         %{inbox: inbox} do
+      # The case announcing at placement would have lost: nothing is catalogued, so
+      # there is no res to name and no `placed` event will ever follow.
+      drop!(inbox, "empty.bin", "")
+
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      refute Ingest.get_acquisition!(id).state == :identified
+      assert [%{type: "acquired"}] = PlatformEvents.about_acquisition(id)
+    end
   end
 
   describe "1. A file in the inbox is moved into primary storage and gains a record" do
