@@ -7,6 +7,10 @@ defmodule Pluteus.Dedup do
   re-points anything, and a pair it has raised before is left exactly as it
   stands, so a person's decision survives every later run.
 
+  A pair is one row whatever raised it, and a decided pair is never raised again
+  ([spec-05] §8.5). The index on the pair is what holds that, so a signal added
+  later inherits the rule rather than having to honour it.
+
   Byte identity is not duplication. The acquired original and its backup copy
   are byte-identical by design, so two assets sharing a digest are a candidate
   only when they realize different digital items.
@@ -39,7 +43,7 @@ defmodule Pluteus.Dedup do
   @spec detect(DateTime.t()) :: non_neg_integer()
   def detect(now \\ DateTime.utc_now()) do
     rows =
-      for {left_id, right_id, signal} <- digest_pairs() ++ identifier_pairs() do
+      for {left_id, right_id, signal} <- found_pairs() do
         %{
           id: UUIDv7.generate(),
           left_id: left_id,
@@ -54,22 +58,51 @@ defmodule Pluteus.Dedup do
     {count, _} =
       Repo.insert_all(Candidate, rows,
         on_conflict: :nothing,
-        conflict_target: [:left_id, :right_id, :signal]
+        conflict_target: [:left_id, :right_id]
       )
 
     count
+  end
+
+  # A pair sharing both its bytes and an identifier is found by both queries, and
+  # keyed on the pair those two rows collide inside one statement. Taking the
+  # first decides which signal is recorded here rather than leaving it to the
+  # order the database happens to resolve a conflict in, and digest comes first
+  # because bytes are the stronger evidence.
+  defp found_pairs do
+    Enum.uniq_by(digest_pairs() ++ identifier_pairs(), fn {left_id, right_id, _signal} ->
+      {left_id, right_id}
+    end)
   end
 
   @doc """
   Records a pair a member proposes, which no signal found (§8.3).
 
   The pair is stored in identifier order whichever way round it is given.
+
+  A pair already decided is refused with the decision it carries, because a
+  decided pair is settled and re-raising it is how a correction mechanism becomes
+  something people turn off ([spec-05] §8.5). A pair a signal has already raised
+  and nobody has decided answers with that row: it is the one place the pair
+  appears, and a member pointing at it has not failed at anything.
   """
   @spec propose(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
-          {:ok, Candidate.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, Candidate.t()} | {:error, Ecto.Changeset.t() | {:already_decided, atom()}}
   def propose(one_id, other_id, principal_id, now \\ DateTime.utc_now()) do
     [left_id, right_id] = Enum.sort([one_id, other_id])
 
+    case raised(left_id, right_id) do
+      nil -> record_proposal(left_id, right_id, principal_id, now)
+      %Candidate{decision: nil} = open -> {:ok, open}
+      %Candidate{decision: decision} -> {:error, {:already_decided, decision}}
+    end
+  end
+
+  defp raised(left_id, right_id) do
+    Repo.one(from c in Candidate, where: c.left_id == ^left_id and c.right_id == ^right_id)
+  end
+
+  defp record_proposal(left_id, right_id, principal_id, now) do
     %Candidate{}
     |> Candidate.proposal_changeset(%{
       left_id: left_id,
