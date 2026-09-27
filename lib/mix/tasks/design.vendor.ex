@@ -43,8 +43,13 @@ defmodule Mix.Tasks.Design.Vendor do
 
   @format_version "2025.10"
   @base "https://www.designtokens.org/schemas/#{@format_version}/"
-  @entry "format.json"
   @agent ~c"pluteus-design-vendor/0.1"
+
+  # A.1.1 pins two documents at this version: the format, which the token file
+  # validates against, and the Resolver Module, which A.1.1 requires contexts be
+  # expressed with "as modifiers over a resolution order, not as separate files of
+  # separate names". Both are published as bundled schemas at the same base.
+  @entries %{"format" => "format.json", "resolver" => "resolver.json"}
 
   @impl Mix.Task
   def run(_args) do
@@ -55,12 +60,12 @@ defmodule Mix.Tasks.Design.Vendor do
     File.rm_rf!(root)
     File.mkdir_p!(root)
 
-    vendored = [fetch!(@entry, root)]
+    vendored = Enum.map(Map.values(@entries), &fetch!(&1, root))
 
     manifest = %{
       "format_version" => @format_version,
       "base" => @base,
-      "entry" => @entry,
+      "entries" => @entries,
       "files" => Enum.sort_by(vendored, & &1["path"])
     }
 
