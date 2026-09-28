@@ -47,6 +47,26 @@ defmodule PluteusWeb.PageControllerTest do
     assert html =~ ~s|root.setAttribute(`data-${modifier}-intent`, intent);|
   end
 
+  test "GET /notices carries the notice every vendored thing states", %{conn: conn} do
+    # A.8.1 puts half of the glyph set's licence obligation beside the files and the
+    # other half in the interface, so this page is what the licence requires. The notices
+    # are read from the files that state them, and this asserts each one arrived.
+    html = conn |> get(~p"/notices") |> html_response(200)
+
+    assert html =~ "Copyright (c) Tailwind Labs, Inc."
+    assert html =~ "The above copyright notice and this permission notice shall be included"
+
+    for notice <- PluteusWeb.Notices.all() do
+      assert html =~ notice.name
+      assert html =~ notice.vendored
+    end
+  end
+
+  test "GET / links to the notices, since a page nothing reaches discharges nothing",
+       %{conn: conn} do
+    assert conn |> get(~p"/") |> html_response(200) =~ ~s(href="/notices")
+  end
+
   test "GET / carries no daisyUI class and no framework marketing", %{conn: conn} do
     # A.10.1 removes daisyUI because its flat named-theme axis cannot express A.1.6's
     # five orthogonal modifiers, and because its component classes bind a component to
