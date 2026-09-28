@@ -55,7 +55,7 @@ defmodule PluteusWeb.PresentationTest do
     {photo, manifestation_of(photo)}
   end
 
-  defp held!(subject_id, profile, source) do
+  defp held!(subject_id, profile, source, width \\ 320) do
     location = Presentation.location_for(subject_id, profile, 0, "jpg")
     bytes = StorageFixtures.png("held #{profile}")
     :ok = Storage.put(location, bytes)
@@ -70,9 +70,9 @@ defmodule PluteusWeb.PresentationTest do
         size: byte_size(bytes),
         digest: "sha256:#{Base.encode16(:crypto.hash(:sha256, bytes), case: :lower)}",
         digest_algorithm: "sha256",
-        width: 320,
-        height: 240,
-        descriptor: %{"width" => 320},
+        width: width,
+        height: div(width * 3, 4),
+        descriptor: %{"width" => width},
         source_asset_id: source.id,
         source_digest: source.digest,
         generated_at: DateTime.utc_now(),
@@ -80,6 +80,68 @@ defmodule PluteusWeb.PresentationTest do
       })
 
     held
+  end
+
+  describe "§8.4's band 3 is the medium itself" do
+    defp interface(conn, path) do
+      conn
+      |> on_a_surface()
+      |> put_req_header("accept", "text/html")
+      |> get(path)
+      |> html_response(200)
+    end
+
+    test "the graded widths are offered as one picture at its own sizes", %{
+      conn: conn,
+      inbox: inbox
+    } do
+      # §11.2's widths are one picture at several sizes, so a surface picks one from CSS
+      # pixels times device pixel ratio. Each candidate carries the width it actually is.
+      {_photo, manifestation} = a_photograph(inbox)
+      source = Presentation.source_for(manifestation)
+      _small = held!(manifestation, "image-160", source, 160)
+      _larger = held!(manifestation, "image-320", source, 320)
+
+      html = interface(conn, "/manifestations/#{manifestation}")
+
+      assert html =~ ~s(id="entity-picture")
+      assert html =~ "/manifestations/#{manifestation}/presentation/image-160 160w"
+      assert html =~ "/manifestations/#{manifestation}/presentation/image-320 320w"
+    end
+
+    test "the box is reserved from the artefact's own geometry", %{conn: conn, inbox: inbox} do
+      # A rendered surface does not shift as images arrive, so the box is the artefact's own
+      # rather than a guess at it.
+      {_photo, manifestation} = a_photograph(inbox)
+      source = Presentation.source_for(manifestation)
+      _held = held!(manifestation, "image-320", source, 320)
+
+      html = interface(conn, "/manifestations/#{manifestation}")
+
+      assert html =~ ~s(width="320")
+      assert html =~ ~s(height="240")
+    end
+
+    test "the picture asserts no description nobody wrote", %{conn: conn, inbox: inbox} do
+      # §17.3 forbids asserting an affordance that has not been established, and nothing
+      # here has written a text alternative. Band 1 already says what the thing is.
+      {_photo, manifestation} = a_photograph(inbox)
+      source = Presentation.source_for(manifestation)
+      _held = held!(manifestation, "image-320", source, 320)
+
+      assert interface(conn, "/manifestations/#{manifestation}") =~ ~s(alt="")
+    end
+
+    test "a subject with no artefact carries no band at all", %{conn: conn, inbox: inbox} do
+      # No image is generated to stand for a holding that has none, and §8.4 makes a band
+      # with nothing in it absent rather than empty.
+      {_photo, manifestation} = a_photograph(inbox)
+
+      html = interface(conn, "/manifestations/#{manifestation}")
+
+      refute html =~ ~s(id="entity-medium")
+      refute html =~ ~s(id="entity-picture")
+    end
   end
 
   describe "27. A request by arbitrary dimensions is refused" do
