@@ -51,6 +51,7 @@ defmodule Pluteus.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:file_system, "~> 1.1"},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
