@@ -24,6 +24,10 @@ config :pluteus, PluteusWeb.Subsonic.Response, help_url: nil
 
 config :pluteus, Pluteus.Changes.Release, start: true, interval: 1_000
 
+# Off by default. A release replaces `priv` rather than editing it underneath a running
+# node, and there is no `assets/` there to write a stylesheet into.
+config :pluteus, Pluteus.Design.Watcher, start: false
+
 config :pluteus, Oban,
   engine: Oban.Engines.Basic,
   repo: Pluteus.Repo,
