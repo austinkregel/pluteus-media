@@ -162,6 +162,24 @@ defmodule Pluteus.Design.Tokens do
   @spec root() :: Path.t()
   def root, do: :pluteus |> :code.priv_dir() |> Path.join("design")
 
+  @doc """
+  Forgets every cached document, so the next read comes from disk.
+
+  The cache is what makes a lookup free for the life of the node, and it is also what
+  would make a rebuild after an edit regenerate the values it already had — the same
+  stylesheet, with nothing to say the edit had been ignored. So a caller that has just
+  changed a file on disk clears the cache first. Nothing in a running deployment does:
+  `priv` is replaced by a release, not edited underneath one.
+  """
+  @spec forget() :: :ok
+  def forget do
+    for {{__MODULE__, _which} = key, _document} <- :persistent_term.get() do
+      :persistent_term.erase(key)
+    end
+
+    :ok
+  end
+
   defp path(@default), do: root() |> Path.join("tokens.json")
   defp path(context), do: root() |> Path.join("contexts/#{context}.json")
 
