@@ -16,8 +16,7 @@ defmodule Pluteus.Workers.AcquireFromInbox do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    report =
-      :pluteus |> Application.fetch_env!(Ingest) |> Keyword.fetch!(:inbox) |> Ingest.acquire()
+    report = Ingest.acquire(Ingest.inbox())
 
     acquired = for {_path, {:acquired, outcome}} <- report.files, do: outcome
 
