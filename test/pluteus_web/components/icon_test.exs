@@ -13,6 +13,7 @@ defmodule PluteusWeb.IconTest do
 
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
 
+  alias Pluteus.Design.Glyphs
   alias Pluteus.Design.Icons
   alias PluteusWeb.Icon
 
@@ -44,8 +45,8 @@ defmodule PluteusWeb.IconTest do
     test "the licence and the permission notice travel with the copies" do
       # A.8.1: "The copyright notice and permission notice MUST travel with the
       # vendored copies and with any glyph derived from them", and that is the whole of
-      # the obligation. The `sparse: "optimized"` checkout this replaced did not contain
-      # the file, so the one thing the licence requires was the one thing missing.
+      # the obligation. The file sits outside the `optimized` tree the drawings come
+      # from, so it is the one piece a fetch of that tree alone would leave behind.
       licence = File.read!(Path.join(Icons.root(), "LICENSE"))
 
       assert licence =~ "MIT License"
@@ -97,23 +98,43 @@ defmodule PluteusWeb.IconTest do
   end
 
   describe "A.9.5. The vocabulary is enumerated, and a name outside it raises" do
-    test "the names are exactly what is vendored, and every one has a drawing on disk" do
-      expected =
+    test "the vocabulary on disk is exactly the one declared" do
+      # The component takes its vendored names from the files rather than from the
+      # declaration, because the vendor task compiles the app before it fetches anything
+      # — a module that insisted on a declared name would refuse to compile until the
+      # file existed, and the task could never be what put it there. So the two agree by
+      # assertion rather than by construction, and this is the assertion.
+      declared =
         for glyph <- Icons.inventory(), suffix <- Map.keys(Icons.bands()) do
           "hero-#{glyph}#{suffix}"
         end
 
-      assert Enum.sort(expected) == Icon.names()
+      drawn = Enum.map(Icons.drawn(), fn {name, _glyph, _box} -> name end)
+
+      assert Enum.sort(declared ++ drawn) == Icon.names()
 
       for {name, path, _grid} <- Icons.drawings() do
-        assert File.exists?(path), "#{name} is in the vocabulary and #{path} is not on disk"
+        assert File.exists?(path), "#{name} is declared and #{path} is not on disk"
+      end
+    end
+
+    test "a drawn glyph is in the vocabulary at all three grids, with no vendored prefix" do
+      # A.8.1 makes the vendored set's licence travel with the copies and with anything
+      # derived from them, so which artwork a template reaches for is something the name
+      # should say. These are the household's own and carry no prefix.
+      for glyph <- Glyphs.names(), suffix <- Map.keys(Icons.bands()) do
+        name = "#{glyph}#{suffix}"
+
+        assert name in Icon.names()
+        refute String.starts_with?(name, "hero-")
       end
     end
 
     test "a name the set does not carry raises rather than rendering nothing" do
-      # The failure the Tailwind plugin had: a name it did not recognise produced no CSS
-      # rule and the element rendered empty, with no error anywhere. A name is now a key
-      # into what was vendored, so the same mistake is a raise at the call site.
+      # A name is a key into what was vendored, so a misspelling is a raise at the call
+      # site. The alternative failure is the one worth guarding against: a glyph selected
+      # by a class name renders as an empty element when nothing answers it, and reports
+      # nothing anywhere.
       assert_raise KeyError, fn -> render("hero-plaay-mini") end
       assert_raise KeyError, fn -> render("hero-play-solid") end
     end
