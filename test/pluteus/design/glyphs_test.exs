@@ -64,8 +64,25 @@ defmodule Pluteus.Design.GlyphsTest do
       end
     end
 
-    test "a bar is axis-aligned, because a diagonal stadium is not drawn" do
-      assert_raise ArgumentError, fn -> Glyph.bar(0, 0, 4, 4, 1, 24) end
+    test "an arc beyond half a turn sets the large-arc flag" do
+      # An arc command carries two endpoints and no span, so the flag is the only thing
+      # separating a 270-degree arc from the 90-degree one with the same ends.
+      assert Glyph.wave(12, 12, 6, 1.5, 0.7854, 5.4978) =~ ~r/A[\d.]+ [\d.]+ 0 1 /
+      refute Glyph.wave(12, 12, 6, 1.5, -0.5, 0.5) =~ ~r/A[\d.]+ [\d.]+ 0 1 /
+
+      assert Glyph.wave(12, 12, 6, 1.5, 0.7854, 5.4978, reverse: true) =~
+               ~r/A[\d.]+ [\d.]+ 0 1 /
+    end
+
+    test "a bar closes its own terminals, whichever way it runs" do
+      # A.8.4: a bar is "a closed shape with its terminals in the geometry, not a line
+      # with a round cap". That holds off the axes, where the shape is a stadium.
+      for {x2, y2} <- [{12, 4}, {4, 12}, {12, 12}] do
+        path = Glyph.bar(4, 4, x2, y2, 1.5, 24)
+
+        assert String.ends_with?(path, "Z")
+        assert path =~ "A"
+      end
     end
 
     test "a polygon opens on its first arc, not on a zero-length line" do
@@ -82,8 +99,15 @@ defmodule Pluteus.Design.GlyphsTest do
   describe "A.8.1 and A.8.5. Three grids, each stating its own geometry" do
     test "every glyph is drawn at all three grids" do
       for name <- Glyphs.names(), box <- @grids do
-        assert Glyphs.paths(name, box) =~ "<path d=\""
+        assert Glyphs.paths(name, box) =~ ~r/<path[^>]* d="/
       end
+    end
+
+    test "the outline grid carries the round cap a dot needs" do
+      # A.8.4's dot is a zero-length segment, which renders as one stroke-width across
+      # under a round cap and as nothing without it.
+      assert Glyphs.paths("integrity-overdue", 24) =~ ~s(stroke-linecap="round")
+      assert Glyphs.paths("integrity-overdue", 24) =~ "h.008v.008h-.008Z"
     end
 
     test "a drawing stays inside its own box" do
