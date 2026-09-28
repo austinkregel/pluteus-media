@@ -74,6 +74,23 @@ defmodule Pluteus.Design.GlyphsTest do
                ~r/A[\d.]+ [\d.]+ 0 1 /
     end
 
+    test "every forward shape winds the same way" do
+      # A shape wound against the rest adds where it should subtract, so reversing it
+      # fills a hole in rather than opening one.
+      shapes = [
+        Glyph.rect(4, 4, 12, 8, 1.5, 24),
+        Glyph.circle(12, 12, 6, 24),
+        Glyph.bar(4, 12, 20, 12, 3, 24),
+        Glyph.bar(12, 4, 12, 20, 3, 24),
+        Glyph.bar(6, 18, 18, 6, 3, 24),
+        Glyph.polygon([{12, 4, 1.125}, {20, 20, 0.75}, {4, 20, 0.75}], 24)
+      ]
+
+      windings = Enum.map(shapes, &winding/1)
+
+      assert Enum.uniq(windings) == [:clockwise], "wound both ways: #{inspect(windings)}"
+    end
+
     test "a bar closes its own terminals, whichever way it runs" do
       # A.8.4: a bar is "a closed shape with its terminals in the geometry, not a line
       # with a round cap". That holds off the axes, where the shape is a stadium.
@@ -190,6 +207,32 @@ defmodule Pluteus.Design.GlyphsTest do
       assert [_outer, _inner] = Glyphs.parts("audiobook", 24)[:arcs]
       assert [_outer, _inner] = Glyphs.parts("audiobook", 20)[:arcs]
       assert [_only] = Glyphs.parts("audiobook", 16)[:arcs]
+    end
+  end
+
+  # Which way a closed path runs, from the signed area of the polygon its endpoints
+  # describe. The y axis points down, so a positive area is clockwise on screen.
+  #
+  # A circle is two half arcs and has no polygon to measure, so its direction comes from
+  # the sweep flag instead, where 1 is the direction of increasing angle and so clockwise.
+  defp winding(data) do
+    points = data |> endpoints() |> Enum.uniq()
+
+    if Enum.count_until(points, 3) < 3 do
+      [[sweep] | _rest] =
+        Regex.scan(~r/A[\d.]+ [\d.]+ 0 [01] ([01])/, data, capture: :all_but_first)
+
+      if sweep == "1", do: :clockwise, else: :counter_clockwise
+    else
+      ordered = Enum.reverse(points)
+
+      area =
+        ordered
+        |> Enum.zip(tl(ordered) ++ [hd(ordered)])
+        |> Enum.map(fn {{x1, y1}, {x2, y2}} -> x1 * y2 - x2 * y1 end)
+        |> Enum.sum()
+
+      if area > 0, do: :clockwise, else: :counter_clockwise
     end
   end
 
