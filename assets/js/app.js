@@ -25,15 +25,13 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pluteus"
 import topbar from "../vendor/topbar"
 
-// spec-10 §17.7. LiveView 1.1 protects only a focused form input from a patch and
-// restores focus only to a select or a textual input, so a focused link or button is
-// neither protected nor restored, and one inside a removed stream is deleted outright.
-// The identity is recorded here and restored after a patch, a route change and a
-// reconnection, since a reconnection remounts and no server rule survives it.
+// spec-10 §17.7's focus obligations. LiveView protects only a focused form input from a
+// patch, so the focused element's identity is recorded here and restored after a patch, a
+// route change and a reconnection.
 //
 // Where the element is gone, focus moves to the nearest surviving sibling in document
-// order, failing that its container, failing that the surface's first focusable — in that
-// order, so that two implementations agree.
+// order, failing that its container, failing that the surface's first focusable, in the
+// order §17.7 fixes.
 const focusable = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])"
 
 const Focus = {

@@ -2,19 +2,13 @@ defmodule PluteusWeb.Negotiate do
   @moduledoc """
   Whether a request asked for the interface or for the representation (spec-07 §4.1).
 
-  §4.1 puts the negotiation "on the presence of `text/html` in the header, not on a
-  media-type preference list", and states the failure it is avoiding: "A framework that
-  treats `*/*` as matching HTML will serve HTML to every programmatic client, because
-  `*/*` is what a command-line client, a fetch call and most HTTP libraries send by
-  default."
+  §4.1 negotiates on the presence of `text/html` in the header and not on a media-type
+  preference list. So the header is read for the media types it names and `text/html` is
+  looked for among them by name: a quality parameter names no media type and is dropped,
+  and `*/*` and `text/*` are not `text/html`.
 
-  So the header is read for the media types it names, and `text/html` is looked for among
-  them by name. A quality parameter names no media type and is dropped. `*/*` and
-  `text/*` are not `text/html`.
-
-  A client that cannot set the header names `_format=html` instead, which §4.1 honours.
-  A selector parser ignores a query parameter naming no selector dimension, so that
-  parameter reaches the deep link as nothing.
+  A client that cannot set the header names `_format=html` instead, which §4.1 honours and
+  a selector parser ignores.
   """
 
   @behaviour Plug
