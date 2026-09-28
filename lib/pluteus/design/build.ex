@@ -323,9 +323,16 @@ defmodule Pluteus.Design.Build do
   # says it, so `base.space.200` is `--spacing-200` and `base.grey.01` is
   # `--color-grey-01`. A semantic keeps its whole path, so a reader can see which
   # token a variable came from without a table.
-  defp variable("sys." <> rest), do: "--sys-" <> String.replace(rest, ".", "-")
+  @doc """
+  The CSS custom property a token path is emitted as.
 
-  defp variable("base." <> rest) do
+  A `sys` path keeps its whole path. A `base` path is rendered into the Tailwind
+  namespace its category maps to.
+  """
+  @spec variable(String.t()) :: String.t()
+  def variable("sys." <> rest), do: "--sys-" <> String.replace(rest, ".", "-")
+
+  def variable("base." <> rest) do
     [category | tail] = String.split(rest, ".")
 
     case @namespaces[category] do
