@@ -129,11 +129,43 @@ defmodule Pluteus.Design.Glyph do
   def bar(x1, y1, x2, y2, thickness, box, opts \\ []) do
     half = thickness / 2
 
+    # An axis-aligned stadium is a rounded rectangle, which is the simpler statement of
+    # the same shape and the one whose radius `rect/7` already snaps.
     cond do
       y1 == y2 -> rect(min(x1, x2), y1 - half, abs(x2 - x1), thickness, half, box, opts)
       x1 == x2 -> rect(x1 - half, min(y1, y2), thickness, abs(y2 - y1), half, box, opts)
-      true -> raise ArgumentError, "a bar is axis-aligned; nothing in A.8.7 draws a diagonal"
+      true -> stadium(x1, y1, x2, y2, half, box, opts)
     end
+  end
+
+  # Two parallel edges and a semicircular cap at each end. The caps are geometry rather
+  # than a round linecap, per A.8.4: a cap scales with the stroke and a drawn terminal
+  # holds its shape at every grid.
+  defp stadium(x1, y1, x2, y2, half, box, opts) do
+    r = snap(half, box)
+    {ux, uy} = unit(x2 - x1, y2 - y1)
+    {nx, ny} = {-uy * r, ux * r}
+
+    corners = [
+      {x1 + nx, y1 + ny},
+      {x2 + nx, y2 + ny},
+      {x2 - nx, y2 - ny},
+      {x1 - nx, y1 - ny}
+    ]
+
+    [{ax, ay}, {bx, by}, {cx, cy}, {dx, dy}] =
+      if opts[:reverse], do: Enum.reverse(corners), else: corners
+
+    sweep = if opts[:reverse], do: 0, else: 1
+
+    join([
+      move(ax, ay),
+      line(bx, by),
+      arc(r, sweep, cx, cy),
+      line(dx, dy),
+      arc(r, sweep, ax, ay),
+      "Z"
+    ])
   end
 
   @doc """
@@ -218,8 +250,7 @@ defmodule Pluteus.Design.Glyph do
     [{{fx, fy}, first_r, first_sweep, {f2x, f2y}} | rest] = segments
 
     # The move already sits on the first tangent point, so the first segment is its arc
-    # alone — a line to where the pen already is would be a zero-length segment, which
-    # A.8.4 reserves for a dot and would draw one here under a round cap.
+    # alone. A.8.4 reserves a zero-length segment for a dot.
     body =
       Enum.map_join(rest, "", fn {{ax, ay}, r, sweep, {bx, by}} ->
         line(ax, ay) <> arc(r, sweep, bx, by)
@@ -350,24 +381,41 @@ defmodule Pluteus.Design.Glyph do
   a region, and an open stroked path has nothing to survive with when the grid is
   filled rather than stroked.
   """
-  @spec wave(number(), number(), number(), number(), number(), number()) :: String.t()
-  def wave(cx, cy, r, thickness, from, to) do
+  @spec wave(number(), number(), number(), number(), number(), number(), keyword()) ::
+          String.t()
+  def wave(cx, cy, r, thickness, from, to, opts \\ []) do
     outer = r + thickness / 2
     inner = r - thickness / 2
-    {ox1, oy1} = {cx + outer * :math.cos(from), cy + outer * :math.sin(from)}
-    {ox2, oy2} = {cx + outer * :math.cos(to), cy + outer * :math.sin(to)}
-    {ix1, iy1} = {cx + inner * :math.cos(to), cy + inner * :math.sin(to)}
-    {ix2, iy2} = {cx + inner * :math.cos(from), cy + inner * :math.sin(from)}
     cap = thickness / 2
+    at = fn radius, angle -> {cx + radius * :math.cos(angle), cy + radius * :math.sin(angle)} end
 
-    join([
-      move(ox1, oy1),
-      "A#{n(outer)} #{n(outer)} 0 0 1 #{n(ox2)} #{n(oy2)}",
-      "A#{n(cap)} #{n(cap)} 0 0 1 #{n(ix1)} #{n(iy1)}",
-      "A#{n(inner)} #{n(inner)} 0 0 0 #{n(ix2)} #{n(iy2)}",
-      "A#{n(cap)} #{n(cap)} 0 0 1 #{n(ox1)} #{n(oy1)}",
-      "Z"
-    ])
+    {ox1, oy1} = at.(outer, from)
+    {ox2, oy2} = at.(outer, to)
+    {ix1, iy1} = at.(inner, to)
+    {ix2, iy2} = at.(inner, from)
+
+    # Both edges subtend the same angle, so both take the same large-arc flag.
+    large = if abs(to - from) > :math.pi(), do: 1, else: 0
+
+    if opts[:reverse] do
+      join([
+        move(ox1, oy1),
+        "A#{n(cap)} #{n(cap)} 0 0 0 #{n(ix2)} #{n(iy2)}",
+        "A#{n(inner)} #{n(inner)} 0 #{large} 1 #{n(ix1)} #{n(iy1)}",
+        "A#{n(cap)} #{n(cap)} 0 0 0 #{n(ox2)} #{n(oy2)}",
+        "A#{n(outer)} #{n(outer)} 0 #{large} 0 #{n(ox1)} #{n(oy1)}",
+        "Z"
+      ])
+    else
+      join([
+        move(ox1, oy1),
+        "A#{n(outer)} #{n(outer)} 0 #{large} 1 #{n(ox2)} #{n(oy2)}",
+        "A#{n(cap)} #{n(cap)} 0 0 1 #{n(ix1)} #{n(iy1)}",
+        "A#{n(inner)} #{n(inner)} 0 #{large} 0 #{n(ix2)} #{n(iy2)}",
+        "A#{n(cap)} #{n(cap)} 0 0 1 #{n(ox1)} #{n(oy1)}",
+        "Z"
+      ])
+    end
   end
 
   defp move(x, y), do: "M#{n(x)} #{n(y)}"
