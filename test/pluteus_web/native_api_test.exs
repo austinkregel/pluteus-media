@@ -11,6 +11,7 @@ defmodule PluteusWeb.NativeApiTest do
   alias Pluteus.Dedup
   alias Pluteus.Lifecycle
   alias Pluteus.Preferences
+  alias Pluteus.Preferences.Registry
   alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias Pluteus.Repo
@@ -130,6 +131,21 @@ defmodule PluteusWeb.NativeApiTest do
       conn = get(conn, "/works/#{work.id}")
 
       assert Native.profile(conn).language == nil
+    end
+
+    test "naming the language with no value asks for the deployment's own", %{
+      conn: conn,
+      work: work,
+      principal: principal
+    } do
+      # Naming the parameter asks to be narrowed, and an empty value names no range to
+      # narrow by, so the deployment's own language answers and the stored range does not.
+      {:ok, _set} = Preferences.set(principal.id, "language", "de")
+
+      assert %{"name" => %{"value" => "Symphony"}} =
+               conn |> get("/works/#{work.id}", %{"language" => ""}) |> json_response(200)
+
+      assert Registry.empty_request("language") == "en"
     end
 
     test "the assigner stays the principal's own person", %{conn: conn, work: work} do
