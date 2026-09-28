@@ -18,7 +18,12 @@ defmodule PluteusWeb.PageController do
   literal string, and a name assembled at run time produces no rule at all.
   """
   def home(conn, _params) do
-    render(conn, :home, roles: roles(), ramp: ramp(), scale: scale())
+    render(conn, :home,
+      roles: roles(),
+      ramp: ramp(),
+      scale: scale(),
+      glyphs: glyphs()
+    )
   end
 
   @doc """
@@ -29,6 +34,30 @@ defmodule PluteusWeb.PageController do
   """
   def notices(conn, _params) do
     render(conn, :notices, page_title: "Third-party notices", notices: Notices.all())
+  end
+
+  # Each drawn glyph beside the base-set glyph A.8.6 says it is hardest to tell from, at
+  # every grid. The pairing is the point: A.8.5's own standard is whether a reduction
+  # preserves the meaning, and that is a judgement nothing here can make — so the two are
+  # rendered side by side at the size where the question is live.
+  defp glyphs do
+    [
+      {"scan", "hero-document-text",
+       "Both are a sheet of paper. The scanner bar crossing beyond the sheet's edges is " <>
+         "the whole separator, and it has to still separate them at 16."},
+      {"audiobook", "hero-book-open",
+       "Both are an open book. The arc rising clear of the book's outer edge is the " <>
+         "separator, which is why it is drawn outside the silhouette rather than over it."},
+      {"comic-issue", nil,
+       "A page of unequal panels. The division is the shape rather than a line, so it " <>
+         "cannot thin away as the grid shrinks."},
+      {"music-recording", nil,
+       "A disk. The groove goes at 16 rather than shrinking; the centre hole is what " <>
+         "says disk and it is kept at every grid."},
+      {"video-game", nil,
+       "A gamepad. The directional cross is one shape, because two crossing holes wind " <>
+         "to minus one where they meet and the centre fills back in."}
+    ]
   end
 
   defp roles do
