@@ -3,11 +3,8 @@ defmodule PluteusWeb.NegotiationTest do
   One address, two representations: spec-07 §4.1 and criterion 24, spec-10 §10.1 and
   §9.1.
 
-  §4.1 puts the negotiation "on the presence of `text/html` in the header, not on a
-  media-type preference list", and names the failure it is avoiding: a framework treating
-  `*/*` as matching HTML "will serve HTML to every programmatic client, because `*/*` is
-  what a command-line client, a fetch call and most HTTP libraries send by default". Most
-  of what is asserted here is therefore what does *not* answer with the interface.
+  §4.1 negotiates on the presence of `text/html` and not on a preference list, so most of
+  what is asserted here is what does *not* answer with the interface.
   """
 
   use PluteusWeb.ConnCase, async: true
@@ -17,14 +14,21 @@ defmodule PluteusWeb.NegotiationTest do
   alias Pluteus.Representation.Field
   alias PluteusWeb.EntityLive
   alias PluteusWeb.Native
+  alias PluteusWeb.Surface
 
   @subject "ada@example.test"
 
   setup %{conn: conn} do
     {:ok, %{work: work, expression: expression}} = Catalog.create_work("Kind of Blue")
 
-    %{conn: through_proxy(conn, @subject), work: work, expression: expression}
+    %{
+      conn: conn |> through_proxy(@subject) |> on_a_surface(),
+      work: work,
+      expression: expression
+    }
   end
+
+  defp asking(conn), do: conn |> through_proxy(@subject) |> put_req_header("accept", "text/html")
 
   describe "spec-07 criterion 24. text/html answers the interface" do
     test "a header containing text/html renders it", %{conn: conn, work: work} do
@@ -52,6 +56,7 @@ defmodule PluteusWeb.NegotiationTest do
       wildcard =
         build_conn()
         |> through_proxy(@subject)
+        |> on_a_surface()
         |> put_req_header("accept", "*/*")
         |> get("/works/#{work.id}")
         |> json_response(200)
@@ -88,8 +93,7 @@ defmodule PluteusWeb.NegotiationTest do
 
   describe "spec-10 §9.1. Which kinds have an interface page" do
     test "the kinds that negotiate are the ones §9.1 names" do
-      # §9.1: "works, expressions, manifestations, items, digital items, agents, places,
-      # time-spans and reified addresses", with both kinds of agent counted.
+      # §9.1's list, with both kinds of agent counted.
       negotiating = Native.paths() |> Map.keys() |> Enum.filter(&Native.negotiates?/1)
 
       assert Enum.sort(negotiating) ==
@@ -101,8 +105,8 @@ defmodule PluteusWeb.NegotiationTest do
       conn: conn,
       work: work
     } do
-      # §9.1: a nomen "has no poster, no action and no members". It stays reachable as
-      # JSON whatever was asked for.
+      # A nomen is one of the three §9.1 excludes. It stays reachable as JSON whatever was
+      # asked for.
       %{"nomens" => %{"value" => [nomen | _rest]}} =
         conn |> get("/works/#{work.id}") |> json_response(200)
 
@@ -145,6 +149,74 @@ defmodule PluteusWeb.NegotiationTest do
         |> get("/expressions/#{expression.id}", %{"t" => "npt:not-a-time"})
 
       assert conn.status == 400
+    end
+  end
+
+  describe "spec-10 §4.4. A surface is declared and is not inferred" do
+    test "an undetermined surface is asked about before anything is rendered", %{work: work} do
+      # §4.4 leaves an undeclared surface undetermined and has the deployment ask rather
+      # than choose.
+      conn = build_conn() |> asking() |> get("/works/#{work.id}")
+
+      assert redirected_to(conn) == "/surface?return_to=%2Fworks%2F#{work.id}"
+    end
+
+    test "a cookie naming no context it admits is no declaration", %{work: work} do
+      conn = build_conn() |> asking() |> on_a_surface("three metres") |> get("/works/#{work.id}")
+
+      assert conn.status == 302
+    end
+
+    test "the representation is served whether or not a surface is declared", %{work: work} do
+      # The declaration governs how something is drawn, so it has nothing to say about a
+      # request that asked for the representation.
+      assert build_conn()
+             |> through_proxy(@subject)
+             |> get("/works/#{work.id}")
+             |> json_response(200)
+    end
+
+    test "the question offers every context and nothing else", %{conn: conn} do
+      html = conn |> get("/surface") |> html_response(200)
+
+      for distance <- Surface.contexts() do
+        assert html =~ ~s(value="#{distance}")
+        assert html =~ ~s(id="surface-#{distance}")
+      end
+    end
+
+    test "answering records the declaration and returns where the person was going", %{
+      conn: conn,
+      work: work
+    } do
+      conn = post(conn, "/surface", %{"distance" => "far", "return_to" => "/works/#{work.id}"})
+
+      assert redirected_to(conn) == "/works/#{work.id}"
+      assert conn.resp_cookies[Surface.cookie()].value == "far"
+    end
+
+    test "a return_to naming somewhere else is not followed", %{conn: conn} do
+      # A question that sends someone off this deployment on being answered is an open
+      # redirect.
+      conn = post(conn, "/surface", %{"distance" => "near", "return_to" => "//example.test/x"})
+
+      assert redirected_to(conn) == "/example.test/x"
+    end
+
+    test "a declared surface reaches the document root", %{conn: conn, work: work} do
+      html = conn |> on_a_surface("far") |> asking() |> get("/works/#{work.id}")
+      html = html_response(html, 200)
+
+      assert html =~ ~s(data-distance="far")
+      assert html =~ ~s(data-declared="distance")
+    end
+
+    test "the script names no default for the surface", %{conn: conn} do
+      # A default in the script is the interface choosing a surface, which §4.4 forbids.
+      html = conn |> get("/") |> html_response(200)
+
+      refute html =~ "distance: \"near\""
+      refute html =~ "distance: \"far\""
     end
   end
 
