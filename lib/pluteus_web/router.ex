@@ -31,6 +31,11 @@ defmodule PluteusWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    # spec-10 Annex A.8.1 puts half of the vendored glyph set's licence obligation
+    # beside the files and the other half in the interface, so this route is what the
+    # licence requires rather than a courtesy.
+    get "/notices", PageController, :notices
   end
 
   scope "/", PluteusWeb do
