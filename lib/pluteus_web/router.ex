@@ -17,8 +17,14 @@ defmodule PluteusWeb.Router do
     plug PluteusWeb.Contexts
   end
 
+  # spec-07 §4.1: an entity URI answers with the interface where the request's `Accept`
+  # contains `text/html` and with the representation otherwise, at the same URI under the
+  # same authorization. `Negotiate` decides which before the session is read, and the
+  # session is read before the principal because it is what carries one to the socket.
   pipeline :api do
-    plug :accepts, ["json"]
+    plug :accepts, ["json", "html"]
+    plug PluteusWeb.Negotiate
+    plug :fetch_session
     plug PluteusWeb.ForwardAuth
   end
 
