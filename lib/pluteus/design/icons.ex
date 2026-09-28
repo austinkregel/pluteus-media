@@ -13,6 +13,8 @@ defmodule Pluteus.Design.Icons do
   task, so the new drawings and their digests arrive in one reviewable commit.
   """
 
+  alias Pluteus.Design.Glyphs
+
   @version "2.2.0"
 
   @doc """
@@ -74,12 +76,21 @@ defmodule Pluteus.Design.Icons do
   Declared rather than scanned out of the templates. A.9.5 makes the vocabulary
   something a component can check a template against, and a list read from the
   templates would make it a consequence of them instead. A test asserts the two agree.
+
+  The second group is there for A.8.6 rather than for a surface: `document-text` and
+  `book-open` are the two glyphs the drawn set is hardest to tell from, and A.8.6 makes
+  telling them apart at 16 px the review question. Neither can be judged without the
+  other in front of it, so both are vendored. Both are also the base-set glyph A.8.6's
+  category table already assigns to *document* and *ebook*.
   """
   @spec inventory() :: [String.t()]
-  def inventory, do: ~w(arrow-path exclamation-circle information-circle play x-mark)
+  def inventory do
+    ~w(arrow-path exclamation-circle information-circle play x-mark) ++
+      ~w(book-open document-text)
+  end
 
   @doc """
-  Every name a template may write, and the drawing each one resolves to.
+  Every vendored name, and the drawing each one resolves to.
   """
   @spec drawings() :: [{String.t(), Path.t(), String.t()}]
   def drawings do
@@ -89,8 +100,34 @@ defmodule Pluteus.Design.Icons do
   end
 
   @doc """
-  Every glyph name a template may write.
+  Every drawn name, and the grid box each one is drawn in.
+
+  The `hero-` prefix is not a tidiness: A.8.1 makes the vendored set's licence travel
+  with the copies and with any glyph derived from them, so which artwork a template
+  reaches for is something the name should say. These carry no prefix because they are
+  the household's own.
+  """
+  @spec drawn() :: [{String.t(), String.t(), pos_integer()}]
+  def drawn do
+    for glyph <- Glyphs.names(), {suffix, {grid, _dimension}} <- bands() do
+      {"#{glyph}#{suffix}", glyph, box(grid)}
+    end
+  end
+
+  @doc """
+  The grid box a grid is drawn in: 16, 20 or 24.
+  """
+  @spec box(String.t()) :: pos_integer()
+  def box(grid), do: grid |> String.split("/") |> List.first() |> String.to_integer()
+
+  @doc """
+  Every glyph name a template may write, vendored and drawn.
   """
   @spec names() :: [String.t()]
-  def names, do: drawings() |> Enum.map(fn {name, _path, _grid} -> name end) |> Enum.sort()
+  def names do
+    vendored = Enum.map(drawings(), fn {name, _path, _grid} -> name end)
+    ours = Enum.map(drawn(), fn {name, _glyph, _box} -> name end)
+
+    Enum.sort(vendored ++ ours)
+  end
 end
