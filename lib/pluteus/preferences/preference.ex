@@ -16,7 +16,7 @@ defmodule Pluteus.Preferences.Preference do
 
   The key's domain is the `preference_key_is_known` check in the database. The
   value's is the registry's, because it differs per key and one column cannot hold
-  eight domains — so `Pluteus.Preferences.Registry.admits?/2` is what refuses a
+  a domain per key — so `Pluteus.Preferences.Registry.admits?/2` is what refuses a
   value, and `changeset/2` is the only way in.
   """
 
