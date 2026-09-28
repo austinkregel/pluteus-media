@@ -66,6 +66,12 @@ defmodule Pluteus.Ingest.Place do
   One pass of the place stage: every identified acquisition with no uncleared
   finding at this stage whose inbox directory has settled, in the order they
   were acquired.
+
+  Every such acquisition, deployment-wide. The inbox is read to answer whether a
+  directory has settled and narrows nothing else, because `Pluteus.Ingest.inbox/0`
+  is the only one there is and every acquisition arrived through it. Given a
+  directory it does not hold, the inbox has nothing waiting in it, so the
+  acquisitions from that directory are settled and are placed.
   """
   @spec place_due(Path.t()) :: [{Ecto.UUID.t(), term()}]
   def place_due(inbox) do
