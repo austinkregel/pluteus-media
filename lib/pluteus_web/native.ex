@@ -9,6 +9,8 @@ defmodule PluteusWeb.Native do
 
   alias Pluteus.Actor
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Preferences
+  alias Pluteus.Preferences.Registry
   alias PluteusWeb.Problem
 
   @paths %{
@@ -37,16 +39,34 @@ defmodule PluteusWeb.Native do
   def paths, do: @paths
 
   @doc """
-  The resolution profile a request reads names with: the requesting principal's
-  own person as assigner, where it has one, and no language preference, unless
-  the request names `language` or `assigner`.
+  The resolution profile a request reads names with (spec-01 §7.4): the requesting
+  principal's own person as assigner, where it has one, and the language range that
+  principal holds, unless the request names `language` or `assigner`.
+
+  §7.4 makes the profile per principal and persisted, and a request's own narrowing
+  one request's: naming `language` here changes nothing the principal has stored.
+
+  The value the domain reserves for narrowing nothing becomes a nil language, which is
+  what `Pluteus.Catalog.Profile` means by no preference. A request may name it too, so
+  a client can ask for the unnarrowed resolution whatever the principal holds.
   """
   @spec profile(Plug.Conn.t()) :: Profile.t()
   def profile(conn) do
     %Profile{
-      language: conn.params["language"],
+      language: language(conn),
       assigner_id: conn.params["assigner"] || conn.assigns.principal.person_id
     }
+  end
+
+  # `has_key?` rather than a falsy test, because §7.4's stored range applies where the
+  # request does not name a language — not where it names an empty one.
+  defp language(conn) do
+    named =
+      if Map.has_key?(conn.params, "language"),
+        do: conn.params["language"],
+        else: Preferences.held(conn.assigns.principal.id, "language")
+
+    if named == Registry.reserved("language"), do: nil, else: named
   end
 
   @doc """
