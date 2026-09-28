@@ -7,6 +7,16 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/arrow-path.svg"
     },
     {
+      "path": "16/solid/book-open.svg",
+      "sha256": "00bd4306e0cc94280a2f5a7569a7b24bca54560ffc6e9cd7e0fcc3f2dd583243",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/book-open.svg"
+    },
+    {
+      "path": "16/solid/document-text.svg",
+      "sha256": "ea67c3b97e519bbae687b548aabb382dda4f04f0cb7c75625113bcb4ae3038d5",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/document-text.svg"
+    },
+    {
       "path": "16/solid/exclamation-circle.svg",
       "sha256": "ac2c4727b8d57dcc49b88ec5925e17407ec3b691377863a402b8ea2bd9a30a00",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/exclamation-circle.svg"
@@ -32,6 +42,16 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/arrow-path.svg"
     },
     {
+      "path": "20/solid/book-open.svg",
+      "sha256": "d719a115c948d9c0cac53fd1d74d5df34992d4a0f2d5ff7900e85ade580a0c13",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/book-open.svg"
+    },
+    {
+      "path": "20/solid/document-text.svg",
+      "sha256": "b2db156ea0a1581db101c5ac682c2392e6212c07b6802255e25e92c35e1f8140",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/document-text.svg"
+    },
+    {
       "path": "20/solid/exclamation-circle.svg",
       "sha256": "994fed219aa0f7c7e7f280ccf87ee0360d88db8d05e9e25d9d9fa0ff18a03a4e",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/exclamation-circle.svg"
@@ -55,6 +75,16 @@
       "path": "24/outline/arrow-path.svg",
       "sha256": "b191971e5cd0347fb23ea91c87e7468b2a3759613d3dd928fdd326004a5542ae",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/arrow-path.svg"
+    },
+    {
+      "path": "24/outline/book-open.svg",
+      "sha256": "dc4fab6a62dcebe7c1c31096a7062151363b803b62919ba47ef32ba37ad127df",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/book-open.svg"
+    },
+    {
+      "path": "24/outline/document-text.svg",
+      "sha256": "71f9dc980c507b7cfd044b7b322790f826e69cffcb6b06802c898502328a85b5",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/document-text.svg"
     },
     {
       "path": "24/outline/exclamation-circle.svg",
@@ -92,7 +122,9 @@
     "exclamation-circle",
     "information-circle",
     "play",
-    "x-mark"
+    "x-mark",
+    "book-open",
+    "document-text"
   ],
   "licence": "MIT, Copyright (c) Tailwind Labs, Inc.",
   "tag": "v2.2.0"
