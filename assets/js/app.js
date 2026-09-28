@@ -68,11 +68,44 @@ const Focus = {
   }
 }
 
+// A waveform artefact is a peak array rather than a picture, so band 3 draws it. The ink
+// comes from the computed colour, which follows the theme and survives forced colours.
+const Waveform = {
+  mounted() { this.draw() },
+  updated() { this.draw() },
+
+  draw() {
+    fetch(this.el.dataset.src)
+      .then((response) => {
+        if (!response.ok) throw new Error(`the waveform was not served: ${response.status}`)
+        return response.json()
+      })
+      .then(({peaks}) => {
+        const canvas = this.el
+        const width = canvas.clientWidth
+        if (!width || !peaks.length) return
+
+        canvas.width = width
+        const context = canvas.getContext("2d")
+        const middle = canvas.height / 2
+        const step = Math.max(width / peaks.length, 1)
+
+        context.clearRect(0, 0, width, canvas.height)
+        context.fillStyle = getComputedStyle(canvas).color
+
+        peaks.forEach((peak, index) => {
+          const half = (peak / 255) * middle
+          context.fillRect((index / peaks.length) * width, middle - half, step, half * 2)
+        })
+      })
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Focus},
+  hooks: {...colocatedHooks, Focus, Waveform},
 })
 
 // Show progress bar on live navigation and form submits.
