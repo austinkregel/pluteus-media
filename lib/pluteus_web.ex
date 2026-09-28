@@ -81,6 +81,8 @@ defmodule PluteusWeb do
       import Phoenix.HTML
       # Core UI components
       import PluteusWeb.CoreComponents
+      # The vendored glyph set, drawn inline (Annex A.8)
+      import PluteusWeb.Icon
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
