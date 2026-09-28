@@ -1,0 +1,37 @@
+<div class="mx-auto max-w-lg px-4 py-16 sm:px-6">
+  <.header>
+    How far away is this screen?
+    <:subtitle>
+      Nothing a browser reports answers this. Two screens can be the same width and be read
+      from arm's length and from three metres, and the answer decides how large everything
+      here is drawn — so it is asked rather than guessed at.
+    </:subtitle>
+  </.header>
+
+  <form action={~p"/surface"} method="post" class="mt-8 flex flex-col gap-4">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="return_to" value={@return_to} />
+
+    <button
+      :for={{distance, said, how} <- @choices}
+      id={"surface-#{distance}"}
+      type="submit"
+      name="distance"
+      value={distance}
+      class={[
+        "rounded-lg p-4 text-left min-h-target-pointer",
+        "border-[length:var(--sys-border-width-component)] border-border-component",
+        "bg-fill-subtle hover:bg-fill-subtle-strong hover:border-border-component-strong",
+        "text-on-surface-strong"
+      ]}
+    >
+      <span class="block text-title-sm font-semibold">{said}</span>
+      <span class="block text-body-sm text-on-surface-muted">{how}</span>
+    </button>
+  </form>
+
+  <p class="mt-6 text-body-sm text-on-surface-muted">
+    This is kept with this browser, not with you, because it is a fact about the screen. You
+    can change it whenever you like.
+  </p>
+</div>
