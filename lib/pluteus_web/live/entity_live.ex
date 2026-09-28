@@ -20,6 +20,7 @@ defmodule PluteusWeb.EntityLive do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Res
   alias Pluteus.Lifecycle
@@ -103,7 +104,20 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:representation, representation)
      |> assign(:noun, ComposedName.noun(res.kind))
      |> assign(:addresses, addresses(representation))
+     |> assign(:address, session["address"])
+     |> assign(:placed?, placed?(res, session["address"], session["unit"]))
+     |> assign(:whole, session["whole"])
      |> assign(:announcement, "")}
+  end
+
+  # §10.3: where the region cannot be placed the surface says so rather than landing at the
+  # beginning. A region measured in a unit the res has no extent in is one of those: §8.4
+  # expects the figure to be recorded, and nothing here may supply it.
+  defp placed?(_res, nil, _unit), do: true
+  defp placed?(_res, _address, nil), do: true
+
+  defp placed?(res, _address, unit) do
+    not is_nil(Addressing.get_extent(res.id, String.to_existing_atom(unit)))
   end
 
   # Each related res is linked at the URI spec-01 §9 gives it, which needs its kind. One
@@ -168,6 +182,28 @@ defmodule PluteusWeb.EntityLive do
           Named by what it is made of, since nobody has named it.
         </p>
       </header>
+
+      <section
+        :if={@address}
+        id="entity-region"
+        aria-labelledby="entity-region-heading"
+        class="mb-10 rounded-lg border-[length:var(--sys-border-width-component)] border-border-strong bg-surface-raised p-4"
+      >
+        <h2
+          id="entity-region-heading"
+          class="mb-1 text-title-sm font-semibold text-on-surface-strong"
+        >
+          What this link points at
+        </h2>
+        <p :if={@placed?} class="text-body-md text-on-surface-strong">{said_region(@address)}</p>
+        <p :if={!@placed?} class="text-body-md text-on-surface-strong">
+          This link points at {said_region(@address)}, which cannot be shown: how much of this
+          there is has never been recorded, so the region cannot be placed within it.
+        </p>
+        <a id="entity-whole" href={@whole} class="mt-3 inline-block underline text-body-sm">
+          Leave the region and see the whole
+        </a>
+      </section>
 
       <section :if={facts(@representation) != []} aria-labelledby="entity-facts" class="mb-10">
         <h2 id="entity-facts" class="mb-2 text-title-sm font-semibold text-on-surface-strong">
@@ -269,6 +305,45 @@ defmodule PluteusWeb.EntityLive do
 
   defp composed?(representation) do
     representation["name"]["state"] != "held" and not is_nil(representation["composed_name"])
+  end
+
+  @doc """
+  The region a deep link names, in words.
+
+  §10.2 requires the region be shown and not merely scrolled to, since a recipient who
+  cannot see what they were sent has not received it. A type with no words raises.
+  """
+  @spec said_region(map()) :: String.t()
+  def said_region(%{"type" => "temporal"} = address), do: span(address)
+
+  def said_region(%{"type" => "spatiotemporal"} = address),
+    do: "#{span(address)}, in part of the picture"
+
+  def said_region(%{"type" => "spatial"}), do: "part of the picture"
+  def said_region(%{"type" => "page"} = address), do: "page #{address["page_number"]}"
+
+  def said_region(%{"type" => "text_position"} = address),
+    do: "#{address["text_unit"]}s #{address["start_offset"]} to #{address["end_offset"]}"
+
+  def said_region(%{"type" => "text_quote"} = address),
+    do: "the passage beginning “#{address["quote_exact"]}”"
+
+  def said_region(%{"type" => "track"} = address),
+    do: "the #{address["stream_language"]} #{address["stream_kind"]} track"
+
+  defp span(address) do
+    case address["end_ms"] do
+      nil -> "#{clock(address["start_ms"])}"
+      end_ms -> "#{clock(address["start_ms"])} to #{clock(end_ms)}"
+    end
+  end
+
+  defp clock(milliseconds) do
+    seconds = milliseconds / 1000
+    minutes = seconds |> trunc() |> div(60)
+    rest = :erlang.float_to_binary(seconds - minutes * 60, decimals: 1)
+
+    "#{minutes}:#{String.pad_leading(rest, 4, "0")}"
   end
 
   defp facts(representation) do
