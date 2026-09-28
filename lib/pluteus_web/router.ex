@@ -91,6 +91,13 @@ defmodule PluteusWeb.Router do
     get "/devices", DeviceController, :index
     post "/devices", DeviceController, :create
     delete "/devices/:id", DeviceController, :delete
+
+    # [spec-10] §14.5's preferences, which are the requesting principal's and no
+    # other's. The path carries no principal, so there is no request that names
+    # another's and none to refuse — which spec-07 §4.5 makes the point: a refusal
+    # would itself confirm what it refused.
+    get "/preferences", PreferenceController, :index
+    put "/preferences", PreferenceController, :update
   end
 
   scope "/rest", PluteusWeb do
