@@ -57,6 +57,16 @@ defmodule PluteusWeb.ConnCase do
   end
 
   @doc """
+  A request from a device that has declared which surface it is (spec-10 §4.4).
+
+  §4.4 makes the surface a declaration and forbids inferring one, so a rendered surface
+  asks before it renders and a test reaching for the interface has to have answered.
+  """
+  def on_a_surface(conn, distance \\ "near") do
+    Plug.Test.put_req_cookie(conn, PluteusWeb.Surface.cookie(), distance)
+  end
+
+  @doc """
   The issuer the proxy's identities come from, as configured.
   """
   def issuer,
