@@ -78,6 +78,49 @@ defmodule PluteusWeb.Layouts do
   end
 
   @doc """
+  Puts a principal's contexts where the stylesheet is keyed and the first paint can
+  already be right, rather than leaving the page to be corrected once a script runs.
+
+  Two attributes per modifier where the intent is an outright choice, one where it is
+  `system`. A.10.1 requires both the resolved value and the intent, and the server can
+  resolve every intent but that one: `system` means a media feature decides, and a media
+  feature is a fact about the browser.
+
+  So a `system` intent renders `data-<modifier>-intent` and no `data-<modifier>`, which
+  is what lets the generated stylesheet answer. Its fallbacks are scoped
+  `:root:not([data-<modifier>])`, so the resolved attribute's absence is the condition
+  they wait on, and rendering one would switch them off with nothing in their place.
+
+  An outright intent renders both, including where it names the modifier's default
+  context. That attribute matches no rule — the default is what `:root` already holds —
+  and matching nothing is not the same as doing nothing: it is what takes the media
+  query out of force. Choosing dark on a machine set to light is exactly that request,
+  and dropping `data-theme="dark"` for being the default would let the machine overrule
+  the person.
+
+  `data-stored` names the modifiers the store answers for, so the script knows which
+  ones it must not read out of shared storage.
+  """
+  @spec context_attributes(%{String.t() => String.t()}) :: [{String.t(), String.t()}]
+  def context_attributes(contexts) when map_size(contexts) == 0, do: []
+
+  def context_attributes(contexts) do
+    stored = contexts |> Map.keys() |> Enum.sort()
+
+    attributes =
+      Enum.flat_map(stored, fn modifier ->
+        intent = Map.fetch!(contexts, modifier)
+
+        [{"data-#{modifier}-intent", intent} | resolved(modifier, intent)]
+      end)
+
+    [{"data-stored", Enum.join(stored, " ")} | attributes]
+  end
+
+  defp resolved(_modifier, "system"), do: []
+  defp resolved(modifier, intent), do: [{"data-#{modifier}", intent}]
+
+  @doc """
   Renders the controls for A.1.6's five context modifiers.
 
   Each is a radio group rather than a cycling button: a person choosing a context
@@ -88,7 +131,15 @@ defmodule PluteusWeb.Layouts do
   The buttons write the resolved value and the intent onto the document root, which
   is where the generated stylesheet's scopes are keyed and where they survive a live
   navigation.
+
+  A stored modifier's pressed state is rendered rather than scripted, so the control
+  states the person's own choice in the first paint. A modifier the store does not hold
+  has none to render and the script sets it once the document exists.
   """
+  attr :contexts, :map,
+    required: true,
+    doc: "the intent each stored modifier carries, as `PluteusWeb.Contexts` assembles it"
+
   def context_controls(assigns) do
     assigns = assign(assigns, :modifiers, modifiers())
 
@@ -111,7 +162,7 @@ defmodule PluteusWeb.Layouts do
             ]}
             data-modifier={modifier}
             data-context={context}
-            aria-pressed="false"
+            aria-pressed={to_string(Map.get(@contexts, modifier) == context)}
           >
             {context}
           </button>
