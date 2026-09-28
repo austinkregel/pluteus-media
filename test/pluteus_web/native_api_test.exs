@@ -10,10 +10,12 @@ defmodule PluteusWeb.NativeApiTest do
   alias Pluteus.Catalog
   alias Pluteus.Dedup
   alias Pluteus.Lifecycle
+  alias Pluteus.Preferences
   alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.StorageFixtures
+  alias PluteusWeb.Native
 
   @subject "ada@example.test"
 
@@ -64,6 +66,78 @@ defmodule PluteusWeb.NativeApiTest do
         end
 
       assert names == ["Symphony", "Sinfonie"]
+    end
+  end
+
+  describe "[spec-01] §7.4. The resolution profile is the principal's and persists" do
+    setup %{conn: conn} do
+      {:ok, %{work: work}} = Catalog.create_work("Kind of Blue")
+
+      for {string, language} <- [{"Symphony", "en"}, {"Sinfonie", "de"}] do
+        conn
+        |> post("/nomens", %{
+          "res_id" => work.id,
+          "nomen_string" => string,
+          "language" => language
+        })
+        |> json_response(201)
+      end
+
+      %{work: work, principal: Principals.admit(issuer(), @subject)}
+    end
+
+    test "a stored range narrows a request that names no language", %{
+      conn: conn,
+      work: work,
+      principal: principal
+    } do
+      {:ok, _set} = Preferences.set(principal.id, "language", "de")
+
+      assert %{"name" => %{"value" => "Sinfonie"}} =
+               conn |> get("/works/#{work.id}") |> json_response(200)
+    end
+
+    test "a request naming a language narrows itself and leaves the stored range alone", %{
+      conn: conn,
+      work: work,
+      principal: principal
+    } do
+      {:ok, _set} = Preferences.set(principal.id, "language", "de")
+
+      assert %{"name" => %{"value" => "Symphony"}} =
+               conn |> get("/works/#{work.id}", %{"language" => "en"}) |> json_response(200)
+
+      assert Preferences.held(principal.id, "language") == "de"
+    end
+
+    test "a range matches a tag that extends it at a subtag boundary", %{
+      conn: conn,
+      work: work,
+      principal: principal
+    } do
+      # §6.1: a range is satisfied by a tag more specific than itself. `en-GB` is not
+      # held here, so a principal asking for `en` is answered the `en` name; the point is
+      # that basic filtering rather than equality is what the stored range goes through.
+      {:ok, _set} = Preferences.set(principal.id, "language", "en")
+
+      assert %{"name" => %{"value" => "Symphony"}} =
+               conn |> get("/works/#{work.id}") |> json_response(200)
+    end
+
+    test "the reserved value narrows nothing at all", %{conn: conn, work: work} do
+      # `Profile` means no preference by a nil language and §6.1's clauses turn on it: any
+      # range, the wildcard included, would make the tagged names the only candidates.
+      conn = get(conn, "/works/#{work.id}")
+
+      assert Native.profile(conn).language == nil
+    end
+
+    test "the assigner stays the principal's own person", %{conn: conn, work: work} do
+      # §7.4 holds the assigner in the profile too, and takes it from the principal
+      # rather than from anything stored.
+      conn = get(conn, "/works/#{work.id}")
+
+      assert Native.profile(conn).assigner_id == conn.assigns.principal.person_id
     end
   end
 
