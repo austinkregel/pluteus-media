@@ -1,6 +1,8 @@
 defmodule PluteusWeb.PageController do
   use PluteusWeb, :controller
 
+  alias Pluteus.Design.Build
+  alias Pluteus.Design.Glyphs
   alias Pluteus.Design.Tokens
   alias PluteusWeb.Notices
 
@@ -22,8 +24,17 @@ defmodule PluteusWeb.PageController do
       roles: roles(),
       ramp: ramp(),
       scale: scale(),
-      glyphs: glyphs()
+      glyphs: glyphs(),
+      markers: markers()
     )
+  end
+
+  # A.9.5 admits no name assembled in a template, so each marker arrives with the whole
+  # one it is drawn under.
+  defp markers do
+    for {state, contour, field, mark} <- Glyphs.markers() do
+      {state, "state-#{state}-micro", contour, field, mark}
+    end
   end
 
   @doc """
@@ -78,13 +89,12 @@ defmodule PluteusWeb.PageController do
   end
 
   defp leaf(path) do
-    name = String.replace_prefix(path, "sys.color.", "")
-    {name, "--sys-color-" <> String.replace(name, ".", "-")}
+    {String.replace_prefix(path, "sys.color.", ""), Build.variable(path)}
   end
 
   defp ramp do
     for step <- ~w(01 02 03 04 05 06 07 08 09 10 11 12 ring) do
-      {step, "--color-grey-#{step}"}
+      {step, Build.variable("base.grey.#{step}")}
     end
   end
 
@@ -98,7 +108,7 @@ defmodule PluteusWeb.PageController do
       name = String.replace_prefix(path, "sys.type.", "")
       value = Tokens.resolve!(path)
 
-      {name, "--sys-type-" <> String.replace(name, ".", "-"), "#{value["value"]}#{value["unit"]}"}
+      {name, Build.variable(path), "#{value["value"]}#{value["unit"]}"}
     end)
   end
 end
