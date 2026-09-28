@@ -1,0 +1,99 @@
+{
+  "base": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/",
+  "files": [
+    {
+      "path": "16/solid/arrow-path.svg",
+      "sha256": "78a78712491a01e75e2ea6497af255d1094e087a108aee302cd4547141c58ee0",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/arrow-path.svg"
+    },
+    {
+      "path": "16/solid/exclamation-circle.svg",
+      "sha256": "ac2c4727b8d57dcc49b88ec5925e17407ec3b691377863a402b8ea2bd9a30a00",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/exclamation-circle.svg"
+    },
+    {
+      "path": "16/solid/information-circle.svg",
+      "sha256": "6ae80cbd5c5459d02ea4822a3715d632bd49d010faab8ab26824aacb0a31ebd3",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/information-circle.svg"
+    },
+    {
+      "path": "16/solid/play.svg",
+      "sha256": "5904a7af15c6a5ecfbb242f59d443cc05409d95b6777777a8bf6267b77fedda8",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/play.svg"
+    },
+    {
+      "path": "16/solid/x-mark.svg",
+      "sha256": "ac3029295e95fddd06d049634a92baecdaf9515874dbc7aa6025a4355b67a044",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/x-mark.svg"
+    },
+    {
+      "path": "20/solid/arrow-path.svg",
+      "sha256": "6cfed621fe0a11729d300b9c78f6168158be2862320f64b75b706e2902bb2d37",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/arrow-path.svg"
+    },
+    {
+      "path": "20/solid/exclamation-circle.svg",
+      "sha256": "994fed219aa0f7c7e7f280ccf87ee0360d88db8d05e9e25d9d9fa0ff18a03a4e",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/exclamation-circle.svg"
+    },
+    {
+      "path": "20/solid/information-circle.svg",
+      "sha256": "b0d0a191c30778c5cf677846243dd64c4efbec72a657d1c7ab025588bc1a0bf7",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/information-circle.svg"
+    },
+    {
+      "path": "20/solid/play.svg",
+      "sha256": "aaf30b27b9fa12a421c13be3e9c71d967c73805453cfcf1a1261ecb59dddc9f2",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/play.svg"
+    },
+    {
+      "path": "20/solid/x-mark.svg",
+      "sha256": "b76e0899f1a6e63e982c6d3e92551f42d94be6b9c51fb176150e69eeefe12a94",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/x-mark.svg"
+    },
+    {
+      "path": "24/outline/arrow-path.svg",
+      "sha256": "b191971e5cd0347fb23ea91c87e7468b2a3759613d3dd928fdd326004a5542ae",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/arrow-path.svg"
+    },
+    {
+      "path": "24/outline/exclamation-circle.svg",
+      "sha256": "724c882f572ab3c45ecd6a82c5711bdb0f8cf7ecaa5ed1d4477a9ac5a8437146",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/exclamation-circle.svg"
+    },
+    {
+      "path": "24/outline/information-circle.svg",
+      "sha256": "622b5f527d68f6e55cc0556f6720754b16273a53b0aa7c4d6f387d9e27bab076",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/information-circle.svg"
+    },
+    {
+      "path": "24/outline/play.svg",
+      "sha256": "88392682dbe1eac79795a5abe2c1b7a8eee73e696f9f770ffc7b0b851b898e8c",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/play.svg"
+    },
+    {
+      "path": "24/outline/x-mark.svg",
+      "sha256": "f44f8d4070a779c324f07a199122b4cc8686b5a8d9705727dc38d0cfd3bb27ec",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/x-mark.svg"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/LICENSE"
+    }
+  ],
+  "grids": [
+    "16/solid",
+    "20/solid",
+    "24/outline"
+  ],
+  "inventory": [
+    "arrow-path",
+    "exclamation-circle",
+    "information-circle",
+    "play",
+    "x-mark"
+  ],
+  "licence": "MIT, Copyright (c) Tailwind Labs, Inc.",
+  "tag": "v2.2.0"
+}
