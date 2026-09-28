@@ -7,10 +7,11 @@ defmodule Pluteus.Preferences.Registry do
   its default are read from here rather than written anywhere in code. A key the file
   does not carry raises.
 
-  Two domains are expressible. `one_of` names its values; `number` bounds a quantity
-  and names its unit. Every value is stored and answered as text, because one column
-  holds them all and a quantity's unit is the registry's to state rather than the
-  column's to imply.
+  Three domains are expressible. `one_of` names its values; `number` bounds a quantity
+  and names its unit; `language_range` admits one language range, or the value it
+  reserves for narrowing nothing. Every value is stored and answered as text, because
+  one column holds them all and a quantity's unit is the registry's to state rather than
+  the column's to imply.
 
   The caption properties are this deployment's own. spec-10 §17.4 requires caption
   presentation "be adjustable by the person, persisted per principal" and names no
@@ -44,6 +45,15 @@ defmodule Pluteus.Preferences.Registry do
   def defaults, do: Map.new(keys(), &{&1, default(&1)})
 
   @doc """
+  The value a key's domain reserves to mean that it narrows nothing.
+
+  A key whose domain reserves none raises, rather than answering a value that would
+  then stand for something the domain never said.
+  """
+  @spec reserved(String.t()) :: String.t()
+  def reserved(key), do: key |> domain() |> Map.fetch!("reserved")
+
+  @doc """
   Whether a value is inside a key's domain.
 
   A key the registry does not carry raises rather than answering false: a caller
@@ -54,8 +64,23 @@ defmodule Pluteus.Preferences.Registry do
     case domain(key) do
       %{"kind" => "one_of", "values" => values} -> value in values
       %{"kind" => "number"} = bounds -> within?(bounds, value)
+      %{"kind" => "language_range", "reserved" => reserved} -> range?(reserved, value)
     end
   end
+
+  # [RFC4647] §2.1's basic language range, less the wildcard. The reserved value is what
+  # narrows nothing, and it is checked first because it is spelled as a range would be —
+  # every such word is: the grammar admits any run of letters. Reserving it is what keeps
+  # the two apart.
+  #
+  # The wildcard `*` is refused. [spec-10] §6.1 matches it against every tag, so its
+  # second clause would make the tagged names the only candidates and drop the
+  # household's own untagged vocabulary — which spec-01 §7.4 forbids standing for the
+  # absence of a preference, and which nothing else would ask for.
+  @range ~r/^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$/
+
+  defp range?(reserved, reserved), do: true
+  defp range?(_reserved, value), do: Regex.match?(@range, value)
 
   defp within?(%{"minimum" => low, "maximum" => high}, value) do
     case Float.parse(value) do
