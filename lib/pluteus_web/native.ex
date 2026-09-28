@@ -32,11 +32,29 @@ defmodule PluteusWeb.Native do
   @default_limit 50
   @maximum_limit 500
 
+  # [spec-10] §9.1's kinds: "works, expressions, manifestations, items, digital items,
+  # agents, places, time-spans and reified addresses", with both kinds of agent named.
+  @interface_kinds ~w(
+    work expression manifestation item digital_item
+    person collective_agent place time_span address
+  )a
+
   @doc """
   Every res kind the native API serves, with the path it is served under.
   """
   @spec paths() :: %{atom() => String.t()}
   def paths, do: @paths
+
+  @doc """
+  Whether a kind answers with the interface where a request asks for one ([spec-10] §9.1).
+
+  A nomen, an annotation and an asset do not. §9.1: a nomen "has no poster, no action and
+  no members", and spec-03 §10 asks that an asset's location not be exposed on a
+  reachable surface. Each stays reachable as the representation whatever was asked for,
+  and appears in the interface as part of the res it belongs to.
+  """
+  @spec negotiates?(atom()) :: boolean()
+  def negotiates?(kind), do: kind in @interface_kinds
 
   @doc """
   The resolution profile a request reads names with (spec-01 §7.4): the requesting
