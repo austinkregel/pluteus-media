@@ -48,6 +48,74 @@
       "description": "§12.4 requires the end-of-item offer \"be disableable per principal\" and states no default. It is on, because the section makes the offer the behaviour and disabling it the choice.",
       "domain": { "kind": "one_of", "values": ["on", "off"] },
       "default": "on"
+    },
+
+    "caption_face": {
+      "requires": "spec-10 §17.4, §14.5",
+      "description": "§17.4 requires caption presentation \"be adjustable by the person, persisted per principal\" and names no property of it, so these four are what this deployment draws. A caption is set in the same three families the rest of the interface has.",
+      "domain": { "kind": "one_of", "values": ["sans", "serif", "mono"] },
+      "default": "sans"
+    },
+    "caption_size": {
+      "requires": "spec-10 §17.4, §14.5",
+      "description": "A proportion of the caption's own base, which ranges further than body text because a caption is read at whatever distance the picture is watched from.",
+      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 300 },
+      "default": "100"
+    },
+    "caption_ground": {
+      "requires": "spec-10 §17.4, §14.5",
+      "description": "What sits behind the glyphs. A caption is drawn over moving picture rather than over a surface, so no contrast floor can be met by the ink alone: the ground is what makes one meetable, and removing it is a choice with `caption_edge` as its compensation.",
+      "domain": { "kind": "one_of", "values": ["solid", "translucent", "none"] },
+      "default": "solid"
+    },
+    "caption_edge": {
+      "requires": "spec-10 §17.4, §14.5",
+      "description": "How a glyph separates from the picture where the ground does not do it. Idle where the ground is solid.",
+      "domain": { "kind": "one_of", "values": ["none", "outline", "shadow"] },
+      "default": "outline"
+    },
+
+    "browse_continue": {
+      "requires": "spec-10 §9.2",
+      "description": "§9.2: \"A mode MAY be hidden per principal. Hiding a mode MUST NOT hide content.\" One key per mode rather than a list, because §9.2 fixes the seven and a key each keeps the set closed in the database. Continue is the requesting principal's own resume list.",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
+    },
+    "browse_recently_added": {
+      "requires": "spec-10 §9.2",
+      "description": "The catalog by acquisition time.",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
+    },
+    "browse_people": {
+      "requires": "spec-10 §9.2",
+      "description": "Agents with holdings.",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
+    },
+    "browse_places": {
+      "requires": "spec-10 §9.2",
+      "description": "Places, as a list and as a map.",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
+    },
+    "browse_time": {
+      "requires": "spec-10 §9.2",
+      "description": "A spine over time-spans, with a counted Undated bucket.",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
+    },
+    "browse_sets": {
+      "requires": "spec-10 §9.2",
+      "description": "Every res carrying ordered members (§8.3).",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
+    },
+    "browse_everything": {
+      "requires": "spec-10 §9.2",
+      "description": "The whole catalog, faceted.",
+      "domain": { "kind": "one_of", "values": ["shown", "hidden"] },
+      "default": "shown"
     }
   }
 }
