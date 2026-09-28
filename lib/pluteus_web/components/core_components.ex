@@ -386,13 +386,18 @@ defmodule PluteusWeb.CoreComponents do
     """
   end
 
-  # A form error, in words, beside the field it belongs to. The status colour carries
-  # it and the glyph repeats it, because colour as the only visual means fails at
-  # Level A (A.2.6).
+  # A form error, in words, beside the field it belongs to.
+  #
+  # The words take the surface's own ink and the glyph takes the status colour. A.2.6
+  # makes a status role "a solid with an `on` pair" and never a text colour, and the
+  # measurement agrees: on a raised surface in the dark theme the error solid falls to
+  # 4.07:1, under WCAG 2 §1.4.3's 4.5:1 for body text, and a form sits on a raised
+  # surface. Colouring the message would also make colour the emphasis, where spec-10
+  # §17.9 wants a carrier that is not colour — which here is the glyph and the sentence.
   defp error(assigns) do
     ~H"""
-    <p class="mt-1 flex items-center gap-2 text-body-sm text-status-error">
-      <.icon name="hero-exclamation-circle-mini" class="shrink-0" />
+    <p class="mt-1 flex items-center gap-2 text-body-sm text-on-surface-strong">
+      <.icon name="hero-exclamation-circle-mini" class="shrink-0 text-status-error" />
       {render_slot(@inner_block)}
     </p>
     """
