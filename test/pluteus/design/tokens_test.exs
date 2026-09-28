@@ -18,6 +18,7 @@ defmodule Pluteus.Design.TokensTest do
   @contexts ~w(light far compact more reduced)
   @ramp ~w(01 02 03 04 05 06 07 08 09 10 11 12)
   @classes ~w(video audio software image text)
+  @statuses ~w(error warning success info)
 
   # The two themes, by the file each resolves from. The dark theme is the token file
   # itself (A.2.3 makes it the default), so it has no context of its own.
@@ -253,16 +254,109 @@ defmodule Pluteus.Design.TokensTest do
       assert secondary < 75, "the muted role would pass as body text, which A.2.2 denies it"
     end
 
-    test "one ink is readable on every class and status solid under WCAG 2" do
+    test "one ink is readable on every class solid under WCAG 2" do
       ink = resolved_hex("sys.color.on.class")
 
       for class <- @classes do
         assert Colour.contrast_ratio(ink, resolved_hex("sys.color.class.#{class}")) >= 4.5
       end
+    end
 
-      for status <- ~w(error warning success info) do
-        assert Colour.contrast_ratio(ink, resolved_hex("sys.color.status.#{status}")) >= 4.5
+    test "every solid clears both instruments against the ink it is paired with" do
+      # The assertion whose absence let a defect ship. Against the error solid the dark
+      # ink measures a conforming 4.54:1 under WCAG 2 and only APCA Lc 37.2, which is
+      # below the floor for something a person must perceive to operate — so one
+      # instrument said yes while the other said the glyph was unreadable. A.2.4 binds
+      # both, and checking only the first is how a pairing passes and fails at once.
+      #
+      # This is also what makes the four `on.status` roles load-bearing rather than four
+      # names for one value: three take the dark ink and the error solid cannot.
+      for status <- @statuses do
+        solid = resolved_hex("sys.color.status.#{status}")
+        ink = resolved_hex("sys.color.on.status.#{status}")
+
+        assert Colour.contrast_ratio(ink, solid) >= 3.0,
+               "#{status} fails WCAG 2 §1.4.11 against its own ink"
+
+        assert Colour.lc(ink, solid) >= 45,
+               "#{status} fails A.2.4's non-text floor against its own ink, so it " <>
+                 "cannot carry even a glyph"
       end
+    end
+
+    test "a status solid is perceivable against every surface it can sit on" do
+      # §1.4.11 asks 3:1 of a component's boundary, and a filled marker's boundary is
+      # its own colour against the surface under it. The overlay is the worst case,
+      # being the lightest surface a marker sits on.
+      for status <- @statuses, surface <- ~w(base subtle raised overlay) do
+        measured =
+          Colour.contrast_ratio(
+            resolved_hex("sys.color.status.#{status}"),
+            resolved_hex("sys.color.surface.#{surface}")
+          )
+
+        assert measured >= 3.0, "#{status} has no perceivable edge on surface.#{surface}"
+      end
+    end
+
+    test "a status solid holds up in the light theme too, where WCAG 2 alone binds" do
+      # A.2.4 scopes its four APCA floors to the dark theme, so what a light-theme value
+      # answers to is §1.4.11's 3:1 for a component and the same against its own ink.
+      # The dark-theme set does not survive the move — the warning solid falls to 1.54:1
+      # against a light page, which is no perceivable boundary at all — so the light theme
+      # retunes them, and this is what says the retuning was enough.
+      for status <- @statuses do
+        solid = in_theme("sys.color.status.#{status}", "light")
+        ink = in_theme("sys.color.on.status.#{status}", "light")
+
+        for surface <- ~w(base subtle raised overlay) do
+          measured =
+            Colour.contrast_ratio(solid, in_theme("sys.color.surface.#{surface}", "light"))
+
+          assert measured >= 3.0,
+                 "#{status} has no perceivable edge on the light surface.#{surface}"
+        end
+
+        assert Colour.contrast_ratio(ink, solid) >= 3.0,
+               "#{status} fails against its own ink in the light theme"
+      end
+    end
+
+    test "a status colour is a solid and is never text, on either theme's surfaces" do
+      # A.2.6 defines a status role as "a solid with an `on` pair", and the measurement is
+      # why that wording matters: no status colour clears §1.4.3's 4.5:1 as body text on
+      # the surfaces a form sits on, in either theme. So a message takes the surface's own
+      # ink and the status colour takes the glyph — which is also the non-colour carrier
+      # spec-10 §17.9 asks for.
+      for status <- @statuses do
+        readable =
+          for theme <- @themes, surface <- ~w(base subtle raised) do
+            Colour.contrast_ratio(
+              in_theme("sys.color.status.#{status}", theme),
+              in_theme("sys.color.surface.#{surface}", theme)
+            )
+          end
+
+        assert Enum.min(readable) < 4.5,
+               "#{status} clears 4.5:1 as text on every surface in both themes, which " <>
+                 "would make it look usable as a text colour — and each of the four " <>
+                 "falls under it somewhere, which is why none of them is one"
+      end
+    end
+
+    test "only the warning solid carries body text, and the rest carry a glyph" do
+      readable =
+        for status <- @statuses do
+          measured =
+            Colour.lc(
+              resolved_hex("sys.color.on.status.#{status}"),
+              resolved_hex("sys.color.status.#{status}")
+            )
+
+          {status, measured >= 75}
+        end
+
+      assert Enum.filter(readable, fn {_status, body} -> body end) == [{"warning", true}]
     end
 
     test "a class solid carries a glyph and not body text" do
@@ -489,7 +583,19 @@ defmodule Pluteus.Design.TokensTest do
     end
   end
 
-  defp in_theme(dotted, theme), do: dotted |> primitive() |> hex_in(theme)
+  # A theme overrides some primitives and leaves the rest, so a primitive it names comes
+  # from the theme and one it does not keeps the value it already has. That is the
+  # resolver's own composition rather than a lookup falling back: the inks are
+  # deliberately not theme-scoped, because a theme-following ink would be near-white on a
+  # mid-red in one theme and near-black on it in the other.
+  defp in_theme(dotted, theme) do
+    path = primitive(dotted)
+
+    case Tokens.all(theme) do
+      %{^path => _token} -> hex_in(path, theme)
+      %{} -> hex_in(path, "tokens")
+    end
+  end
 
   # A contrast context rebinds the role and a theme rebinds the primitive, so a role
   # the context moves is followed in the theme and one it leaves alone keeps its own
