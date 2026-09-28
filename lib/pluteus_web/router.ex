@@ -15,6 +15,7 @@ defmodule PluteusWeb.Router do
     # spec-10 §14.5's preferences are read per principal or not at all.
     plug PluteusWeb.Identify
     plug PluteusWeb.Contexts
+    plug PluteusWeb.Surface
   end
 
   # spec-07 §4.1: an entity URI answers with the interface where the request's `Accept`
@@ -26,6 +27,7 @@ defmodule PluteusWeb.Router do
     plug PluteusWeb.Negotiate
     plug :fetch_session
     plug PluteusWeb.ForwardAuth
+    plug PluteusWeb.Surface
   end
 
   # spec-07 §3.2: the one surface exempt from forward authentication, where a
@@ -49,6 +51,11 @@ defmodule PluteusWeb.Router do
     # beside the files and the other half in the interface, so this route is what the
     # licence requires rather than a courtesy.
     get "/notices", PageController, :notices
+
+    # [spec-10] §4.4's declaration. A surface is not a res, so §10.1 gives it a path of
+    # its own rather than this being a second address for something that has one.
+    get "/surface", SurfaceController, :ask
+    post "/surface", SurfaceController, :declare
   end
 
   scope "/", PluteusWeb do
