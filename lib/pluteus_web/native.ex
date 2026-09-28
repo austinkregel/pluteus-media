@@ -49,6 +49,9 @@ defmodule PluteusWeb.Native do
   The value the domain reserves for narrowing nothing becomes a nil language, which is
   what `Pluteus.Catalog.Profile` means by no preference. A request may name it too, so
   a client can ask for the unnarrowed resolution whatever the principal holds.
+
+  A request naming `language` with no value asks for the deployment's own language,
+  which the registry states.
   """
   @spec profile(Plug.Conn.t()) :: Profile.t()
   def profile(conn) do
@@ -58,13 +61,16 @@ defmodule PluteusWeb.Native do
     }
   end
 
-  # `has_key?` rather than a falsy test, because §7.4's stored range applies where the
-  # request does not name a language — not where it names an empty one.
+  # §7.4's stored range applies where the request does not name a language. Naming it
+  # empty asks to be narrowed and names no range to narrow by, so the deployment's own
+  # language answers.
   defp language(conn) do
     named =
-      if Map.has_key?(conn.params, "language"),
-        do: conn.params["language"],
-        else: Preferences.held(conn.assigns.principal.id, "language")
+      case Map.fetch(conn.params, "language") do
+        {:ok, ""} -> Registry.empty_request("language")
+        {:ok, range} -> range
+        :error -> Preferences.held(conn.assigns.principal.id, "language")
+      end
 
     if named == Registry.reserved("language"), do: nil, else: named
   end
