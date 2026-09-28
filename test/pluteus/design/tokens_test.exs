@@ -263,11 +263,10 @@ defmodule Pluteus.Design.TokensTest do
     end
 
     test "every solid clears both instruments against the ink it is paired with" do
-      # The assertion whose absence let a defect ship. Against the error solid the dark
-      # ink measures a conforming 4.54:1 under WCAG 2 and only APCA Lc 37.2, which is
-      # below the floor for something a person must perceive to operate — so one
-      # instrument said yes while the other said the glyph was unreadable. A.2.4 binds
-      # both, and checking only the first is how a pairing passes and fails at once.
+      # A.2.4 binds both instruments, and they disagree here. Against the error solid the
+      # dark ink measures a conforming 4.54:1 under WCAG 2 and only APCA Lc 37.2, which
+      # is below the floor for something a person must perceive to operate — so checking
+      # one instrument alone lets a pairing pass and fail at once.
       #
       # This is also what makes the four `on.status` roles load-bearing rather than four
       # names for one value: three take the dark ink and the error solid cannot.
