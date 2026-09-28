@@ -545,6 +545,33 @@ defmodule Pluteus.Design.TokensTest do
     end
   end
 
+  describe "A.3.5. The face, and the limitation it carries" do
+    test "every family resolves to faces the platform already has" do
+      # A.3.5: "The interface self-hosts its faces; there is no external font host."
+      # A stack of system faces is hosted nowhere, so nothing is fetched at render.
+      for {family, generic} <- [{"sans", "sans-serif"}, {"serif", "serif"}, {"mono", "monospace"}] do
+        names = Tokens.resolve!("sys.type.family.#{family}")
+
+        assert is_list(names)
+        assert generic in names, "#{family} ends without a generic family to fall back to"
+      end
+    end
+
+    test "nothing sets an optical size, and the absence is stated" do
+      # A.3.5: "A face without an optical-size axis cannot honour that rule. Where the
+      # chosen face has none, the limitation is recorded rather than ignored."
+      refute Enum.any?(Map.keys(Tokens.all()), &String.starts_with?(&1, "sys.type.optical-size"))
+
+      stated = get_in(Tokens.read(), ["sys", "type", "family", "$description"])
+
+      assert stated =~ "no optical-size axis"
+    end
+
+    test "distance far moves the root size and no type token" do
+      refute Enum.any?(Map.keys(Tokens.all("far")), &String.starts_with?(&1, "sys.type."))
+    end
+  end
+
   describe "motion: reduced, and what the token set cannot express" do
     test "the three that move something are zeroed and the shortest is retained" do
       # A.7 requires transform and position durations resolve to zero while short
