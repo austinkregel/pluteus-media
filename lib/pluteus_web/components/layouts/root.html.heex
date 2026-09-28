@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {context_attributes(@contexts)}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -17,9 +17,15 @@
       // attribute written after the first paint is a flash of the wrong theme.
       //
       // A browser refusing site data throws on the first read here and nothing below
-      // runs. That is the intended behaviour: with no attribute on the root, the
-      // generated stylesheet's `prefers-color-scheme`, `prefers-contrast` and
-      // `prefers-reduced-motion` queries are what renders, which is why they exist.
+      // runs. That is the intended behaviour: what the server rendered stays on the
+      // root, and where it rendered nothing the generated stylesheet's
+      // `prefers-color-scheme`, `prefers-contrast` and `prefers-reduced-motion` queries
+      // are what answers, which is why they exist.
+      //
+      // Where the server named a principal's intent, that is what this follows.
+      // `localStorage` is then the carrier for a page with nobody signed in and for
+      // `distance`, which spec-10 §4.4 records with the device — never for a preference
+      // §14.5 makes one person's.
       (() => {
         // Each modifier that has a system signal, with the context its query means
         // and the context its absence means.
@@ -41,8 +47,28 @@
 
         const root = document.documentElement;
         const key = (modifier) => `pluteus:${modifier}`;
+        const modifiers = Object.keys(defaults);
+
+        // The modifiers the server holds an intent for. It names them, so nothing here
+        // decides which belong to the person and which to the device.
+        const stored = new Set((root.dataset.stored || "").split(" ").filter(Boolean));
+
+        // Read once, before anything below writes an attribute: `apply` writes these same
+        // names, and reading them later would return whatever it had just put there.
+        const intents = {};
+        modifiers.forEach((modifier) => {
+          const rendered = root.getAttribute(`data-${modifier}-intent`);
+          if (rendered) intents[modifier] = rendered;
+        });
+
+        // A household browser is shared, so a value under a stored modifier's key belongs
+        // to whoever used this browser last, or to this person from before the proxy named
+        // them. Not reading it is not enough — it is removed, because a preference §14.5
+        // makes confidential sitting in shared storage is the exposure itself.
+        stored.forEach((modifier) => localStorage.removeItem(key(modifier)));
 
         const intentOf = (modifier) =>
+          intents[modifier] ||
           localStorage.getItem(key(modifier)) ||
           (systems[modifier] ? "system" : defaults[modifier]);
 
@@ -62,7 +88,6 @@
           });
         };
 
-        const modifiers = Object.keys(defaults);
         modifiers.forEach(apply);
 
         // A system preference changing mid-session moves the resolved value without
@@ -76,13 +101,38 @@
           if (modifiers.includes(modifier)) apply(modifier);
         });
 
+        // A stored modifier's choice goes to the store and nowhere else. The page moves
+        // first so the control answers the press at once, and moves back if the store
+        // refuses: a control left showing a context that was never written would be
+        // reporting a preference this person does not have.
+        const persist = (modifier, context, previous) =>
+          fetch("/preferences", {
+            method: "PUT",
+            headers: {"content-type": "application/json"},
+            body: JSON.stringify({preferences: {[modifier]: context}})
+          }).then((response) => {
+            if (response.ok) return;
+            if (previous) intents[modifier] = previous;
+            else delete intents[modifier];
+            apply(modifier);
+            throw new Error(`${modifier} was not stored: ${response.status}`);
+          });
+
         document.addEventListener("click", (event) => {
           const button = event.target.closest("[data-modifier][data-context]");
           if (!button) return;
           const {modifier, context} = button.dataset;
-          if (context === "system") localStorage.removeItem(key(modifier));
-          else localStorage.setItem(key(modifier), context);
-          apply(modifier);
+
+          if (stored.has(modifier)) {
+            const previous = intents[modifier];
+            intents[modifier] = context;
+            apply(modifier);
+            persist(modifier, context, previous);
+          } else {
+            if (context === "system") localStorage.removeItem(key(modifier));
+            else localStorage.setItem(key(modifier), context);
+            apply(modifier);
+          }
         });
 
         // The buttons do not exist when this runs, so their pressed state is set once
