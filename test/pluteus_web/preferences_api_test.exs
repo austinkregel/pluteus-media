@@ -54,6 +54,40 @@ defmodule PluteusWeb.PreferencesApiTest do
       assert body["preferences"]["caption_ground"] == "none"
       assert body["preferences"]["browse_people"] == "hidden"
     end
+
+    test "A.3.6's reading properties are settable over the wire", %{conn: conn} do
+      # A.3.6 requires each be settable "per principal and persisted", so each has to be
+      # reachable by a request or it is not settable at all.
+      body =
+        conn
+        |> through_proxy(@ada)
+        |> put("/preferences", %{
+          "preferences" => %{
+            "reading_face" => "sans",
+            "reading_measure" => "52",
+            "reading_alignment" => "justify",
+            "reading_hyphenation" => "on"
+          }
+        })
+        |> json_response(200)
+
+      assert body["preferences"]["reading_face"] == "sans"
+      assert body["preferences"]["reading_measure"] == "52"
+      assert body["preferences"]["reading_alignment"] == "justify"
+      assert body["preferences"]["reading_hyphenation"] == "on"
+    end
+
+    test "a reading measure outside its range is refused and names the range", %{conn: conn} do
+      body =
+        conn
+        |> through_proxy(@ada)
+        |> put("/preferences", %{"preferences" => %{"reading_measure" => "300"}})
+        |> json_response(422)
+
+      assert body["preference"] == "reading_measure"
+      assert body["admits"]["unit"] == "characters"
+      assert body["admits"]["maximum"] == 90
+    end
   end
 
   describe "spec-10 §14.5. Not visible to another" do
