@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" {context_attributes(@contexts)}>
+<html lang="en" {context_attributes(@contexts, @distance)}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -35,14 +35,15 @@
           motion: ["(prefers-reduced-motion: reduce)", "reduced", "full"]
         };
 
-        // The token file's own default resolution. A modifier absent from `systems`
-        // has no media feature to read, so its intent is always an outright choice.
+        // The token file's own default resolution for each modifier this script resolves.
+        // A modifier absent from `systems` has no media feature to read, so its intent is
+        // always an outright choice. §4.4 makes `distance` the device's declaration, which
+        // the server renders.
         const defaults = {
           theme: "dark",
           contrast: "normal",
           motion: "full",
-          density: "comfortable",
-          distance: "near"
+          density: "comfortable"
         };
 
         const root = document.documentElement;
@@ -52,6 +53,9 @@
         // The modifiers the server holds an intent for. It names them, so nothing here
         // decides which belong to the person and which to the device.
         const stored = new Set((root.dataset.stored || "").split(" ").filter(Boolean));
+
+        // The modifiers §4.4 makes a declaration of the device's. The server renders them.
+        const declared = new Set((root.dataset.declared || "").split(" ").filter(Boolean));
 
         // Read once, before anything below writes an attribute: `apply` writes these same
         // names, and reading them later would return whatever it had just put there.
@@ -118,12 +122,34 @@
             throw new Error(`${modifier} was not stored: ${response.status}`);
           });
 
+        // A declaration is recorded with the device by a request, and the page is reloaded
+        // to be drawn under it.
+        const declare = (modifier, context) => {
+          const token = document.querySelector("meta[name='csrf-token']").content;
+          const body = new URLSearchParams({
+            [modifier]: context,
+            _csrf_token: token,
+            return_to: location.pathname
+          });
+
+          fetch(`/${modifier}`, {
+            method: "POST",
+            headers: {"content-type": "application/x-www-form-urlencoded"},
+            body
+          }).then((response) => {
+            if (!response.ok) throw new Error(`${modifier} was not declared: ${response.status}`);
+            location.reload();
+          });
+        };
+
         document.addEventListener("click", (event) => {
           const button = event.target.closest("[data-modifier][data-context]");
           if (!button) return;
           const {modifier, context} = button.dataset;
 
-          if (stored.has(modifier)) {
+          if (declared.has(modifier)) {
+            declare(modifier, context);
+          } else if (stored.has(modifier)) {
             const previous = intents[modifier];
             intents[modifier] = context;
             apply(modifier);
