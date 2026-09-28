@@ -146,11 +146,13 @@ defmodule Pluteus.Design.Glyph do
     {ux, uy} = unit(x2 - x1, y2 - y1)
     {nx, ny} = {-uy * r, ux * r}
 
+    # Down one side and back the other, in the order that winds clockwise as `rect/7`
+    # and `circle/5` do.
     corners = [
-      {x1 + nx, y1 + ny},
-      {x2 + nx, y2 + ny},
+      {x1 - nx, y1 - ny},
       {x2 - nx, y2 - ny},
-      {x1 - nx, y1 - ny}
+      {x2 + nx, y2 + ny},
+      {x1 + nx, y1 + ny}
     ]
 
     [{ax, ay}, {bx, by}, {cx, cy}, {dx, dy}] =
