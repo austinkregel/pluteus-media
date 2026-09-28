@@ -40,6 +40,8 @@ defmodule PluteusWeb.CoreComponents do
   """
   use Phoenix.Component
 
+  import PluteusWeb.Icon, only: [icon: 1]
+
   alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
 
@@ -509,65 +511,6 @@ defmodule PluteusWeb.CoreComponents do
       </div>
     </dl>
     """
-  end
-
-  @doc """
-  Renders a [Heroicon](https://heroicons.com) at the size its own grid is drawn for.
-
-  A.8.2 binds one variant to each size band — `16/solid` from 16 to 19 px, `20/solid`
-  from 20 to 23, `24/outline` at 24 and above — because the 20 and 16 drawings are
-  separate artwork rather than the 24 scaled down, and below about 20 px an outline's
-  counters close and the glyph reads as a grey lozenge. So the suffix decides the
-  rendered size and `class` never sets it: there is no pairing for a caller to get
-  wrong, because there is no second thing to pass.
-
-  `size` reaches A.8.2's television figures, 80 px minimum and 96 preferred, and only
-  the 24 grid admits them. Ordered by what the eye receives, a 56 px glyph at three
-  metres subtends 41 arcminutes — optically a 22 px browser icon — so the television
-  sits with the small icons while taking the largest drawing.
-
-  ## Examples
-
-      <.icon name="hero-x-mark-mini" />
-      <.icon name="hero-arrow-path-micro" class="ml-1 motion-safe:animate-spin" />
-      <.icon name="hero-play" size={96} />
-  """
-  attr :name, :string, required: true
-  attr :size, :integer, default: nil, values: [nil, 80, 96]
-  attr :class, :any, default: nil
-
-  def icon(%{name: "hero-" <> _} = assigns) do
-    assigns = assign(assigns, :dimension, dimension(assigns.name, assigns.size))
-
-    ~H"""
-    <span class={[@name, @dimension, @class]} />
-    """
-  end
-
-  # The name is passed whole and literal rather than assembled from a glyph and a
-  # size, because A.9.5 is about more than legibility: a class name built at run time
-  # is not seen by the CSS build and produces no rule at all, so the element renders
-  # as nothing rather than as the wrong thing.
-  #
-  # What is still missing is the enumeration. A.9.5 wants `values:` on the glyph name
-  # so a typo fails to compile, and that list arrives with the vendored set — until
-  # then a misspelt glyph renders an empty span.
-  defp dimension(name, nil) do
-    cond do
-      String.ends_with?(name, "-micro") -> "size-4"
-      String.ends_with?(name, "-mini") -> "size-5"
-      true -> "size-6"
-    end
-  end
-
-  defp dimension(name, large) when large in [80, 96] do
-    if String.ends_with?(name, "-micro") or String.ends_with?(name, "-mini") do
-      raise ArgumentError,
-            "#{name} is a small grid and does not reach #{large}px (A.8.2): " <>
-              "the television takes the 24 outline, which is the name without a suffix"
-    end
-
-    if large == 80, do: "size-20", else: "size-24"
   end
 
   ## JS Commands
