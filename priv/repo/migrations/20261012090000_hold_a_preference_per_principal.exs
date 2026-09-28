@@ -1,8 +1,8 @@
 defmodule Pluteus.Repo.Migrations.HoldAPreferencePerPrincipal do
   use Ecto.Migration
 
-  # A row per key rather than a column per preference: the keys are heterogeneous and
-  # arrive in groups from four sections, and a column each would be a migration each.
+  # A row per key rather than a column per preference: the keys are heterogeneous and a
+  # column each would be a migration each.
   #
   # The key's domain is stated here as well as in the registry, because a check the
   # database holds is one no caller can forget; a test asserts the two agree. The
@@ -11,6 +11,9 @@ defmodule Pluteus.Repo.Migrations.HoldAPreferencePerPrincipal do
   @keys ~w(
     theme contrast motion density text_size described_audio automatic_preview
     next_member_offer
+    caption_face caption_size caption_ground caption_edge
+    browse_continue browse_recently_added browse_people browse_places browse_time
+    browse_sets browse_everything
   )
 
   def up do
