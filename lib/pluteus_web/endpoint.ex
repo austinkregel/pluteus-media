@@ -11,9 +11,12 @@ defmodule PluteusWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # The socket's only identity is the proxy's headers, as spec-07 §5.2 has it for the
+  # client socket. `PluteusWeb.EntityLive` establishes the principal from them again and
+  # raises where they name someone other than the page's.
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [:x_headers, session: @session_options]],
+    longpoll: [connect_info: [:x_headers, session: @session_options]]
 
   # spec-07 §5.2. Only the `x-` headers reach a socket, which is where the
   # proxy's secret and identity travel.
