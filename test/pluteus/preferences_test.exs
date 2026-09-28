@@ -11,6 +11,7 @@ defmodule Pluteus.PreferencesTest do
 
   use Pluteus.DataCase, async: true
 
+  alias Pluteus.Design.Tokens
   alias Pluteus.Preferences
   alias Pluteus.Preferences.Registry
   alias Pluteus.Principals
@@ -108,6 +109,77 @@ defmodule Pluteus.PreferencesTest do
 
     test "a key whose domain reserves nothing raises rather than answering a value" do
       assert_raise KeyError, fn -> Registry.reserved("theme") end
+    end
+
+    test "A.3.6's nine reading properties are each settable, and nothing else is" do
+      # A.3.6: a reader "MUST be able to set, per principal and persisted, the face, size,
+      # line height, measure, letter and word spacing, alignment, hyphenation and theme of
+      # long-form text". A key each, so the set is closed in the database.
+      properties =
+        ~w(face size line_height measure letter_spacing word_spacing
+           alignment hyphenation theme)
+
+      for property <- properties do
+        assert "reading_#{property}" in Registry.keys()
+      end
+
+      settable = Enum.filter(Registry.keys(), &String.starts_with?(&1, "reading_"))
+
+      assert length(settable) == length(properties)
+    end
+
+    test "the three defaults A.3.6 states are the three it holds" do
+      assert Registry.default("reading_line_height") == "1.55"
+      assert Registry.default("reading_alignment") == "start"
+      assert Registry.default("reading_hyphenation") == "off"
+
+      # Justification without hyphenation produces rivers, so a reader choosing one is
+      # choosing against A.3.6's default for the other.
+      assert Registry.admits?("reading_alignment", "justify")
+      assert Registry.admits?("reading_hyphenation", "on")
+    end
+
+    test "a reading face is one of the families the design language holds" do
+      # The domain is the token file's, not a list of its own: a family added there is one
+      # a reader may be set in, and one removed is not.
+      families =
+        Tokens.all()
+        |> Map.keys()
+        |> Enum.filter(&String.starts_with?(&1, "sys.type.family."))
+        |> Enum.map(&String.replace_prefix(&1, "sys.type.family.", ""))
+
+      %{"values" => offered} = Registry.domain("reading_face")
+
+      assert Enum.sort(offered) == Enum.sort(families)
+    end
+
+    test "the reading face defaults to the family the token file gives reading" do
+      # A.3.6 states no default face. The token file describes one family as "Long-form
+      # reading and a scan's transcript", which is the answer rather than a preference of
+      # this registry's.
+      reading = Registry.default("reading_face")
+
+      assert Tokens.fetch!("sys.type.family.#{reading}")["$description"] =~ "Long-form reading"
+    end
+
+    test "a dyslexia face is neither a default nor a label" do
+      # A.3.6 permits one among several choices and forbids it being a default or labelled
+      # an accessibility feature: [DYSLEXIA-META] finds no reliable effect over 688
+      # readers. So no value here names a condition.
+      %{"values" => offered} = Registry.domain("reading_face")
+
+      for value <- offered do
+        refute value =~ "dyslex"
+      end
+    end
+
+    test "reading measures and spacings stay inside their stated bounds" do
+      assert Registry.admits?("reading_line_height", "1.15")
+      refute Registry.admits?("reading_line_height", "1.14")
+      assert Registry.admits?("reading_measure", "45")
+      refute Registry.admits?("reading_measure", "91")
+      assert Registry.admits?("reading_letter_spacing", "0.2")
+      refute Registry.admits?("reading_letter_spacing", "-0.1")
     end
 
     test "a key outside the registry is refused", %{actor: actor} do
