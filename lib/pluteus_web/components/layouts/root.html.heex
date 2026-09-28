@@ -61,15 +61,15 @@
           if (rendered) intents[modifier] = rendered;
         });
 
-        // A household browser is shared, so a value under a stored modifier's key belongs
-        // to whoever used this browser last, or to this person from before the proxy named
-        // them. Not reading it is not enough — it is removed, because a preference §14.5
-        // makes confidential sitting in shared storage is the exposure itself.
-        stored.forEach((modifier) => localStorage.removeItem(key(modifier)));
-
+        // A stored modifier never reads this browser's own key. That key is the device's
+        // carrier — what someone chose here before the proxy named anybody — and on a
+        // shared browser it is equally the last person's, which §14.5 forbids applying to
+        // this one. It is left alone rather than removed: it is not this principal's to
+        // store and not this principal's to destroy, and it is what answers again once
+        // nobody is signed in.
         const intentOf = (modifier) =>
           intents[modifier] ||
-          localStorage.getItem(key(modifier)) ||
+          (stored.has(modifier) ? null : localStorage.getItem(key(modifier))) ||
           (systems[modifier] ? "system" : defaults[modifier]);
 
         const resolve = (modifier, intent) => {
