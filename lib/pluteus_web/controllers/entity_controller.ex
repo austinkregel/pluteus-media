@@ -166,7 +166,15 @@ defmodule PluteusWeb.EntityController do
   # The interface needs the document shell the rendered surfaces share, and the contexts
   # spec-10 §14.5 makes the principal's own. The representation's path needs neither, so
   # neither is fetched for it.
+  # §4.4: where the device has declared no surface it is undetermined, and the deployment
+  # asks before it renders.
   defp interface(conn, res) do
+    if conn.assigns.distance,
+      do: render_interface(conn, res),
+      else: redirect(conn, to: ~p"/surface?return_to=#{conn.request_path}")
+  end
+
+  defp render_interface(conn, res) do
     profile = Native.profile(conn)
 
     conn
