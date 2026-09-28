@@ -12,17 +12,9 @@ defmodule Pluteus.Preferences.Registry do
   holds them all and a quantity's unit is the registry's to state rather than the
   column's to imply.
 
-  ## What this does not yet hold
-
-  **Caption styling**, which spec-10 §17.4 requires "be adjustable by the person,
-  persisted per principal" without naming a single property of it. §20 forbids
-  supplying a value a registry omits, and a key whose domain nothing states would be
-  exactly that. It arrives when §17.4 says what it consists of.
-
-  **Hidden browse modes** (§9.2), which is a `MAY` over modes no surface yet has.
-
-  **The reading preferences** of [ANNEX-A] A.3.6 and **the resolution profile** of
-  spec-01 §7.4, which land with the surfaces and the amendment that define them.
+  The caption properties are this deployment's own. spec-10 §17.4 requires caption
+  presentation "be adjustable by the person, persisted per principal" and names no
+  property of it, and §20 makes a registry where a section's values are populated.
   """
 
   alias Pluteus.Registry
