@@ -50,6 +50,13 @@
       "default": "on"
     },
 
+    "language": {
+      "requires": "spec-01 §7.4, spec-10 §6.1",
+      "description": "The languages whose names this principal prefers, held as the language range spec-01 §7.4's resolution profile carries. A nomen's tag is matched against it by [RFC4647] §3.3.1 basic filtering rather than string equality, so `en` is matched by `en`, `en-GB` and `en-Latn-GB`. A request naming `language` narrows that request only and does not change what is held here.",
+      "domain": { "kind": "language_range", "reserved": "any" },
+      "default": "any"
+    },
+
     "caption_face": {
       "requires": "spec-10 §17.4, §14.5",
       "description": "§17.4 requires caption presentation \"be adjustable by the person, persisted per principal\" and names no property of it, so these four are what this deployment draws. A caption is set in the same three families the rest of the interface has.",
