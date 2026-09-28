@@ -25,9 +25,7 @@ defmodule PluteusWeb.Icon do
   The names come from `Pluteus.Design.Icons`, and the drawings are read at compile time
   from what `mix icons.vendor` wrote. So the set that exists is the set a template may
   name, which closes A.9.5 twice: a literal name outside it fails to compile, and a
-  name arriving as a value raises at the call site. Both matter because the alternative
-  failure is silent — a glyph built from a class rather than from a drawing renders as
-  an empty element when nothing answers the name.
+  name arriving as a value raises at the call site.
   """
   use Phoenix.Component
 
