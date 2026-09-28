@@ -52,9 +52,10 @@
 
     "language": {
       "requires": "spec-01 §7.4, spec-10 §6.1",
-      "description": "The languages whose names this principal prefers, held as the language range spec-01 §7.4's resolution profile carries. A nomen's tag is matched against it by [RFC4647] §3.3.1 basic filtering rather than string equality, so `en` is matched by `en`, `en-GB` and `en-Latn-GB`. A request naming `language` narrows that request only and does not change what is held here.",
+      "description": "The languages whose names this principal prefers, held as the language range spec-01 §7.4's resolution profile carries. A nomen's tag is matched against it by [RFC4647] §3.3.1 basic filtering rather than string equality, so `en` is matched by `en`, `en-GB` and `en-Latn-GB`. A request naming `language` narrows that request only and does not change what is held here. `empty_request` is what a request naming `language` with no value asks for: naming the parameter asks to be narrowed, and an empty value names no range to narrow by, so the deployment's own language answers.",
       "domain": { "kind": "language_range", "reserved": "any" },
-      "default": "any"
+      "default": "any",
+      "empty_request": "en"
     },
 
     "caption_face": {
