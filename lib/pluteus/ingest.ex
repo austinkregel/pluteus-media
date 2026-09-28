@@ -30,6 +30,25 @@ defmodule Pluteus.Ingest do
   @layout ~r|\A[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z|
 
   @doc """
+  The one inbox the household writes to (spec-04 §4.1).
+
+  There is exactly one, and the model is built on it. `inbox_sightings` is keyed on the
+  path relative to it, and `acquisitions` admits one in-progress acquisition per relative
+  path, so a relative path identifies a file across the whole deployment — which is also
+  why an acquisition survives the inbox being mounted somewhere else. A second watched
+  directory could not be told from the first, and `Pluteus.Ingest.AcquisitionTest` asserts
+  the two keys that say so.
+
+  `acquire/2` and `Pluteus.Ingest.Place.place_due/1` are given an inbox rather than
+  reading it here, so that a test can work in a directory of its own. Both of those
+  arguments name this one in the deployment, and each takes the inbox only to read the
+  filesystem: which acquisitions they consider is not narrowed by it, because under one
+  inbox there is nothing to narrow.
+  """
+  @spec inbox() :: Path.t()
+  def inbox, do: config(:inbox)
+
+  @doc """
   One pass of the acquire stage over an inbox.
 
   In-progress records are completed first, whatever state their inbox file is
