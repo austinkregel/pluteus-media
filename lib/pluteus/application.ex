@@ -16,6 +16,7 @@ defmodule Pluteus.Application do
       Pluteus.Changes.Consumption,
       release(),
       onboarding(),
+      design_watcher(),
       # Start to serve requests, typically the last entry
       PluteusWeb.Endpoint
     ]
@@ -32,6 +33,15 @@ defmodule Pluteus.Application do
     if Application.fetch_env!(:pluteus, :announce_onboarding),
       do: Supervisor.child_spec({Task, &Pluteus.Onboarding.announce/0}, restart: :temporary),
       else: Supervisor.child_spec({Task, fn -> :ok end}, restart: :temporary)
+  end
+
+  # Saving a design token rewrites the stylesheet, so a value is as cheap to try as
+  # Annex A says it is. Development only: a release replaces `priv` rather than editing
+  # it underneath a running node, and there is no `assets/` there to write to.
+  defp design_watcher do
+    if Keyword.fetch!(Application.fetch_env!(:pluteus, Pluteus.Design.Watcher), :start),
+      do: Pluteus.Design.Watcher,
+      else: Supervisor.child_spec({Task, fn -> :ok end}, restart: :temporary, id: :no_watcher)
   end
 
   # The feed's release reads the database on a timer, which a test's sandbox
