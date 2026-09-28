@@ -166,19 +166,44 @@ defmodule PluteusWeb.RenderedContextsTest do
   end
 
   describe "The script prefers what the server said" do
-    test "a rendered intent outranks shared storage, and a stored key is removed", %{conn: conn} do
+    test "a rendered intent outranks this browser's own key", %{conn: conn} do
       # The precedence is the whole of the fix: with `localStorage` first, the next person
       # to use a household browser inherits the last one's settings, which is what §14.5
-      # forbids. Removing the key as well is what makes it not there rather than merely
-      # unread.
+      # forbids.
       html = conn |> get("/") |> html_response(200)
 
       {intent_at, _length} = :binary.match(html, "intents[modifier] ||")
       {storage_at, _length} = :binary.match(html, "localStorage.getItem(key(modifier))")
 
-      assert intent_at < storage_at, "shared storage is consulted before the server's intent"
+      assert intent_at < storage_at, "this browser's key is consulted before the server's"
+    end
 
-      assert html =~ "stored.forEach((modifier) => localStorage.removeItem(key(modifier)));"
+    test "a stored modifier does not read this browser's key at all", %{conn: conn} do
+      # Ordering alone would leave the shared key as the fallback, so a stored modifier the
+      # server said nothing about would inherit whatever the last person chose here.
+      html = conn |> get("/") |> html_response(200)
+
+      assert html =~ "(stored.has(modifier) ? null : localStorage.getItem(key(modifier)))"
+    end
+
+    test "this browser's key is touched only for a modifier the store does not hold", %{
+      conn: conn
+    } do
+      # The device's key carries what someone chose here before the proxy named anybody, and
+      # on a shared browser it is equally the last person's. A stored modifier neither reads
+      # it nor writes it: writing would put a preference §14.5 makes confidential into
+      # storage the next person can read, and clearing would lose an anonymous choice for
+      # good the moment someone signs in.
+      html = conn |> get("/") |> html_response(200)
+
+      {branch_at, _length} = :binary.match(html, "if (stored.has(modifier)) {")
+      {persist_at, _length} = :binary.match(html, "persist(modifier, context, previous);")
+      {write_at, _length} = :binary.match(html, "localStorage.setItem(key(modifier), context)")
+      {clear_at, _length} = :binary.match(html, "localStorage.removeItem(key(modifier))")
+
+      assert branch_at < persist_at
+      assert persist_at < write_at, "a stored modifier's press writes this browser's storage"
+      assert persist_at < clear_at, "a stored modifier's press clears this browser's storage"
     end
   end
 end
