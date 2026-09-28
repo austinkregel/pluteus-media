@@ -54,6 +54,14 @@ defmodule Pluteus.Preferences.Registry do
   def reserved(key), do: key |> domain() |> Map.fetch!("reserved")
 
   @doc """
+  What a request naming this preference with no value asks for.
+
+  A key that states none raises.
+  """
+  @spec empty_request(String.t()) :: String.t()
+  def empty_request(key), do: key |> entry() |> Map.fetch!("empty_request")
+
+  @doc """
   Whether a value is inside a key's domain.
 
   A key the registry does not carry raises rather than answering false: a caller
@@ -68,15 +76,14 @@ defmodule Pluteus.Preferences.Registry do
     end
   end
 
-  # [RFC4647] §2.1's basic language range, less the wildcard. The reserved value is what
-  # narrows nothing, and it is checked first because it is spelled as a range would be —
-  # every such word is: the grammar admits any run of letters. Reserving it is what keeps
-  # the two apart.
+  # [RFC4647] §2.1's basic language range, less the wildcard. The grammar admits any run
+  # of letters, so the reserved value is spelled as a range would be and is matched ahead
+  # of it.
   #
-  # The wildcard `*` is refused. [spec-10] §6.1 matches it against every tag, so its
-  # second clause would make the tagged names the only candidates and drop the
-  # household's own untagged vocabulary — which spec-01 §7.4 forbids standing for the
-  # absence of a preference, and which nothing else would ask for.
+  # The wildcard `*` is refused: [spec-10] §6.1 matches it against every tag, so its
+  # second clause makes the tagged names the only candidates and drops the household's own
+  # untagged vocabulary, which spec-01 §7.4 forbids standing for the absence of a
+  # preference.
   @range ~r/^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$/
 
   defp range?(reserved, reserved), do: true
