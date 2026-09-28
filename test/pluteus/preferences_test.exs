@@ -25,7 +25,7 @@ defmodule Pluteus.PreferencesTest do
     test "every key the registry names has a domain and a default inside it" do
       for key <- Registry.keys() do
         assert %{"kind" => kind} = Registry.domain(key)
-        assert kind in ~w(one_of number)
+        assert kind in ~w(one_of number language_range)
 
         assert Registry.admits?(key, Registry.default(key)),
                "#{key}'s default is outside its own domain"
@@ -81,6 +81,33 @@ defmodule Pluteus.PreferencesTest do
       assert Registry.admits?("caption_ground", "none")
       assert Registry.admits?("caption_edge", "outline")
       refute Registry.admits?("caption_ground", "transparent")
+    end
+
+    test "a language range is admitted, and the reserved value with it" do
+      # spec-01 §7.4's profile carries a language range, matched by [RFC4647] §3.3.1
+      # basic filtering ([spec-10] §6.1), so the domain is a grammar rather than a list:
+      # the household's languages are not the deployment's to enumerate.
+      for range <- ~w(en en-GB en-Latn-GB de zh-Hans-CN any) do
+        assert Registry.admits?("language", range), "#{range} is a language range"
+      end
+
+      for value <- ["en_GB", "en-", "-en", "toolongsubtag", "en GB", ""] do
+        refute Registry.admits?("language", value), "#{inspect(value)} is not a language range"
+      end
+    end
+
+    test "the wildcard range is refused, because it is not the absence of a preference" do
+      # §6.1's basic filtering matches `*` against every tag, so its second clause would
+      # make the tagged names the only candidates and drop the household's own untagged
+      # vocabulary (spec-01 §7.2). spec-01 §7.4 forbids it standing for no preference,
+      # and nothing else would ask for it.
+      refute Registry.admits?("language", "*")
+
+      assert Registry.default("language") == Registry.reserved("language")
+    end
+
+    test "a key whose domain reserves nothing raises rather than answering a value" do
+      assert_raise KeyError, fn -> Registry.reserved("theme") end
     end
 
     test "a key outside the registry is refused", %{actor: actor} do
