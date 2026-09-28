@@ -8,6 +8,13 @@ defmodule PluteusWeb.Router do
     plug :put_root_layout, html: {PluteusWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+
+    # A rendered surface may answer with no principal — the design language and the
+    # licence notices are the household's — so identity is attached where the proxy
+    # named one rather than required of every request. Contexts follows it, because
+    # spec-10 §14.5's preferences are read per principal or not at all.
+    plug PluteusWeb.Identify
+    plug PluteusWeb.Contexts
   end
 
   pipeline :api do
