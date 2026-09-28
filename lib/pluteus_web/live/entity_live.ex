@@ -24,6 +24,8 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Res
   alias Pluteus.Lifecycle
+  alias Pluteus.Presentation
+  alias Pluteus.Presentation.Registry
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
@@ -104,10 +106,40 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:representation, representation)
      |> assign(:noun, ComposedName.noun(res.kind))
      |> assign(:addresses, addresses(representation))
+     |> assign(:medium, medium(res))
      |> assign(:address, session["address"])
      |> assign(:placed?, placed?(res, session["address"], session["unit"]))
      |> assign(:whole, session["whole"])
      |> assign(:announcement, "")}
+  end
+
+  # §8.4's band 3 is the medium itself. What the subject has, rather than what its category
+  # ought to have: the category-presentation registry §20 names is unseeded, so the
+  # artefacts that exist are the only account of what can be shown. No image is generated to
+  # stand for a holding that has none, and a band with nothing in it is absent.
+  defp medium(res) do
+    artefacts = Map.new(Presentation.for_subject(res.id), &{&1.profile, &1})
+
+    %{
+      picture: picture(artefacts),
+      waveform: artefacts[Registry.waveform_overview()["name"]],
+      path: "/#{Native.paths()[res.kind]}/#{res.id}/presentation"
+    }
+  end
+
+  # The graded widths are one picture at several sizes, so they stand in for each other. A
+  # key frame is a different picture — a frame of the moving image rather than a cover — so
+  # it answers only where no graded width was derived, and never alongside them.
+  defp picture(artefacts) do
+    graded =
+      Registry.image_profiles()
+      |> Enum.map(&artefacts[&1["name"]])
+      |> Enum.reject(&is_nil/1)
+
+    case graded do
+      [] -> List.wrap(artefacts[Registry.key_frame()["name"]])
+      widths -> widths
+    end
   end
 
   # §10.3: where the region cannot be placed the surface says so rather than landing at the
@@ -182,6 +214,38 @@ defmodule PluteusWeb.EntityLive do
           Named by what it is made of, since nobody has named it.
         </p>
       </header>
+
+      <section
+        :if={@medium.picture != [] or @medium.waveform}
+        id="entity-medium"
+        aria-labelledby="entity-medium-heading"
+        class="mb-10"
+      >
+        <h2 id="entity-medium-heading" class="sr-only">The thing itself</h2>
+
+        <img
+          :if={@medium.picture != []}
+          id="entity-picture"
+          src={served(@medium, List.last(@medium.picture))}
+          srcset={srcset(@medium)}
+          sizes="(min-width: 48rem) 42rem, 100vw"
+          width={List.last(@medium.picture).width}
+          height={List.last(@medium.picture).height}
+          alt=""
+          class="w-full rounded-lg bg-surface-raised"
+        />
+
+        <canvas
+          :if={@medium.waveform}
+          id="entity-waveform"
+          phx-hook="Waveform"
+          data-src={served(@medium, @medium.waveform)}
+          height="96"
+          class="mt-4 w-full rounded-lg bg-surface-raised text-on-surface-strong"
+          aria-label="The loudness of this recording over its length"
+        >
+        </canvas>
+      </section>
 
       <section
         :if={@address}
@@ -305,6 +369,15 @@ defmodule PluteusWeb.EntityLive do
 
   defp composed?(representation) do
     representation["name"]["state"] != "held" and not is_nil(representation["composed_name"])
+  end
+
+  # §11.1: an artefact is asked for by profile name, at the URI its subject already has.
+  defp served(medium, artefact), do: "#{medium.path}/#{artefact.profile}"
+
+  # The width each graded artefact actually is, so the browser picks one from CSS pixels
+  # times device pixel ratio and never wants an intermediate.
+  defp srcset(medium) do
+    Enum.map_join(medium.picture, ", ", &"#{served(medium, &1)} #{&1.width}w")
   end
 
   @doc """
