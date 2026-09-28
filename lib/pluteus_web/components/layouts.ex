@@ -99,23 +99,29 @@ defmodule PluteusWeb.Layouts do
   the person.
 
   `data-stored` names the modifiers the store answers for, so the script knows which
-  ones it must not read out of shared storage.
+  ones it must not read out of shared storage. `data-declared` names the one the device
+  declares, and both attributes are absent until it has, since §4.4 leaves an undeclared
+  surface undetermined.
   """
-  @spec context_attributes(%{String.t() => String.t()}) :: [{String.t(), String.t()}]
-  def context_attributes(contexts) when map_size(contexts) == 0, do: []
-
-  def context_attributes(contexts) do
+  @spec context_attributes(%{String.t() => String.t()}, String.t() | nil) ::
+          [{String.t(), String.t()}]
+  def context_attributes(contexts, distance) do
     stored = contexts |> Map.keys() |> Enum.sort()
 
-    attributes =
+    intents =
       Enum.flat_map(stored, fn modifier ->
         intent = Map.fetch!(contexts, modifier)
 
         [{"data-#{modifier}-intent", intent} | resolved(modifier, intent)]
       end)
 
-    [{"data-stored", Enum.join(stored, " ")} | attributes]
+    named = if stored == [], do: [], else: [{"data-stored", Enum.join(stored, " ")}]
+
+    named ++ intents ++ declaration(distance)
   end
+
+  defp declaration(nil), do: []
+  defp declaration(distance), do: [{"data-declared", "distance"}, {"data-distance", distance}]
 
   defp resolved(_modifier, "system"), do: []
   defp resolved(modifier, intent), do: [{"data-#{modifier}", intent}]
