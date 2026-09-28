@@ -22,6 +22,29 @@ defmodule Pluteus.Ingest.AcquisitionTest do
     %{inbox: inbox!()}
   end
 
+  describe "§4.1. Files enter through an inbox" do
+    test "a relative path identifies a file deployment-wide, so there is one inbox" do
+      # §4.1 gives the household one inbox, and these two keys are what the rest of
+      # ingest rests on: neither names an inbox, so a path relative to one is an identity
+      # across the whole deployment. A second watched directory would collide with the
+      # first on both, silently for the sighting and loudly for the acquisition, so
+      # adding one means re-keying both and `Pluteus.Ingest.inbox/0` says as much.
+      #
+      # This is also why `Place.place_due/1` is not narrowed by the inbox it is given.
+      # The closing bracket is part of each match, so a key gaining a second column fails
+      # here rather than passing on a prefix.
+      assert index_definition("inbox_sightings_pkey") =~ "btree (inbox_path)"
+
+      assert index_definition("acquisitions_one_in_progress_per_path_index") =~
+               "btree (inbox_path)"
+    end
+
+    test "the deployment's inbox is the one the configuration names" do
+      assert Ingest.inbox() ==
+               :pluteus |> Application.fetch_env!(Ingest) |> Keyword.fetch!(:inbox)
+    end
+  end
+
   describe "a file arriving is announced to the household ([spec-01] §11.1, §11.2)" do
     test "the arrival names the acquisition, there being nothing catalogued yet",
          %{inbox: inbox} do
@@ -406,4 +429,11 @@ defmodule Pluteus.Ingest.AcquisitionTest do
   end
 
   defp later(seconds), do: DateTime.add(@t0, seconds, :second)
+
+  defp index_definition(name) do
+    %{rows: [[definition]]} =
+      Repo.query!("SELECT pg_get_indexdef(oid) FROM pg_class WHERE relname = $1", [name])
+
+    definition
+  end
 end
