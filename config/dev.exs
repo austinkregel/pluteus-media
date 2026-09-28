@@ -75,6 +75,10 @@ config :pluteus, PluteusWeb.ForwardAuth,
 
 config :pluteus, announce_onboarding: true
 
+# Saving a value under priv/design rewrites assets/css/tokens.css, which Tailwind's
+# own watcher then picks up — so trying a token is an edit and a reload.
+config :pluteus, Pluteus.Design.Watcher, start: true
+
 # Enable dev routes for dashboard and mailbox
 config :pluteus, dev_routes: true
 
