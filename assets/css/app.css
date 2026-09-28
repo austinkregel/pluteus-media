@@ -35,6 +35,7 @@
 html {
   background-color: var(--sys-color-surface-base);
   color: var(--sys-color-on-surface-strong);
+  font-family: var(--font-sans);
   color-scheme: dark;
 }
 
