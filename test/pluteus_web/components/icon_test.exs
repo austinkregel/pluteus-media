@@ -131,10 +131,8 @@ defmodule PluteusWeb.IconTest do
     end
 
     test "a name the set does not carry raises rather than rendering nothing" do
-      # A name is a key into what was vendored, so a misspelling is a raise at the call
-      # site. The alternative failure is the one worth guarding against: a glyph selected
-      # by a class name renders as an empty element when nothing answers it, and reports
-      # nothing anywhere.
+      # A name is a key into what was vendored, so a misspelling raises at the call site
+      # rather than rendering an element with nothing in it.
       assert_raise KeyError, fn -> render("hero-plaay-mini") end
       assert_raise KeyError, fn -> render("hero-play-solid") end
     end
