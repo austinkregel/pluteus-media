@@ -2,6 +2,7 @@ defmodule PluteusWeb.PageController do
   use PluteusWeb, :controller
 
   alias Pluteus.Design.Tokens
+  alias PluteusWeb.Notices
 
   @doc """
   The design language, rendered.
@@ -18,6 +19,16 @@ defmodule PluteusWeb.PageController do
   """
   def home(conn, _params) do
     render(conn, :home, roles: roles(), ramp: ramp(), scale: scale())
+  end
+
+  @doc """
+  The third-party notices.
+
+  A.8.1 puts half of the glyph set's licence obligation beside the vendored files and
+  the other half here, so this is a surface the licence requires rather than a courtesy.
+  """
+  def notices(conn, _params) do
+    render(conn, :notices, page_title: "Third-party notices", notices: Notices.all())
   end
 
   defp roles do
