@@ -998,9 +998,12 @@ This is a further reason the semantic vocabulary is small, flat and enumerable.
 
 ---
 
-## A.10 Generating the two stylesheets
+## A.10 Generating the stylesheet
 
-One token file, two builds.
+One token file, one stylesheet. Every context is in it, including the one that
+renders across a room: A.10.3 establishes that `far` is this interface at a
+distance rather than a theme handed to another program, so it needs no artefact of
+its own.
 
 ### A.10.1 The interface
 
