@@ -28,15 +28,12 @@ defmodule PluteusWeb.CoreComponents do
   glyph, a badge or a meter, and a control with a word in it is built from
   `fill.subtle`, where the surface's own ink reaches 13.71:1 and 14.41:1.
 
-  ## What is not here
+  ## What belongs here
 
-  A.9.3's inventory has twenty-one components and this module holds the four a
-  form and a notice need. Tile, shelf, collection, facet group and chip, entity
-  page, member list, transport, position slider, track picker, queue, reader, scan
-  viewer, correction question and field, finding, identity indicator, principal
-  chooser, absence statement and dialog all wait on the surfaces that hold them.
-  A.9.1's four conditions cannot be met for a component whose states nothing yet
-  enumerates.
+  A component is one of A.9.3's inventory, and A.9.1 admits it only once its states
+  are enumerated, its keyboard and directional-remote interactions are defined, and
+  its populated, empty, error and loading renderings all exist. This module holds the
+  form primitives and the notice, which is what a form and a flash need.
   """
   use Phoenix.Component
 
