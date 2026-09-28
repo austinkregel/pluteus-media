@@ -76,6 +76,22 @@ defmodule PluteusWeb.ForwardAuth do
   def from_proxy?(conn),
     do: from_proxy(conn.req_headers, Application.fetch_env!(:pluteus, __MODULE__)) == :ok
 
+  @doc """
+  Whether the proxy's secret header is on the request at all, whatever its value.
+
+  A surface that renders for a household with no principal has to tell a request that
+  never went through the proxy from one carrying a secret that does not match. The
+  first is anonymous; the second is a forgery or a misconfigured proxy. `from_proxy?/1`
+  answers `false` to both, which is right where a valid secret is the only question and
+  wrong where the alternative to refusing is rendering.
+  """
+  @spec secret_presented?(Plug.Conn.t()) :: boolean()
+  def secret_presented?(conn) do
+    config = Application.fetch_env!(:pluteus, __MODULE__)
+
+    values(conn.req_headers, Keyword.fetch!(config, :secret_header)) != []
+  end
+
   defp from_proxy(headers, config) do
     expected = Keyword.fetch!(config, :secret)
 
