@@ -149,6 +149,7 @@ Every res kind has a collection and an entity URI. The entity URIs are spec-01
 | the change feed | `/changes` |
 | the household's platform events | `/platform-events` |
 | the principal's own devices | `/devices`, `/devices/{id}` |
+| the principal's own preferences | `/preferences` |
 | findings | `/findings`, `/findings/{id}` |
 
 `/platform-events` answers [spec-01] §11.2's platform class — what happened to the
@@ -163,6 +164,18 @@ share a representation; a principal reaches its own consumption through the
 surfaces that already carry it. The path is `/platform-events` rather than
 `/events` for the same reason: a path that read as covering events in general
 would invite the class that may not be there.
+
+`/preferences` answers the requesting principal's presentation preferences and
+carries no principal identifier, as `/devices` does not. [spec-10] §14.5 makes
+these "that principal's" and requires they "MUST NOT be visible to another", and
+§21 states they "are not household-visible". A path naming another principal would
+need a refusal, and §4.5 makes the refusal a disclosure in itself — so the resource
+is shaped so the question cannot be asked. Every key is answered, carrying the
+registry's default where the principal has set none, so a client holds no defaults
+of its own.
+
+A value outside a key's domain is §4.5's constraint refusal, 422, and the response
+names the domain rather than echoing the value, so a client can offer the choices.
 
 A representation carries the res's identifier and kind, its preferred name
 resolved under the requesting principal's resolution profile (spec-01 §7.4),
