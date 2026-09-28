@@ -17,6 +17,7 @@ defmodule PluteusWeb.EntityController do
   use PluteusWeb, :controller
 
   import Ecto.Query, only: [from: 2]
+  import Phoenix.LiveView.Controller, only: [live_render: 3]
 
   alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.Res
@@ -25,6 +26,7 @@ defmodule PluteusWeb.EntityController do
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Repo
   alias Pluteus.Representation
+  alias PluteusWeb.Contexts
   alias PluteusWeb.Native
   alias PluteusWeb.Problem
 
@@ -111,7 +113,9 @@ defmodule PluteusWeb.EntityController do
   defp respond(conn, kind, state), do: respond(conn, kind, state, nil)
 
   defp respond(conn, kind, {:live, %{kind: kind} = res}, nil) do
-    json(conn, Representation.of(res, Native.profile(conn)))
+    if interface?(conn, kind),
+      do: interface(conn, res),
+      else: json(conn, Representation.of(res, Native.profile(conn)))
   end
 
   # The representation names the address the link selects, with the link in
@@ -154,4 +158,27 @@ defmodule PluteusWeb.EntityController do
   # Absent, or present under another kind: `/works/{id}` names nothing when the
   # id belongs to an expression.
   defp respond(conn, _kind, _state, _selector), do: Native.not_found(conn)
+
+  # Only the live-res branch forks, so the identifier, the selector, the 400, the 404 and
+  # both 410s are answered in one place whatever was asked for.
+  defp interface?(conn, kind), do: conn.assigns.interface? and Native.negotiates?(kind)
+
+  # The interface needs the document shell the rendered surfaces share, and the contexts
+  # spec-10 §14.5 makes the principal's own. The representation's path needs neither, so
+  # neither is fetched for it.
+  defp interface(conn, res) do
+    profile = Native.profile(conn)
+
+    conn
+    |> assign(:contexts, Contexts.held_by(conn.assigns.principal))
+    |> put_root_layout(html: {PluteusWeb.Layouts, :root})
+    |> live_render(PluteusWeb.EntityLive,
+      session: %{
+        "res_id" => res.id,
+        "principal_id" => conn.assigns.principal.id,
+        "language" => profile.language,
+        "assigner_id" => profile.assigner_id
+      }
+    )
+  end
 end
