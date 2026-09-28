@@ -11,10 +11,6 @@
 @source "../js";
 @source "../../lib/pluteus_web";
 
-/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
-   The heroicons installation itself is managed by your mix.exs */
-@plugin "../vendor/heroicons";
-
 /* Annex A.10.1's three layers, generated. It clears Tailwind's default theme first,
  * so the only names a utility can be built from are the design language's — A.1.4
  * admits no third vocabulary beside `base` and `sys`. */
