@@ -223,7 +223,13 @@ defmodule Pluteus.Design.Build do
         ""
 
       query ->
-        declarations = Enum.map_join(overrides(name), "\n", &("  " <> &1))
+        # A colour is two declarations in one string — the sRGB fallback then the OKLCH —
+        # so the nesting is applied per line rather than per declaration.
+        declarations =
+          overrides(name)
+          |> Enum.join("\n")
+          |> String.split("\n")
+          |> Enum.map_join("\n", &("  " <> &1))
 
         "\n@media #{query} {\n" <>
           ~s|  :root:not([data-#{modifier}]) {\n| <> declarations <> "\n  }\n}\n"
