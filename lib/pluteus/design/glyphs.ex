@@ -31,9 +31,9 @@ defmodule Pluteus.Design.Glyphs do
   edge is the separator, which is why it sits outside the silhouette rather than over
   it.
 
-  Both separators are geometry, and both are under test. Whether either pair still
-  reads apart at 16 px is A.8.5's standard — "where no reduction preserves the meaning,
-  the meaning changes" — which is a judgement and not a measurement.
+  Whether either pair still reads apart at 16 px is A.8.5's standard — "where no
+  reduction preserves the meaning, the meaning changes" — which is a judgement and not
+  a measurement.
   """
 
   alias Pluteus.Design.Glyph
@@ -45,7 +45,39 @@ defmodule Pluteus.Design.Glyphs do
   def names do
     ~w(audiobook comic-issue music-recording scan video-game) ++
       ~w(previous next back-10 forward-30 shuffle repeat-one) ++
-      ~w(captions audio-description face-tag integrity-overdue)
+      ~w(captions audio-description face-tag integrity-overdue) ++
+      Enum.map(markers(), fn {state, _contour, _field, _mark} -> "state-#{state}" end)
+  end
+
+  @doc """
+  A.8.8's absence markers: one per state of spec-10 §5.2 except *held*.
+
+  Three channels carry them. A broken contour means no person has established this,
+  which is §5.2's own division between its first five states and its last three. A
+  knocked-out field means settled and will not change, which separates *known
+  unknowable* and *known absent* from *sought, not found* — §5.2 says of that one
+  that it "may be findable later".
+
+  The interior mark carries no meaning of its own. A.8.8 chooses the four "to stay
+  maximally distinct from one another rather than to resemble the marks they
+  replace", so a mark only has to separate the states that share a contour and a
+  field.
+
+  *Held* has no marker, which A.8.8 makes an invariant rather than a convention: a
+  reader cannot tell *held* from a state nobody computed, so *not yet examined* has a
+  mark of its own and the state may never be left unset.
+  """
+  @spec markers() :: [{String.t(), :solid | :dashed, :outline | :knocked, atom()}]
+  def markers do
+    [
+      {"not-held", :dashed, :outline, :horizontal},
+      {"not-yet-examined", :dashed, :outline, :ring},
+      {"attempted-failed", :dashed, :outline, :slash},
+      {"unknown", :dashed, :outline, :vertical},
+      {"sought-not-found", :solid, :outline, :ring},
+      {"known-unknowable", :solid, :knocked, :slash},
+      {"known-absent", :solid, :knocked, :horizontal}
+    ]
   end
 
   @doc """
@@ -71,17 +103,24 @@ defmodule Pluteus.Design.Glyphs do
   """
   @spec paths(String.t(), pos_integer()) :: String.t()
   def paths(name, box) do
-    drawings = for {_part, shapes} <- parts(name, box), shape <- shapes, do: shape
+    parts = parts(name, box)
 
     if box == 24 do
-      # The round cap is what makes A.8.4's dot a dot: a zero-length segment renders as
-      # one stroke-width across under it and as nothing without it. The base set carries
-      # the same attribute on its own outline paths.
-      Enum.map_join(drawings, "", &~s(<path stroke-linecap="round" d="#{&1}"/>))
+      for {part, shapes} <- parts, shape <- shapes, into: "" do
+        ~s(<path #{outline_attributes(part)} d="#{shape}"/>)
+      end
     else
+      drawings = for {_part, shapes} <- parts, shape <- shapes, do: shape
+
       ~s(<path d="#{Enum.join(drawings, " ")}"/>)
     end
   end
+
+  # A.8.4's dot is a zero-length segment, which renders one stroke-width across under a
+  # round cap. An `inked` part is filled rather than stroked, which is what A.8.8's
+  # knocked-out field is.
+  defp outline_attributes(:inked), do: ~s(fill="currentColor" stroke="none")
+  defp outline_attributes(_part), do: ~s(stroke-linecap="round")
 
   # ## scan — a sheet with a folded corner, crossed by a scanner bar (A.8.6)
   #
@@ -295,8 +334,7 @@ defmodule Pluteus.Design.Glyphs do
   #
   # `backward` and `forward` in the base set are scans: holding them runs the position.
   # A step moves by one, and the bar against the triangle's flat side is what says the
-  # travel stops there. The two are mirrored, and mirroring is written out rather than
-  # transformed, because A.8.5 makes each grid state its own geometry.
+  # travel stops there.
   defp draw("previous", 24) do
     [
       head: [Glyph.polygon([{7.5, 12, 1.125}, {19.5, 6, 0.75}, {19.5, 18, 0.75}], 24)],
@@ -344,12 +382,10 @@ defmodule Pluteus.Design.Glyphs do
   # A.8.5 states the loss these two take: "a two-digit numeral in a 16 box is about five
   # units tall with two counters and cannot be drawn, so below 24 px the numeral is
   # absent and the interval appears in the label and the accessible name. Direction alone
-  # then separates the two controls." That is a stated loss and not a rendering fallback,
-  # which is why the interval is drawn at 24 and nowhere else.
+  # then separates the two controls." That is a stated loss and not a rendering fallback.
   #
-  # The numerals are strokes, per A.8.4: a glyph sets no type. A one is a bar and a zero
-  # is a ring; a three is two stacked arcs, which is the most a stroke can say at this
-  # size and the reason no third digit would fit anywhere.
+  # The numerals are strokes, per A.8.4: a glyph sets no type. A one is a bar, a zero a
+  # ring, a three two stacked arcs.
   defp draw("back-10", 24) do
     [
       loop: [Glyph.arc_between(12, 12, 8.25, 5.236, 10.472)],
@@ -447,11 +483,9 @@ defmodule Pluteus.Design.Glyphs do
 
   # ## repeat-one — a loop with a count (A.8.7)
   #
-  # The rounded square is the base set's repeat-all, and keeping that silhouette is what
-  # makes this read as the same command narrowed rather than as a different one. The
-  # numeral is what narrows it, and a one is a single stroke, so unlike the seek
-  # intervals it survives every grid — which is the whole reason this glyph can carry a
-  # count and those two cannot.
+  # The rounded square is the base set's repeat-all, and the numeral narrows it to one.
+  # A one is a single stroke, so it survives every grid where the seek intervals' two
+  # digits do not.
   defp draw("repeat-one", 24) do
     [
       loop: [Glyph.rect(4.5, 4.5, 15, 15, 3.75, 24)],
@@ -486,8 +520,7 @@ defmodule Pluteus.Design.Glyphs do
   #
   # A.8.7: "a C is the one letterform that survives 16: an open arc with no counter".
   # Everything else about a caption track is a rectangle, so the two letters are the
-  # glyph. At the filled grids they are knocked out of the field, which is the base set's
-  # construction and keeps the letterform an opening rather than a stroke.
+  # glyph. At the filled grids they are knocked out of the field.
   defp draw("captions", 24) do
     [
       field: [Glyph.rect(2.25, 5.25, 19.5, 13.5, 2.25, 24)],
@@ -655,4 +688,97 @@ defmodule Pluteus.Design.Glyphs do
       ]
     ]
   end
+
+  # ## A.8.8's absence markers
+  #
+  # A badge carrying three channels. A dashed contour on a circle is arcs with gaps
+  # between them; on a rounded square it would be twelve pieces.
+  #
+  # A knocked-out field is inked and its mark is the hole, so on the outline grid that
+  # one part is filled while the rest of the glyph is stroked.
+  defp draw("state-" <> state, box) do
+    {_state, contour, field, mark} =
+      Enum.find(markers(), fn {name, _c, _f, _m} -> name == state end)
+
+    {cx, cy, r} = badge(box)
+
+    case field do
+      :outline ->
+        [contour: contour(contour, cx, cy, r, box), mark: [mark(mark, cx, cy, box, [])]]
+
+      :knocked ->
+        [
+          inked: [
+            Enum.join([Glyph.circle(cx, cy, r, box), mark(mark, cx, cy, box, reverse: true)], " ")
+          ]
+        ]
+    end
+  end
+
+  # The badge, sized so its interior holds A.8.8's 8×8 mark clear of the contour.
+  defp badge(24), do: {12, 12, 10.5}
+  defp badge(20), do: {10, 10, 8.75}
+  defp badge(16), do: {8, 8, 7}
+
+  defp contour(:solid, cx, cy, r, 24), do: [Glyph.circle(cx, cy, r, 24)]
+
+  defp contour(:solid, cx, cy, r, box) do
+    [
+      Glyph.ribbon(
+        Glyph.circle(cx, cy, r, box),
+        Glyph.circle(cx, cy, r - 1.5, box, reverse: true)
+      )
+    ]
+  end
+
+  # Four arcs of sixty degrees on a quarter pitch. Drawn rather than left to a dash
+  # array, which has no effect on a filled grid. At 16 a gap narrower than thirty
+  # degrees is under a pixel.
+  defp contour(:dashed, cx, cy, r, box) do
+    for segment <- 0..3 do
+      from = segment * 1.5708 + 0.2618
+      to = from + 1.0472
+
+      if box == 24,
+        do: Glyph.arc_between(cx, cy, r, from, to),
+        else: Glyph.wave(cx, cy, r - 0.75, 1.5, from, to)
+    end
+  end
+
+  # The ring's counter closes at 16, so A.8.5 restates it as a solid region. The three
+  # bars hold their shape and lose their weight.
+  defp mark(:ring, cx, cy, 16, opts), do: Glyph.circle(cx, cy, 1, 16, opts)
+  defp mark(:ring, cx, cy, 24, opts), do: Glyph.circle(cx, cy, mark_extent(24) / 2, 24, opts)
+
+  defp mark(:ring, cx, cy, box, opts) do
+    r = mark_extent(box) / 2
+
+    Glyph.ribbon(
+      Glyph.circle(cx, cy, r, box, opts),
+      Glyph.circle(cx, cy, r - 1.5, box, reverse: !opts[:reverse])
+    )
+  end
+
+  defp mark(:vertical, cx, cy, box, opts) do
+    half = mark_extent(box) / 2
+    Glyph.bar(cx, cy - half, cx, cy + half, mark_weight(box), box, opts)
+  end
+
+  defp mark(:horizontal, cx, cy, box, opts) do
+    half = mark_extent(box) / 2
+    Glyph.bar(cx - half, cy, cx + half, cy, mark_weight(box), box, opts)
+  end
+
+  defp mark(:slash, cx, cy, box, opts) do
+    reach = mark_extent(box) / 2 * 0.7071
+    Glyph.bar(cx - reach, cy + reach, cx + reach, cy - reach, mark_weight(box), box, opts)
+  end
+
+  defp mark_extent(24), do: 7.5
+  defp mark_extent(20), do: 6.5
+  defp mark_extent(16), do: 5.5
+
+  defp mark_weight(24), do: 2.25
+  defp mark_weight(20), do: 2
+  defp mark_weight(16), do: 1.5
 end
