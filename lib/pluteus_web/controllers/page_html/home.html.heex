@@ -215,6 +215,35 @@
     </div>
   </section>
 
+  <section aria-labelledby="markers" class="mb-12">
+    <h2 id="markers" class="mb-1 text-title-sm font-semibold text-on-surface-strong">
+      The absence markers
+    </h2>
+    <p class="mb-4 text-body-sm text-on-surface-muted">
+      One per state of §5.2 except <em>held</em>, which carries none — so a reader cannot
+      tell a held value from one nobody computed, which is why <em>not yet examined</em> has
+      a mark of its own and the state may never be left unset. Three channels carry the
+      seven: a broken contour means no person established this, a knocked-out field means
+      settled and will not change, and the interior mark separates what shares both.
+    </p>
+
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div
+        :for={{state, glyph, contour, field, mark} <- @markers}
+        class="rounded-md bg-surface-raised p-3 text-center"
+      >
+        <div class="flex items-end justify-center gap-3">
+          <.icon name={glyph} />
+          <span class="text-on-surface-strong [&>svg]:size-12">
+            <.icon name={glyph} />
+          </span>
+        </div>
+        <p class="mt-2 text-caption text-on-surface-strong">{state}</p>
+        <p class="text-caption text-on-surface-muted">{contour}, {field}, {mark}</p>
+      </div>
+    </div>
+  </section>
+
   <section aria-labelledby="form" class="mb-12">
     <h2 id="form" class="mb-1 text-title-sm font-semibold text-on-surface-strong">
       Form primitives
