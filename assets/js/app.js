@@ -25,11 +25,56 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pluteus"
 import topbar from "../vendor/topbar"
 
+// spec-10 §17.7. LiveView 1.1 protects only a focused form input from a patch and
+// restores focus only to a select or a textual input, so a focused link or button is
+// neither protected nor restored, and one inside a removed stream is deleted outright.
+// The identity is recorded here and restored after a patch, a route change and a
+// reconnection, since a reconnection remounts and no server rule survives it.
+//
+// Where the element is gone, focus moves to the nearest surviving sibling in document
+// order, failing that its container, failing that the surface's first focusable — in that
+// order, so that two implementations agree.
+const focusable = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])"
+
+const Focus = {
+  mounted() {
+    this.remembered = null
+    this.el.addEventListener("focusin", (event) => {
+      this.remembered = event.target.id || null
+      this.order = this.remembered ? [...this.el.querySelectorAll(focusable)].map((e) => e.id) : null
+    })
+    this.restore()
+  },
+
+  updated() {
+    this.restore()
+  },
+
+  reconnected() {
+    this.restore()
+  },
+
+  restore() {
+    if (!this.remembered) return
+    const held = this.el.querySelector(`#${CSS.escape(this.remembered)}`)
+    if (held) return held.focus()
+
+    const survivor = (this.order || [])
+      .slice((this.order || []).indexOf(this.remembered) + 1)
+      .map((id) => id && this.el.querySelector(`#${CSS.escape(id)}`))
+      .find((element) => element)
+
+    const target = survivor || this.el.querySelector(focusable)
+    if (target) target.focus()
+    else if (this.el.tabIndex >= 0) this.el.focus()
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, Focus},
 })
 
 // Show progress bar on live navigation and form submits.
