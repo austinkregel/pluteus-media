@@ -7,16 +7,16 @@ defmodule Mix.Tasks.Icons.Vendor do
   recording each file's URL and SHA-256.
 
   A.8.1 requires the set be "vendored into the repository. No external host, and no
-  icon font." A `deps/` fetch is neither: it is absent from a release, it is not in
-  the tree a reader can see, and the licence obligation travels with a checkout
-  nobody committed. So the drawings are vendored and the dependency is gone.
+  icon font." A dependency resolved by the build satisfies none of that: it is absent
+  from a release, it is not in the tree a reader can see, and the licence obligation
+  would travel with a checkout nobody committed.
 
-  **The licence is the reason this is a task and not a copy.** Heroicons is MIT,
-  Copyright (c) Tailwind Labs, Inc., and A.8.1 states the whole of the obligation:
-  "The copyright notice and permission notice MUST travel with the vendored copies
-  and with any glyph derived from them." A `sparse: "optimized"` checkout does not
-  contain `LICENSE`, so the one thing the licence requires is the one thing that
-  checkout leaves out. This fetches it from the repository root at the pinned tag.
+  **The licence is why this is a task and not a copy.** Heroicons is MIT, Copyright
+  (c) Tailwind Labs, Inc., and A.8.1 states the whole of the obligation: "The
+  copyright notice and permission notice MUST travel with the vendored copies and with
+  any glyph derived from them." The published `optimized` tree holds no `LICENSE` —
+  the one thing the licence requires is the one thing a sparse checkout of it leaves
+  out — so the file comes from the repository root at the pinned tag.
 
   ## Three grids, not one drawing scaled
 
