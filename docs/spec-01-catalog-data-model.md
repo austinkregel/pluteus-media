@@ -574,6 +574,29 @@ render boundary. It MUST NOT mutate. It MUST be deterministic: the same res and
 profile MUST resolve to the same nomen across calls, or the same item will appear
 under different labels between page loads.
 
+The profile is what a person has chosen about which of several names they are
+shown. It holds:
+
+| Holds | Which |
+| --- | --- |
+| a language range | the languages whose names are preferred. A nomen's tag is matched against it by basic filtering, not string equality ([spec-10] §6.1) |
+| an assigner | whose vocabulary is preferred. The requesting principal's own person, where it has one, and otherwise none, which asks for the household's shared vocabulary (§7.3) |
+| a calendar and date format | which of a time-span's nomens is shown, below |
+
+**A profile is per principal and persists.** The same person is shown the same
+names on a later visit, and two people sharing one screen are not shown each
+other's. A request MAY name a different language or assigner for its own
+resolution ([spec-07] §4.1); that is one request's narrowing and MUST NOT change
+what the principal has stored.
+
+A profile naming no language narrows nothing: every name a res carries is a
+candidate, and the ordering below chooses among them. That is not the same as a
+range of `*`. Basic filtering matches `*` against every language tag, so §6.1's
+second clause would make the tagged names the only candidates and exclude the
+household's own deliberately untagged vocabulary (§7.2) — the opposite of what
+expressing no preference asks for. A deployment MUST NOT represent the absence of
+a language preference as a wildcard range.
+
 Resolution MUST always return a nomen. Where several are visible, the terminal
 fallback is the nomen with a null assigner.
 
