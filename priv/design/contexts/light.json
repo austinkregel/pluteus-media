@@ -1,6 +1,6 @@
 {
   "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
-  "$description": "theme: light. A separately tuned ramp, not an inversion of the dark one (A.2.3). These arrived as sRGB from the household's own design system rather than being authored in OKLCH, so A.2.1's OKLCH-first rule is met for the dark theme and not yet for this one; converting the hex back into OKLCH here would manufacture a precision nobody authored. Only colour is overridden, because A.1.6 scopes theme to colour only.",
+  "$description": "theme: light. A separately tuned ramp, not an inversion of the dark one (A.2.3). The grey steps arrived as sRGB from the household's own design system rather than being authored in OKLCH, so A.2.1's OKLCH-first rule is met for the dark theme and not yet for that ramp; converting the hex back into OKLCH here would manufacture a precision nobody authored. The status colours below are authored in OKLCH, because they were derived here rather than supplied. Only colour is overridden, because A.1.6 scopes theme to colour only.",
   "base": {
     "grey": {
       "$type": "color",
@@ -17,6 +17,14 @@
       "11": { "$value": { "colorSpace": "srgb", "components": [0.376, 0.392, 0.424], "hex": "#60646c" }, "$description": "Low-contrast text. The ramp runs the other way in this theme, so the text steps are the dark end." },
       "12": { "$value": { "colorSpace": "srgb", "components": [0.110, 0.125, 0.141], "hex": "#1c2024" } },
       "ring": { "$value": { "colorSpace": "srgb", "components": [0.376, 0.392, 0.424], "hex": "#60646c" }, "$description": "A.5: the ring is measured against the surface of least contrast with it, which is the lightest step in the dark theme and the darkest in this one." }
+    },
+    "signal": {
+      "$type": "color",
+      "$description": "The status solids, retuned for a light page. The dark-theme set is tuned against a dark one and does not survive the move: measured against this ramp's page background the warning solid falls to 1.54:1 and the info solid to 2.45:1, so a filled marker in either would have no perceivable boundary under WCAG 2 §1.4.11.\n\nA.2.6 makes a status role a solid with an ink pair, so what each value has to clear is 3:1 against every surface it can sit on and 3:1 against the ink its role already names — not the 4.5:1 a text colour would need, because a status colour is never text. Those two pull opposite ways for the three solids carrying the dark ink, and one lightness satisfies both for all four: 0.55, with the hue and chroma of the dark-theme value, chroma fitted to sRGB where 0.55 cannot hold it.\n\nThe cost is recorded rather than hidden: error and warning sit 81 rgb units apart here against 128.7 in the dark theme, because a deep red and a dark amber at one lightness are close. That is tolerable only because spec-10 §17.9 requires a non-colour carrier for every status, so colour is never the distinction, and it is a reason never to let it become one.",
+      "error": { "$value": { "colorSpace": "oklch", "components": [0.55, 0.193, 23], "hex": "#ca2c37" }, "$description": "4.10:1 at its worst surface, 4.60:1 against the pale ink." },
+      "warning": { "$value": { "colorSpace": "oklch", "components": [0.55, 0.129, 60], "hex": "#a75c00" }, "$description": "3.85:1 at its worst surface, 3.53:1 against the dark ink. Chroma fitted from 0.203, which 0.55 cannot hold in sRGB." },
+      "success": { "$value": { "colorSpace": "oklch", "components": [0.55, 0.129, 157.75], "hex": "#018753" }, "$description": "3.50:1 at its worst surface, 3.89:1 against the dark ink." },
+      "info": { "$value": { "colorSpace": "oklch", "components": [0.55, 0.13, 264.75], "hex": "#4b6ebd" }, "$description": "3.77:1 at its worst surface, 3.61:1 against the dark ink." }
     }
   }
 }
