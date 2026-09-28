@@ -10,6 +10,8 @@ defmodule PluteusWeb.NegotiationTest do
   use PluteusWeb.ConnCase, async: true
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Representation.ComposedName
   alias Pluteus.Representation.Field
   alias PluteusWeb.EntityLive
@@ -29,6 +31,36 @@ defmodule PluteusWeb.NegotiationTest do
   end
 
   defp asking(conn), do: conn |> through_proxy(@subject) |> put_req_header("accept", "text/html")
+
+  # One of each selector type, carrying every column its basis names.
+  defp sample(type) do
+    values = %{
+      "start_ms" => 140_500,
+      "end_ms" => 148_000,
+      "x_percent" => 10.0,
+      "y_percent" => 20.0,
+      "width_percent" => 30.0,
+      "height_percent" => 40.0,
+      "text_unit" => "character",
+      "start_offset" => 120,
+      "end_offset" => 200,
+      "quote_exact" => "a passage",
+      "quote_prefix" => nil,
+      "quote_suffix" => nil,
+      "page_number" => 4,
+      "stream_kind" => "audio",
+      "stream_language" => "eng",
+      "stream_disposition" => nil,
+      "stream_index" => 0
+    }
+
+    basis =
+      for column <- Address.basis(type),
+          into: %{},
+          do: {to_string(column), values[to_string(column)]}
+
+    Map.put(basis, "type", to_string(type))
+  end
 
   describe "spec-07 criterion 24. text/html answers the interface" do
     test "a header containing text/html renders it", %{conn: conn, work: work} do
@@ -217,6 +249,93 @@ defmodule PluteusWeb.NegotiationTest do
 
       refute html =~ "distance: \"near\""
       refute html =~ "distance: \"far\""
+    end
+  end
+
+  describe "spec-10 §10.2. What a link carrying a selector opens" do
+    setup %{expression: expression} do
+      {:ok, _extent} = Addressing.record_extent(expression.id, :millisecond, 600_000)
+
+      :ok
+    end
+
+    test "the region is shown rather than only scrolled to", %{
+      conn: conn,
+      expression: expression
+    } do
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/expressions/#{expression.id}", %{"t" => "npt:140.5,148"})
+        |> html_response(200)
+
+      assert html =~ "What this link points at"
+      assert html =~ "2:20.5 to 2:28.0"
+    end
+
+    test "one control leaves the region for the whole", %{conn: conn, expression: expression} do
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/expressions/#{expression.id}", %{"t" => "npt:140.5,148"})
+        |> html_response(200)
+
+      assert html =~ ~s(href="/expressions/#{expression.id}")
+      assert html =~ "Leave the region and see the whole"
+    end
+
+    test "nothing begins playing", %{conn: conn, expression: expression} do
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/expressions/#{expression.id}", %{"t" => "npt:140.5,148"})
+        |> html_response(200)
+
+      refute html =~ "autoplay"
+      refute html =~ "<video"
+      refute html =~ "<audio"
+    end
+
+    test "band 1 still says what the thing is", %{conn: conn, expression: expression} do
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/expressions/#{expression.id}", %{"t" => "npt:140.5,148"})
+        |> html_response(200)
+
+      assert html =~ ComposedName.noun(:expression)
+    end
+
+    test "a region with nothing to place it against says so", %{conn: conn} do
+      # §10.3: the surface says the link pointed somewhere it cannot show, rather than
+      # landing at the beginning. A page selector needs a page count nothing has recorded.
+      {:ok, %{res: manifestation}} = Catalog.create_named_res(:manifestation, "A scan")
+
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/manifestations/#{manifestation.id}", %{"page" => "4"})
+        |> html_response(200)
+
+      assert html =~ "page 4"
+      assert html =~ "cannot be shown"
+    end
+
+    test "a page with no selector carries no region band", %{conn: conn, expression: expression} do
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/expressions/#{expression.id}")
+        |> html_response(200)
+
+      refute html =~ "What this link points at"
+    end
+
+    test "every selector type the model admits has words" do
+      # A type with none raises rather than rendering the region as nothing.
+      for type <- Address.selector_types() do
+        assert is_binary(EntityLive.said_region(sample(type)))
+      end
     end
   end
 
