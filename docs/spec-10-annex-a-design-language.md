@@ -893,10 +893,16 @@ No *share* glyph ships on either surface.
 
 ### A.8.8 The absence markers
 
-spec-10 §5.2's seven states are marked by a vocabulary of three channels, none of
+spec-10 §5.2's eight states are marked by a vocabulary of three channels, none of
 which any icon set contains: contour (solid or dashed), field (outline or knocked
 out), and one interior mark of 8×8 at 24. A broken contour means no person has
 established this. A knocked-out field means settled, and will not change.
+
+*Held* carries no marker, so seven marks are needed and the three channels admit
+sixteen combinations. The contour follows §5.2's own division — its first five
+states are established by the catalog and the derivation record, its last three
+are assertions a person makes — and the field separates the two states that will
+not change from the one that may yet be found.
 
 At 16 each interior mark reduces to a **single stroke** — a dot, a vertical bar, a
 horizontal bar, a diagonal slash — for A.8.5's reason, and the four are chosen to
