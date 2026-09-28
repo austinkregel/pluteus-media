@@ -4,11 +4,11 @@ defmodule PluteusWeb.Icon do
 
   A.8.1 requires icons be "inline vectors taking their colour from the text colour,
   for A.2.7's reason". The reason is that forced colours overrides `background-color`,
-  so the scaffolded approach — a masked `<span>` whose glyph is a background — draws
-  nothing at all for exactly the people most likely to be in that mode, and nothing
-  anywhere reports it. It is the same class of failure as a focus ring carried only by
-  a shadow. An inline vector painted with `currentColor` inherits whatever colour the
-  mode substitutes.
+  so a glyph carried as a background — a masked element, which is how an icon font or a
+  CSS-generated set draws one — renders as nothing for exactly the people most likely to
+  be in that mode, with nothing anywhere to report it. It is the same class of failure
+  as a focus ring carried only by a shadow. An inline vector painted with `currentColor`
+  inherits whatever colour the mode substitutes.
 
   ## The drawing decides the size
 
@@ -25,31 +25,53 @@ defmodule PluteusWeb.Icon do
   The names come from `Pluteus.Design.Icons`, and the drawings are read at compile time
   from what `mix icons.vendor` wrote. So the set that exists is the set a template may
   name, which closes A.9.5 twice: a literal name outside it fails to compile, and a
-  name arriving as a value raises at the call site. It also removes the failure the
-  Tailwind plugin had, where an unrecognised name produced no CSS rule and the element
-  rendered empty with no error.
+  name arriving as a value raises at the call site. Both matter because the alternative
+  failure is silent — a glyph built from a class rather than from a drawing renders as
+  an empty element when nothing answers the name.
   """
   use Phoenix.Component
 
+  alias Pluteus.Design.Glyphs
   alias Pluteus.Design.Icons
 
+  # The vendored vocabulary is what is on disk, not what `Icons.inventory/0` declares.
+  # The two must agree and a test says so, but the dependency has to run this way round:
+  # the vendor task compiles the app before it fetches anything, so a module that
+  # insisted on a declared name would refuse to compile until the file existed and the
+  # task could never be the thing that put it there.
+  #
   # Read at compile time so rendering is no file read, and registered as external
   # resources so re-vendoring recompiles this module.
-  @drawings Icons.drawings()
+  @paths (for {suffix, {grid, _dimension}} <- Icons.bands(),
+              path <- Path.wildcard(Path.join([Icons.root(), grid, "*.svg"])) do
+            {"hero-" <> Path.basename(path, ".svg") <> suffix, path, grid}
+          end)
 
-  for {_name, path, _grid} <- @drawings do
+  for {_name, path, _grid} <- @paths do
     @external_resource path
   end
 
-  @glyphs (for {name, path, grid} <- @drawings, into: %{} do
-             {view_box, paint} = Map.fetch!(Icons.paint(), grid)
-             [_opening, rest] = String.split(File.read!(path), ">", parts: 2)
-             inner = rest |> String.trim() |> String.trim_trailing("</svg>") |> String.trim()
+  @vendored (for {name, path, grid} <- @paths, into: %{} do
+               {view_box, paint} = Map.fetch!(Icons.paint(), grid)
+               [_opening, rest] = String.split(File.read!(path), ">", parts: 2)
+               inner = rest |> String.trim() |> String.trim_trailing("</svg>") |> String.trim()
 
-             {name, %{inner: inner, view_box: view_box, paint: paint}}
-           end)
+               {name, %{inner: inner, view_box: view_box, paint: paint}}
+             end)
 
-  @names Icons.names()
+  # The drawn set has no files: A.8.5 makes each grid its own geometry rather than a
+  # transform of another, so the geometry is the artefact and a generated file beside it
+  # would be a second copy to keep in step.
+  @ours (for {name, glyph, box} <- Icons.drawn(), into: %{} do
+           grid = if box == 24, do: "24/outline", else: "#{box}/solid"
+           {view_box, paint} = Map.fetch!(Icons.paint(), grid)
+
+           {name, %{inner: Glyphs.paths(glyph, box), view_box: view_box, paint: paint}}
+         end)
+
+  @glyphs Map.merge(@vendored, @ours)
+
+  @names @glyphs |> Map.keys() |> Enum.sort()
 
   @doc """
   Every glyph name a template may write.
