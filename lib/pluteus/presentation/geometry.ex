@@ -103,5 +103,12 @@ defmodule Pluteus.Presentation.Geometry do
     )
   end
 
-  defp ratio(width, height), do: Float.round(width / height, 4)
+  @doc """
+  The ratio a width and a height stand in, to four places.
+
+  Shared with spec-01 §6.5's aspect-ratio attribute, so a shape recorded on an expression
+  and a shape a surface reserves a box with are the same number.
+  """
+  @spec ratio(pos_integer(), pos_integer()) :: float()
+  def ratio(width, height), do: Float.round(width / height, 4)
 end
