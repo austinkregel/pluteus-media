@@ -16,6 +16,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Nomen
   alias Pluteus.Catalog.Work
@@ -28,6 +29,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
   alias Pluteus.PlatformEvents
+  alias Pluteus.Presentation.Geometry
   alias Pluteus.Principals
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
@@ -302,6 +304,40 @@ defmodule Pluteus.Ingest.PlacementTest do
 
       assert Repo.get!(Asset, second.id).location == location
       assert Storage.exists?(location)
+    end
+  end
+
+  describe "[spec-01] §6.5. What the bytes say a work is" do
+    test "a moving image's shape reaches its expression and its work", %{inbox: inbox} do
+      # The ratio is the one the presentation layer reserves a box with, so a shape recorded
+      # on an expression and a shape a surface draws to are the same number.
+      [film] = ingest!(inbox, %{"#{unique_prefix()}/birthday.mkv" => media!(:ffv1)})
+      manifestation = manifestation_of(film)
+      %{^manifestation => geometry} = Geometry.for_res([manifestation])
+
+      embodiment = Repo.one!(from e in Embodiment, where: e.manifestation_id == ^manifestation)
+
+      assert Repo.get!(Expression, embodiment.expression_id).significant_attributes == %{
+               "aspect_ratio" => geometry.aspect_ratio
+             }
+
+      assert Repo.get!(Work, work_of(film)).representative_attributes == %{
+               "aspect_ratio" => geometry.aspect_ratio
+             }
+    end
+
+    test "a photograph's turn is read from its own bytes", %{inbox: inbox} do
+      [photo] = ingest!(inbox, %{"#{unique_prefix()}/IMG_0001.jpg" => oriented_jpeg(6)})
+
+      assert Repo.get!(Work, work_of(photo)).representative_attributes == %{"orientation" => 6}
+    end
+
+    test "a recording derives nothing, because a key is not in the bytes", %{inbox: inbox} do
+      # §6.5's musical attributes are a key and a medium of performance, and neither is
+      # readable from a container. The work carries none rather than a guess at them.
+      [track] = ingest!(inbox, %{"#{unique_prefix()}/01 So What.flac" => media!(:flac)})
+
+      assert Repo.get!(Work, work_of(track)).representative_attributes == %{}
     end
   end
 
