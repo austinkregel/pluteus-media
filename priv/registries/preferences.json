@@ -83,6 +83,25 @@
       "default": "outline"
     },
 
+    "audio_language": {
+      "requires": "spec-01 §8.6",
+      "description": "Which language's audio this principal prefers, as a language range matched by [RFC4647] §3.3.1 basic filtering. §8.6 makes this orthogonal to naming: a household name in one language and personal audio in another is coherent and must be supported, so this is not the `language` key the resolution profile reads. `any` expresses no preference, and the selection then answers the expression nearest the work's canonical form.",
+      "domain": { "kind": "language_range", "reserved": "any" },
+      "default": "any"
+    },
+    "subtitle_language": {
+      "requires": "spec-01 §8.6",
+      "description": "Which language's subtitles this principal prefers, matched as `audio_language` is. §8.6 keeps audio selection, subtitle selection and subtitle visibility independent and forbids collapsing them into a single language preference.",
+      "domain": { "kind": "language_range", "reserved": "any" },
+      "default": "any"
+    },
+    "subtitle_visibility": {
+      "requires": "spec-01 §8.6",
+      "description": "Whether subtitles are shown. `foreign_audio` shows them where the audio the selection chose is not in the language this principal reads, which is the case they are most often wanted for and the one a switch makes a person answer by hand every time. The default is `off`, which is this deployment's: §8.6 states none, and a setting that turns subtitles on unasked is the interface deciding.",
+      "domain": { "kind": "one_of", "values": ["off", "on", "foreign_audio"] },
+      "default": "off"
+    },
+
     "reading_face": {
       "requires": "[ANNEX-A] A.3.6",
       "description": "The face long-form text is set in. The three families the token file holds, and `serif` is the default because the token file gives that family as \"Long-form reading and a scan's transcript\". A.3.6 permits a face marketed for dyslexia among the choices, and forbids it being a default or labelled an accessibility feature: [DYSLEXIA-META] pools fifteen studies over 688 readers and finds no reliable effect on reading speed or accuracy.",
