@@ -9,9 +9,11 @@ defmodule PluteusWeb.NegotiationTest do
 
   use PluteusWeb.ConnCase, async: true
 
+  alias Pluteus.Annotations
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Addressing
+  alias Pluteus.Principals
   alias Pluteus.Representation.ComposedName
   alias Pluteus.Representation.Field
   alias PluteusWeb.EntityLive
@@ -336,6 +338,74 @@ defmodule PluteusWeb.NegotiationTest do
       for type <- Address.selector_types() do
         assert is_binary(EntityLive.said_region(sample(type)))
       end
+    end
+  end
+
+  describe "spec-10 §8.4's band 7. What has been said about this" do
+    test "an authored annotation is attributed to the person who wrote it", %{
+      conn: conn,
+      work: work
+    } do
+      {:ok, %{res: person}} = Catalog.create_named_res(:person, "Ada Lovelace")
+      {:ok, principal} = Principals.create_principal(%{role: "member", person_id: person.id})
+      {:ok, _bound} = Principals.bind_identity(principal.id, issuer(), @subject)
+
+      {:ok, _annotation} =
+        Annotations.annotate(%{
+          target_id: work.id,
+          principal_id: principal.id,
+          body_type: "note",
+          body: %{"text" => "The 1959 pressing runs slow."}
+        })
+
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/works/#{work.id}")
+        |> html_response(200)
+
+      assert html =~ "The 1959 pressing runs slow."
+      assert html =~ "by Ada Lovelace"
+    end
+
+    test "a derived annotation is labelled with the tool and version that made it", %{
+      conn: conn,
+      work: work
+    } do
+      {:ok, derivation} =
+        Annotations.record_derivation(%{
+          tool: "ffprobe",
+          version: "5.1.9",
+          parameters: %{},
+          input_id: work.id,
+          derived_at: DateTime.utc_now()
+        })
+
+      {:ok, _annotation} =
+        Annotations.annotate(%{
+          target_id: work.id,
+          derivation_id: derivation.id,
+          body_type: "probe",
+          body: %{"duration_ms" => 100_000}
+        })
+
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/works/#{work.id}")
+        |> html_response(200)
+
+      assert html =~ "ffprobe 5.1.9"
+    end
+
+    test "a res nobody has said anything about carries no band", %{conn: conn, work: work} do
+      html =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/works/#{work.id}")
+        |> html_response(200)
+
+      refute html =~ "entity-annotations"
     end
   end
 
