@@ -24,6 +24,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Representative
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Credits
@@ -34,6 +35,8 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
   alias Pluteus.PlatformEvents
+  alias Pluteus.Presentation.Geometry
+  alias Pluteus.Presentation.Orientation
   alias Pluteus.Principals
   alias Pluteus.Repo
   alias Pluteus.Storage
@@ -180,11 +183,64 @@ defmodule Pluteus.Ingest.Place do
     do: place_container(acquisition)
 
   defp place_by_class(%Acquisition{} = acquisition) do
-    {:ok, %{work: work, manifestation: manifestation}} =
+    {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
       Catalog.create_work(automatic(title(acquisition)))
 
     categorize(work.id, acquisition)
+    represent(acquisition, work.id, [expression])
     carry(acquisition, manifestation.id)
+  end
+
+  # spec-01 §6.5. What the bytes already read supply of the attributes this work's type
+  # names, recorded on each expression and promoted to the work where it has one in one
+  # manifestation. Categorization runs first, because the type is what says which attributes
+  # are significant and a work with no category admits none.
+  #
+  # A key, a medium of performance and an intended audience are not in the bytes, so a
+  # musical or textual work derives nothing here and §6.5 leaves those to be authored.
+  defp represent(acquisition, work_id, expressions) do
+    case derivable(acquisition, Representative.significant(work_id)) do
+      empty when map_size(empty) == 0 ->
+        :ok
+
+      attributes ->
+        for expression <- expressions do
+          {:ok, _described} = Representative.describe(expression.id, attributes)
+        end
+
+        Representative.promote(work_id)
+        :ok
+    end
+  end
+
+  defp derivable(acquisition, significant) do
+    %{}
+    |> shape(acquisition, significant)
+    |> turn(acquisition, significant)
+  end
+
+  defp shape(derived, acquisition, significant) do
+    with true <- "aspect_ratio" in significant,
+         {width, height} <- Streams.dimensions(acquisition.probe) do
+      Map.put(derived, "aspect_ratio", Geometry.ratio(width, height))
+    else
+      _absent -> derived
+    end
+  end
+
+  defp turn(derived, acquisition, significant) do
+    with true <- "orientation" in significant,
+         turn when not is_nil(turn) <- read_turn(acquisition) do
+      Map.put(derived, "orientation", turn)
+    else
+      _absent -> derived
+    end
+  end
+
+  defp read_turn(acquisition) do
+    acquisition.location
+    |> Storage.leading(Orientation.head_bytes())
+    |> Orientation.of()
   end
 
   # --- A holding's carrier ------------------------------------------------------
@@ -506,19 +562,24 @@ defmodule Pluteus.Ingest.Place do
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-    {:ok, %{work: work, manifestation: manifestation}} =
+    {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
       Catalog.create_work(automatic(expression_name(name, List.first(languages))))
 
     categorize(work.id, acquisition)
 
-    for language <- Enum.drop(languages, 1) do
-      {:ok, _} =
-        Catalog.add_expression_embodied_in(
-          work.id,
-          manifestation.id,
-          automatic(expression_name(name, language))
-        )
-    end
+    parallel =
+      for language <- Enum.drop(languages, 1) do
+        {:ok, %{expression: parallel}} =
+          Catalog.add_expression_embodied_in(
+            work.id,
+            manifestation.id,
+            automatic(expression_name(name, language))
+          )
+
+        parallel
+      end
+
+    represent(acquisition, work.id, [expression | parallel])
 
     for stream <- commentary do
       {:ok, _} =
