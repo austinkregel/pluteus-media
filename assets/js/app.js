@@ -91,6 +91,17 @@ const Waveform = {
         const step = Math.max(width / peaks.length, 1)
 
         context.clearRect(0, 0, width, canvas.height)
+
+        // spec-10 §10.2: where a link named a region, the region is shown on the medium.
+        // The band is drawn under the peaks so it reads as the ground they stand on.
+        const {from, to} = canvas.dataset
+        if (from !== undefined && to !== undefined) {
+          const left = parseFloat(from) * width
+          const span = Math.max((parseFloat(to) - parseFloat(from)) * width, 2)
+          context.fillStyle = getComputedStyle(canvas).getPropertyValue("--sys-color-fill-subtle-strong")
+          context.fillRect(left, 0, span, canvas.height)
+        }
+
         context.fillStyle = getComputedStyle(canvas).color
 
         peaks.forEach((peak, index) => {
