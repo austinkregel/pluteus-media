@@ -99,6 +99,8 @@ defmodule PluteusWeb.EntityLive do
         assigner_id: session["assigner_id"]
       })
 
+    extent = extent(res, session["unit"])
+
     {:ok,
      socket
      |> assign(:res, res)
@@ -108,10 +110,41 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:addresses, addresses(representation))
      |> assign(:medium, medium(res))
      |> assign(:address, session["address"])
-     |> assign(:placed?, placed?(res, session["address"], session["unit"]))
+     |> assign(:placed?, is_nil(session["unit"]) or not is_nil(extent))
+     |> assign(:mark, mark(session["address"], extent))
      |> assign(:whole, session["whole"])
      |> assign(:announcement, "")}
   end
+
+  # §10.2: the region is shown on the medium and not only named — a band across the
+  # waveform, an outline on the picture. A selector whose medium this page does not draw
+  # gets no mark, and the words in the region band are what carries it there.
+  defp mark(nil, _extent), do: %{}
+
+  defp mark(address, extent) do
+    %{} |> span(address, extent) |> box(address)
+  end
+
+  defp span(mark, %{"type" => type} = address, %{magnitude: magnitude})
+       when type in ~w(temporal spatiotemporal) and magnitude > 0 do
+    Map.put(mark, :span, %{
+      from: address["start_ms"] / magnitude,
+      to: (address["end_ms"] || address["start_ms"]) / magnitude
+    })
+  end
+
+  defp span(mark, _address, _extent), do: mark
+
+  defp box(mark, %{"type" => type} = address) when type in ~w(spatial spatiotemporal) do
+    Map.put(mark, :box, %{
+      x: address["x_percent"],
+      y: address["y_percent"],
+      width: address["width_percent"],
+      height: address["height_percent"]
+    })
+  end
+
+  defp box(mark, _address), do: mark
 
   # §8.4's band 3 is the medium itself. What the subject has, rather than what its category
   # ought to have: the category-presentation registry §20 names is unseeded, so the
@@ -142,15 +175,12 @@ defmodule PluteusWeb.EntityLive do
     end
   end
 
-  # §10.3: where the region cannot be placed the surface says so rather than landing at the
-  # beginning. A region measured in a unit the res has no extent in is one of those: §8.4
-  # expects the figure to be recorded, and nothing here may supply it.
-  defp placed?(_res, nil, _unit), do: true
-  defp placed?(_res, _address, nil), do: true
+  # How much of the res there is, in the unit the region is measured in. §10.3 turns on it:
+  # without it the region cannot be placed, and §8.4 expects the figure to be recorded
+  # rather than supplied here.
+  defp extent(_res, nil), do: nil
 
-  defp placed?(res, _address, unit) do
-    not is_nil(Addressing.get_extent(res.id, String.to_existing_atom(unit)))
-  end
+  defp extent(res, unit), do: Addressing.get_extent(res.id, String.to_existing_atom(unit))
 
   # Each related res is linked at the URI spec-01 §9 gives it, which needs its kind. One
   # query for the page rather than one per link, and a kind with no interface page is
@@ -223,23 +253,34 @@ defmodule PluteusWeb.EntityLive do
       >
         <h2 id="entity-medium-heading" class="sr-only">The thing itself</h2>
 
-        <img
-          :if={@medium.picture != []}
-          id="entity-picture"
-          src={served(@medium, List.last(@medium.picture))}
-          srcset={srcset(@medium)}
-          sizes="(min-width: 48rem) 42rem, 100vw"
-          width={List.last(@medium.picture).width}
-          height={List.last(@medium.picture).height}
-          alt=""
-          class="w-full rounded-lg bg-surface-raised"
-        />
+        <div :if={@medium.picture != []} class="relative">
+          <img
+            id="entity-picture"
+            src={served(@medium, List.last(@medium.picture))}
+            srcset={srcset(@medium)}
+            sizes="(min-width: 48rem) 42rem, 100vw"
+            width={List.last(@medium.picture).width}
+            height={List.last(@medium.picture).height}
+            alt=""
+            class="w-full rounded-lg bg-surface-raised"
+          />
+          <div
+            :if={@mark[:box]}
+            id="entity-region-outline"
+            aria-hidden="true"
+            class="absolute rounded-sm border-[length:var(--sys-border-width-component)] border-border-strong outline outline-offset-[-3px] outline-[color:var(--sys-color-surface-base)]"
+            style={outline(@mark[:box])}
+          >
+          </div>
+        </div>
 
         <canvas
           :if={@medium.waveform}
           id="entity-waveform"
           phx-hook="Waveform"
           data-src={served(@medium, @medium.waveform)}
+          data-from={@mark[:span] && @mark[:span].from}
+          data-to={@mark[:span] && @mark[:span].to}
           height="96"
           class="mt-4 w-full rounded-lg bg-surface-raised text-on-surface-strong"
           aria-label="The loudness of this recording over its length"
@@ -373,6 +414,14 @@ defmodule PluteusWeb.EntityLive do
 
   # §11.1: an artefact is asked for by profile name, at the URI its subject already has.
   defp served(medium, artefact), do: "#{medium.path}/#{artefact.profile}"
+
+  # A spatial selector states its region in percentages, so the outline is placed in the
+  # same terms and holds wherever the picture is drawn at whatever width. The second edge is
+  # drawn inside the first in the base surface's tone, so the outline stays visible over a
+  # light picture and a dark one alike.
+  defp outline(%{x: x, y: y, width: width, height: height}) do
+    "left: #{x}%; top: #{y}%; width: #{width}%; height: #{height}%"
+  end
 
   # The width each graded artefact actually is, so the browser picks one from CSS pixels
   # times device pixel ratio and never wants an intermediate.
