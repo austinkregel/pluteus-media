@@ -26,6 +26,7 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Catalog.Selection
   alias Pluteus.Lifecycle
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Registry
@@ -105,6 +106,7 @@ defmodule PluteusWeb.EntityLive do
     {:ok,
      socket
      |> assign(:annotations, annotations(res, profile))
+     |> assign(:action, action(res, principal_id, profile))
      |> assign(:res, res)
      |> assign(:principal_id, principal_id)
      |> assign(:representation, representation)
@@ -147,6 +149,16 @@ defmodule PluteusWeb.EntityLive do
   end
 
   defp box(mark, _address), do: mark
+
+  # §8.4's band 2: one primary action, resolved per §8.1, and the count of alternatives.
+  #
+  # Only a work has one. §8.1 defines the resolution over a work — to a specific expression
+  # and digital item — and says nothing about resolving from an expression or a manifestation,
+  # so for every other kind this band has nothing in it and §8.4 makes it absent.
+  defp action(%Res{kind: :work, id: id}, principal_id, profile),
+    do: Selection.for_principal(id, principal_id, profile)
+
+  defp action(%Res{}, _principal_id, _profile), do: nil
 
   # §8.4's band 7: what a person authored first and attributed, then what a tool derived,
   # labelled with the tool and version that produced it (spec-02 §4.1, §4.2). Only what
@@ -302,6 +314,46 @@ defmodule PluteusWeb.EntityLive do
           Named by what it is made of, since nobody has named it.
         </p>
       </header>
+
+      <section :if={@action} id="entity-action" aria-labelledby="entity-action-heading" class="mb-10">
+        <h2 id="entity-action-heading" class="sr-only">What you can do with this</h2>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            id="entity-primary-action"
+            type="button"
+            disabled
+            aria-describedby="entity-action-why"
+            class={[
+              "rounded-full px-4 min-h-target-pointer text-body-md font-semibold",
+              "bg-fill-subtle text-on-surface-muted",
+              "border-[length:var(--sys-border-width-component)] border-border-component"
+            ]}
+          >
+            {verb(@noun)}
+          </button>
+
+          <a
+            :if={@action.alternatives > 0}
+            id="entity-alternatives"
+            href="#entity-band-5"
+            class="underline text-body-sm"
+          >
+            {@action.alternatives} other {plural("version", @action.alternatives)}
+          </a>
+        </div>
+
+        <p id="entity-action-why" class="mt-2 text-body-sm text-on-surface-muted">
+          {why(@action)}
+        </p>
+
+        <p
+          :if={@action.by == :nearest and @action.alternatives > 0}
+          class="mt-1 text-body-sm text-on-surface-muted"
+        >
+          This is the version nearest what the work itself is, rather than one you asked for.
+        </p>
+      </section>
 
       <section
         :if={@medium.picture != [] or @medium.waveform}
@@ -508,6 +560,22 @@ defmodule PluteusWeb.EntityLive do
   # the deployment's to supply.
   defp attribution(nil), do: "by a principal with no person of its own"
   defp attribution(nomen), do: "by #{nomen.nomen_string}"
+
+  # §17.3: a control for an affordance that does not exist is rendered disabled and carries a
+  # description saying why. Nothing here plays or reads a holding yet, so the action says what
+  # it would act on and that it cannot.
+  defp why(%{digital_item: nil}),
+    do: "The household describes this but holds no file of it, so there is nothing to open."
+
+  defp why(%{}), do: "A file is held. Nothing in this deployment opens one yet."
+
+  # §8.5 keeps the model's words out of a control's name, so the verb follows the noun band 1
+  # said rather than the kind.
+  defp verb(noun) when noun in ~w(recording album film episode), do: "Play"
+  defp verb(_noun), do: "Open"
+
+  defp plural(word, 1), do: word
+  defp plural(word, _many), do: word <> "s"
 
   # §11.1: an artefact is asked for by profile name, at the URI its subject already has.
   defp served(medium, artefact), do: "#{medium.path}/#{artefact.profile}"
