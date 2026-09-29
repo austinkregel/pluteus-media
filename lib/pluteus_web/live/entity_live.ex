@@ -20,12 +20,16 @@ defmodule PluteusWeb.EntityLive do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Annotations
+  alias Pluteus.Annotations.Derivation
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Res
+  alias Pluteus.Catalog.Resolution
   alias Pluteus.Lifecycle
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Registry
+  alias Pluteus.Principals.Principal
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
@@ -93,16 +97,14 @@ defmodule PluteusWeb.EntityLive do
     principal_id = established!(socket, held)
     {:live, res} = Lifecycle.state(res_id)
 
-    representation =
-      Representation.of(res, %Profile{
-        language: session["language"],
-        assigner_id: session["assigner_id"]
-      })
+    profile = %Profile{language: session["language"], assigner_id: session["assigner_id"]}
+    representation = Representation.of(res, profile)
 
     extent = extent(res, session["unit"])
 
     {:ok,
      socket
+     |> assign(:annotations, annotations(res, profile))
      |> assign(:res, res)
      |> assign(:principal_id, principal_id)
      |> assign(:representation, representation)
@@ -145,6 +147,62 @@ defmodule PluteusWeb.EntityLive do
   end
 
   defp box(mark, _address), do: mark
+
+  # §8.4's band 7: what a person authored first and attributed, then what a tool derived,
+  # labelled with the tool and version that produced it (spec-02 §4.1, §4.2). Only what
+  # currently stands — a derived body whose tool has run again since is superseded and is
+  # not this res's account of itself any more.
+  defp annotations(res, profile) do
+    {authored, derived} = Enum.split_with(Annotations.current_on(res.id), & &1.principal_id)
+
+    %{authored: attributed(authored, profile), derived: labelled(derived)}
+  end
+
+  # spec-02 §10 makes an annotation household-visible, so who wrote it is shown. The name is
+  # the author's own person resolved under the reader's profile, which is the same name band
+  # 1 would give that person on their own page. A principal with no person of its own has no
+  # name to attribute to, and none is invented.
+  defp attributed([], _profile), do: []
+
+  defp attributed(annotations, profile) do
+    people =
+      Repo.all(
+        from p in Principal,
+          where: p.id in ^Enum.map(annotations, & &1.principal_id),
+          select: {p.id, p.person_id}
+      )
+
+    resolved =
+      people
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.reject(&is_nil/1)
+      |> Resolution.resolve_many(profile)
+
+    named = Map.new(people, fn {id, person} -> {id, person && resolved[person]} end)
+
+    for annotation <- Enum.sort_by(annotations, & &1.id) do
+      %{annotation: annotation, by: named[annotation.principal_id]}
+    end
+  end
+
+  defp labelled([]), do: []
+
+  defp labelled(annotations) do
+    versions =
+      Repo.all(
+        from d in Derivation,
+          join: v in assoc(d, :tool_version),
+          where: d.id in ^Enum.map(annotations, & &1.derivation_id),
+          select: {d.id, {v.tool, v.version, d.derived_at}}
+      )
+      |> Map.new()
+
+    for annotation <- Enum.sort_by(annotations, & &1.id) do
+      {tool, version, at} = Map.fetch!(versions, annotation.derivation_id)
+
+      %{annotation: annotation, tool: tool, version: version, at: at}
+    end
+  end
 
   # §8.4's band 3 is the medium itself. What the subject has, rather than what its category
   # ought to have: the category-presentation registry §20 names is unseeded, so the
@@ -324,6 +382,39 @@ defmodule PluteusWeb.EntityLive do
         </dl>
       </section>
 
+      <section
+        :if={@annotations.authored != [] or @annotations.derived != []}
+        id="entity-annotations"
+        aria-labelledby="entity-annotations-heading"
+        class="mb-10"
+      >
+        <h2
+          id="entity-annotations-heading"
+          class="mb-2 text-title-sm font-semibold text-on-surface-strong"
+        >
+          What has been said about this
+        </h2>
+
+        <ul class="divide-y divide-border-subtle">
+          <li :for={%{annotation: annotation, by: by} <- @annotations.authored} class="py-3">
+            <p class="text-body-sm text-on-surface-strong">{said(annotation.body)}</p>
+            <p class="text-caption text-on-surface-muted">
+              {annotation.body_type} · {attribution(by)}
+            </p>
+          </li>
+
+          <li
+            :for={%{annotation: annotation, tool: tool, version: version} <- @annotations.derived}
+            class="py-3"
+          >
+            <p class="text-body-sm text-on-surface-strong">{said(annotation.body)}</p>
+            <p class="text-caption text-on-surface-muted">
+              {annotation.body_type} · {tool} {version}
+            </p>
+          </li>
+        </ul>
+      </section>
+
       <.band
         :for={{band, heading} <- [{5, "Structure"}, {6, "Connections"}]}
         id={"entity-band-#{band}"}
@@ -411,6 +502,12 @@ defmodule PluteusWeb.EntityLive do
   defp composed?(representation) do
     representation["name"]["state"] != "held" and not is_nil(representation["composed_name"])
   end
+
+  # A name where the author has a person of their own, and the fact that there is none where
+  # they have not. §17.3 forbids asserting what has not been established, and a name is not
+  # the deployment's to supply.
+  defp attribution(nil), do: "by a principal with no person of its own"
+  defp attribution(nomen), do: "by #{nomen.nomen_string}"
 
   # §11.1: an artefact is asked for by profile name, at the URI its subject already has.
   defp served(medium, artefact), do: "#{medium.path}/#{artefact.profile}"
