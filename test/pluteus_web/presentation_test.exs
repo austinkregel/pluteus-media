@@ -18,6 +18,8 @@ defmodule PluteusWeb.PresentationTest do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Embodiment
+  alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Extent
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
@@ -52,6 +54,13 @@ defmodule PluteusWeb.PresentationTest do
 
   defp manifestation_of(acquisition),
     do: Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
+
+  defp work_of(acquisition) do
+    manifestation = manifestation_of(acquisition)
+    embodiment = Repo.one!(from b in Embodiment, where: b.manifestation_id == ^manifestation)
+
+    Repo.get!(Expression, embodiment.expression_id).work_id
+  end
 
   defp a_photograph(inbox) do
     [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
@@ -244,6 +253,19 @@ defmodule PluteusWeb.PresentationTest do
 
       refute html =~ "data-from"
       assert html =~ "cannot be shown"
+    end
+
+    test "a work holding a file says so, and still cannot open it", %{conn: conn, inbox: inbox} do
+      # §17.3 from the other side: the control is disabled because nothing opens a holding,
+      # not because there is nothing to open. The two reasons must not be confused — one is
+      # about the catalog and one about the deployment.
+      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+
+      html = interface(conn, "/works/#{work_of(photo)}")
+
+      assert html =~ "A file is held"
+      assert html =~ "Nothing in this deployment opens one yet"
+      refute html =~ "holds no file of it"
     end
 
     test "a subject with no artefact carries no band at all", %{conn: conn, inbox: inbox} do

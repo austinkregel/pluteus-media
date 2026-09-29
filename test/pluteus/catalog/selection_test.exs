@@ -46,7 +46,9 @@ defmodule Pluteus.Catalog.SelectionTest do
     } do
       {:ok, %{work: work, expression: only}} = Catalog.create_work("Kind of Blue")
 
-      assert {chosen, 0} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: chosen, alternatives: 0, by: :only} =
+               Selection.for_principal(work.id, principal.id, profile)
+
       assert chosen.id == only.id
     end
 
@@ -56,7 +58,18 @@ defmodule Pluteus.Catalog.SelectionTest do
     } do
       %{work: work} = a_film_in_two_languages()
 
-      assert {_chosen, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{alternatives: 1} = Selection.for_principal(work.id, principal.id, profile)
+    end
+
+    test "a work the household holds no file for has nothing to act on", %{
+      principal: principal,
+      profile: profile
+    } do
+      # spec-01 §5.2: zero digital items is a work the household describes and holds no file
+      # for. The expression still resolves; §8.1's action has nothing to act on.
+      {:ok, %{work: work}} = Catalog.create_work("A film nobody has")
+
+      assert %{digital_item: nil} = Selection.for_principal(work.id, principal.id, profile)
     end
 
     test "a work with no expression raises rather than answering nothing", %{
@@ -80,7 +93,9 @@ defmodule Pluteus.Catalog.SelectionTest do
       {:ok, _set} = Preferences.set(principal.id, "audio_language", "en")
       {:ok, _chosen} = Selection.choose(principal.id, work.id, russian.id)
 
-      assert {answered, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: answered, by: :chosen} =
+               Selection.for_principal(work.id, principal.id, profile)
+
       assert answered.id == russian.id
       refute answered.id == english.id
     end
@@ -91,7 +106,7 @@ defmodule Pluteus.Catalog.SelectionTest do
       {:ok, _first} = Selection.choose(principal.id, work.id, russian.id)
       {:ok, _second} = Selection.choose(principal.id, work.id, english.id)
 
-      assert {answered, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: answered} = Selection.for_principal(work.id, principal.id, profile)
       assert answered.id == english.id
     end
 
@@ -122,7 +137,9 @@ defmodule Pluteus.Catalog.SelectionTest do
       %{work: work, english: english} = a_film_in_two_languages()
       {:ok, _set} = Preferences.set(principal.id, "audio_language", "en")
 
-      assert {answered, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: answered, by: :preferred} =
+               Selection.for_principal(work.id, principal.id, profile)
+
       assert answered.id == english.id
     end
 
@@ -134,7 +151,9 @@ defmodule Pluteus.Catalog.SelectionTest do
       %{work: work} = a_film_in_two_languages()
       {:ok, _set} = Preferences.set(principal.id, "audio_language", "ja")
 
-      assert {answered, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: answered, by: :nearest} =
+               Selection.for_principal(work.id, principal.id, profile)
+
       refute answered == nil
     end
 
@@ -146,7 +165,7 @@ defmodule Pluteus.Catalog.SelectionTest do
 
       # The default range narrows nothing, so the answer is the nearest by identifier, which
       # is the expression placement made first.
-      assert {answered, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: answered} = Selection.for_principal(work.id, principal.id, profile)
       assert answered.id == russian.id
     end
   end
@@ -162,7 +181,9 @@ defmodule Pluteus.Catalog.SelectionTest do
       {:ok, _described} = Representative.describe(english.id, %{"aspect_ratio" => 1.33})
       {:ok, _differs} = Representative.describe(russian.id, %{"aspect_ratio" => 2.35})
 
-      assert {answered, 1} = Selection.for_principal(work.id, principal.id, profile)
+      assert %{expression: answered, by: :nearest} =
+               Selection.for_principal(work.id, principal.id, profile)
+
       assert answered.id == english.id
     end
 

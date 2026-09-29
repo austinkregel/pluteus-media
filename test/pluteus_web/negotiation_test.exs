@@ -341,6 +341,49 @@ defmodule PluteusWeb.NegotiationTest do
     end
   end
 
+  describe "spec-10 §8.4's band 2. One primary action, and the alternatives" do
+    test "the action is disabled and carries a description saying why", %{
+      conn: conn,
+      work: work
+    } do
+      # §17.3: a control for an affordance that does not exist is rendered disabled and
+      # carries a description saying why. This work is described and no file of it is held,
+      # so there is nothing to open even before asking whether anything could open it.
+      html = conn |> put_req_header("accept", "text/html") |> get("/works/#{work.id}")
+      html = html_response(html, 200)
+
+      assert html =~ ~s(id="entity-primary-action")
+      assert html =~ "disabled"
+      assert html =~ ~s(aria-describedby="entity-action-why")
+      assert html =~ "holds no file of it"
+    end
+
+    test "the count of alternatives is stated and reaches the list", %{conn: conn, work: work} do
+      # §8.1: the alternatives "MUST be reachable in one action from the same place, and that
+      # action MUST state how many there are". The list is band 5's.
+      {:ok, %{manifestation: manifestation}} =
+        Catalog.add_manifestation(hd(Catalog.expressions_of(work.id)).id, "An edition")
+
+      {:ok, _second} =
+        Catalog.add_expression_embodied_in(work.id, manifestation.id, "The German cut")
+
+      html = conn |> put_req_header("accept", "text/html") |> get("/works/#{work.id}")
+      html = html_response(html, 200)
+
+      assert html =~ "1 other version"
+      assert html =~ ~s(href="#entity-band-5")
+    end
+
+    test "a kind §8.1 defines no resolution over carries no band", %{
+      conn: conn,
+      expression: expression
+    } do
+      html = conn |> put_req_header("accept", "text/html") |> get("/expressions/#{expression.id}")
+
+      refute html_response(html, 200) =~ "entity-primary-action"
+    end
+  end
+
   describe "spec-10 §8.4's band 7. What has been said about this" do
     test "an authored annotation is attributed to the person who wrote it", %{
       conn: conn,
