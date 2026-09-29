@@ -29,7 +29,9 @@ defmodule Pluteus.Catalog.Selection do
   import Ecto.Changeset, only: [add_error: 3]
   import Ecto.Query, only: [from: 2]
 
+  alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Distance
+  alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.ExpressionChoice
   alias Pluteus.Catalog.Profile
@@ -40,25 +42,68 @@ defmodule Pluteus.Catalog.Selection do
   alias Pluteus.Preferences.Registry
   alias Pluteus.Repo
 
+  @typedoc """
+  What a principal is given for a work.
+
+  `by` says which of the three answered, which is what §8.6:794 needs: where the resolved
+  expression is not what the principal's preference asked for, the surface indicates it
+  unobtrusively, and it can only do that if it is told.
+
+  `digital_item` is the file the action would act on, and is nil for a work the household
+  describes but holds no file for (spec-01 §5.2). There is nothing to act on then, and
+  §8.1's action cannot exist however well the expression resolved.
+  """
+  @type t :: %{
+          expression: Expression.t(),
+          digital_item: Ecto.UUID.t() | nil,
+          alternatives: non_neg_integer(),
+          by: :only | :chosen | :preferred | :nearest
+        }
+
   @doc """
-  The expression a principal is given for a work, and how many others there were.
+  The expression and digital item a principal is given for a work, and how many other
+  expressions there were.
 
   The count is §8.1's: the alternatives "MUST be reachable in one action from the same place,
   and that action MUST state how many there are".
   """
-  @spec for_principal(Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) ::
-          {Expression.t(), non_neg_integer()}
+  @spec for_principal(Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) :: t()
   def for_principal(work_id, principal_id, %Profile{} = profile) do
     case Repo.all(from e in Expression, where: e.work_id == ^work_id) do
       [] ->
         raise ArgumentError, "work #{work_id} has no expression to select among"
 
       [only] ->
-        {only, 0}
+        answer(only, :only, 0)
 
       expressions ->
-        {decide(work_id, principal_id, profile, expressions), length(expressions) - 1}
+        {expression, by} = decide(work_id, principal_id, profile, expressions)
+
+        answer(expression, by, length(expressions) - 1)
     end
+  end
+
+  defp answer(expression, by, alternatives) do
+    %{
+      expression: expression,
+      digital_item: carrier(expression.id),
+      alternatives: alternatives,
+      by: by
+    }
+  end
+
+  # The file the action would act on. Ordered by identifier so a holding carrying several
+  # files resolves to the same one across calls, which §7.4 requires of what a surface shows.
+  defp carrier(expression_id) do
+    Repo.one(
+      from d in DigitalItem,
+        join: b in Embodiment,
+        on: b.manifestation_id == d.manifestation_id,
+        where: b.expression_id == ^expression_id,
+        order_by: d.id,
+        limit: 1,
+        select: d.id
+    )
   end
 
   @doc """
@@ -106,7 +151,11 @@ defmodule Pluteus.Catalog.Selection do
   defp decide(work_id, principal_id, profile, expressions) do
     standing = Enum.find(expressions, &(&1.id == chosen(principal_id, work_id)))
 
-    standing || preferred(principal_id, profile, expressions) || nearest(work_id, expressions)
+    cond do
+      standing -> {standing, :chosen}
+      wanted = preferred(principal_id, profile, expressions) -> {wanted, :preferred}
+      true -> {nearest(work_id, expressions), :nearest}
+    end
   end
 
   # §8.6's preferred expression. The value the domain reserves narrows nothing, so a principal
