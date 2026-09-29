@@ -12,10 +12,13 @@ defmodule PluteusWeb.PresentationTest do
   use PluteusWeb.ConnCase, async: true
   use Oban.Testing, repo: Pluteus.Repo
 
+  import Ecto.Query, only: [from: 2]
   import Pluteus.IngestFixtures
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Extent
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
@@ -82,6 +85,32 @@ defmodule PluteusWeb.PresentationTest do
     held
   end
 
+  defp waveform!(subject_id, source) do
+    profile = Registry.waveform_overview()["name"]
+    location = Presentation.location_for(subject_id, profile, 0, "json")
+    bytes = Jason.encode!(%{"resolution" => %{"points" => 4}, "peaks" => [0, 128, 255, 64]})
+    :ok = Storage.put(location, bytes)
+    on_exit(fn -> Storage.delete(location) end)
+
+    {:ok, held} =
+      Presentation.record(%{
+        subject_id: subject_id,
+        profile: profile,
+        location: location,
+        media_type: "application/json",
+        size: byte_size(bytes),
+        digest: "sha256:#{Base.encode16(:crypto.hash(:sha256, bytes), case: :lower)}",
+        digest_algorithm: "sha256",
+        descriptor: %{"points" => 4},
+        source_asset_id: source.id,
+        source_digest: source.digest,
+        generated_at: DateTime.utc_now(),
+        last_served_at: DateTime.utc_now()
+      })
+
+    held
+  end
+
   describe "§8.4's band 3 is the medium itself" do
     defp interface(conn, path) do
       conn
@@ -130,6 +159,91 @@ defmodule PluteusWeb.PresentationTest do
       _held = held!(manifestation, "image-320", source, 320)
 
       assert interface(conn, "/manifestations/#{manifestation}") =~ ~s(alt="")
+    end
+
+    test "a spatial region is outlined on the picture", %{conn: conn, inbox: inbox} do
+      # §10.2 requires the region be shown on the medium and not only named. A spatial
+      # selector states itself in percentages, so the outline holds at any drawn width.
+      {_photo, manifestation} = a_photograph(inbox)
+      source = Presentation.source_for(manifestation)
+      _held = held!(manifestation, "image-320", source, 320)
+
+      html =
+        interface(
+          conn,
+          "/manifestations/#{manifestation}?xywh=percent:10,20,30,40"
+        )
+
+      assert html =~ ~s(id="entity-region-outline")
+      assert html =~ "left: 10"
+      assert html =~ "width: 30"
+    end
+
+    test "the outline is not announced twice", %{conn: conn, inbox: inbox} do
+      # The words in the region band are what a screen reader receives; the outline is the
+      # same fact for a sighted reader, so it is hidden from the accessibility tree.
+      {_photo, manifestation} = a_photograph(inbox)
+      source = Presentation.source_for(manifestation)
+      _held = held!(manifestation, "image-320", source, 320)
+
+      html = interface(conn, "/manifestations/#{manifestation}?xywh=percent:10,20,30,40")
+
+      assert html =~ ~s(aria-hidden="true")
+      assert html =~ "part of the picture"
+    end
+
+    test "a picture with no region carries no outline", %{conn: conn, inbox: inbox} do
+      {_photo, manifestation} = a_photograph(inbox)
+      source = Presentation.source_for(manifestation)
+      _held = held!(manifestation, "image-320", source, 320)
+
+      refute interface(conn, "/manifestations/#{manifestation}") =~ "entity-region-outline"
+    end
+
+    test "a temporal region is a band across the waveform", %{conn: conn, inbox: inbox} do
+      # A waveform is the medium for a recording, so a link naming a stretch of it is shown
+      # there. The band is given as a fraction of the whole, which is what the drawing needs
+      # and what keeps the placement out of the client's hands.
+      [track] = ingest!(inbox, %{"KoB/01 So What.flac" => media!(:flac)})
+      manifestation = manifestation_of(track)
+      source = Presentation.source_for(manifestation)
+      _held = waveform!(manifestation, source)
+      {:ok, _extent} = Addressing.record_extent(manifestation, :millisecond, 100_000)
+
+      html = interface(conn, "/manifestations/#{manifestation}?t=npt:10,20")
+
+      assert html =~ ~s(id="entity-waveform")
+      assert html =~ ~s(data-from="0.1")
+      assert html =~ ~s(data-to="0.2")
+    end
+
+    test "a waveform with no region carries no band", %{conn: conn, inbox: inbox} do
+      [track] = ingest!(inbox, %{"KoB/01 So What.flac" => media!(:flac)})
+      manifestation = manifestation_of(track)
+      source = Presentation.source_for(manifestation)
+      _held = waveform!(manifestation, source)
+
+      html = interface(conn, "/manifestations/#{manifestation}")
+
+      assert html =~ ~s(id="entity-waveform")
+      refute html =~ "data-from"
+    end
+
+    test "a region with no extent to place it against gets no band", %{conn: conn, inbox: inbox} do
+      # Placement records a length, so the length is removed to reach the state a failed
+      # probe leaves. The words then say it cannot be shown, and nothing is drawn at a
+      # position nobody established.
+      [track] = ingest!(inbox, %{"KoB/01 So What.flac" => media!(:flac)})
+      manifestation = manifestation_of(track)
+      source = Presentation.source_for(manifestation)
+      _held = waveform!(manifestation, source)
+
+      {1, _} = Repo.delete_all(from e in Extent, where: e.res_id == ^manifestation)
+
+      html = interface(conn, "/manifestations/#{manifestation}?t=npt:10,20")
+
+      refute html =~ "data-from"
+      assert html =~ "cannot be shown"
     end
 
     test "a subject with no artefact carries no band at all", %{conn: conn, inbox: inbox} do
