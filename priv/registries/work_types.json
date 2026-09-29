@@ -1,0 +1,66 @@
+{
+  "description": "The representative expression attribute selections per category of work that spec-01 §17 names and §6.5 carries. These measure distance from the canonical form and do nothing else: they order competing expressions of one work, and where a work has one expression §6.5's automatic promotion applies and they never discriminate. What a work is about is categorization (§3.3) and is not here.",
+  "work_types": {
+    "textual": {
+      "attributes": ["language", "intended_audience"],
+      "source": "LRM-E2-A2"
+    },
+    "musical": {
+      "attributes": ["key", "medium_of_performance"],
+      "source": "LRM-E2-A2"
+    },
+    "cartographic": {
+      "attributes": ["cartographic_scale", "projection"],
+      "source": "LRM-E2-A2"
+    },
+    "moving_image": {
+      "attributes": ["aspect_ratio", "colourization"],
+      "source": "LRM-E2-A2"
+    },
+    "art": {
+      "attributes": ["medium_of_execution"],
+      "source": "LRM-E2-A2"
+    },
+    "still_image": {
+      "attributes": ["capture_device", "orientation", "colour_or_monochrome"],
+      "source": "authored",
+      "for": "[ANNEX-A] §A.9: LRM's art row gives medium of execution, which suits a painting and says nothing useful about a photograph."
+    },
+    "personal_record": {
+      "attributes": ["correspondents", "date_of_writing"],
+      "source": "authored",
+      "for": "[ANNEX-A] §A.9: libraries do not catalogue a relative's letters, so LRM has no analogue."
+    },
+    "graphic_narrative": {
+      "attributes": ["language", "colourization"],
+      "source": "authored",
+      "for": "A comic's competing expressions are translations, and black-and-white originals against colourised reprints. Neither attribute is new: language is textual's and colourization is moving image's."
+    },
+    "software": {
+      "attributes": ["platform", "revision"],
+      "source": "authored",
+      "for": "Two expressions of one game are a port and a revision, which none of LRM's five attributes reaches."
+    }
+  },
+  "of_category": {
+    "music_recording": "musical",
+    "album": "musical",
+    "audiobook": "textual",
+    "podcast_episode": "textual",
+    "film": "moving_image",
+    "television_episode": "moving_image",
+    "home_video": "moving_image",
+    "document": "textual",
+    "ebook": "textual",
+    "comic_issue": "graphic_narrative",
+    "photograph": "still_image",
+    "scan": "still_image",
+    "video_game": "software",
+    "cover_art": "still_image",
+    "lyrics": "textual",
+    "subtitles": "textual",
+    "cue_sheet": "textual",
+    "description": "textual",
+    "metadata": "textual"
+  }
+}
