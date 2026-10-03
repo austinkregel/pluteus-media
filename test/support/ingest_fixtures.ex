@@ -89,6 +89,24 @@ defmodule Pluteus.IngestFixtures do
   def comic_page(number), do: StorageFixtures.png("page #{number}")
 
   @doc """
+  A comic's metadata document, stating the fields given.
+
+  The elements are written in the capitalization the format uses, so that the reader's
+  folding of a field's name is exercised rather than assumed.
+  """
+  @spec comic_info(keyword()) :: binary()
+  def comic_info(fields) do
+    elements = for {name, value} <- fields, do: "  <#{name}>#{value}</#{name}>"
+
+    """
+    <?xml version="1.0" encoding="utf-8"?>
+    <ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    #{Enum.join(elements, "\n")}
+    </ComicInfo>
+    """
+  end
+
+  @doc """
   Writes bytes into the inbox at a relative path.
   """
   @spec drop!(Path.t(), String.t(), binary()) :: Path.t()
