@@ -8,6 +8,7 @@ defmodule Pluteus.Ingest.RegistryTest do
 
   use ExUnit.Case, async: true
 
+  alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Registry
 
   test "each audio format a library holds is served as its own type" do
@@ -32,6 +33,22 @@ defmodule Pluteus.Ingest.RegistryTest do
   test "each subtitle format a media manager writes is served as its own type" do
     assert Registry.media_type("fmt/1218") == "application/x-subrip"
     assert Registry.media_type("fmt/1454") == "text/vtt"
+  end
+
+  describe "the registry's vocabularies are the schema's" do
+    test "every essence and class the registry admits is one a holding can be recorded as" do
+      # The registry maps its strings to atoms written out as literals rather than converted,
+      # so the atoms exist whenever this module does. Written out they could drift from the
+      # column's own vocabulary, which is what this refuses.
+      %{essences: essences, classes: classes} = Registry.vocabularies()
+
+      assert Enum.sort(essences) == Enum.sort(Acquisition.essences())
+      assert Enum.sort(classes) == Enum.sort(Acquisition.media_classes())
+    end
+
+    test "a format the registry carries no entry for is nil, not a guess" do
+      refute Registry.streamless_format("fmt/to-be-invented")
+    end
   end
 
   test "a format the registry does not name is served as an unknown stream" do
