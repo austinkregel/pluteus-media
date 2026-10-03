@@ -13,6 +13,7 @@ defmodule Pluteus.Catalog.WorkTypesTest do
   alias Pluteus.Catalog.WorkTypes
   alias Pluteus.Continuity
   alias Pluteus.Ingest.Place
+  alias Pluteus.Ingest.Registry, as: Ingest
   alias Pluteus.Presentation
 
   describe "§6.5's table is the registry's" do
@@ -56,6 +57,17 @@ defmodule Pluteus.Catalog.WorkTypesTest do
       # cue sheet has no aspect ratio and is a category all the same.
       for category <- Presentation.Registry.categories_with_ratio() do
         assert category in WorkTypes.categories()
+      end
+    end
+
+    test "every category placement can record is one of them" do
+      # The comparison above is between the work-type and continuity registries, and
+      # ingest can record a category that is named in neither — a serial's own category is
+      # named only in the ingest registry. Such a category satisfies that comparison while
+      # ordering nothing.
+      for category <- Ingest.recordable_categories() do
+        assert category in WorkTypes.categories(),
+               "placement can record #{category}, which has no category of work"
       end
     end
 
