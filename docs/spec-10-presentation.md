@@ -1241,6 +1241,24 @@ platform owns caption styling device-wide, the client MUST use the platform's
 settings and MUST NOT build its own; §14.5's guarantee does not reach that
 surface.
 
+**What caption presentation consists of is §20's registry**, which carries each
+property with the values it admits and its default. A deployment MUST NOT offer a
+property the registry omits, and the registry MUST carry at least the face, the
+size, the ground and the edge.
+
+Those four are the floor because of what a caption sits on. A caption is drawn over
+moving picture rather than over a surface, so no contrast floor is meetable by the
+ink alone: the ground is what makes one meetable, and a person removing it needs
+the edge as its compensation. Face and size are the two every platform's own
+caption settings carry, and a deployment offering fewer than a platform does gives
+a person reason to leave the deployment's settings alone and use the platform's,
+which §14.5's guarantee does not reach.
+
+A property beyond the four is the deployment's to add through the registry. What a
+deployment MUST NOT do is adjust a property it does not persist, since §14.5 makes
+the persistence the point: a setting that resets is a setting a person re-enters
+every time they are reminded they need it.
+
 ### 17.5 Operability without a pointer
 
 Every function MUST be operable by keyboard alone, and every function on a
@@ -1581,6 +1599,7 @@ built, and no code path may supply a value a registry omits.**
 | category presentation | per spec-04 §6.3 category: the primary surface, the selectors honoured, and the presentation assets required (§12.1) |
 | seek granularities | the small and large position steps of §12.3 |
 | text track classifications | the values of §17.4 |
+| caption presentation | per property of §17.4's caption styling: the values it admits and its default, at least the face, the size, the ground and the edge |
 | accessibility affordances and hazards | the vocabularies of §17.3 |
 | absence field names | the fields an absence assertion may be about, which spec-02 §6.5 requires be drawn from a registry |
 
