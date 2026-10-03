@@ -53,6 +53,7 @@
     "document": "textual",
     "ebook": "textual",
     "comic_issue": "graphic_narrative",
+    "comic_series": "graphic_narrative",
     "photograph": "still_image",
     "scan": "still_image",
     "video_game": "software",
