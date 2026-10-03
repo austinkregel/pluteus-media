@@ -275,6 +275,18 @@
       "class": "software",
       "essence": "not_applicable"
     },
+    "unif": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
+    "gba": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
+    "gameboy": {
+      "class": "software",
+      "essence": "not_applicable"
+    },
     "iso9660": {
       "class": "software",
       "essence": "not_applicable"
@@ -455,6 +467,24 @@
       "offset": 32769,
       "hex": "4344303031",
       "for": "a disc image, whose primary volume descriptor says CD001 at 0x8001"
+    },
+    {
+      "format": "unif",
+      "offset": 0,
+      "hex": "554e4946",
+      "for": "an NES cartridge dump in the UNIF container, which says UNIF at 0x0"
+    },
+    {
+      "format": "gba",
+      "offset": 4,
+      "hex": "24ffae51699aa221",
+      "for": "a Game Boy Advance cartridge dump, whose fixed Nintendo logo begins at 0x4 and which the console refuses to boot without"
+    },
+    {
+      "format": "gameboy",
+      "offset": 260,
+      "hex": "ceed6666cc0d000b",
+      "for": "a Game Boy or Game Boy Color cartridge dump, whose fixed Nintendo logo begins at 0x104. One signature serves both: the logo is identical and the colour flag at 0x143 distinguishes them, which says nothing about the broad class"
     }
   ]
 }
