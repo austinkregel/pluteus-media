@@ -12,6 +12,7 @@ defmodule Pluteus.IngestFixtures do
 
   alias Pluteus.Ingest
   alias Pluteus.Storage
+  alias Pluteus.StorageFixtures
 
   @settle 60
 
@@ -63,6 +64,29 @@ defmodule Pluteus.IngestFixtures do
 
     header <> :binary.copy(fill, 16_384) <> :binary.copy(fill, 8_192)
   end
+
+  @doc """
+  A comic archive as a ZIP, which is what a `.cbz` is.
+
+  `entries` are `{name, bytes}` pairs, so a caller decides what the archive holds: pages
+  alone for a comic, something unrenderable for an archive that is not one. Built here
+  rather than committed, because `:zip.create/3` writes the format — unlike RAR, which
+  nothing in Debian main writes and which `test/support/fixtures/comic.cbr` therefore is.
+  """
+  @spec cbz([{String.t(), binary()}]) :: binary()
+  def cbz(entries) do
+    files = for {name, bytes} <- entries, do: {String.to_charlist(name), bytes}
+
+    {:ok, {_name, archive}} = :zip.create(~c"comic.cbz", files, [:memory])
+
+    archive
+  end
+
+  @doc """
+  A page of a comic: one small image, distinct per page so no two pages share bytes.
+  """
+  @spec comic_page(pos_integer()) :: binary()
+  def comic_page(number), do: StorageFixtures.png("page #{number}")
 
   @doc """
   Writes bytes into the inbox at a relative path.
