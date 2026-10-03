@@ -133,6 +133,22 @@ else for it to go.
 
 Neither may be inferred (spec-10 §4.4).
 
+**Where each choice is kept** follows from what it is about. `theme`, `contrast`,
+`density` and `motion` are kept per principal and persisted; `distance` is recorded
+with the device (spec-10 §4.4).
+
+The line is the one this section already draws between the two axes. Distance is a
+fact about the screen and how far from it a person sits — the same for everyone who
+looks at it, and a property of the room rather than of the viewer. The other four
+are what a person wants, and two people sharing one screen may want differently:
+spec-10 §14.5 makes `contrast` and `motion` that person's and not the household's,
+and `theme` and `density` are of the same kind even though §14.5's list, which is
+about what a preference discloses, does not name them.
+
+Density in particular is a choice and not a measurement. This section calls it "how
+tightly a layout packs at a given apparent size", which is taste, where distance is
+"how large everything must be to be legible at all", which is not.
+
 ---
 
 ## A.2 Colour
@@ -465,6 +481,21 @@ long-form text.
 | `sys.type.display.*` line height | 1.15 |
 | alignment default | start |
 | hyphenation default | off |
+
+**The theme here is an intent and not a resolved value**, as A.10.1 requires of
+every context attribute: what is kept is what the person asked for, so that
+following something else is a state of its own rather than a value that has lost
+its provenance.
+
+Its third state is *follow the interface*, and it is the default. It is not *follow
+the system*: A.1.6's `theme` has already resolved the system signal, and a reading
+surface resolving it a second time could answer differently from the page it sits
+in — a reader turning light inside a dark interface because a media query was read
+twice under conditions that changed between the two readings.
+
+So a reader draws from A.1.6's theme contexts without having its own opinion about
+the system, and a person who wants long-form text lit differently from the
+interface says so outright.
 
 Justification and hyphenation default off. Justification without hyphenation
 produces rivers; hyphenation fragments words across lines, which harms
