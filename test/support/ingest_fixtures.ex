@@ -48,6 +48,23 @@ defmodule Pluteus.IngestFixtures do
   def unique_prefix, do: "t#{System.unique_integer([:positive])}"
 
   @doc """
+  An NES cartridge dump in the iNES container.
+
+  Four magic bytes and a twelve-byte header, then the one program and one character bank
+  the header declares, filled with `fill`. Two dumps built from different fills differ in
+  every byte of their content while identifying as one format, which is the shape spec-04
+  criterion 40 turns on: nothing in the bytes says the two are one game.
+
+  Nobody's game, and no emulator's: the banks hold no instructions.
+  """
+  @spec ines_rom(binary()) :: binary()
+  def ines_rom(fill) when byte_size(fill) == 1 do
+    header = "NES\x1a" <> <<1, 1, 0, 0>> <> :binary.copy(<<0>>, 8)
+
+    header <> :binary.copy(fill, 16_384) <> :binary.copy(fill, 8_192)
+  end
+
+  @doc """
   Writes bytes into the inbox at a relative path.
   """
   @spec drop!(Path.t(), String.t(), binary()) :: Path.t()
