@@ -26,6 +26,18 @@ defmodule Pluteus.Ingest.Acquisition do
   @essences ~w(lossy lossless unknown not_applicable)a
   @media_classes ~w(companion audio video image text package software)a
 
+  @doc """
+  Every essence a holding's bytes may be recorded as (spec-04 §5.2).
+  """
+  @spec essences() :: [atom()]
+  def essences, do: @essences
+
+  @doc """
+  Every broad class a holding may be placed under (spec-04 §5.3).
+  """
+  @spec media_classes() :: [atom()]
+  def media_classes, do: @media_classes
+
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
   schema "acquisitions" do
