@@ -21,6 +21,7 @@ defmodule Pluteus.Ingest.Place do
 
   alias Pluteus.Actor
   alias Pluteus.Annotations
+  alias Pluteus.Archive
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
@@ -338,6 +339,19 @@ defmodule Pluteus.Ingest.Place do
       nil -> nil
       _stated -> measured(:millisecond, Streams.duration_ms(probe))
     end
+  end
+
+  # §12.1's page reader asks where a page sits in the whole, so a comic archive is measured
+  # in pages. A page is an entry the archive holds: a release group's credit card carries no
+  # mark distinguishing it from the last page, and counting the entries is what the archive
+  # says rather than a guess about which of them is really a page.
+  # Identification took the class from these entries, so an archive reaching placement has
+  # already been listed once and listing it again cannot fail. Where it does, the bytes
+  # changed underneath the acquisition, which is not a condition to record an extent around.
+  defp extent_of(%Acquisition{media_class: :package} = acquisition) do
+    {:ok, entries} = Archive.entries(acquisition.location)
+
+    measured(:page, length(entries))
   end
 
   defp extent_of(%Acquisition{}), do: nil
