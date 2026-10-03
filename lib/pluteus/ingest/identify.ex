@@ -9,14 +9,19 @@ defmodule Pluteus.Ingest.Identify do
   is a media manager's metadata, and one holding a release's notes is a
   description.
 
+  A container is read for what it holds, and a metadata document the registry names inside
+  one is read here as an embedded tag (§6.9 criterion 35). It describes the container
+  rather than being content of it, so it is neither a companion nor a page, and a document
+  the registry does not name is content.
+
   Essence is decided per content stream. Embedded cover art, data streams,
   timecode tracks and attachments accompany the media and are not counted, so
   an MP3 carrying a JPEG of its sleeve is as lossy as its audio and no more.
   """
 
-  alias Pluteus.Archive
   alias Pluteus.Formats
   alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Container
   alias Pluteus.Ingest.Probe
   alias Pluteus.Ingest.Registry
   alias Pluteus.Storage
@@ -45,7 +50,7 @@ defmodule Pluteus.Ingest.Identify do
          {:ok, probe} <- probe(acquisition.location, format) do
       streams = streams(probe)
 
-      with {:ok, media_class} <-
+      with {:ok, media_class, container_tags} <-
              media_class(companion_kind, streams, probe, format, acquisition.location) do
         {:ok,
          %{
@@ -54,7 +59,8 @@ defmodule Pluteus.Ingest.Identify do
            streams: streams,
            essence: essence(streams, probe, format),
            media_class: media_class,
-           companion_kind: companion_kind
+           companion_kind: companion_kind,
+           container_tags: container_tags
          }}
       end
     end
@@ -172,7 +178,7 @@ defmodule Pluteus.Ingest.Identify do
   end
 
   defp media_class(kind, _streams, _probe, _format, _location) when is_binary(kind),
-    do: {:ok, :companion}
+    do: {:ok, :companion, %{}}
 
   defp media_class(nil, streams, probe, format, location) do
     kinds = for %{"content" => true, "kind" => kind} <- streams, do: kind
@@ -180,13 +186,14 @@ defmodule Pluteus.Ingest.Identify do
     cond do
       "video" in kinds ->
         {:ok,
-         if(Registry.image_container?(probe["format"]["format_name"]), do: :image, else: :video)}
+         if(Registry.image_container?(probe["format"]["format_name"]), do: :image, else: :video),
+         %{}}
 
       "audio" in kinds ->
-        {:ok, :audio}
+        {:ok, :audio, %{}}
 
       "subtitle" in kinds ->
-        {:ok, :text}
+        {:ok, :text, %{}}
 
       true ->
         streamless_class(streams, format, location)
@@ -196,7 +203,7 @@ defmodule Pluteus.Ingest.Identify do
   defp streamless_class(streams, format, location) do
     case {Registry.streamless_format(format), Registry.archive_format(format)} do
       {%{class: class}, _archive} when streams == [] ->
-        {:ok, class}
+        {:ok, class, %{}}
 
       {nil, %{class: class}} when streams == [] ->
         corroborated(class, format, location)
@@ -207,25 +214,46 @@ defmodule Pluteus.Ingest.Identify do
   end
 
   # §5.3. An archive's format is any ZIP or any RAR, so the class is taken only where every
-  # entry is one a surface could render. An entry outside that names itself: a ZIP of
-  # holiday photographs becomes a comic issue a member corrects, but a ZIP holding an
-  # installer is not a holding this deployment knows how to be wrong about.
+  # entry of content is one a surface could render. An entry outside that names itself: a
+  # ZIP of holiday photographs becomes a comic issue a member corrects, but a ZIP holding
+  # an installer is not a holding this deployment knows how to be wrong about.
+  #
+  # §6.9 criterion 35. A metadata document the registry names is not content and is read
+  # here instead, as the embedded tags §6.3 weighs. An unnamed document is content, so an
+  # XML that names nothing the registry knows is weighed as a page would be and refused.
   defp corroborated(class, format, location) do
-    case Archive.entries(location) do
-      {:ok, []} ->
+    case Container.read(location) do
+      {:ok, %{content: [], documents: []}} ->
         {:error, {"archive_is_empty", %{format: format}}}
 
-      {:ok, entries} ->
-        case Enum.reject(entries, &Registry.renderable_entry?/1) do
-          [] -> {:ok, class}
+      {:ok, %{content: [], documents: documents}} ->
+        {:error, {"archive_holds_no_content", %{format: format, documents: documents}}}
+
+      {:ok, %{content: content, tags: tags}} ->
+        case Enum.reject(content, &Registry.renderable_entry?/1) do
+          [] -> {:ok, class, tags}
           unreadable -> {:error, {"unclassifiable", %{format: format, entries: unreadable}}}
         end
 
-      {:error, {:too_many, ceiling}} ->
-        {:error, {"archive_holds_too_much", %{format: format, ceiling: ceiling}}}
-
-      {:error, {:unreadable, status, output}} ->
-        {:error, {"archive_unreadable", %{format: format, status: status, output: output}}}
+      {:error, refusal} ->
+        {:error, refused(format, refusal)}
     end
   end
+
+  defp refused(format, {:too_many, ceiling}),
+    do: {"archive_holds_too_much", %{format: format, ceiling: ceiling}}
+
+  defp refused(format, {:too_long, ceiling}),
+    do: {"archive_holds_too_much", %{format: format, ceiling: ceiling}}
+
+  defp refused(format, {:timed_out, milliseconds}),
+    do: {"archive_unreadable", %{format: format, timed_out_after_ms: milliseconds}}
+
+  defp refused(format, {:unreadable, status, output}),
+    do: {"archive_unreadable", %{format: format, status: status, output: output}}
+
+  defp refused(format, {:document_unreadable, entry, reason}),
+    do:
+      {"container_document_unreadable",
+       %{format: format, entry: entry, reason: inspect(reason) |> String.slice(0, 500)}}
 end
