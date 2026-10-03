@@ -276,6 +276,29 @@ defmodule Pluteus.Ingest.Registry do
     do: Map.fetch!(registry()["categories"], Atom.to_string(class))
 
   @doc """
+  Every category placement can record (spec-04 §6.3, §6.9).
+
+  Three sources reach the category scheme: the default for a broad class or a companion
+  kind, a value the file's own tags decide, and the category a serial work takes. Each
+  reaches the same scheme, so each is a category the rest of the deployment must know.
+  """
+  @spec recordable_categories() :: [String.t()]
+  def recordable_categories do
+    defaults =
+      registry()["categories"]
+      |> Map.values()
+      |> Enum.flat_map(fn
+        category when is_binary(category) -> [category]
+        per_kind when is_map(per_kind) -> Map.values(per_kind)
+      end)
+
+    evidence = Enum.flat_map(registry()["category_evidence"], &Map.values(&1["values"]))
+    serials = for {_issue, rule} <- registry()["serials"]["of_category"], do: rule["category"]
+
+    (defaults ++ evidence ++ serials) |> Enum.uniq() |> Enum.sort()
+  end
+
+  @doc """
   The serial a holding of this category is an issue of, or nil where the category belongs
   to no serial (spec-04 §6.9, spec-01 §5.4).
 
