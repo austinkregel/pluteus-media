@@ -47,6 +47,19 @@ RUN apt-get update \
        poppler-utils tesseract-ocr tesseract-ocr-eng libvips-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# libarchive lists and extracts a comic archive's entries, which is what says a ZIP or a
+# RAR of page images is a comic at all. spec-04 §5 identifies the container from its bytes
+# and a container's bytes say nothing about what it holds: a .cbz is any ZIP and a .cbr is
+# any RAR, so classification corroborates from the entries and spec-10 §12.1's page reader
+# extracts page n from them.
+#
+# Its RAR readers are clean-room BSD-2-Clause work in Debian main, and they read RAR 5.0,
+# which is what the household's own comics are. The non-free `unrar` is not needed: the
+# unRAR licence restricts writing a compressor rather than reading one.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libarchive-tools \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app
