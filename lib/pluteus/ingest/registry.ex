@@ -224,11 +224,45 @@ defmodule Pluteus.Ingest.Registry do
   @spec standard_format(atom()) :: map() | nil
   def standard_format(class), do: registry()["standard_formats"][Atom.to_string(class)]
 
-  defp to_essence(essence) when essence in ~w(lossy lossless unknown not_applicable),
-    do: String.to_existing_atom(essence)
+  # The essences and classes the registry may name, mapped to the atoms they mean.
+  #
+  # Written out rather than converted, because an atom exists only once some module
+  # carrying it as a literal has been loaded, and that is a property of the whole VM's
+  # load history rather than of this call. Converting here would make a value the registry
+  # should not hold and a module that happens not to be loaded yet raise the same error,
+  # naming neither the registry nor the key.
+  #
+  # Held as literals here, the atoms exist whenever this module does, and a value outside
+  # the map raises `KeyError` naming the value — which is what a registry saying something
+  # the code does not admit should look like.
+  @essences %{
+    "lossy" => :lossy,
+    "lossless" => :lossless,
+    "unknown" => :unknown,
+    "not_applicable" => :not_applicable
+  }
 
-  defp to_class(class) when class in ~w(companion audio video image text package software),
-    do: String.to_existing_atom(class)
+  @classes %{
+    "companion" => :companion,
+    "audio" => :audio,
+    "video" => :video,
+    "image" => :image,
+    "text" => :text,
+    "package" => :package,
+    "software" => :software
+  }
+
+  @doc """
+  The essences and classes this registry admits, which the schema's own vocabularies are
+  asserted against.
+  """
+  @spec vocabularies() :: %{essences: [atom()], classes: [atom()]}
+  def vocabularies,
+    do: %{essences: Map.values(@essences), classes: Map.values(@classes)}
+
+  defp to_essence(essence), do: Map.fetch!(@essences, essence)
+
+  defp to_class(class), do: Map.fetch!(@classes, class)
 
   defp registry do
     case :persistent_term.get(@key, nil) do
