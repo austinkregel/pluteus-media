@@ -33,6 +33,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.Finding
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
+  alias Pluteus.Ingest.SerialKey
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
   alias Pluteus.PlatformEvents
@@ -184,12 +185,115 @@ defmodule Pluteus.Ingest.Place do
     do: place_container(acquisition)
 
   defp place_by_class(%Acquisition{} = acquisition) do
+    case serial_place(acquisition) do
+      {:taken, detail} -> {:finding, "position_taken", detail}
+      within -> place_alone_or_within(acquisition, within)
+    end
+  end
+
+  defp place_alone_or_within(acquisition, within) do
     {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
       Catalog.create_work(automatic(title(acquisition)))
 
     categorize(work.id, acquisition)
+    position_within(within, work.id, manifestation.id)
     represent(acquisition, work.id, [expression])
     carry(acquisition, manifestation.id)
+  end
+
+  # --- Serials (§6.9, spec-01 §5.4) -------------------------------------------------
+
+  # §5.4 puts the two halves of a serial at different levels, and criterion 39 turns on
+  # the second: the issue's work is connected to the serial's work by inspiration, and
+  # where the issue sits is carried between their manifestations. The serial work has no
+  # part, so nothing here writes one.
+  defp position_within(nil, _work_id, _manifestation_id), do: :ok
+
+  defp position_within(%{} = within, work_id, manifestation_id) do
+    {:ok, _inspired} = Catalog.inspire(within.serial_work_id, work_id)
+
+    {:ok, _part} =
+      Catalog.add_manifestation_part(
+        within.serial_manifestation_id,
+        manifestation_id,
+        within.position
+      )
+
+    :ok
+  end
+
+  # The serial is resolved before the issue's work exists, so that an issue whose number
+  # the series already holds is a finding rather than a refused write part way through
+  # placing it, which is how §6.4 answers the same collision between two tracks.
+  defp serial_place(%Acquisition{} = acquisition) do
+    case Registry.serial_of(category_of(acquisition)) do
+      nil -> nil
+      rule -> serial_place(acquisition, rule)
+    end
+  end
+
+  defp serial_place(acquisition, rule) do
+    tags = embedded_tags(acquisition)
+
+    case Streams.first(tags, rule.named_by) do
+      nil ->
+        nil
+
+      name ->
+        serial = serial_for(rule, name)
+        position = Streams.number(tags, rule.numbered_by)
+
+        if taken?(serial.serial_manifestation_id, position) do
+          {:taken, %{serial_manifestation_id: serial.serial_manifestation_id, position: position}}
+        else
+          Map.put(serial, :position, position)
+        end
+    end
+  end
+
+  # An issue the series does not number collides with nothing: a serial is ordered where
+  # it says it is, and two issues stating no number are two parts of it all the same.
+  defp taken?(_serial_manifestation_id, nil), do: false
+
+  defp taken?(serial_manifestation_id, position),
+    do: Enum.any?(Catalog.parts_of(serial_manifestation_id), &(&1.position == position))
+
+  # Joins the serial holding the key, or creates it, the way `release_for/3` joins a
+  # release. A key whose serial has since been recycled or purged no longer groups
+  # anything, and a new serial takes it over.
+  defp serial_for(rule, name) do
+    key = "#{rule.category}:#{String.downcase(String.trim(name))}"
+    now = DateTime.utc_now()
+
+    {inserted, _} =
+      Repo.insert_all(SerialKey, [%{key: key, inserted_at: now, updated_at: now}],
+        on_conflict: :nothing,
+        conflict_target: :key
+      )
+
+    existing = Repo.get!(SerialKey, key)
+
+    if inserted == 0 and live?(existing.serial_manifestation_id),
+      do: %{
+        serial_work_id: existing.serial_work_id,
+        serial_manifestation_id: existing.serial_manifestation_id
+      },
+      else: create_serial(existing, rule, name)
+  end
+
+  defp create_serial(serial_key, rule, name) do
+    {:ok, %{work: work, manifestation: manifestation}} = Catalog.create_work(automatic(name))
+
+    {:ok, _} = Catalog.categorize(work.id, @category_scheme, rule.category, :automatic)
+
+    serial_key
+    |> Ecto.Changeset.change(
+      serial_work_id: work.id,
+      serial_manifestation_id: manifestation.id
+    )
+    |> Repo.update!()
+
+    %{serial_work_id: work.id, serial_manifestation_id: manifestation.id}
   end
 
   # spec-01 §6.5. What the bytes already read supply of the attributes this work's type
@@ -752,9 +856,13 @@ defmodule Pluteus.Ingest.Place do
   # are one audio file of a text or a performance, and the bytes alone cannot say
   # which.
   defp categorize(work_id, acquisition) do
-    value = evidence(acquisition) || class_default(acquisition)
-    {:ok, _} = Catalog.categorize(work_id, @category_scheme, value, :automatic)
+    {:ok, _} = Catalog.categorize(work_id, @category_scheme, category_of(acquisition), :automatic)
   end
+
+  # What §6.3 decides, without recording it. The serial an issue belongs to follows from
+  # its category, and that has to be known before the issue's work is written.
+  defp category_of(%Acquisition{} = acquisition),
+    do: evidence(acquisition) || class_default(acquisition)
 
   # A companion's category is its kind (§4.6), which the name already established,
   # so there is nothing for a tag to decide.
