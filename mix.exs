@@ -22,7 +22,7 @@ defmodule Pluteus.MixProject do
   def application do
     [
       mod: {Pluteus.Application, []},
-      extra_applications: [:logger, :runtime_tools, :inets, :ssl]
+      extra_applications: [:logger, :runtime_tools, :inets, :ssl, :xmerl]
     ]
   end
 
