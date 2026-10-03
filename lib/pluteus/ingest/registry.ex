@@ -130,6 +130,38 @@ defmodule Pluteus.Ingest.Registry do
   end
 
   @doc """
+  The class and essence an archive format takes where its entries corroborate it, or nil
+  where the registry names no archive of that format.
+
+  The class is conditional, which is why this is separate from `streamless_format/1`: the
+  format is any ZIP or any RAR, so taking the class on the format alone would make every
+  archive in the house a comic.
+  """
+  @spec archive_format(String.t()) :: %{class: atom(), essence: atom()} | nil
+  def archive_format(format) do
+    case registry()["archive_formats"][format] do
+      nil ->
+        nil
+
+      %{"class" => class, "essence" => essence} ->
+        %{class: to_class(class), essence: to_essence(essence)}
+    end
+  end
+
+  @doc """
+  Whether an archive entry is one a surface could render (spec-04 §5.3).
+
+  Read by extension, which is what an archive's own listing gives without extracting every
+  entry.
+  """
+  @spec renderable_entry?(String.t()) :: boolean()
+  def renderable_entry?(name) do
+    extension = name |> Path.extname() |> String.trim_leading(".") |> String.downcase()
+
+    extension in registry()["renderable_entries"]["extensions"]
+  end
+
+  @doc """
   How much of a file's head a deployment signature can need (spec-04 §5.1).
 
   One read of this length answers every signature, so a file PRONOM could not
