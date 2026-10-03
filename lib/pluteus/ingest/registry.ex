@@ -162,6 +162,40 @@ defmodule Pluteus.Ingest.Registry do
   end
 
   @doc """
+  Whether an archive entry is worth opening to see if it is a metadata document
+  (spec-04 §5.3).
+
+  Decided from the listing alone, because deciding it from the root element means
+  extracting the entry, and a comic holds two hundred pages that no root could name.
+  """
+  @spec container_candidate?(String.t()) :: boolean()
+  def container_candidate?(name) do
+    extension = name |> Path.extname() |> String.trim_leading(".") |> String.downcase()
+
+    extension in registry()["container_documents"]["extensions"]
+  end
+
+  @doc """
+  Whether these bytes are a metadata document the registry names, by their root element.
+
+  The root element decides, as it does for a companion (`companion_kind/2`): it names a
+  document a person renamed, and it refuses one that took the name and holds something
+  else.
+  """
+  @spec container_document?(binary()) :: boolean()
+  def container_document?(bytes) when is_binary(bytes),
+    do: root_element(bytes) in registry()["container_documents"]["roots"]
+
+  @doc """
+  The most a metadata document inside a container may weigh (spec-04 §11).
+
+  A document states a few fields about its container, so one longer than this is not a
+  document that was written to be read and is refused rather than parsed.
+  """
+  @spec container_document_ceiling() :: pos_integer()
+  def container_document_ceiling, do: registry()["container_documents"]["byte_ceiling"]
+
+  @doc """
   How much of a file's head a deployment signature can need (spec-04 §5.1).
 
   One read of this length answers every signature, so a file PRONOM could not
