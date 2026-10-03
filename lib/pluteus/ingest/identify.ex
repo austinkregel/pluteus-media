@@ -14,6 +14,7 @@ defmodule Pluteus.Ingest.Identify do
   an MP3 carrying a JPEG of its sleeve is as lossy as its audio and no more.
   """
 
+  alias Pluteus.Archive
   alias Pluteus.Formats
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Probe
@@ -44,7 +45,8 @@ defmodule Pluteus.Ingest.Identify do
          {:ok, probe} <- probe(acquisition.location, format) do
       streams = streams(probe)
 
-      with {:ok, media_class} <- media_class(companion_kind, streams, probe, format) do
+      with {:ok, media_class} <-
+             media_class(companion_kind, streams, probe, format, acquisition.location) do
         {:ok,
          %{
            format: format,
@@ -89,7 +91,9 @@ defmodule Pluteus.Ingest.Identify do
         {:ok, probe}
 
       {:error, {:ffprobe, status, output}} ->
-        if Registry.streamless_format(format),
+        # A format the registry knows carries no streams has nothing for ffprobe to read,
+        # and an archive is one of those: what it holds is read from its entries instead.
+        if Registry.streamless_format(format) || Registry.archive_format(format),
           do: {:ok, nil},
           else: {:error, {"undecodable", %{format: format, status: status, output: output}}}
     end
@@ -167,9 +171,10 @@ defmodule Pluteus.Ingest.Identify do
     end
   end
 
-  defp media_class(kind, _streams, _probe, _format) when is_binary(kind), do: {:ok, :companion}
+  defp media_class(kind, _streams, _probe, _format, _location) when is_binary(kind),
+    do: {:ok, :companion}
 
-  defp media_class(nil, streams, probe, format) do
+  defp media_class(nil, streams, probe, format, location) do
     kinds = for %{"content" => true, "kind" => kind} <- streams, do: kind
 
     cond do
@@ -184,17 +189,43 @@ defmodule Pluteus.Ingest.Identify do
         {:ok, :text}
 
       true ->
-        streamless_class(streams, format)
+        streamless_class(streams, format, location)
     end
   end
 
-  defp streamless_class(streams, format) do
-    case Registry.streamless_format(format) do
-      %{class: class} when streams == [] ->
+  defp streamless_class(streams, format, location) do
+    case {Registry.streamless_format(format), Registry.archive_format(format)} do
+      {%{class: class}, _archive} when streams == [] ->
         {:ok, class}
+
+      {nil, %{class: class}} when streams == [] ->
+        corroborated(class, format, location)
 
       _unclassified ->
         {:error, {"unclassifiable", %{format: format, streams: length(streams)}}}
+    end
+  end
+
+  # §5.3. An archive's format is any ZIP or any RAR, so the class is taken only where every
+  # entry is one a surface could render. An entry outside that names itself: a ZIP of
+  # holiday photographs becomes a comic issue a member corrects, but a ZIP holding an
+  # installer is not a holding this deployment knows how to be wrong about.
+  defp corroborated(class, format, location) do
+    case Archive.entries(location) do
+      {:ok, []} ->
+        {:error, {"archive_is_empty", %{format: format}}}
+
+      {:ok, entries} ->
+        case Enum.reject(entries, &Registry.renderable_entry?/1) do
+          [] -> {:ok, class}
+          unreadable -> {:error, {"unclassifiable", %{format: format, entries: unreadable}}}
+        end
+
+      {:error, {:too_many, ceiling}} ->
+        {:error, {"archive_holds_too_much", %{format: format, ceiling: ceiling}}}
+
+      {:error, {:unreadable, status, output}} ->
+        {:error, {"archive_unreadable", %{format: format, status: status, output: output}}}
     end
   end
 end
