@@ -8,6 +8,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
   import Pluteus.IngestFixtures
 
+  alias Pluteus.Actor
   alias Pluteus.Annotations
   alias Pluteus.Assets
   alias Pluteus.Catalog
@@ -470,6 +471,104 @@ defmodule Pluteus.Ingest.PlacementTest do
       assert finding.detail["entry"] == "ComicInfo.xml"
       assert finding.detail["reason"] =~ "file:///etc/passwd"
       refute finding.detail["reason"] =~ "root:"
+    end
+  end
+
+  describe "39. A comic issue is a work positioned within its series at manifestation level" do
+    defp an_issue(inbox, series, number) do
+      document = comic_info(Series: series, Number: number, Title: "Part #{number}")
+
+      entries =
+        [{"ComicInfo.xml", document}] ++
+          for n <- 1..2, do: {"page-#{n}.png", comic_page(n)}
+
+      prefix = unique_prefix()
+
+      [issue] = ingest!(inbox, %{"#{prefix}/#{series} #{number}.cbz" => cbz(entries)})
+
+      issue
+    end
+
+    defp series_of(issue) do
+      [%{inspiration_id: serial}] = Catalog.inspirations_of(work_of(issue))
+      serial
+    end
+
+    defp serial_manifestation(issue) do
+      [expression] = Catalog.expressions_of(series_of(issue))
+      [manifestation] = Catalog.manifestations_of(expression.id)
+      manifestation.id
+    end
+
+    test "the issue is its own work, connected to the series by inspiration", %{inbox: inbox} do
+      issue = an_issue(inbox, "Excitebike Weekly", 7)
+      series = series_of(issue)
+
+      refute series == work_of(issue)
+      assert Catalog.category_of(work_of(issue), Place.category_scheme()) == "comic_issue"
+      assert Catalog.category_of(series, Place.category_scheme()) == "comic_series"
+      assert names(series) == ["Excitebike Weekly"]
+    end
+
+    test "where it sits in the series is carried between manifestations", %{inbox: inbox} do
+      issue = an_issue(inbox, "Excitebike Weekly", 7)
+
+      assert [%{part_id: part, position: 7}] = Catalog.parts_of(serial_manifestation(issue))
+      assert part == manifestation_of(issue)
+    end
+
+    test "the series work has no part, which is the whole of the criterion", %{inbox: inbox} do
+      # spec-01 §5.4. A series does not contain its issues. Were this a whole-part
+      # relation, "issue 7" would be a property of the issue's work rather than an
+      # arrangement fact about the series' manifestation.
+      issue = an_issue(inbox, "Excitebike Weekly", 7)
+
+      assert Catalog.work_parts_of(series_of(issue)) == []
+    end
+
+    test "two issues of one series find one series", %{inbox: inbox} do
+      first = an_issue(inbox, "Excitebike Weekly", 7)
+      second = an_issue(inbox, "Excitebike Weekly", 8)
+
+      assert series_of(first) == series_of(second)
+      assert [%{position: 7}, %{position: 8}] = Catalog.parts_of(serial_manifestation(first))
+    end
+
+    test "an issue whose number the series holds is a finding", %{inbox: inbox} do
+      an_issue(inbox, "Excitebike Weekly", 7)
+
+      document = comic_info(Series: "Excitebike Weekly", Number: 7)
+      prefix = unique_prefix()
+      entries = [{"ComicInfo.xml", document}, {"page-1.png", comic_page(1)}]
+      drop!(inbox, "#{prefix}/again.cbz", cbz(entries))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+      Place.place_due(inbox)
+
+      assert [%{kind: "position_taken", detail: %{"position" => 7}}] =
+               Ingest.findings_for_acquisition(id)
+    end
+
+    test "a comic naming no series is placed on its own", %{inbox: inbox} do
+      # Every comic the household holds carries no metadata document at all, so this is
+      # the ordinary case rather than the exception.
+      prefix = unique_prefix()
+      entries = for n <- 1..2, do: {"page-#{n}.png", comic_page(n)}
+
+      [issue] = ingest!(inbox, %{"#{prefix}/Unnamed 001.cbz" => cbz(entries)})
+
+      assert Catalog.inspirations_of(work_of(issue)) == []
+      assert Catalog.wholes_of(manifestation_of(issue)) == []
+    end
+
+    test "the database refuses a whole-part relation between the two", %{inbox: inbox} do
+      issue = an_issue(inbox, "Excitebike Weekly", 7)
+      series = series_of(issue)
+
+      assert_raise Postgrex.Error, ~r/their structure is at manifestation level/, fn ->
+        Actor.as(Principals.system!().id, fn ->
+          Catalog.add_work_part(series, work_of(issue))
+        end)
+      end
     end
   end
 
