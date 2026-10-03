@@ -276,6 +276,26 @@ defmodule Pluteus.Ingest.Registry do
     do: Map.fetch!(registry()["categories"], Atom.to_string(class))
 
   @doc """
+  The serial a holding of this category is an issue of, or nil where the category belongs
+  to no serial (spec-04 §6.9, spec-01 §5.4).
+
+  The rule carries the serial's own category, the tags that may name it, and the tags that
+  may number the issue within it. A category the registry does not list here is placed on
+  its own, which is every category but one until a podcast can be recognized.
+  """
+  @spec serial_of(String.t()) ::
+          %{category: String.t(), named_by: [String.t()], numbered_by: [String.t()]} | nil
+  def serial_of(category) do
+    case registry()["serials"]["of_category"][category] do
+      nil ->
+        nil
+
+      %{"category" => serial, "named_by" => named_by, "numbered_by" => numbered_by} ->
+        %{category: serial, named_by: named_by, numbered_by: numbered_by}
+    end
+  end
+
+  @doc """
   The media type a format is served as, or `application/octet-stream` where the
   registry maps none (spec-07 §4.4).
   """
