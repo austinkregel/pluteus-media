@@ -135,6 +135,27 @@ defmodule Pluteus.Ingest.RegistryTest do
       assert Registry.companion_kind("MetronInfo.xml", metron_info) == "metadata"
     end
 
+    test "35. a comic's metadata document inside a container is named by its root" do
+      assert Registry.container_candidate?("ComicInfo.xml")
+      assert Registry.container_candidate?("images/MetronInfo.xml")
+      assert Registry.container_document?(~s(<ComicInfo><Series>Saga</Series></ComicInfo>))
+      assert Registry.container_document?(~s(<MetronInfo><Series>Saga</Series></MetronInfo>))
+
+      # A page is never opened to ask: the listing already says it is not a candidate.
+      refute Registry.container_candidate?("page-001.jpg")
+      refute Registry.container_candidate?("images/")
+    end
+
+    test "35. an XML the registry does not name is content, not a document" do
+      refute Registry.container_document?(
+               ~s(<?xml version="1.0"?><invoice><total>3</total></invoice>)
+             )
+
+      # Content no surface can render, which is what makes the archive say so rather than
+      # take an unnamed document for a page.
+      refute Registry.renderable_entry?("invoice.xml")
+    end
+
     test "an XML file whose root none of those names is still no companion" do
       invoice = fn -> ~s(<?xml version="1.0"?>\n<invoice><total>3</total></invoice>) end
 
