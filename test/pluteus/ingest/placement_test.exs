@@ -15,6 +15,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
+  alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
@@ -304,6 +305,85 @@ defmodule Pluteus.Ingest.PlacementTest do
 
       assert Repo.get!(Asset, second.id).location == location
       assert Storage.exists?(location)
+    end
+  end
+
+  describe "36. A comic archive is one digital item, its pages selectors on it" do
+    defp a_comic(inbox, pages) do
+      entries = for n <- 1..pages, do: {"page-#{n}.png", comic_page(n)}
+      prefix = unique_prefix()
+
+      [comic] = ingest!(inbox, %{"#{prefix}/Excitebike Weekly 001.cbz" => cbz(entries)})
+
+      comic
+    end
+
+    test "the archive is one holding, not one per page", %{inbox: inbox} do
+      comic = a_comic(inbox, 3)
+
+      assert comic.media_class == :package
+      assert Catalog.category_of(work_of(comic), Place.category_scheme()) == "comic_issue"
+
+      # One digital item carrying one asset: the archive itself. That `ingest!` returned a
+      # single acquisition is the rest of it — no page became a holding of its own, because
+      # only the file that arrived was ever acquired.
+      assert [%{id: _asset}] = Catalog.assets_of(comic.digital_item_id)
+    end
+
+    test "a page is addressable within the whole", %{inbox: inbox} do
+      # §12.1's reader asks where a page sits in the whole, which needs the count recorded.
+      comic = a_comic(inbox, 3)
+      manifestation = manifestation_of(comic)
+
+      assert %{magnitude: 3} = Addressing.get_extent(manifestation, :page)
+
+      {:ok, selector} = DeepLink.read(:manifestation, %{"page" => "2"})
+      {:ok, %{address: address}} = Catalog.create_address(manifestation, selector)
+
+      assert {from, to} = Addressing.normalized_position(Repo.get!(Address, address.id))
+      assert from < to
+      assert to <= 1.0
+    end
+
+    test "an archive holding something unrenderable names it rather than guessing", %{
+      inbox: inbox
+    } do
+      # The format is any ZIP, so the entries are the only evidence. One that no surface
+      # could open is not a comic, and the finding says which entry decided it.
+      prefix = unique_prefix()
+
+      entries = [{"page-1.png", comic_page(1)}, {"setup.exe", <<0x4D, 0x5A, 0, 0>>}]
+      drop!(inbox, "#{prefix}/Not A Comic.cbz", cbz(entries))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      assert [finding] = Ingest.findings_for_acquisition(id)
+      assert finding.kind == "unclassifiable"
+      assert finding.detail["entries"] == ["setup.exe"]
+    end
+
+    test "an empty archive is not a comic", %{inbox: inbox} do
+      prefix = unique_prefix()
+      drop!(inbox, "#{prefix}/Empty.cbz", cbz([]))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      assert [%{kind: "archive_is_empty"}] = Ingest.findings_for_acquisition(id)
+    end
+
+    test "a directory the archive declares is not a page", %{inbox: inbox} do
+      # The owner's own .cbz nests its pages under `images/`, and counting that entry would
+      # make a three-page comic four pages long.
+      prefix = unique_prefix()
+
+      entries = [
+        {"images/", <<>>},
+        {"images/page-1.png", comic_page(1)},
+        {"images/page-2.png", comic_page(2)}
+      ]
+
+      [comic] = ingest!(inbox, %{"#{prefix}/Nested.cbz" => cbz(entries)})
+
+      assert comic.media_class == :package
+      assert %{magnitude: 2} = Addressing.get_extent(manifestation_of(comic), :page)
     end
   end
 
