@@ -57,6 +57,7 @@ defmodule Pluteus.Ingest.Acquisition do
     field :essence, Ecto.Enum, values: @essences
     field :media_class, Ecto.Enum, values: @media_classes
     field :companion_kind, :string
+    field :container_tags, :map
 
     belongs_to :digital_item, DigitalItem
 
@@ -93,8 +94,16 @@ defmodule Pluteus.Ingest.Acquisition do
 
   def identified_changeset(acquisition, identified) do
     acquisition
-    |> cast(identified, [:format, :probe, :streams, :essence, :media_class, :companion_kind])
-    |> validate_required([:format, :essence, :media_class])
+    |> cast(identified, [
+      :format,
+      :probe,
+      :streams,
+      :essence,
+      :media_class,
+      :companion_kind,
+      :container_tags
+    ])
+    |> validate_required([:format, :essence, :media_class, :container_tags])
     |> put_change(:state, :identified)
     |> check_constraint(:state, name: :identified_before_placed)
     |> check_constraint(:media_class, name: :a_companion_names_its_kind)
