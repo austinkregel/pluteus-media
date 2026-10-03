@@ -21,13 +21,13 @@ defmodule Pluteus.Ingest.Place do
 
   alias Pluteus.Actor
   alias Pluteus.Annotations
-  alias Pluteus.Archive
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Representative
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Container
   alias Pluteus.Ingest.Credits
   alias Pluteus.Ingest.Cue
   alias Pluteus.Ingest.Finding
@@ -345,13 +345,16 @@ defmodule Pluteus.Ingest.Place do
   # in pages. A page is an entry the archive holds: a release group's credit card carries no
   # mark distinguishing it from the last page, and counting the entries is what the archive
   # says rather than a guess about which of them is really a page.
-  # Identification took the class from these entries, so an archive reaching placement has
-  # already been listed once and listing it again cannot fail. Where it does, the bytes
+  # Identification took the class from this container, so one reaching placement has
+  # already been read once and reading it again cannot fail. Where it does, the bytes
   # changed underneath the acquisition, which is not a condition to record an extent around.
+  #
+  # The content is counted and the documents are not: a metadata document is not a page
+  # (§6.9 criterion 35), and counting it would make a three-page comic four pages long.
   defp extent_of(%Acquisition{media_class: :package} = acquisition) do
-    {:ok, entries} = Archive.entries(acquisition.location)
+    {:ok, %{content: content}} = Container.read(acquisition.location)
 
-    measured(:page, length(entries))
+    measured(:page, length(content))
   end
 
   defp extent_of(%Acquisition{}), do: nil
@@ -383,7 +386,7 @@ defmodule Pluteus.Ingest.Place do
   # --- Music (§6.4) ---------------------------------------------------------------
 
   defp place_track(acquisition) do
-    tags = Streams.tags(acquisition.probe)
+    tags = embedded_tags(acquisition)
 
     case release_key(acquisition, tags) do
       {:conflict, identifiers} ->
@@ -408,7 +411,7 @@ defmodule Pluteus.Ingest.Place do
       Catalog.create_work(automatic(title(acquisition)))
 
     categorize(work.id, acquisition)
-    Credits.record(work.id, :artist, Credits.from_tags(Streams.tags(acquisition.probe), :artist))
+    Credits.record(work.id, :artist, Credits.from_tags(embedded_tags(acquisition), :artist))
     {:ok, _} = Catalog.add_manifestation_part(medium, track.id, position)
     {:ok, _} = Catalog.aggregate(release.expression_id, recording.id)
     carry(acquisition, track.id)
@@ -521,7 +524,7 @@ defmodule Pluteus.Ingest.Place do
   end
 
   defp place_cue_release(acquisition, cue) do
-    tags = Streams.tags(acquisition.probe)
+    tags = embedded_tags(acquisition)
     name = cue.title || release_name(acquisition, tags)
     release = release_for("single:" <> acquisition.id, name, tags)
     medium = medium_for(release, 1, name)
@@ -760,15 +763,22 @@ defmodule Pluteus.Ingest.Place do
   defp evidence(%Acquisition{} = acquisition) do
     Registry.category_from_tags(
       acquisition.media_class,
-      Streams.tags(acquisition.probe)
+      embedded_tags(acquisition)
     )
   end
+
+  # The tags a holding carries, from whichever reader answered them: a container with
+  # streams states them in its own header, and a container of files states them in a
+  # document the registry names inside it (§6.9 criterion 35). §6.3 weighs the two alike,
+  # so nothing downstream asks which it was.
+  defp embedded_tags(%Acquisition{} = acquisition),
+    do: Map.merge(Streams.tags(acquisition.probe), acquisition.container_tags)
 
   defp class_default(%Acquisition{} = acquisition),
     do: Registry.default_category(acquisition.media_class, acquisition.companion_kind)
 
   defp title(acquisition) do
-    Streams.first(Streams.tags(acquisition.probe), ["title"]) ||
+    Streams.first(embedded_tags(acquisition), ["title"]) ||
       stem_or_file_name(acquisition.inbox_path)
   end
 
