@@ -14,6 +14,7 @@ defmodule Pluteus.RegistriesTest do
   alias Pluteus.Catalog.Extent
   alias Pluteus.Continuity
   alias Pluteus.Design.Tokens
+  alias Pluteus.Preferences
   alias Pluteus.Presentation
   alias Pluteus.Representation
 
@@ -85,6 +86,19 @@ defmodule Pluteus.RegistriesTest do
     test "the absence field names spec-02 §6.5 requires are populated" do
       assert [_ | _] = Representation.Registry.absence_fields()
     end
+
+    test "caption presentation carries at least the four properties §17.4 names" do
+      # §17.4 makes what caption presentation consists of this registry's, and fixes a
+      # floor: a caption sits over moving picture, so the ground is what makes a contrast
+      # floor meetable and the edge is its compensation where a person removes it.
+      for property <- ~w(face size ground edge) do
+        key = "caption_#{property}"
+
+        assert key in Preferences.Registry.keys()
+        assert %{"kind" => _kind} = Preferences.Registry.domain(key)
+        assert Preferences.Registry.admits?(key, Preferences.Registry.default(key))
+      end
+    end
   end
 
   test "no code path supplies a value a registry omits" do
@@ -117,5 +131,9 @@ defmodule Pluteus.RegistriesTest do
     refute "image_profiles" in unseeded
     refute "absence_field_names" in unseeded
     refute "design_language_tokens" in unseeded
+
+    # §17.4's amendment made caption presentation one of §20's, and it was already carried,
+    # so it joins the seeded side rather than this list.
+    refute "caption_presentation" in unseeded
   end
 end
