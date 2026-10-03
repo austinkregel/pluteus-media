@@ -274,6 +274,17 @@
       "for": "a RAR, which a .cbr is, and which the household's own comics are at version 5.0"
     }
   },
+  "container_documents": {
+    "for": "A document inside a container that states facts about what the container holds, rather than being content of it. Read at identification as an embedded tag, which is the same evidence an audio file's own tags are, and never placed as a holding of its own. Matched by root element, as a standalone companion is, so one a person renamed is still found; a document the roots do not name is content.",
+    "extensions": [
+      "xml"
+    ],
+    "roots": [
+      "comicinfo",
+      "metroninfo"
+    ],
+    "byte_ceiling": 1048576
+  },
   "renderable_entries": {
     "for": "What an archive may hold and still be a package. A page image, or a document a reader can open. An entry outside this makes the archive unclassifiable and names itself in the finding, so a ZIP holding an installer or a game's assets is not a holding this deployment knows how to be wrong about. A ZIP of holiday photographs is renderable throughout and does become a comic issue, which a member corrects.",
     "extensions": [
@@ -286,8 +297,7 @@
       "avif",
       "jxl",
       "pdf",
-      "txt",
-      "xml"
+      "txt"
     ]
   },
   "streamless_formats": {
