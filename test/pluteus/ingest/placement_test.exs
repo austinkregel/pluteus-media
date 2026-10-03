@@ -307,6 +307,65 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "40. Two dumps of one game are each placed as a work of their own" do
+    test "nothing in the bytes groups two dumps, so each is its own work", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      [european, american] =
+        ingest!(inbox, %{
+          "#{prefix}/Excitebike (E) [!].nes" => ines_rom(<<0xA5>>),
+          "#{prefix}/Excitebike (U) [!].nes" => ines_rom(<<0x5A>>)
+        })
+
+      for dump <- [european, american] do
+        assert dump.media_class == :software
+        assert Catalog.category_of(work_of(dump), Place.category_scheme()) == "video_game"
+      end
+
+      refute work_of(european) == work_of(american)
+    end
+
+    test "no signal raises them as a candidate, because their bytes differ", %{inbox: inbox} do
+      # The criterion's "nothing in the bytes groups them" is this: detection raises a pair
+      # by identical bytes or a shared external identifier, and two dumps of one game share
+      # neither. A member proposes the pair or nothing does.
+      prefix = unique_prefix()
+
+      ingest!(inbox, %{
+        "#{prefix}/Excitebike (E) [!].nes" => ines_rom(<<0xA5>>),
+        "#{prefix}/Excitebike (U) [!].nes" => ines_rom(<<0x5A>>)
+      })
+
+      assert Dedup.detect() == 0
+    end
+
+    test "a same work decision leaves them as two expressions of one work", %{
+      inbox: inbox,
+      actor: actor
+    } do
+      prefix = unique_prefix()
+
+      [european, american] =
+        ingest!(inbox, %{
+          "#{prefix}/Excitebike (E) [!].nes" => ines_rom(<<0xA5>>),
+          "#{prefix}/Excitebike (U) [!].nes" => ines_rom(<<0x5A>>)
+        })
+
+      {:ok, candidate} =
+        Dedup.propose(manifestation_of(european), manifestation_of(american), actor.id)
+
+      {:ok, _decided} = Dedup.decide(candidate.id, :same_work, actor.id)
+
+      kept = work_of(european)
+
+      assert work_of(american) == kept
+
+      # Two expressions, not one: §8.3's same work says the two realize one creation and
+      # says nothing about the realizations being one.
+      assert [_one, _other] = Catalog.expressions_of(kept)
+    end
+  end
+
   describe "[spec-01] §6.5. What the bytes say a work is" do
     test "a moving image's shape reaches its expression and its work", %{inbox: inbox} do
       # The ratio is the one the presentation layer reserves a box with, so a shape recorded
