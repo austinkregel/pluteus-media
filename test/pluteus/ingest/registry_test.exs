@@ -174,6 +174,44 @@ defmodule Pluteus.Ingest.RegistryTest do
       assert Registry.byte_signature(iso) == "iso9660"
     end
 
+    test "a handheld dump is named by the fixed logo its header carries" do
+      # Neither console boots a cartridge whose logo is wrong, so the logo is the one run of
+      # bytes every genuine dump carries. The Game Boy Advance holds it at 0x4 and the Game
+      # Boy at 0x104.
+      gba = <<0, 0, 0, 0>> <> <<0x24, 0xFF, 0xAE, 0x51, 0x69, 0x9A, 0xA2, 0x21>>
+      gameboy = :binary.copy(<<0>>, 260) <> <<0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B>>
+
+      assert Registry.byte_signature(gba) == "gba"
+      assert Registry.byte_signature(gameboy) == "gameboy"
+    end
+
+    test "one signature serves the Game Boy and the Game Boy Color" do
+      # The logo is identical in both, and the flag distinguishing them sits at 0x143 and
+      # says nothing about the broad class.
+      logo = <<0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B>>
+      colour_flag = fn value -> :binary.copy(<<0>>, 63) <> <<value>> end
+
+      for flag <- [0x00, 0x80, 0xC0] do
+        head = :binary.copy(<<0>>, 260) <> logo <> colour_flag.(flag)
+
+        assert Registry.byte_signature(head) == "gameboy"
+      end
+    end
+
+    test "a UNIF cartridge is named though it arrives under another extension" do
+      # §4.5 forbids consulting the name, and the library holds two files named `.nes` whose
+      # bytes are UNIF containers. The bytes decide.
+      assert Registry.byte_signature("UNIF" <> <<7, 0, 0, 0>>) == "unif"
+    end
+
+    test "a logo at the wrong offset names nothing" do
+      # The Game Boy logo is a fixed sequence, so matching it anywhere would make a file that
+      # merely contains it a cartridge dump.
+      logo = <<0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B>>
+
+      refute Registry.byte_signature(logo <> :binary.copy(<<0>>, 512)) == "gameboy"
+    end
+
     test "bytes matching nothing are named by nothing" do
       assert Registry.byte_signature(:binary.copy(<<0>>, 40_000)) == nil
       assert Registry.byte_signature("") == nil
@@ -193,7 +231,7 @@ defmodule Pluteus.Ingest.RegistryTest do
     end
 
     test "37. a software holding takes its essence from its format" do
-      for format <- ~w(ines megadrive n64 iso9660) do
+      for format <- ~w(ines unif megadrive n64 gba gameboy iso9660) do
         assert Registry.streamless_format(format) == %{
                  class: :software,
                  essence: :not_applicable
