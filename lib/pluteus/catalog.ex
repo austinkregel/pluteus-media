@@ -39,6 +39,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
   alias Pluteus.Catalog.WorkCreator
+  alias Pluteus.Catalog.WorkInspiration
   alias Pluteus.Catalog.WorkPart
   alias Pluteus.Formats
   alias Pluteus.PlatformEvents
@@ -698,6 +699,48 @@ defmodule Pluteus.Catalog do
     %WorkPart{}
     |> WorkPart.changeset(%{whole_id: whole_id, part_id: part_id})
     |> Repo.insert()
+  end
+
+  @doc """
+  Records that one work was the inspiration for another (LRM-R21).
+
+  This is how a serial work connects to its issues (§5.4), and the connection carries no
+  order: where an issue sits in its series is a fact about manifestations, recorded with
+  `add_manifestation_part/3`.
+
+  Raises when the two works already stand in a whole-part relation, which §5.4 forbids
+  between a serial and its issues.
+  """
+  @spec inspire(Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, WorkInspiration.t()} | {:error, Ecto.Changeset.t()}
+  def inspire(inspiration_id, inspired_id) do
+    %WorkInspiration{}
+    |> WorkInspiration.changeset(%{inspiration_id: inspiration_id, inspired_id: inspired_id})
+    |> Repo.insert()
+  end
+
+  @doc """
+  The works that are components of one work (LRM-R18).
+  """
+  @spec work_parts_of(Ecto.UUID.t()) :: [WorkPart.t()]
+  def work_parts_of(whole_id) do
+    Repo.all(from p in WorkPart, where: p.whole_id == ^whole_id)
+  end
+
+  @doc """
+  The works one work was the inspiration for.
+  """
+  @spec inspired_by(Ecto.UUID.t()) :: [WorkInspiration.t()]
+  def inspired_by(inspiration_id) do
+    Repo.all(from i in WorkInspiration, where: i.inspiration_id == ^inspiration_id)
+  end
+
+  @doc """
+  The works that were an inspiration for one work.
+  """
+  @spec inspirations_of(Ecto.UUID.t()) :: [WorkInspiration.t()]
+  def inspirations_of(inspired_id) do
+    Repo.all(from i in WorkInspiration, where: i.inspired_id == ^inspired_id)
   end
 
   @doc """
