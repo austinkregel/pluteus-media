@@ -262,6 +262,34 @@
     "j2k_pipe",
     "image2"
   ],
+  "archive_formats": {
+    "x-fmt/263": {
+      "class": "package",
+      "essence": "not_applicable",
+      "for": "a ZIP, which a .cbz is. The class is taken only where every entry is renderable: the format is any ZIP and says nothing about what it holds"
+    },
+    "fmt/613": {
+      "class": "package",
+      "essence": "not_applicable",
+      "for": "a RAR, which a .cbr is, and which the household's own comics are at version 5.0"
+    }
+  },
+  "renderable_entries": {
+    "for": "What an archive may hold and still be a package. A page image, or a document a reader can open. An entry outside this makes the archive unclassifiable and names itself in the finding, so a ZIP holding an installer or a game's assets is not a holding this deployment knows how to be wrong about. A ZIP of holiday photographs is renderable throughout and does become a comic issue, which a member corrects.",
+    "extensions": [
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "gif",
+      "bmp",
+      "avif",
+      "jxl",
+      "pdf",
+      "txt",
+      "xml"
+    ]
+  },
   "streamless_formats": {
     "ines": {
       "class": "software",
