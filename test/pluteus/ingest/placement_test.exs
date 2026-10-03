@@ -387,6 +387,92 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "35. A metadata document inside a container is read as an embedded tag" do
+    defp a_comic_carrying(document, pages) do
+      entries =
+        [{"ComicInfo.xml", document}] ++
+          for n <- 1..pages, do: {"page-#{n}.png", comic_page(n)}
+
+      prefix = unique_prefix()
+
+      {prefix, cbz(entries)}
+    end
+
+    test "the document names the holding, as a container's own tags would", %{inbox: inbox} do
+      document = comic_info(Title: "The Weight of Water", Series: "Excitebike Weekly")
+      {prefix, archive} = a_comic_carrying(document, 3)
+
+      [comic] = ingest!(inbox, %{"#{prefix}/001.cbz" => archive})
+
+      assert comic.container_tags["title"] == "The Weight of Water"
+      assert comic.container_tags["series"] == "Excitebike Weekly"
+
+      # The name follows the document rather than the file, which is what reading it as a
+      # tag means: an audio file's own `title` tag names a track the same way.
+      assert names(work_of(comic)) == ["The Weight of Water"]
+    end
+
+    test "the document is no companion and makes no second holding", %{inbox: inbox} do
+      document = comic_info(Title: "The Weight of Water")
+      {prefix, archive} = a_comic_carrying(document, 3)
+
+      [comic] = ingest!(inbox, %{"#{prefix}/001.cbz" => archive})
+
+      assert comic.media_class == :package
+      assert comic.companion_kind == nil
+      assert Catalog.category_of(work_of(comic), Place.category_scheme()) == "comic_issue"
+
+      # One acquisition, one digital item, one asset. A document that described the
+      # container did not become a holding of its own.
+      assert [%{id: _asset}] = Catalog.assets_of(comic.digital_item_id)
+    end
+
+    test "the document is not a page", %{inbox: inbox} do
+      document = comic_info(Title: "The Weight of Water")
+      {prefix, archive} = a_comic_carrying(document, 3)
+
+      [comic] = ingest!(inbox, %{"#{prefix}/001.cbz" => archive})
+
+      assert %{magnitude: 3} = Addressing.get_extent(manifestation_of(comic), :page)
+    end
+
+    test "a document the registry does not name is content", %{inbox: inbox} do
+      # An XML whose root names nothing the registry knows is content, and content no
+      # surface can render leaves the archive unclassified, naming the entry.
+      invoice = ~s(<?xml version="1.0"?><invoice><total>3</total></invoice>)
+      prefix = unique_prefix()
+
+      entries = [{"page-1.png", comic_page(1)}, {"invoice.xml", invoice}]
+      drop!(inbox, "#{prefix}/Not A Comic.cbz", cbz(entries))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      assert [finding] = Ingest.findings_for_acquisition(id)
+      assert finding.kind == "unclassifiable"
+      assert finding.detail["entries"] == ["invoice.xml"]
+    end
+
+    test "a document naming a file outside itself is refused, naming it", %{inbox: inbox} do
+      # §11. The document is the inbox's and may name any file. The finding says which
+      # entry reached and what it reached for, and carries nothing it asked for: a
+      # document that read /etc/passwd would show its first line here.
+      hostile = """
+      <?xml version="1.0"?>
+      <!DOCTYPE ComicInfo [ <!ENTITY leak SYSTEM "file:///etc/passwd"> ]>
+      <ComicInfo><Title>&leak;</Title></ComicInfo>
+      """
+
+      {prefix, archive} = a_comic_carrying(hostile, 3)
+      drop!(inbox, "#{prefix}/001.cbz", archive)
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      assert [finding] = Ingest.findings_for_acquisition(id)
+      assert finding.kind == "container_document_unreadable"
+      assert finding.detail["entry"] == "ComicInfo.xml"
+      assert finding.detail["reason"] =~ "file:///etc/passwd"
+      refute finding.detail["reason"] =~ "root:"
+    end
+  end
+
   describe "40. Two dumps of one game are each placed as a work of their own" do
     test "nothing in the bytes groups two dumps, so each is its own work", %{inbox: inbox} do
       prefix = unique_prefix()
@@ -1285,7 +1371,8 @@ defmodule Pluteus.Ingest.PlacementTest do
       streams: [],
       essence: :lossy,
       media_class: :companion,
-      companion_kind: "cover_art"
+      companion_kind: "cover_art",
+      container_tags: %{}
     }
   end
 end
