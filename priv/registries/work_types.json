@@ -47,6 +47,7 @@
     "album": "musical",
     "audiobook": "textual",
     "podcast_episode": "textual",
+    "podcast": "textual",
     "film": "moving_image",
     "television_episode": "moving_image",
     "home_video": "moving_image",
