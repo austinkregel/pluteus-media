@@ -14,9 +14,12 @@ defmodule Pluteus.RegistriesTest do
   alias Pluteus.Catalog.Extent
   alias Pluteus.Continuity
   alias Pluteus.Design.Tokens
+  alias Pluteus.Ingest.Registry, as: Ingest
   alias Pluteus.Preferences
   alias Pluteus.Presentation
   alias Pluteus.Representation
+  alias Pluteus.Surfaces.Registry, as: Surfaces
+  alias Pluteus.Television.Registry, as: Television
 
   describe "the design language's token values of Annex A" do
     test "the token file resolves through accessors and carries every tier" do
@@ -110,18 +113,139 @@ defmodule Pluteus.RegistriesTest do
     assert_raise KeyError, fn -> Representation.Registry.kinds_of("mood") end
   end
 
+  describe "the surfaces of §6, §9, §12 and §17" do
+    test "the ordering nomen has a scheme of its own, which nothing generates" do
+      # §6.4. An ordering nomen is a nomen rather than a reading derived from one, so the
+      # scheme exists and no ingest path writes it.
+      assert Surfaces.ordering_scheme() == "ordering"
+      assert Surfaces.ordering_scheme() in Surfaces.nomen_schemes()
+    end
+
+    test "every mode of §9.2 is named and carries the category facet" do
+      assert Surfaces.browse_modes() ==
+               ~w(continue everything people places recently_added sets time)
+
+      for mode <- Surfaces.browse_modes() do
+        held = Surfaces.browse_mode(mode)
+
+        assert is_binary(held["is"])
+
+        # §9.2 requires the category facet be first-class on every mode's surface. The
+        # prohibition there is on category as the only axis, not on reaching a film by
+        # asking for films.
+        assert "category" in held["default_facets"]
+
+        assert Enum.all?(
+                 held["default_facets"] ++ held["bounding_facets"],
+                 &(&1 in Surfaces.facets())
+               )
+      end
+    end
+
+    test "only the mode §9.2 says may bound its index does" do
+      # People, after credits resolve, holds every credited artist. Every other mode's
+      # index is its whole set, and a bound on one of those would hide content.
+      bounded =
+        for mode <- Surfaces.browse_modes(),
+            Surfaces.browse_mode(mode)["bounding_facets"] != [],
+            do: mode
+
+      assert bounded == ["people"]
+    end
+
+    test "every category placement can record has a surface" do
+      # §12.1 carries the shape and this registry carries the values, so a category the
+      # registry omits is a holding no surface knows how to present.
+      for category <- Ingest.recordable_categories() do
+        assert category in Surfaces.presented_categories(),
+               "placement can record #{category}, which no surface presents"
+      end
+    end
+
+    test "every presented category states a surface, its selectors and what it needs" do
+      for category <- Surfaces.presented_categories() do
+        held = Surfaces.category_presentation(category)
+
+        assert is_binary(held["primary_surface"])
+        assert is_list(held["selectors"])
+        assert is_list(held["requires"])
+      end
+    end
+
+    test "a companion is never its own surface and needs nothing" do
+      # §12.2. A companion is catalogued as a holding so ingest does not mistake it, and
+      # presented as a property of what it describes.
+      for companion <- ~w(cover_art lyrics subtitles cue_sheet description metadata) do
+        held = Surfaces.category_presentation(companion)
+
+        assert held["primary_surface"] == "never its own surface"
+        assert held["selectors"] == []
+        assert held["requires"] == []
+      end
+    end
+
+    test "a video game's surface offers no player" do
+      # §12.1. The deployment runs no emulator, so the surface says so rather than
+      # offering a control with nothing behind it (§17.2).
+      held = Surfaces.category_presentation("video_game")
+
+      assert held["primary_surface"] == "its entity page, and no player"
+      assert held["selectors"] == []
+    end
+
+    test "the two seek steps are a small one and a larger one, per unit" do
+      for unit <- [:millisecond, :page] do
+        %{"small" => small, "large" => large} = Surfaces.seek_granularity(unit)
+
+        assert small > 0
+        assert large > small
+      end
+    end
+
+    test "a text track's classifications are §17.4's, and unknown is one of them" do
+      assert Surfaces.text_track_classifications() ==
+               ~w(captions subtitles sdh forced commentary unknown)
+
+      assert Surfaces.unknown_classification() == "unknown"
+      assert Surfaces.unknown_classification() in Surfaces.text_track_classifications()
+    end
+
+    test "every affordance says what establishes it and every hazard is a person's" do
+      # §17.3. The deployment must not assert either where it has not established it, so
+      # an affordance is here only where a container flag can, and no hazard is.
+      assert Surfaces.affordances() != []
+      assert Surfaces.hazards() != []
+
+      assert Enum.all?(Surfaces.affordances(), &is_binary/1)
+      assert Enum.all?(Surfaces.hazards(), &is_binary/1)
+    end
+  end
+
+  describe "the television contract of §18" do
+    test "the endpoint groups are the ones §18.2 projects" do
+      assert Television.projected_endpoints() ==
+               ~w(system_description authentication own_record library_and_item_browsing
+                  images playback_negotiation byte_serving playback_state_write_back)
+    end
+
+    test "a television holds a credential per principal, not one per device" do
+      # §18.3 establishes a person rather than a device, and spec-06 §4.1 lets one device
+      # hold several credentials, each separately revocable.
+      assert Television.credentials_per_device() == "several"
+      assert Television.credential_kind() == "client_key"
+      assert Television.enrolment() == "oidc_device_authorization_grant"
+    end
+
+    test "the projected API version is never supplied in the registry's place" do
+      # §18.1 makes the string a behaviour switch in the client, so a code path answering
+      # where the registry does not would make it behave as though the deployment
+      # answered endpoints it does not.
+      assert_raise KeyError, fn -> Television.projected_api_version() end
+    end
+  end
+
   test "the registries §20 names that are not yet seeded" do
-    unseeded = ~w(
-      nomen_schemes
-      browse_modes
-      category_presentation
-      seek_granularities
-      text_track_classifications
-      accessibility_affordances_and_hazards
-      projected_api_version
-      projected_endpoints
-      credential_policy
-    )
+    unseeded = ~w(projected_api_version)
 
     # Criterion 46 is met when this list is empty. Seeding one deletes its line
     # and adds a describe block above, so the criterion's state is never inferred
