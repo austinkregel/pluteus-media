@@ -88,12 +88,13 @@ defmodule Pluteus.Catalog.WorkTypesTest do
       assert WorkTypes.of_category("podcast_episode") == "textual"
     end
 
-    test "the two authored rows carry attributes borrowed rather than invented" do
-      # A comic's expressions differ as translations and as colourised reprints; a game's as
-      # a port and a revision.
+    test "a comic and a game take the rows authored for them" do
+      # Graphic narrative borrows both of its attributes: a comic's expressions differ as
+      # translations and as colourised reprints, which is language and colourization.
       assert WorkTypes.of_category("comic_issue") == "graphic_narrative"
       assert WorkTypes.attributes("graphic_narrative") == ~w(language colourization)
 
+      # Software's two are its own, because no LRM row describes a program.
       assert WorkTypes.of_category("video_game") == "software"
       assert WorkTypes.attributes("software") == ~w(platform revision)
     end
