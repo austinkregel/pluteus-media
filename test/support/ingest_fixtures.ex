@@ -166,6 +166,9 @@ defmodule Pluteus.IngestFixtures do
     * `:flac` — two seconds of tone; `tags:` become container tags, and
       `art: true` embeds a JPEG as cover art
     * `:mp3` — lossy audio
+    * `:m4b` — lossy audio in an MP4 container, which separates several values in
+      one tag with a comma where ID3 and Vorbis use a semicolon; `chapters:` are
+      `{title, {from_ms, to_ms}}` pairs
     * `:bursts` — a tone in short bursts separated by silence
     * `:wav` — PCM audio
     * `:film` — a Matroska container of lossy H.264 video and the audio
@@ -196,6 +199,7 @@ defmodule Pluteus.IngestFixtures do
   defp output_name(:bursts), do: "out.flac"
   defp output_name(:mp3), do: "out.mp3"
   defp output_name(:wav), do: "out.wav"
+  defp output_name(:m4b), do: "out.m4b"
   defp output_name(:film), do: "out.mkv"
   defp output_name(:film_remuxed), do: "out.mkv"
   defp output_name(:ffv1), do: "out.mkv"
@@ -230,6 +234,10 @@ defmodule Pluteus.IngestFixtures do
   end
 
   defp args(:wav, opts, _dir), do: tone(opts)
+
+  defp args(:m4b, opts, dir) do
+    tone(opts) ++ chapters(opts[:chapters], dir) ++ ["-c:a", "aac"] ++ tags(opts[:tags] || %{})
+  end
 
   defp args(:film, opts, _dir) do
     audio = Keyword.get(opts, :audio, [{"rus", "flac", nil}, {"eng", "aac", "comment"}])
