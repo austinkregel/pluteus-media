@@ -25,6 +25,8 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Dedup
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Credits
+  alias Pluteus.Ingest.NarrationKey
   alias Pluteus.Ingest.Place
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
@@ -474,6 +476,119 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "38. A narration is an expression of the text, in one digital item" do
+    defp a_reading(inbox, book, parts) do
+      prefix = unique_prefix()
+
+      files =
+        for {part, number} <- Enum.with_index(parts, 1), into: %{} do
+          {"#{prefix}/#{number}.flac",
+           media!(:flac,
+             tags:
+               Map.merge(
+                 %{
+                   "genre" => "Audiobook",
+                   "album" => book,
+                   "album_artist" => "Ursula K. Le Guin",
+                   "composer" => "Rob Inglis",
+                   "title" => "Chapter #{number}"
+                 },
+                 part
+               )
+           )}
+        end
+
+      ingest!(inbox, files)
+    end
+
+    defp expression_of(acquisition) do
+      [expression] = Catalog.expressions_in(manifestation_of(acquisition))
+      expression.id
+    end
+
+    test "the author is on the work and the narrator on the expression", %{inbox: inbox} do
+      [reading] = a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}])
+
+      # The work is the text, named by the book rather than by the chapter the file holds.
+      assert names(work_of(reading)) == ["A Wizard of Earthsea"]
+      assert Catalog.category_of(work_of(reading), Place.category_scheme()) == "audiobook"
+
+      assert [%{role: :author, name: "Ursula K. Le Guin"}] =
+               Credits.credits_of(work_of(reading))
+
+      assert [%{role: :narrator, name: "Rob Inglis"}] =
+               Credits.credits_of(expression_of(reading))
+    end
+
+    test "the narrator is credited on the reading and not on the text", %{inbox: inbox} do
+      # §6.9. What the narrator made is that rendering, not the text, so the credit names
+      # the expression and the narrator is no creator of the work.
+      [reading] = a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}])
+
+      [narrator] = Credits.credits_of(expression_of(reading))
+
+      assert narrator.work_id == nil
+      assert narrator.expression_id == expression_of(reading)
+      refute narrator.agent_id in Catalog.creators_of(work_of(reading))
+    end
+
+    test "it is not a release of tracks", %{inbox: inbox} do
+      [reading] = a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}])
+
+      # Nothing was released as a track, so there is no release, no medium above the
+      # reading, and no release key grouping one.
+      assert Catalog.wholes_of(manifestation_of(reading)) == []
+      assert Repo.all(ReleaseKey) == []
+    end
+
+    test "several files are one digital item carrying a part sequence", %{inbox: inbox} do
+      [first, second] =
+        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{"track" => "2"}])
+
+      assert first.digital_item_id == second.digital_item_id
+
+      assert [%{part_sequence: 1}, %{part_sequence: 2}] =
+               first.digital_item_id
+               |> Catalog.assets_of()
+               |> Enum.sort_by(& &1.part_sequence)
+    end
+
+    test "a part stating no number follows those that do", %{inbox: inbox} do
+      [_first, _second] = a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{}])
+
+      [reading] = Repo.all(NarrationKey)
+
+      assert [1, 2] =
+               reading.narration_digital_item_id
+               |> Catalog.assets_of()
+               |> Enum.map(& &1.part_sequence)
+               |> Enum.sort()
+    end
+
+    test "the reading's extent is the whole reading, not one part", %{inbox: inbox} do
+      [first, second] =
+        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{"track" => "2"}])
+
+      whole = Addressing.get_extent(manifestation_of(first), :millisecond)
+      one_part = Streams.duration_ms(first.probe)
+
+      assert whole.magnitude == one_part + Streams.duration_ms(second.probe)
+      assert whole.magnitude > one_part
+    end
+
+    test "each part keeps its own probe", %{inbox: inbox} do
+      # A derivation is current per tool and input, and each part is its own input, so
+      # placing the second does not supersede what was read from the first.
+      [first, second] =
+        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{"track" => "2"}])
+
+      for part <- [first, second] do
+        assert [%{body_type: "probe"}] =
+                 part.id |> Annotations.current_on() |> Enum.filter(&(&1.body_type == "probe"))
+      end
+    end
+  end
+
   describe "39. A comic issue is a work positioned within its series at manifestation level" do
     defp an_issue(inbox, series, number) do
       document = comic_info(Series: series, Number: number, Title: "Part #{number}")
@@ -558,6 +673,43 @@ defmodule Pluteus.Ingest.PlacementTest do
 
       assert Catalog.inspirations_of(work_of(issue)) == []
       assert Catalog.wholes_of(manifestation_of(issue)) == []
+    end
+
+    test "a podcast episode sits in its show the same way", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      episode = fn number ->
+        media!(:flac,
+          tags: %{
+            "genre" => "Podcast",
+            "album" => "Ologies",
+            "artist" => "Alie Ward",
+            "track" => "#{number}",
+            "title" => "Episode #{number}"
+          }
+        )
+      end
+
+      [first, second] =
+        ingest!(inbox, %{
+          "#{prefix}/01.flac" => episode.(1),
+          "#{prefix}/02.flac" => episode.(2)
+        })
+
+      show = series_of(first)
+
+      assert Catalog.category_of(work_of(first), Place.category_scheme()) == "podcast_episode"
+      assert Catalog.category_of(show, Place.category_scheme()) == "podcast"
+      assert show == series_of(second)
+      assert names(show) == ["Ologies"]
+
+      # An episode is a work of its own, not a track: nothing was released as a track, so
+      # there is no release above it, only the show's manifestation.
+      assert [%{position: 1}, %{position: 2}] = Catalog.parts_of(serial_manifestation(first))
+      assert Repo.all(ReleaseKey) == []
+
+      # The host is still credited, as the artist of the episode's own work.
+      assert [%{role: :artist, name: "Alie Ward"}] = Credits.credits_of(work_of(first))
     end
 
     test "the database refuses a whole-part relation between the two", %{inbox: inbox} do
