@@ -435,6 +435,46 @@
     "software": "video_game",
     "release": "album"
   },
+  "credit_evidence": {
+    "for": "Which tags name whom, per category and per level (spec-04 §6.9). The level is the point: an author made the text and is credited on the work, while a narrator made one reading of it and is credited on that expression. A role takes the first tag present, so a file naming nobody in any of them credits nobody and §6.2's correction supplies the name. The tag names are conventions among taggers rather than anything a container format fixes, which is why they are seed data a release replaces.",
+    "of_category": {
+      "audiobook": {
+        "work": {
+          "author": [
+            "album_artist",
+            "albumartist",
+            "album artist",
+            "artist"
+          ]
+        },
+        "expression": {
+          "narrator": [
+            "narrator",
+            "composer"
+          ]
+        }
+      },
+      "podcast_episode": {
+        "work": {
+          "artist": [
+            "artists",
+            "artist"
+          ]
+        }
+      }
+    }
+  },
+  "audiobooks": {
+    "for": "What names a reading and what orders its parts (spec-04 §6.9). Several files of one reading are one digital item, so they are grouped by the book they are of: the file's own title names a chapter, and the album tag names the book. A file stating no part number is still a part, placed after those that state one.",
+    "titled_by": [
+      "album"
+    ],
+    "sequenced_by": [
+      "track",
+      "tracknumber",
+      "part"
+    ]
+  },
   "serials": {
     "for": "Which categories are issues of a serial work, and what names the serial (spec-04 §6.9, spec-01 §5.4). Keyed by the issue's own category, because what makes a holding an issue of something is what it is rather than what class its bytes are: a comic issue belongs to a series, a photograph belongs to nothing. A category absent here is placed on its own.",
     "of_category": {
@@ -446,6 +486,17 @@
         "numbered_by": [
           "number",
           "issue"
+        ]
+      },
+      "podcast_episode": {
+        "category": "podcast",
+        "named_by": [
+          "album",
+          "show"
+        ],
+        "numbered_by": [
+          "track",
+          "episode"
         ]
       }
     }
