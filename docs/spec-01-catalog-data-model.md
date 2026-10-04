@@ -484,10 +484,12 @@ category of work. The registry (§7.5, §17) carries:
 | art | medium of execution | LRM-E2-A2 |
 | still image | capture device, orientation, colour or monochrome | authored |
 | personal record | the correspondents, the date of writing | authored |
+| graphic narrative | language, colourization | authored |
+| software | platform, revision | authored |
 
-LRM supplies the first five. The last two have no LRM analogue, because
-libraries do not catalogue a relative's letters, and are authored here
-([ANNEX-A] §A.9).
+LRM supplies the first five. The last four have no LRM analogue and are
+authored here ([ANNEX-A] §A.9): libraries do not catalogue a relative's
+letters, and LRM's list reaches neither a comic nor a game.
 
 **These measure distance from the canonical form, and do nothing else.** They
 order expressions where a work has several (§8.6); where it has one, the
