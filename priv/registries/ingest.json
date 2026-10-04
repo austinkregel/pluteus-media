@@ -435,6 +435,14 @@
     "software": "video_game",
     "release": "album"
   },
+  "tag_separators": {
+    "for": "How a container's tags separate several values written into one field, keyed by the format name the probe reports. MP4 metadata holds one string per field and its taggers write a comma between names; ID3 and Vorbis comments carry a semicolon where a tagger puts several into one field. Splitting on the wrong one either joins five people into a single credit or cuts a surname-first name in half, so a container the registry does not name is not split at all: a name holding a separator is likelier than a field holding two names.",
+    "of_format": {
+      "mov,mp4,m4a,3gp,3g2,mj2": ",",
+      "mp3": ";",
+      "flac": ";"
+    }
+  },
   "credit_evidence": {
     "for": "Which tags name whom, per category and per level (spec-04 §6.9). The level is the point: an author made the text and is credited on the work, while a narrator made one reading of it and is credited on that expression. A role takes the first tag present, so a file naming nobody in any of them credits nobody and §6.2's correction supplies the name. The tag names are conventions among taggers rather than anything a container format fixes, which is why they are seed data a release replaces.",
     "of_category": {
