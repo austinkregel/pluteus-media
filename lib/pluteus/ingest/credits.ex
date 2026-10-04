@@ -61,6 +61,18 @@ defmodule Pluteus.Ingest.Credits do
     pair(names, values(tags["musicbrainz_albumartistid"]))
   end
 
+  @doc """
+  The names the first of these tags carries, as credits naming no identifier.
+
+  No convention pairs a MusicBrainz identifier with an author or a narrator, so a credit
+  read this way carries a name and nothing more, and matching is what may later say who
+  the name is.
+  """
+  @spec named_by(map(), [String.t()]) :: [{String.t(), nil}]
+  def named_by(tags, tag_names) do
+    tags |> Streams.first(tag_names) |> values() |> Enum.map(&{&1, nil})
+  end
+
   defp values(nil), do: []
 
   defp values(value) do
@@ -77,12 +89,18 @@ defmodule Pluteus.Ingest.Credits do
   end
 
   @doc """
-  Records a work's credits in a role, with automatic provenance, each naming
+  Records a res's credits in a role, with automatic provenance, each naming
   the artist it credits. Runs inside placement's transaction and reaches
   nothing outside the database.
+
+  The subject is `{:work, id}` or `{:expression, id}`, and which it is decides what a
+  credit means: an author of a text is credited on the work and a narrator of a reading of
+  it on the expression (§6.9).
   """
-  @spec record(Ecto.UUID.t(), :artist | :album_artist, [{String.t(), Ecto.UUID.t() | nil}]) :: :ok
-  def record(work_id, role, credits) do
+  @spec record({:work | :expression, Ecto.UUID.t()}, atom(), [
+          {String.t(), Ecto.UUID.t() | nil}
+        ]) :: :ok
+  def record(subject, role, credits) do
     credits =
       Enum.map(credits, fn {name, musicbrainz_id} -> {normalize(name), musicbrainz_id} end)
 
@@ -95,21 +113,38 @@ defmodule Pluteus.Ingest.Credits do
 
       {:ok, _} =
         %Credit{}
-        |> Credit.changeset(%{
-          work_id: work_id,
-          role: role,
-          position: position,
-          name: name,
-          musicbrainz_id: musicbrainz_id,
-          agent_id: artist.id,
-          agent_kind: artist.kind,
-          provenance: :automatic
-        })
+        |> Credit.changeset(
+          Map.merge(subject(subject), %{
+            role: role,
+            position: position,
+            name: name,
+            musicbrainz_id: musicbrainz_id,
+            agent_id: artist.id,
+            agent_kind: artist.kind,
+            provenance: :automatic
+          })
+        )
         |> Repo.insert()
 
-      credit_creator(work_id, artist.id)
+      creator_of(subject, artist.id)
     end)
   end
+
+  defp subject({:work, work_id}), do: %{work_id: work_id}
+  defp subject({:expression, expression_id}), do: %{expression_id: expression_id}
+
+  # LRM's creator relation holds between an agent and a work. A narrator did not make the
+  # text, so an expression credit records the credit and no creator relation; the agent is
+  # a res all the same, and can be starred, rated and browsed.
+  defp creator_of({:work, work_id}, agent_id), do: credit_creator(work_id, agent_id)
+  defp creator_of({:expression, _expression_id}, _agent_id), do: :ok
+
+  # A stored credit names one level or the other, which the database enforces, so there is
+  # no third case for a row to be in.
+  defp subject_of(%Credit{work_id: work_id}) when not is_nil(work_id), do: {:work, work_id}
+
+  defp subject_of(%Credit{expression_id: expression_id}) when not is_nil(expression_id),
+    do: {:expression, expression_id}
 
   # The artists a work's credits name, in key order. A track crediting two
   # artists and another crediting the same two in the other order take their
@@ -186,9 +221,16 @@ defmodule Pluteus.Ingest.Credits do
     unless credited, do: {:ok, _} = Catalog.credit_creator(work_id, agent_id)
   end
 
+  @doc """
+  The credits about one res, whether they name it as a work or as an expression.
+  """
   @spec credits_of(Ecto.UUID.t()) :: [Credit.t()]
-  def credits_of(work_id) do
-    Repo.all(from c in Credit, where: c.work_id == ^work_id, order_by: [c.role, c.position])
+  def credits_of(res_id) do
+    Repo.all(
+      from c in Credit,
+        where: c.work_id == ^res_id or c.expression_id == ^res_id,
+        order_by: [c.role, c.position]
+    )
   end
 
   @doc """
@@ -242,7 +284,7 @@ defmodule Pluteus.Ingest.Credits do
         |> Credit.changeset(%{agent_id: artist.id, agent_kind: artist.kind})
         |> Repo.update!()
 
-        credit_creator(credit.work_id, artist.id)
+        creator_of(subject_of(credit), artist.id)
       end)
     end)
   end
