@@ -1,0 +1,316 @@
+{
+  "nomen_schemes": {
+    "for": "The schemes a nomen may be in (spec-10 §20). `ordering` is reserved for the ordering nomen of §6.4, which is a nomen of its own and never a transliteration of another: §6.4 forbids generating one, so a res carrying none is ordered by its resolved nomen and the surface says so. `musicbrainz` carries an identifier as a nomen, which is how an identifier survives a rename.",
+    "ordering": "ordering",
+    "known": [
+      "ordering",
+      "musicbrainz"
+    ]
+  },
+
+  "browse_modes": {
+    "for": "The modes of §9.2, each with the facets its surface opens with and the facets that may bound an index too long to be one. Every mode carries the category facet, which §9.2 requires be first-class rather than one among many; the prohibition there is on category as the only axis. A mode bounds its index only where §9.2 contemplates it — People, which after credits resolve holds every credited artist — and every res a bound excludes stays reachable by search and by lateral movement (§9.4).",
+    "modes": {
+      "continue": {
+        "is": "the requesting principal's own resume list (§13.4)",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": []
+      },
+      "recently_added": {
+        "is": "the catalog by acquisition time",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": []
+      },
+      "people": {
+        "is": "agents with holdings",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": [
+          "category",
+          "decade"
+        ]
+      },
+      "places": {
+        "is": "places, as a list and as a map",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": []
+      },
+      "time": {
+        "is": "a spine over time-spans, with a counted Undated bucket",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": []
+      },
+      "sets": {
+        "is": "every res carrying ordered members (§8.3)",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": []
+      },
+      "everything": {
+        "is": "the whole catalog, faceted",
+        "default_facets": [
+          "category"
+        ],
+        "bounding_facets": []
+      }
+    },
+    "facets": {
+      "for": "The axes a facet may be taken on. Each is a relation the catalog already holds, so a count can be computed against the current query as §9.3 requires: a facet whose count cannot be recomputed is a false statement about what selecting it will do.",
+      "known": [
+        "category",
+        "person",
+        "place",
+        "decade",
+        "language"
+      ]
+    }
+  },
+
+  "category_presentation": {
+    "for": "Per category of spec-04 §6.3: the surface it is presented on, the address selectors that surface honours, and the presentation assets it needs (spec-10 §12.1). §12.1 carries the shape and this registry carries the values, so a category placement can record and this table omits would be presented by nothing.",
+    "of_category": {
+      "music_recording": {
+        "primary_surface": "transport and queue",
+        "selectors": [
+          "temporal",
+          "track"
+        ],
+        "requires": [
+          "overview waveform",
+          "cover profiles"
+        ]
+      },
+      "album": {
+        "primary_surface": "transport and queue",
+        "selectors": [
+          "temporal",
+          "track"
+        ],
+        "requires": [
+          "cover profiles"
+        ]
+      },
+      "audiobook": {
+        "primary_surface": "transport and chapter list",
+        "selectors": [
+          "temporal"
+        ],
+        "requires": [
+          "chapters",
+          "cover profiles"
+        ]
+      },
+      "podcast_episode": {
+        "primary_surface": "transport and chapter list",
+        "selectors": [
+          "temporal"
+        ],
+        "requires": [
+          "chapters",
+          "cover profiles"
+        ]
+      },
+      "podcast": {
+        "primary_surface": "its entity page, listing its episodes",
+        "selectors": [],
+        "requires": [
+          "cover profiles"
+        ]
+      },
+      "film": {
+        "primary_surface": "player",
+        "selectors": [
+          "temporal",
+          "spatiotemporal",
+          "track"
+        ],
+        "requires": [
+          "key frame",
+          "trickplay",
+          "chapters"
+        ]
+      },
+      "television_episode": {
+        "primary_surface": "player",
+        "selectors": [
+          "temporal",
+          "spatiotemporal",
+          "track"
+        ],
+        "requires": [
+          "key frame",
+          "trickplay",
+          "chapters"
+        ]
+      },
+      "home_video": {
+        "primary_surface": "player",
+        "selectors": [
+          "temporal",
+          "spatiotemporal",
+          "track"
+        ],
+        "requires": [
+          "key frame",
+          "trickplay",
+          "chapters"
+        ]
+      },
+      "photograph": {
+        "primary_surface": "viewer in a justified grid",
+        "selectors": [
+          "spatial"
+        ],
+        "requires": [
+          "image profiles",
+          "geometry"
+        ]
+      },
+      "scan": {
+        "primary_surface": "scan beside its transcript",
+        "selectors": [
+          "spatial",
+          "page",
+          "text_quote"
+        ],
+        "requires": [
+          "image profiles or tiles",
+          "word positions"
+        ]
+      },
+      "document": {
+        "primary_surface": "reader",
+        "selectors": [
+          "text_quote",
+          "text_position",
+          "page"
+        ],
+        "requires": [
+          "extracted text",
+          "position list"
+        ]
+      },
+      "ebook": {
+        "primary_surface": "reader",
+        "selectors": [
+          "text_quote",
+          "text_position",
+          "page"
+        ],
+        "requires": [
+          "extracted text",
+          "position list"
+        ]
+      },
+      "comic_issue": {
+        "primary_surface": "page reader",
+        "selectors": [
+          "page",
+          "spatial"
+        ],
+        "requires": [
+          "image profiles",
+          "geometry"
+        ]
+      },
+      "comic_series": {
+        "primary_surface": "its entity page, listing its issues",
+        "selectors": [],
+        "requires": [
+          "cover profiles"
+        ]
+      },
+      "video_game": {
+        "primary_surface": "its entity page, and no player",
+        "selectors": [],
+        "requires": [
+          "cover profiles"
+        ]
+      },
+      "cover_art": {
+        "primary_surface": "never its own surface",
+        "selectors": [],
+        "requires": []
+      },
+      "lyrics": {
+        "primary_surface": "never its own surface",
+        "selectors": [],
+        "requires": []
+      },
+      "subtitles": {
+        "primary_surface": "never its own surface",
+        "selectors": [],
+        "requires": []
+      },
+      "cue_sheet": {
+        "primary_surface": "never its own surface",
+        "selectors": [],
+        "requires": []
+      },
+      "description": {
+        "primary_surface": "never its own surface",
+        "selectors": [],
+        "requires": []
+      },
+      "metadata": {
+        "primary_surface": "never its own surface",
+        "selectors": [],
+        "requires": []
+      }
+    }
+  },
+
+  "seek_granularities": {
+    "for": "The small and large position steps §12.3's slider carries, in the unit the medium is measured along. Keyed by unit because a step is a quantity of the medium rather than of time: a reader steps by pages and a player by seconds. On a directional remote the small step is one key press, so it is the one a person repeats.",
+    "of_unit": {
+      "millisecond": {
+        "small": 10000,
+        "large": 60000
+      },
+      "page": {
+        "small": 1,
+        "large": 10
+      }
+    }
+  },
+
+  "text_track_classifications": {
+    "for": "The classifications of §17.4. These are different products under one language label: a person who cannot hear, offered English and given a plain subtitle track, loses every cue the plot turns on. A track whose classification no container flag establishes is `unknown`, which the picker shows as unknown rather than guessing.",
+    "known": [
+      "captions",
+      "subtitles",
+      "sdh",
+      "forced",
+      "commentary",
+      "unknown"
+    ],
+    "default": "unknown"
+  },
+
+  "accessibility": {
+    "for": "The affordance and hazard vocabularies of §17.3. The deployment MUST NOT assert either where it has not established it, and the default is not yet examined rather than a negation, so an affordance belongs here only where something can establish it: each of these is read from a container's own stream dispositions. No hazard is establishable from bytes, so every hazard here is one a person asserts.",
+    "affordances": {
+      "captions": "a subtitle stream the container marks as captions",
+      "subtitles": "a subtitle stream carrying translation rather than transcription",
+      "sdh": "a subtitle stream the container marks hearing-impaired",
+      "audio_description": "an audio stream the container marks visual-impaired",
+      "commentary": "a stream the container marks as commentary",
+      "transcript": "extracted text standing for the whole of a spoken recording"
+    },
+    "hazards": {
+      "flashing": "sustained flashing a person asserts, which no stream disposition states",
+      "loud_sound": "a sudden loudness a person asserts",
+      "motion_simulation": "camera motion a person asserts as causing discomfort"
+    }
+  }
+}
