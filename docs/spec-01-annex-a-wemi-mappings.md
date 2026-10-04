@@ -217,7 +217,7 @@ and so may a moving image.
 ### The representative expression attributes, and what they are not
 
 spec-01 §6.5 carries the registry. LRM-E2-A2 supplies five of its rows directly;
-two are authored here, because LRM has no analogue for them:
+four are authored here, because LRM has no analogue for them:
 
 | Work type | Significant attributes | Source |
 | --- | --- | --- |
@@ -228,11 +228,22 @@ two are authored here, because LRM has no analogue for them:
 | Art | medium of execution | LRM-E2-A2 |
 | Still image | capture device, orientation, colour or monochrome | authored |
 | Personal record | the correspondents, the date of writing | authored |
+| Graphic narrative | language, colourization | authored |
+| Software | platform, revision | authored |
 
 LRM's *art works* row gives medium of execution, which suits a painting and says
 nothing useful about a photograph — hence a still image row of its own. Personal
 record has no LRM analogue because libraries do not catalogue a relative's
 letters.
+
+Graphic narrative and software are the same case one step further out: LRM's rows
+reach neither a comic nor a game. A comic's competing expressions differ as
+translations and as colourised reprints, so graphic narrative borrows both of its
+attributes rather than inventing either — language from textual, colourization
+from moving image — and what orders two expressions of a comic is what orders two
+of a film. Software's two are its own, because no LRM row describes a program: a
+game's expressions differ as a port to another platform and as a revision
+correcting defects.
 
 **The two registries are easy to confuse and answer different questions.** These
 attributes exist to order competing expressions of one work. What a photograph
