@@ -449,6 +449,7 @@
         },
         "expression": {
           "narrator": [
+            "narratedby",
             "narrator",
             "composer"
           ]
