@@ -359,18 +359,26 @@ defmodule Pluteus.Ingest.Place do
 
       per_level ->
         tags = embedded_tags(acquisition)
+        separator = separator(acquisition)
 
         for {level, roles} <- per_level, {role, tag_names} <- roles do
           Credits.record(
             subject(level, work_id, expression_id),
             role,
-            Credits.named_by(tags, tag_names)
+            Credits.named_by(tags, tag_names, separator)
           )
         end
 
         :ok
     end
   end
+
+  # Several names in one tag are separated the way the container separates them, so the
+  # probe's own format name is what decides it (§6.4).
+  defp separator(%Acquisition{probe: probe}) when is_map(probe),
+    do: Registry.tag_separator(get_in(probe, ["format", "format_name"]))
+
+  defp separator(%Acquisition{}), do: nil
 
   defp subject(:work, work_id, _expression_id), do: {:work, work_id}
   defp subject(:expression, _work_id, expression_id), do: {:expression, expression_id}
@@ -671,7 +679,9 @@ defmodule Pluteus.Ingest.Place do
         {:finding, "evidence_names_two_releases", %{identifiers: identifiers}}
 
       {:ok, key} ->
-        release = release_for(key, release_name(acquisition, tags), tags)
+        release =
+          release_for(key, release_name(acquisition, tags), tags, separator(acquisition))
+
         disc = Streams.number(tags, ["disc", "discnumber"]) || 1
         position = Streams.number(tags, ["track", "tracknumber"])
         medium = medium_for(release, disc, release_name(acquisition, tags))
@@ -693,7 +703,7 @@ defmodule Pluteus.Ingest.Place do
     Credits.record(
       {:work, work.id},
       :artist,
-      Credits.from_tags(embedded_tags(acquisition), :artist)
+      Credits.from_tags(embedded_tags(acquisition), :artist, separator(acquisition))
     )
 
     {:ok, _} = Catalog.add_manifestation_part(medium, track.id, position)
@@ -730,7 +740,7 @@ defmodule Pluteus.Ingest.Place do
   # first: a concurrent placement with the same key waits on it, and then finds
   # the release this one made. A key whose release has since been recycled or
   # purged no longer groups anything, and a new release takes it over.
-  defp release_for(key, name, tags) do
+  defp release_for(key, name, tags, separator) do
     now = DateTime.utc_now()
 
     {inserted, _} =
@@ -746,17 +756,21 @@ defmodule Pluteus.Ingest.Place do
         manifestation_id: existing.release_manifestation_id,
         expression_id: existing.release_expression_id
       },
-      else: create_release(existing, name, tags)
+      else: create_release(existing, name, tags, separator)
   end
 
   defp live?(nil), do: false
   defp live?(res_id), do: match?({:live, _}, Lifecycle.state(res_id))
 
-  defp create_release(release_key, name, tags) do
+  defp create_release(release_key, name, tags, separator) do
     {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
       Catalog.create_work(automatic(name))
 
-    Credits.record({:work, work.id}, :album_artist, Credits.from_tags(tags, :album_artist))
+    Credits.record(
+      {:work, work.id},
+      :album_artist,
+      Credits.from_tags(tags, :album_artist, separator)
+    )
 
     {:ok, _} =
       Catalog.categorize(
@@ -810,7 +824,10 @@ defmodule Pluteus.Ingest.Place do
   defp place_cue_release(acquisition, cue) do
     tags = embedded_tags(acquisition)
     name = cue.title || release_name(acquisition, tags)
-    release = release_for("single:" <> acquisition.id, name, tags)
+
+    release =
+      release_for("single:" <> acquisition.id, name, tags, separator(acquisition))
+
     medium = medium_for(release, 1, name)
     duration_ms = Streams.duration_ms(acquisition.probe)
 
