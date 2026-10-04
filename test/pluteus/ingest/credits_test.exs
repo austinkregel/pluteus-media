@@ -18,6 +18,7 @@ defmodule Pluteus.Ingest.CreditsTest do
   alias Pluteus.Ingest.MusicBrainz
   alias Pluteus.Ingest.MusicBrainzArtist
   alias Pluteus.Ingest.Place
+  alias Pluteus.Ingest.Registry
   alias Pluteus.MusicBrainzFake, as: Fake
   alias Pluteus.Principals
 
@@ -59,6 +60,69 @@ defmodule Pluteus.Ingest.CreditsTest do
       tags = %{"album_artist" => "Various Artists", "musicbrainz_albumartistid" => Fake.group()}
 
       assert Credits.from_tags(tags, :album_artist) == [{"Various Artists", Fake.group()}]
+    end
+  end
+
+  describe "several names in one tag are separated the way the container separates them" do
+    test "an MP4 container separates names with a comma" do
+      tags = %{"artist" => "Richard Dawkins, Sam Harris, Stephen Fry"}
+
+      assert Credits.from_tags(tags, :artist, Registry.tag_separator("mov,mp4,m4a,3gp,3g2,mj2")) ==
+               [{"Richard Dawkins", nil}, {"Sam Harris", nil}, {"Stephen Fry", nil}]
+    end
+
+    test "a comma in an ID3 field is part of the name, not a separator" do
+      # Surname-first is how a great many taggers write one person, so splitting ID3 on a
+      # comma would cut one name into two credits naming nobody.
+      tags = %{"artist" => "Dennett, Daniel C."}
+
+      assert Credits.from_tags(tags, :artist, Registry.tag_separator("mp3")) ==
+               [{"Dennett, Daniel C.", nil}]
+    end
+
+    test "a container the registry names no separator for states one value" do
+      tags = %{"artist" => "Dennett, Daniel C."}
+
+      assert Registry.tag_separator("ogg") == nil
+      assert Credits.from_tags(tags, :artist, nil) == [{"Dennett, Daniel C.", nil}]
+    end
+
+    test "the fields Picard owns carry its separator whatever the container is" do
+      # `artists` and the identifier fields are structured rather than display text, so
+      # they are read the same way in an MP4 as in anything else.
+      tags = %{
+        "artist" => "Miles Davis & John Coltrane",
+        "artists" => "Miles Davis;John Coltrane",
+        "musicbrainz_artistid" => "#{Fake.person()};#{Fake.group()}"
+      }
+
+      assert Credits.from_tags(tags, :artist, ",") ==
+               [{"Miles Davis", Fake.person()}, {"John Coltrane", Fake.group()}]
+    end
+
+    test "a reading in an MP4 container credits each narrator it names", %{inbox: inbox} do
+      [reading] =
+        ingest!(inbox, %{
+          "horsemen/book.m4b" =>
+            media!(:m4b,
+              tags: %{
+                "genre" => "Audiobook",
+                "album" => "The Four Horsemen",
+                "artist" => "Richard Dawkins, Sam Harris",
+                # An MP4 container carries only the keys it knows, so a published
+                # reading puts its narrator in `composer` where ID3 uses `narratedby`.
+                "composer" => "Stephen Fry, Richard Dawkins"
+              }
+            )
+        })
+
+      [expression] = reading |> placed!() |> Catalog.expressions_in()
+
+      assert ["Richard Dawkins", "Sam Harris"] =
+               reading |> work_of() |> Credits.credits_of() |> Enum.map(& &1.name)
+
+      assert ["Stephen Fry", "Richard Dawkins"] =
+               expression.id |> Credits.credits_of() |> Enum.map(& &1.name)
     end
   end
 
