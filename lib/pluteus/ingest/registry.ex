@@ -276,6 +276,19 @@ defmodule Pluteus.Ingest.Registry do
     do: Map.fetch!(registry()["categories"], Atom.to_string(class))
 
   @doc """
+  The separator a container writes between several values in one tag, or nil where the
+  registry names none for it and the field is taken whole (spec-04 §6.4, §6.9).
+
+  Keyed by the format name the probe reports, because the convention is the container's:
+  MP4 metadata separates names with a comma and ID3 with a semicolon, and reading one as
+  the other either joins several people into a single credit or cuts a surname-first name
+  in half.
+  """
+  @spec tag_separator(String.t() | nil) :: String.t() | nil
+  def tag_separator(nil), do: nil
+  def tag_separator(format_name), do: registry()["tag_separators"]["of_format"][format_name]
+
+  @doc """
   Who a holding of this category credits, per level, or nil where the registry names none
   (spec-04 §6.9).
 
