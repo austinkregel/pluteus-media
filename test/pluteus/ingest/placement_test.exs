@@ -486,11 +486,14 @@ defmodule Pluteus.Ingest.PlacementTest do
            media!(:flac,
              tags:
                Map.merge(
+                 # The tag shape a published reading actually arrives in: the author in
+                 # `artist` with no `album_artist` beside it, the narrator in `narratedby`,
+                 # the book in `album`, and the part as "n/total".
                  %{
                    "genre" => "Audiobook",
                    "album" => book,
-                   "album_artist" => "Ursula K. Le Guin",
-                   "composer" => "Rob Inglis",
+                   "artist" => "Ursula K. Le Guin",
+                   "narratedby" => "Rob Inglis",
                    "title" => "Chapter #{number}"
                  },
                  part
@@ -543,7 +546,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
     test "several files are one digital item carrying a part sequence", %{inbox: inbox} do
       [first, second] =
-        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{"track" => "2"}])
+        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1/2"}, %{"track" => "2/2"}])
 
       assert first.digital_item_id == second.digital_item_id
 
@@ -554,7 +557,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     test "a part stating no number follows those that do", %{inbox: inbox} do
-      [_first, _second] = a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{}])
+      [_first, _second] = a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1/2"}, %{}])
 
       [reading] = Repo.all(NarrationKey)
 
@@ -567,7 +570,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
     test "the reading's extent is the whole reading, not one part", %{inbox: inbox} do
       [first, second] =
-        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{"track" => "2"}])
+        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1/2"}, %{"track" => "2/2"}])
 
       whole = Addressing.get_extent(manifestation_of(first), :millisecond)
       one_part = Streams.duration_ms(first.probe)
@@ -580,7 +583,7 @@ defmodule Pluteus.Ingest.PlacementTest do
       # A derivation is current per tool and input, and each part is its own input, so
       # placing the second does not supersede what was read from the first.
       [first, second] =
-        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1"}, %{"track" => "2"}])
+        a_reading(inbox, "A Wizard of Earthsea", [%{"track" => "1/2"}, %{"track" => "2/2"}])
 
       for part <- [first, second] do
         assert [%{body_type: "probe"}] =
