@@ -276,6 +276,39 @@ defmodule Pluteus.Ingest.Registry do
     do: Map.fetch!(registry()["categories"], Atom.to_string(class))
 
   @doc """
+  Who a holding of this category credits, per level, or nil where the registry names none
+  (spec-04 §6.9).
+
+  The level is what the credit means rather than where it is stored: an author made the
+  text and is credited on the work, a narrator made one reading of it and is credited on
+  that expression.
+  """
+  @spec credits_of_category(String.t()) ::
+          %{optional(:work | :expression) => %{String.t() => [String.t()]}} | nil
+  def credits_of_category(category) do
+    case registry()["credit_evidence"]["of_category"][category] do
+      nil ->
+        nil
+
+      per_level ->
+        Map.new(per_level, fn
+          {"work", roles} -> {:work, roles}
+          {"expression", roles} -> {:expression, roles}
+        end)
+    end
+  end
+
+  @doc """
+  What names a reading and what orders its parts (spec-04 §6.9).
+  """
+  @spec audiobook() :: %{titled_by: [String.t()], sequenced_by: [String.t()]}
+  def audiobook do
+    %{"titled_by" => titled_by, "sequenced_by" => sequenced_by} = registry()["audiobooks"]
+
+    %{titled_by: titled_by, sequenced_by: sequenced_by}
+  end
+
+  @doc """
   Every category placement can record (spec-04 §6.3, §6.9).
 
   Three sources reach the category scheme: the default for a broad class or a companion
