@@ -31,6 +31,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.Credits
   alias Pluteus.Ingest.Cue
   alias Pluteus.Ingest.Finding
+  alias Pluteus.Ingest.NarrationKey
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.SerialKey
@@ -174,17 +175,31 @@ defmodule Pluteus.Ingest.Place do
     :ok
   end
 
+  # §6.9. Two of the categories an audio holding can take are not tracks of a release. A
+  # narration is a rendering of a text, so the text is the work and the reading is an
+  # expression of it; a podcast episode is a work of its own within its serial. Anything
+  # else was published as a track, which is what §6.4 places.
   defp place_by_class(%Acquisition{media_class: :audio} = acquisition) do
-    case cue_sheet_for(acquisition) do
-      nil -> place_track(acquisition)
-      cue -> place_cue_release(acquisition, cue)
+    case category_of(acquisition) do
+      "audiobook" -> place_narration(acquisition)
+      "podcast_episode" -> place_by_itself(acquisition)
+      _published_as_a_track -> place_released(acquisition)
     end
   end
 
   defp place_by_class(%Acquisition{media_class: :video} = acquisition),
     do: place_container(acquisition)
 
-  defp place_by_class(%Acquisition{} = acquisition) do
+  defp place_by_class(%Acquisition{} = acquisition), do: place_by_itself(acquisition)
+
+  defp place_released(acquisition) do
+    case cue_sheet_for(acquisition) do
+      nil -> place_track(acquisition)
+      cue -> place_cue_release(acquisition, cue)
+    end
+  end
+
+  defp place_by_itself(%Acquisition{} = acquisition) do
     case serial_place(acquisition) do
       {:taken, detail} -> {:finding, "position_taken", detail}
       within -> place_alone_or_within(acquisition, within)
@@ -196,10 +211,169 @@ defmodule Pluteus.Ingest.Place do
       Catalog.create_work(automatic(title(acquisition)))
 
     categorize(work.id, acquisition)
+    credit(acquisition, work.id, expression.id)
     position_within(within, work.id, manifestation.id)
     represent(acquisition, work.id, [expression])
     carry(acquisition, manifestation.id)
   end
+
+  # --- Audiobooks (§6.9) ------------------------------------------------------------
+
+  # §6.9. A narration is a new rendering of the same material, so the work is the text and
+  # the reading is an expression of it. The author is credited on the work and the narrator
+  # on the expression, and the edition as published is the manifestation.
+  #
+  # The work is named by the book rather than by the file, because a file of a reading in
+  # several parts is named for the chapter it holds and the work is the whole text.
+  #
+  # Several files are parts of one digital item: nothing was released as a track, so a
+  # second file joins the reading the first made rather than becoming a holding beside it.
+  defp place_narration(acquisition) do
+    tags = embedded_tags(acquisition)
+    book = Streams.first(tags, Registry.audiobook().titled_by) || title(acquisition)
+
+    acquisition
+    |> narration_for(book)
+    |> carry_part(acquisition, tags)
+  end
+
+  # Joins the reading holding the key, or creates it, as `release_for/3` joins a release.
+  defp narration_for(acquisition, book) do
+    key = "narration:" <> String.downcase(String.trim(book))
+    now = DateTime.utc_now()
+
+    {inserted, _} =
+      Repo.insert_all(NarrationKey, [%{key: key, inserted_at: now, updated_at: now}],
+        on_conflict: :nothing,
+        conflict_target: :key
+      )
+
+    existing = Repo.get!(NarrationKey, key)
+
+    if inserted == 0 and live?(existing.narration_digital_item_id),
+      do: %{
+        manifestation_id: existing.narration_manifestation_id,
+        digital_item_id: existing.narration_digital_item_id
+      },
+      else: create_narration(existing, acquisition, book)
+  end
+
+  defp create_narration(narration_key, acquisition, book) do
+    {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
+      Catalog.create_work(automatic(book))
+
+    categorize(work.id, acquisition)
+    credit(acquisition, work.id, expression.id)
+    represent(acquisition, work.id, [expression])
+
+    {:ok, %{digital_item: digital_item}} =
+      Catalog.create_digital_item(manifestation.id, automatic(book))
+
+    narration_key
+    |> Ecto.Changeset.change(
+      narration_manifestation_id: manifestation.id,
+      narration_digital_item_id: digital_item.id
+    )
+    |> Repo.update!()
+
+    %{manifestation_id: manifestation.id, digital_item_id: digital_item.id}
+  end
+
+  # One part of a reading: an asset of the reading's digital item, at the sequence the file
+  # states. A file stating none is placed after those that do, in arrival order, because a
+  # reading has an order whether or not its files say so.
+  defp carry_part(narration, acquisition, tags) do
+    sequence =
+      Streams.number(tags, Registry.audiobook().sequenced_by) ||
+        next_part(narration.digital_item_id)
+
+    {:ok, %{asset: _asset}} =
+      Catalog.create_asset(
+        narration.digital_item_id,
+        %{
+          id: acquisition.id,
+          location: acquisition.location,
+          measurement: acquisition.measurement,
+          part_sequence: sequence,
+          essence: acquisition.essence,
+          verification_interval_seconds: verification_interval(acquisition.media_class),
+          roles: [%{role_class: :acquired, role: "original"}]
+        },
+        automatic(Path.basename(acquisition.inbox_path))
+      )
+
+    record_probe(acquisition)
+
+    # The part belongs to the reading before the reading is measured, because the sum is
+    # taken over the parts the digital item holds and this is one of them.
+    acquisition |> Acquisition.placed_changeset(narration.digital_item_id) |> Repo.update!()
+
+    restate_extent(narration)
+    record_analysis_source(narration.manifestation_id, narration.digital_item_id)
+
+    {:ok, _event} =
+      PlatformEvents.record("placed", {:res, narration.digital_item_id}, Actor.current())
+
+    :placed
+  end
+
+  defp next_part(digital_item_id) do
+    sequences = for asset <- Catalog.assets_of(digital_item_id), do: asset.part_sequence || 0
+
+    Enum.max([0 | sequences]) + 1
+  end
+
+  # §8.4. A reading's extent is the whole reading, so it is the sum of its parts and is
+  # restated as each one joins. Recording one part's length as the whole's would make every
+  # position a surface computes against it wrong.
+  defp restate_extent(narration) do
+    probes =
+      Repo.all(
+        from a in Acquisition,
+          where: a.digital_item_id == ^narration.digital_item_id,
+          select: a.probe
+      )
+
+    stated =
+      for probe <- probes,
+          is_map(probe),
+          not is_nil(get_in(probe, ["format", "duration"])),
+          do: Streams.duration_ms(probe)
+
+    record_measured(narration.manifestation_id, measured(:millisecond, Enum.sum(stated)))
+  end
+
+  defp record_measured(_manifestation_id, nil), do: :ok
+
+  defp record_measured(manifestation_id, {unit, magnitude}) do
+    {:ok, _} = Addressing.record_extent(manifestation_id, unit, magnitude)
+    :ok
+  end
+
+  # Who the holding credits, per the level the registry names. A category the registry
+  # names nobody for credits nobody, which is every category but the two §6.9 reaches.
+  defp credit(acquisition, work_id, expression_id) do
+    case Registry.credits_of_category(category_of(acquisition)) do
+      nil ->
+        :ok
+
+      per_level ->
+        tags = embedded_tags(acquisition)
+
+        for {level, roles} <- per_level, {role, tag_names} <- roles do
+          Credits.record(
+            subject(level, work_id, expression_id),
+            role,
+            Credits.named_by(tags, tag_names)
+          )
+        end
+
+        :ok
+    end
+  end
+
+  defp subject(:work, work_id, _expression_id), do: {:work, work_id}
+  defp subject(:expression, _work_id, expression_id), do: {:expression, expression_id}
 
   # --- Serials (§6.9, spec-01 §5.4) -------------------------------------------------
 
@@ -515,7 +689,13 @@ defmodule Pluteus.Ingest.Place do
       Catalog.create_work(automatic(title(acquisition)))
 
     categorize(work.id, acquisition)
-    Credits.record(work.id, :artist, Credits.from_tags(embedded_tags(acquisition), :artist))
+
+    Credits.record(
+      {:work, work.id},
+      :artist,
+      Credits.from_tags(embedded_tags(acquisition), :artist)
+    )
+
     {:ok, _} = Catalog.add_manifestation_part(medium, track.id, position)
     {:ok, _} = Catalog.aggregate(release.expression_id, recording.id)
     carry(acquisition, track.id)
@@ -576,7 +756,7 @@ defmodule Pluteus.Ingest.Place do
     {:ok, %{work: work, expression: expression, manifestation: manifestation}} =
       Catalog.create_work(automatic(name))
 
-    Credits.record(work.id, :album_artist, Credits.from_tags(tags, :album_artist))
+    Credits.record({:work, work.id}, :album_artist, Credits.from_tags(tags, :album_artist))
 
     {:ok, _} =
       Catalog.categorize(
