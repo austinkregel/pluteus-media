@@ -41,6 +41,10 @@ defmodule Pluteus.Ingest.Credits do
   }
   @attempts 3
 
+  # The separator Picard writes into the fields it owns. `artists` and the identifier
+  # fields are structured rather than display text, and carry it whatever the container is.
+  @structured ";"
+
   @doc """
   The credits a track's tags make, as `{name, musicbrainz_id}` in order, for a
   role: `:artist` from `artists` or else `artist`, paired with
@@ -49,16 +53,31 @@ defmodule Pluteus.Ingest.Credits do
 
   Identifiers pair with names by position only where every identifier is one
   and the counts agree; otherwise none is paired.
+
+  `separator` is the container's, from `Pluteus.Ingest.Registry.tag_separator/1`, and
+  applies to the display fields alone. A nil separator takes the field whole.
   """
-  @spec from_tags(map(), :artist | :album_artist) :: [{String.t(), Ecto.UUID.t() | nil}]
-  def from_tags(tags, :artist) do
-    names = values(Streams.first(tags, ["artists"]) || tags["artist"])
-    pair(names, values(tags["musicbrainz_artistid"]))
+  @spec from_tags(map(), :artist | :album_artist, String.t() | nil) ::
+          [{String.t(), Ecto.UUID.t() | nil}]
+  def from_tags(tags, role, separator \\ nil)
+
+  def from_tags(tags, :artist, separator) do
+    names =
+      case Streams.first(tags, ["artists"]) do
+        nil -> values(tags["artist"], separator)
+        structured -> values(structured, @structured)
+      end
+
+    pair(names, values(tags["musicbrainz_artistid"], @structured))
   end
 
-  def from_tags(tags, :album_artist) do
-    names = values(Streams.first(tags, ["album_artist", "albumartist", "album artist"]))
-    pair(names, values(tags["musicbrainz_albumartistid"]))
+  def from_tags(tags, :album_artist, separator) do
+    names =
+      tags
+      |> Streams.first(["album_artist", "albumartist", "album artist"])
+      |> values(separator)
+
+    pair(names, values(tags["musicbrainz_albumartistid"], @structured))
   end
 
   @doc """
@@ -67,17 +86,25 @@ defmodule Pluteus.Ingest.Credits do
   No convention pairs a MusicBrainz identifier with an author or a narrator, so a credit
   read this way carries a name and nothing more, and matching is what may later say who
   the name is.
+
+  `separator` is the container's. A reading of five people names them in one field, and
+  which character stands between them is the container's convention rather than the
+  field's.
   """
-  @spec named_by(map(), [String.t()]) :: [{String.t(), nil}]
-  def named_by(tags, tag_names) do
-    tags |> Streams.first(tag_names) |> values() |> Enum.map(&{&1, nil})
+  @spec named_by(map(), [String.t()], String.t() | nil) :: [{String.t(), nil}]
+  def named_by(tags, tag_names, separator \\ nil) do
+    tags |> Streams.first(tag_names) |> values(separator) |> Enum.map(&{&1, nil})
   end
 
-  defp values(nil), do: []
+  defp values(nil, _separator), do: []
 
-  defp values(value) do
-    value |> String.split(";") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-  end
+  # A container the registry names no separator for states one value, so the field is a
+  # name that may itself hold a comma rather than a list that happens to.
+  defp values(value, nil), do: trimmed([value])
+
+  defp values(value, separator), do: value |> String.split(separator) |> trimmed()
+
+  defp trimmed(values), do: values |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 
   defp pair(names, identifiers) do
     if length(names) == length(identifiers) and
