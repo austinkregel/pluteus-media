@@ -41,6 +41,7 @@
       "floor": 0.05, "ceiling": 0.95, "minimum_length_pages": 8
     },
     "comic_series": { "regime": "none" },
+    "podcast": { "regime": "none" },
     "photograph": { "regime": "none" },
     "scan": { "regime": "none" },
     "video_game": { "regime": "none" },
