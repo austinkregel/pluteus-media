@@ -50,6 +50,12 @@ defmodule PluteusWeb do
     quote do
       use Phoenix.LiveView
 
+      # Declared here rather than in a `live_session`, so it runs however the LiveView
+      # was rendered: `EntityLive` is `live_render`ed from a controller and belongs to
+      # no live session, and a surface reached by a `live` route gets the same contract
+      # without either of them restating it.
+      on_mount PluteusWeb.Live.Identity
+
       unquote(html_helpers())
     end
   end
