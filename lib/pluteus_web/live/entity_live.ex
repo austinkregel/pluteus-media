@@ -34,7 +34,6 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
-  alias PluteusWeb.ForwardAuth
   alias PluteusWeb.Native
 
   # §5.2's seven absences, each in words. A state with none raises rather than rendering
@@ -93,9 +92,9 @@ defmodule PluteusWeb.EntityLive do
 
   @impl Phoenix.LiveView
   def mount(_params, session, socket) do
-    %{"res_id" => res_id, "principal_id" => held} = session
+    %{"res_id" => res_id} = session
 
-    principal_id = established!(socket, held)
+    principal_id = socket.assigns.principal_id
     {:live, res} = Lifecycle.state(res_id)
 
     profile = %Profile{language: session["language"], assigner_id: session["assigner_id"]}
@@ -268,34 +267,12 @@ defmodule PluteusWeb.EntityLive do
     |> Map.new(fn {id, kind} -> {id, "/#{Map.fetch!(paths, kind)}/#{id}"} end)
   end
 
-  # Two mounts. The dead render is the request's, which `ForwardAuth` has already
-  # established, and it carries the principal in the session. The connected mount is a
-  # socket, whose only identity is the proxy's headers, so it establishes the principal
-  # again from those. Disagreement raises: one document would be showing one principal's
-  # page over another's connection.
-  defp established!(socket, held) do
-    case get_connect_info(socket, :x_headers) do
-      nil ->
-        held
-
-      headers ->
-        case ForwardAuth.principal(headers) do
-          {:ok, %{id: ^held}} ->
-            held
-
-          {:ok, %{id: other}} ->
-            raise "the socket is #{other}'s and the page is #{held}'s"
-
-          {:error, type, detail} ->
-            raise "the socket carries no principal: #{type}, #{detail}"
-        end
-    end
-  end
-
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
     <div id="entity" phx-hook="Focus" class="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <Layouts.flash_group flash={@flash} />
+
       <div
         id="entity-announcement"
         role="status"
