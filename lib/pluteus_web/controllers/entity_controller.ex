@@ -28,6 +28,7 @@ defmodule PluteusWeb.EntityController do
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias PluteusWeb.Contexts
+  alias PluteusWeb.Interface
   alias PluteusWeb.Native
   alias PluteusWeb.Problem
 
@@ -184,22 +185,18 @@ defmodule PluteusWeb.EntityController do
   defp query(%{query_string: query}), do: "?" <> query
 
   defp render_interface(conn, res, selector) do
-    profile = Native.profile(conn)
-
-    conn
-    |> assign(:contexts, Contexts.held_by(conn.assigns.principal))
-    |> put_root_layout(html: {PluteusWeb.Layouts, :root})
-    |> live_render(PluteusWeb.EntityLive,
-      session: %{
+    session =
+      Map.merge(Interface.session(conn), %{
         "res_id" => res.id,
-        "principal_id" => conn.assigns.principal.id,
-        "language" => profile.language,
-        "assigner_id" => profile.assigner_id,
         "address" => selector && address(res.kind, res, selector),
         "unit" => selector && unit(selector),
         "whole" => "/#{Native.paths()[res.kind]}/#{res.id}"
-      }
-    )
+      })
+
+    conn
+    |> assign(:contexts, Contexts.held_by(conn.assigns.principal))
+    |> Interface.prepare()
+    |> live_render(PluteusWeb.EntityLive, session: session)
   end
 
   # The unit the region is measured in, which the shell needs to ask whether the res has
