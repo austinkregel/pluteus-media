@@ -54,20 +54,45 @@ defmodule Pluteus.Design.BuildTest do
       end
     end
 
-    test "A.4.2's targets and the control height are reachable as utilities", %{css: css} do
+    test "A.4.2's targets, the control height and A.4.4's inset are utilities", %{css: css} do
       # A floor a component has to write out by hand is a floor each one remembers
       # rather than asks for, so the sizes are registered in the namespace that
       # generates width and height utilities. In layer 3, because `density` rebinds the
-      # control height and a layer 1 copy would not follow it.
+      # control height and `distance` the inset, and a layer 1 copy would follow
+      # neither.
       inline = scope(css, "@theme inline")
 
-      for path <- Map.keys(Tokens.all()), String.starts_with?(path, "sys.size.") do
-        name = path |> String.replace_prefix("sys.size.", "") |> String.replace(".", "-")
+      spaced =
+        Map.keys(Tokens.all())
+        |> Enum.filter(&String.starts_with?(&1, ["sys.size.", "sys.space."]))
+        |> Enum.reject(&(&1 == "sys.size.measure"))
+
+      assert spaced != []
+
+      for path <- spaced do
+        [_sys, group | rest] = String.split(path, ".")
+        name = Enum.join(rest, "-")
         runtime = path |> String.replace_prefix("sys.", "sys-") |> String.replace(".", "-")
 
         assert inline =~ "--spacing-#{name}: var(--#{runtime});",
-               "#{path} has no utility, so a component cannot ask for it by name"
+               "#{path} (sys.#{group}) has no utility, so a component cannot ask for it by name"
       end
+    end
+
+    test "the measure is registered as a width and not as a spacing step", %{css: css} do
+      # A.3.4's measure is a maximum width, so it is the one `sys.size` role outside the
+      # spacing namespace: registered where it yields `max-w-measure`, which is what a
+      # column of long-form text actually asks for.
+      inline = scope(css, "@theme inline")
+
+      assert inline =~ "--container-measure: var(--sys-size-measure);"
+      refute inline =~ "--spacing-measure:"
+    end
+
+    test "the measure carries the unit the token file cannot hold", %{css: css} do
+      # The format's dimension type admits px and rem only, so the measure is authored
+      # as the count of zero-advances it is and the build applies `ch`.
+      assert css =~ "--sys-size-measure: 55ch;"
     end
 
     test "a colour carries its sRGB fallback before its OKLCH", %{css: css} do
