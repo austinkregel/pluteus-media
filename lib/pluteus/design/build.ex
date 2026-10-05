@@ -36,6 +36,7 @@ defmodule Pluteus.Design.Build do
   to keep in step, which is what A.1.4 and A.11 exist to prevent.
   """
 
+  alias Pluteus.Design.Faces
   alias Pluteus.Design.Tokens
 
   # A.10.2: breakpoints are literal and not variables, because a custom property is
@@ -74,6 +75,12 @@ defmodule Pluteus.Design.Build do
     {"motion", "reduced"} => "(prefers-reduced-motion: reduce)"
   }
 
+  # A.3.4's measure. Named here because two things about it are singular: its unit is
+  # not one the format's dimension type admits, and a measure is a maximum width
+  # rather than a spacing step, so it belongs in the namespace that yields `max-w-`
+  # and not the one every other `sys.size` role goes to.
+  @measure "sys.size.measure"
+
   @doc """
   The whole stylesheet, as one string.
   """
@@ -81,6 +88,7 @@ defmodule Pluteus.Design.Build do
   def stylesheet do
     [
       preamble(),
+      faces(),
       primitives(),
       semantics(),
       contexts(),
@@ -113,6 +121,70 @@ defmodule Pluteus.Design.Build do
      */
     """
   end
+
+  # Before the layers, because an `@font-face` is a declaration of what a family means
+  # rather than a value a layer rebinds. Every figure is read from the vendored file's own
+  # manifest: A.3.5's weight range, its optical-size range and the adjusted face's metrics
+  # are the face's, and a figure typed here that disagreed with the file would be a layout
+  # nobody could account for.
+  #
+  # The vendored files are committed, so a missing manifest is a broken checkout rather
+  # than a state to render around: emitting no `@font-face` would leave the families
+  # naming faces nothing declares, and a stylesheet that silently drops the interface's
+  # type is worse than one that fails to build.
+  defp faces, do: Enum.map_join(Faces.manifest()["faces"], "\n", &face/1)
+
+  defp face(%{"axes" => axes, "metrics" => metrics} = face) do
+    %{"wght" => weight, "opsz" => optical} = axes
+
+    """
+    @font-face {
+      font-family: "#{face["family"]}";
+      src: url("#{face["served"]}") format("woff2");
+      font-weight: #{bound(weight["min"])} #{bound(weight["max"])};
+      font-style: normal;
+      font-display: swap;
+      font-optical-sizing: auto;
+      unicode-range: #{Faces.latin()};
+    }
+
+    /* A.3.5's metric-adjusted fallback: the vendored face's own vertical metrics over
+     * whichever local face is present, so the line box is the same height before and
+     * after the swap. The optical-size range is #{bound(optical["min"])} to #{bound(optical["max"])}.
+     */
+    @font-face {
+      font-family: "#{face["family"]} Adjusted";
+      src: #{locals(face["role"])};
+      ascent-override: #{ratio(metrics["ascender"], metrics["units_per_em"])};
+      descent-override: #{ratio(abs(metrics["descender"]), metrics["units_per_em"])};
+      line-gap-override: #{ratio(metrics["line_gap"], metrics["units_per_em"])};
+    }
+    """
+  end
+
+  # The locals a role's metrics are applied over are that role's own. Adjusting a serif
+  # face's metrics onto Arial would render the reading face as a sans and take precedence
+  # over the Georgia that sits later in `sys.type.family.serif`, so each role names the
+  # faces a desktop and the container are actually likely to hold for it.
+  defp locals("sans") do
+    ~s|local("Arial"), local("Helvetica Neue"), local("Liberation Sans"), local("DejaVu Sans")|
+  end
+
+  defp locals("serif") do
+    ~s|local("Georgia"), local("Times New Roman"), local("Liberation Serif"), local("DejaVu Serif")|
+  end
+
+  defp ratio(value, units_per_em) do
+    percentage = Float.round(value / units_per_em * 100, 2)
+
+    if percentage == Float.round(percentage), do: "#{round(percentage)}%", else: "#{percentage}%"
+  end
+
+  # An axis bound arrives from the manifest as a float because that is what the face
+  # declares; CSS takes a weight as a number, and 100.0 is not one a stylesheet should
+  # carry.
+  defp bound(number) when is_float(number), do: number |> round() |> Integer.to_string()
+  defp bound(number) when is_integer(number), do: Integer.to_string(number)
 
   # Layer 1.
   defp primitives do
@@ -288,7 +360,29 @@ defmodule Pluteus.Design.Build do
           "  --spacing-#{name}: var(#{variable(path)});"
         end)
 
-    block("@theme inline", declarations ++ spacing ++ sizes)
+    # A.4.4's inset, registered so a surface's outermost element asks for its edge by
+    # name. It is in layer 3 and not layer 1 because `distance` rebinds it, and the
+    # whole point of the role is that the same template reaches the television's
+    # figures without knowing which surface it is on.
+    insets =
+      [
+        "",
+        "  /* A.4.4's safe inset, which `distance` rebinds. */"
+      ] ++
+        Enum.map(space_paths(), fn path ->
+          name = path |> String.replace_prefix("sys.space.", "") |> String.replace(".", "-")
+          "  --spacing-#{name}: var(#{variable(path)});"
+        end)
+
+    # A measure is a maximum width, so it is registered in the namespace that yields
+    # `max-w-measure` rather than among the spacing scale.
+    measure = [
+      "",
+      "  /* A.3.4's measure, so long-form text asks for its column by name. */",
+      "  --container-measure: var(#{variable(@measure)});"
+    ]
+
+    block("@theme inline", declarations ++ spacing ++ sizes ++ insets ++ measure)
   end
 
   defp tier(prefix) do
@@ -307,7 +401,14 @@ defmodule Pluteus.Design.Build do
   defp size_paths do
     Tokens.all()
     |> Enum.map(fn {path, _token} -> path end)
-    |> Enum.filter(&String.starts_with?(&1, "sys.size."))
+    |> Enum.filter(&(String.starts_with?(&1, "sys.size.") and &1 != @measure))
+    |> Enum.sort()
+  end
+
+  defp space_paths do
+    Tokens.all()
+    |> Enum.map(fn {path, _token} -> path end)
+    |> Enum.filter(&String.starts_with?(&1, "sys.space."))
     |> Enum.sort()
   end
 
@@ -360,9 +461,17 @@ defmodule Pluteus.Design.Build do
         "  #{name}: #{hex};\n  #{name}: #{css(colour)};"
 
       _direct ->
-        "  #{name}: #{css(Tokens.resolve!(path, context))};"
+        "  #{name}: #{css(Tokens.resolve!(path, context))}#{bare_unit(path)};"
     end
   end
+
+  # A.3.4's measure is the one value in the language whose unit the format cannot carry:
+  # the dimension type admits `px` and `rem` only, and a measure in `ch` is a count of
+  # zero-advances rather than a distance. It is authored as that count and the unit
+  # applied here, against the path rather than inferred from the type, so no other
+  # number acquires a unit by being one.
+  defp bare_unit(@measure), do: "ch"
+  defp bare_unit(_path), do: ""
 
   defp dereference("{" <> rest), do: String.trim_trailing(rest, "}")
 
