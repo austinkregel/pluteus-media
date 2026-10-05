@@ -12,6 +12,7 @@ defmodule Pluteus.Design.TokensTest do
   use ExUnit.Case, async: true
 
   alias Pluteus.Design.Colour
+  alias Pluteus.Design.Faces
   alias Pluteus.Design.Schema
   alias Pluteus.Design.Tokens
 
@@ -62,7 +63,7 @@ defmodule Pluteus.Design.TokensTest do
       in_px =
         "dimension"
         |> Tokens.of_type()
-        |> Enum.filter(fn {_path, token} -> token["$value"]["unit"] == "px" end)
+        |> Enum.filter(&px?/1)
         |> Enum.map(fn {path, _token} -> path end)
         |> Enum.sort()
 
@@ -74,7 +75,7 @@ defmodule Pluteus.Design.TokensTest do
         in_px =
           "dimension"
           |> Tokens.of_type(context)
-          |> Enum.filter(fn {_path, token} -> token["$value"]["unit"] == "px" end)
+          |> Enum.filter(&px?/1)
           |> Enum.map(fn {path, _token} -> path end)
 
         assert in_px == [], "#{context} introduces a px dimension: #{inspect(in_px)}"
@@ -545,10 +546,8 @@ defmodule Pluteus.Design.TokensTest do
     end
   end
 
-  describe "A.3.5. The face, and the limitation it carries" do
-    test "every family resolves to faces the platform already has" do
-      # A.3.5: "The interface self-hosts its faces; there is no external font host."
-      # A stack of system faces is hosted nowhere, so nothing is fetched at render.
+  describe "A.3.5. The face" do
+    test "every family ends in a generic to fall back to" do
       for {family, generic} <- [{"sans", "sans-serif"}, {"serif", "serif"}, {"mono", "monospace"}] do
         names = Tokens.resolve!("sys.type.family.#{family}")
 
@@ -557,18 +556,114 @@ defmodule Pluteus.Design.TokensTest do
       end
     end
 
-    test "nothing sets an optical size, and the absence is stated" do
-      # A.3.5: "A face without an optical-size axis cannot honour that rule. Where the
-      # chosen face has none, the limitation is recorded rather than ignored."
-      refute Enum.any?(Map.keys(Tokens.all()), &String.starts_with?(&1, "sys.type.optical-size"))
+    test "the two self-hosted faces lead the chains they serve" do
+      # A.3.5: "The interface self-hosts its faces; there is no external font host."
+      # A vendored face is of no use behind a system one, so each leads its chain, and
+      # the metric-adjusted face the build emits for it comes second.
+      for face <- Faces.all() do
+        [first, second | _rest] = Tokens.resolve!("sys.type.family.#{face.role}")
 
-      stated = get_in(Tokens.read(), ["sys", "type", "family", "$description"])
+        assert first == face.family
+        assert second == "#{face.family} Adjusted"
+      end
+    end
 
-      assert stated =~ "no optical-size axis"
+    test "nothing is fetched from a host the deployment does not run" do
+      for face <- Faces.all() do
+        assert Faces.served(face) =~ ~r{^/fonts/}
+        assert File.exists?(Path.join(Faces.root(), Faces.file(face)))
+      end
+    end
+
+    test "both faces carry an optical-size axis, so A.3.5's rule is expressible" do
+      # A.3.5 ties optical size to apparent rather than rendered size, and "a face
+      # without an optical-size axis cannot honour that rule". Both vendored faces have
+      # one, which is why no limitation is recorded against them.
+      for face <- Faces.manifest()["faces"] do
+        assert %{"min" => min, "max" => max} = face["axes"]["opsz"]
+        assert max > min, "#{face["family"]} declares no optical-size range"
+      end
+    end
+
+    test "every axis a CSS property cannot reach is instanced away" do
+      # A.3.5 sets weight with the weight property and never with raw variation
+      # settings, so an axis no property can set is one a utility would reset by
+      # accident. Roboto Flex ships thirteen; two survive.
+      for face <- Faces.manifest()["faces"] do
+        assert Enum.sort(Map.keys(face["axes"])) == ~w(opsz wght)
+      end
     end
 
     test "distance far moves the root size and no type token" do
       refute Enum.any?(Map.keys(Tokens.all("far")), &String.starts_with?(&1, "sys.type."))
+    end
+  end
+
+  describe "A.3.4. The measure, counted in the shipped faces" do
+    test "the measure is the count A.3.4 fixes it at" do
+      assert Tokens.resolve!("sys.size.measure") == 55
+    end
+
+    test "55ch counts to approximately 65 characters of prose" do
+      # A.3.4: "The character count is what matters and MUST be verified by counting
+      # when the face changes." The count is taken here from the advances the vendor
+      # task read out of the file that is served, so re-vendoring re-counts rather than
+      # leaving a figure that was true of some earlier face.
+      measure = Tokens.resolve!("sys.size.measure")
+
+      counted =
+        Map.new(Faces.manifest()["faces"], fn face ->
+          %{"zero" => zero, "sample_advance" => advance, "sample_characters" => characters} =
+            face["advances"]
+
+          {face["role"], round(measure * zero / (advance / characters))}
+        end)
+
+      assert counted == %{"serif" => 62, "sans" => 71}
+
+      # Long-form text is set in the reading face, so that is the count the measure is
+      # judged by. WCAG 2.2 SC 1.4.8 asks that no more than 80 characters be reachable,
+      # and 45 to 75 is the band conventionally held comfortable.
+      assert counted["serif"] <= 80
+      assert counted["serif"] in 45..75
+    end
+
+    test "the zero glyph is not always the wider one, and the count holds anyway" do
+      # A.3.4 attributes the gain to the zero being wider than the average lowercase
+      # letter. In the reading face it is narrower, so the stated mechanism does not
+      # hold there while its conclusion does — the zero is wider than the average
+      # character of prose, which the space and the narrow letters pull down.
+      reading = Enum.find(Faces.manifest()["faces"], &(&1["role"] == "serif"))
+      %{"zero" => zero, "lowercase_mean" => letters} = reading["advances"]
+      %{"sample_advance" => advance, "sample_characters" => characters} = reading["advances"]
+
+      assert zero < letters
+      assert zero > advance / characters
+    end
+  end
+
+  describe "A.4.4. The safe inset" do
+    test "far carries A.4.4's figures against its own root" do
+      # A.4.4 gives 96px horizontal and 60px vertical at 1920 x 1080, the stricter of
+      # Roku's two published figures per edge. The far root is 32px, so the rem values
+      # are halved rather than doubled: the inset is a panel's geometry and does not
+      # follow the type.
+      assert Tokens.resolve!("sys.space.safe.x", "far")["value"] * 32 == 96
+      assert Tokens.resolve!("sys.space.safe.y", "far")["value"] * 32 == 60
+    end
+
+    test "the inset resolves at near too, so nothing a template binds to dangles" do
+      for axis <- ~w(x y) do
+        assert %{"value" => value, "unit" => "rem"} = Tokens.resolve!("sys.space.safe.#{axis}")
+        assert value > 0
+      end
+    end
+
+    test "only distance rebinds the inset" do
+      for context <- @contexts, context != "far" do
+        refute Enum.any?(Map.keys(Tokens.all(context)), &String.starts_with?(&1, "sys.space.")),
+               "#{context} rebinds the safe inset, which A.1.6 scopes to distance"
+      end
     end
   end
 
@@ -594,6 +689,12 @@ defmodule Pluteus.Design.TokensTest do
     name = if file == "tokens", do: "tokens.json", else: "contexts/#{file}.json"
     Tokens.root() |> Path.join(name) |> File.read!() |> Jason.decode!()
   end
+
+  # A.1.3's lint is on the unit a token authors, so a role that references a primitive
+  # is not one of them: its unit is the primitive's and is counted there. The guard is
+  # on the value's shape rather than on the path, because a reference is a string.
+  defp px?({_path, %{"$value" => %{"unit" => unit}}}), do: unit == "px"
+  defp px?({_path, _token}), do: false
 
   defp hex(path), do: path |> Tokens.resolve!() |> Map.fetch!("hex") |> Colour.from_hex()
 
