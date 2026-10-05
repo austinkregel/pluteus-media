@@ -60,6 +60,21 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libarchive-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# Annex A.3.5 self-hosts the interface's faces and makes subsetting the larger saving:
+# measured there, a Latin subset against an unsubset variable face differed roughly
+# sevenfold, several times what variability saves. fonttools subsets and instances the
+# variable faces, and brotli is what lets it write woff2 rather than ttf — without the
+# module pyftsubset reports an unsupported flavour rather than a smaller file.
+#
+# The subset is chosen for the coverage the household holds, which A.3.5 requires because
+# a catalogue's names are the worst case for subsetting. Measured over this library's 9586
+# names: 77 distinct codepoints, 76 of them Basic Latin. A name in another script is still
+# displayed — §6.1 selects across languages and §6.4 forbids generating a transliteration
+# — and falls to the metric-adjusted chain rather than to nothing.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonttools python3-brotli \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app
