@@ -1,0 +1,86 @@
+{
+  "faces": [
+    {
+      "advances": {
+        "lowercase_mean": 1013.0,
+        "sample_advance": 67514,
+        "sample_characters": 75,
+        "zero": 1156
+      },
+      "axes": {
+        "opsz": {
+          "default": 14.0,
+          "max": 144.0,
+          "min": 8.0
+        },
+        "wght": {
+          "default": 400.0,
+          "max": 1.0e3,
+          "min": 100.0
+        }
+      },
+      "bytes": 110980,
+      "family": "Roboto Flex",
+      "file": "roboto-flex.woff2",
+      "id": "roboto-flex",
+      "licence": {
+        "file": "roboto-flex-OFL.txt",
+        "sha256": "454ec26838f2b8f2e2588e759dd3742577e0d305d3359a7b81c86641fcab7d21",
+        "url": "https://raw.githubusercontent.com/googlefonts/roboto-flex/3.200/OFL.txt"
+      },
+      "licence_name": "SIL Open Font License 1.1",
+      "metrics": {
+        "ascender": 1900,
+        "descender": -500,
+        "line_gap": 0,
+        "units_per_em": 2048
+      },
+      "role": "sans",
+      "served": "/fonts/roboto-flex.woff2",
+      "sha256": "3fb5f16f1234fce3e4a67874b2d67862a4640b3a5c0fbf2f3a88be4f50b4f08c",
+      "url": "https://raw.githubusercontent.com/googlefonts/roboto-flex/3.200/fonts/RobotoFlex[GRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght].ttf",
+      "version": "3.200"
+    },
+    {
+      "advances": {
+        "lowercase_mean": 510.3076923076923,
+        "sample_advance": 33454,
+        "sample_characters": 75,
+        "zero": 500
+      },
+      "axes": {
+        "opsz": {
+          "default": 20.0,
+          "max": 60.0,
+          "min": 8.0
+        },
+        "wght": {
+          "default": 400.0,
+          "max": 900.0,
+          "min": 200.0
+        }
+      },
+      "bytes": 160376,
+      "family": "Source Serif 4",
+      "file": "source-serif-4.woff2",
+      "id": "source-serif-4",
+      "licence": {
+        "file": "source-serif-4-LICENSE.md",
+        "sha256": "75784a295293a8992f5a8d99210566e0064a012e6dab6731305e3787f15896c7",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-serif/4.005R/LICENSE.md"
+      },
+      "licence_name": "SIL Open Font License 1.1",
+      "metrics": {
+        "ascender": 1036,
+        "descender": -335,
+        "line_gap": 0,
+        "units_per_em": 1000
+      },
+      "role": "serif",
+      "served": "/fonts/source-serif-4.woff2",
+      "sha256": "f351eb40b315bfe7a9d0ca1741d9e29ce1848aeb4fb979e51dab58d3a2e4c30c",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-serif/4.005R/VAR/SourceSerif4Variable-Roman.ttf",
+      "version": "4.005R"
+    }
+  ]
+}
