@@ -77,17 +77,46 @@ defmodule Pluteus.Design.Icons do
   something a component can check a template against, and a list read from the
   templates would make it a consequence of them instead. A test asserts the two agree.
 
-  The second group is there for A.8.6 rather than for a surface: `document-text` and
-  `book-open` are the two glyphs the drawn set is hardest to tell from, and A.8.6 makes
-  telling them apart at 16 px the review question. Neither can be judged without the
-  other in front of it, so both are vendored. Both are also the base-set glyph A.8.6's
-  category table already assigns to *document* and *ebook*.
+  Grouped by what warrants each name, because the warrant is what a reader needs to
+  decide whether a name belongs: A.8.6's table names which categories the base set serves
+  and which are drawn, §9.2 fixes the modes, and the rest is what a control on a surface
+  this deployment renders cannot be drawn without.
+
+  `document-text` and `book-open` carry a second warrant. They are the two glyphs the
+  drawn set is hardest to tell from, and A.8.6 makes telling them apart at 16 px the
+  review question; neither can be judged without the other in front of it.
+
+  `previous` and `next` are absent here because they are drawn: A.8.7 draws the seek pair
+  and the step pair, since a step and a scan are different commands and the base set
+  gives both the same mark.
   """
   @spec inventory() :: [String.t()]
   def inventory do
-    ~w(arrow-path exclamation-circle information-circle play x-mark) ++
-      ~w(book-open document-text)
+    category() ++ modes() ++ transport() ++ controls()
   end
+
+  # A.8.6's category table, wherever it names a base-set glyph rather than a drawn one.
+  # The five drawn categories — music recording, audiobook, scan, comic issue and video
+  # game — are `Glyphs.names/0`'s.
+  defp category,
+    do: ~w(film tv video-camera microphone photo document-text book-open)
+
+  # One per mode of §9.2 the base set serves, plus the findings link §16.1 requires on
+  # every surface and the switch §14.2 puts beside the principal. Continue takes `play`,
+  # which the transport also names.
+  defp modes,
+    do: ~w(plus user map-pin clock rectangle-stack squares-2x2 exclamation-triangle
+           chevron-up-down)
+
+  # §12.3's transport. The position slider carries no glyph.
+  defp transport, do: ~w(play pause queue-list)
+
+  # What a control on a surface needs: a notice's two marks, a retry, a dismissal, the
+  # sort and density controls of a narrowed surface, the verified state §16.2 renders
+  # distinctly from unverified, and the one state §5.2 leaves unmarked.
+  defp controls,
+    do: ~w(arrow-path exclamation-circle information-circle x-mark bars-3 bars-arrow-down
+           shield-check check-circle)
 
   @doc """
   Every vendored name, and the drawing each one resolves to.
