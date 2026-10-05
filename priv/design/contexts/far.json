@@ -13,6 +13,14 @@
     }
   },
   "sys": {
+    "space": {
+      "$type": "dimension",
+      "safe": {
+        "$description": "A.4.4's figures at 1920 x 1080: 96px left and right, 60px top and bottom, the stricter of Roku's action-safe rectangle and its design guideline per edge. Stated in rem against this context's own 32px root, so 3rem is 96px and 1.875rem is 60px — the one place in this file where a value is divided by two rather than doubled, because the inset is a panel's geometry and does not follow the type.\n\nThe reason is not overscan. It is that focus enlarges an item, by up to 1.1x on the platforms that publish a figure, and the outermost row or column needs room to grow into without crossing the edge.",
+        "x": { "$value": { "value": 3, "unit": "rem" }, "$description": "96px." },
+        "y": { "$value": { "value": 1.875, "unit": "rem" }, "$description": "60px. Not a step on A.4.1's scale, which the inset does not follow." }
+      }
+    },
     "motion": {
       "duration": {
         "$type": "duration",
