@@ -164,16 +164,27 @@ defmodule Pluteus.Ingest.Place do
     outcome
   end
 
-  # Two placements running at once contend for the same few rows: the probe's
-  # tool version, a release key, an artist key. Each waits for the other to
-  # commit, which is what makes one release out of two tracks, but two
-  # placements that took them in different orders would deadlock instead of
-  # queueing. Every placement takes them in this one order, beginning with the
-  # tool version, which a placement of a file carrying no streams would
-  # otherwise never take at all.
+  # Two placements running at once contend for the same few rows: the probe's tool
+  # version, a grouping key, an artist key. Each waits for the other to commit, which is
+  # what makes one release out of two tracks, and two that took them in different orders
+  # would deadlock instead of queueing.
+  #
+  # The order every placement keeps is: the tool version, then its one grouping key — a
+  # release, a serial or a narration — then the artist keys its credits name. `locked!/3`
+  # holds a placement to it, taking the key's lock on the read, since an insert that
+  # conflicts locks nothing and the row may already be there.
+  #
+  # The tool version is taken first because a placement of a file carrying no streams
+  # would otherwise never take it at all.
   defp contended_rows_in_order do
     {:ok, _} = Annotations.record_tool_version("ffprobe", Streams.ffprobe_version())
     :ok
+  end
+
+  # A grouping key, held for the rest of the transaction. The row is there either way: this
+  # runs after an insert that either made it or found it.
+  defp locked!(schema, field, key) do
+    Repo.one!(from k in schema, where: field(k, ^field) == ^key, lock: "FOR UPDATE")
   end
 
   # §6.9. Two of the categories an audio holding can take are not tracks of a release. A
@@ -249,7 +260,7 @@ defmodule Pluteus.Ingest.Place do
         conflict_target: :key
       )
 
-    existing = Repo.get!(NarrationKey, key)
+    existing = locked!(NarrationKey, :key, key)
 
     if inserted == 0 and live?(existing.narration_digital_item_id),
       do: %{
@@ -517,7 +528,7 @@ defmodule Pluteus.Ingest.Place do
         conflict_target: :key
       )
 
-    existing = Repo.get!(SerialKey, key)
+    existing = locked!(SerialKey, :key, key)
 
     if inserted == 0 and live?(existing.serial_manifestation_id),
       do: %{
@@ -813,7 +824,7 @@ defmodule Pluteus.Ingest.Place do
         conflict_target: :key
       )
 
-    existing = Repo.get!(ReleaseKey, key)
+    existing = locked!(ReleaseKey, :key, key)
 
     if inserted == 0 and live?(existing.release_manifestation_id),
       do: %{
