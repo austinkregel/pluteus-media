@@ -592,6 +592,78 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "§6.9. A reading's chapters are temporal addresses on it" do
+    defp chapters_of(acquisition) do
+      acquisition
+      |> manifestation_of()
+      |> Catalog.addresses_of()
+      |> Enum.sort_by(& &1.start_ms)
+    end
+
+    test "each chapter the container states is a region of the reading", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      bytes =
+        reading(
+          chapters: [{"The Warrior", {0, 2000}}, {"The Shadow", {2000, 4000}}],
+          tags: %{"track" => "1"}
+        )
+
+      [reading] = ingest!(inbox, %{"#{prefix}/book.m4b" => bytes})
+
+      assert [first, second] = chapters_of(reading)
+
+      assert %{selector_type: :temporal, start_ms: 0, end_ms: 2000} = first
+      assert %{selector_type: :temporal, start_ms: 2000, end_ms: 4000} = second
+
+      # The container titles them, so the addresses are named by it.
+      assert names(first.id) == ["The Warrior"]
+      assert names(second.id) == ["The Shadow"]
+    end
+
+    test "a chapter is no holding of its own", %{inbox: inbox} do
+      # A chapter is a region of the reading, so nothing is catalogued for it: one digital
+      # item, one asset, and no work or manifestation per chapter.
+      prefix = unique_prefix()
+      bytes = reading(chapters: [{"The Warrior", {0, 2000}}, {"The Shadow", {2000, 4000}}])
+
+      [reading] = ingest!(inbox, %{"#{prefix}/book.m4b" => bytes})
+
+      assert [_first, _second] = chapters_of(reading)
+      assert [%{id: _asset}] = Catalog.assets_of(reading.digital_item_id)
+      assert [_expression] = Catalog.expressions_in(manifestation_of(reading))
+    end
+
+    test "a chapter in a later part is offset past the parts before it", %{inbox: inbox} do
+      # A container numbers its own chapters from nought, and the address is against the
+      # whole reading, so part two's first chapter is not at the start of the reading.
+      prefix = unique_prefix()
+
+      [first, _second] =
+        ingest!(inbox, %{
+          "#{prefix}/01.m4b" => reading(chapters: [{"One", {0, 6000}}], tags: %{"track" => "1"}),
+          "#{prefix}/02.m4b" => reading(chapters: [{"Two", {0, 6000}}], tags: %{"track" => "2"})
+        })
+
+      assert [one, two] = chapters_of(first)
+
+      assert names(one.id) == ["One"]
+      assert one.start_ms == 0
+
+      assert names(two.id) == ["Two"]
+      assert two.start_ms > 0
+      assert two.start_ms == Streams.duration_ms(first.probe)
+    end
+
+    test "a container stating no chapters produces none", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      [reading] = ingest!(inbox, %{"#{prefix}/book.m4b" => reading(chapters: nil)})
+
+      assert chapters_of(reading) == []
+    end
+  end
+
   describe "39. A comic issue is a work positioned within its series at manifestation level" do
     defp an_issue(inbox, series, number) do
       document = comic_info(Series: series, Number: number, Title: "Part #{number}")
