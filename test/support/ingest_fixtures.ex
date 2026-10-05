@@ -89,6 +89,23 @@ defmodule Pluteus.IngestFixtures do
   def comic_page(number), do: StorageFixtures.png("page #{number}")
 
   @doc """
+  A reading in an MP4 container, which is the shape a published one arrives in.
+
+  `chapters` are `{title, {from_ms, to_ms}}` within this file, as a container states them:
+  a part of a reading in several files numbers its own chapters from nought.
+  """
+  @spec reading(keyword()) :: binary()
+  def reading(opts) do
+    tags =
+      Map.merge(
+        %{"genre" => "Audiobook", "album" => opts[:book] || "A Wizard of Earthsea"},
+        Map.new(opts[:tags] || %{})
+      )
+
+    media!(:m4b, duration: opts[:duration] || 6, chapters: opts[:chapters], tags: tags)
+  end
+
+  @doc """
   A comic's metadata document, stating the fields given.
 
   The elements are written in the capitalization the format uses, so that the reader's
