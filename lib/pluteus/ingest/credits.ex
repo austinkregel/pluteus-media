@@ -206,7 +206,11 @@ defmodule Pluteus.Ingest.Credits do
         conflict_target: :key
       )
 
-    existing = Repo.get!(ArtistKey, key)
+    # Held for the rest of the transaction, so two placements naming one artist queue on it
+    # rather than each creating an artist for the same name. The lock is taken on the read,
+    # because an insert that conflicts locks nothing, and it is taken before the artist is
+    # created, because `create_artist/3` updates this row once it has one.
+    existing = Repo.one!(from k in ArtistKey, where: k.key == ^key, lock: "FOR UPDATE")
 
     if inserted == 0 and live?(existing.artist_id),
       do: Repo.get!(Res, existing.artist_id),
