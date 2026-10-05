@@ -19,6 +19,7 @@ defmodule PluteusWeb.ConnCase do
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
+      import Phoenix.LiveViewTest
       import PluteusWeb.ConnCase
     end
   end
@@ -64,6 +65,22 @@ defmodule PluteusWeb.ConnCase do
   """
   def on_a_surface(conn, distance \\ "near") do
     Plug.Test.put_req_cookie(conn, PluteusWeb.Surface.cookie(), distance)
+  end
+
+  @doc """
+  A connected mount whose socket carries the headers of a different principal.
+
+  `Phoenix.LiveViewTest` derives the socket's `:x_headers` from the connection the dead
+  render was made with, so the two agree by construction and the disagreement a LiveView
+  raises on cannot otherwise be reached. This substitutes the connect info, which is the
+  harness's own override for exactly that.
+  """
+  def on_a_socket_as(conn, subject) do
+    Plug.Conn.put_private(
+      conn,
+      :live_view_connect_info,
+      through_proxy(Phoenix.ConnTest.build_conn(), subject)
+    )
   end
 
   @doc """
