@@ -20,6 +20,7 @@ defmodule PluteusWeb.Notices do
   filled in from somewhere else.
   """
 
+  alias Pluteus.Design.Faces
   alias Pluteus.Design.Icons
   alias Pluteus.Design.Schema
 
@@ -28,6 +29,26 @@ defmodule PluteusWeb.Notices do
 
   @external_resource @heroicons_licence
   @external_resource @dtcg
+
+  # A.3.5's faces, composed from the one list that pins them rather than described a
+  # second time here. A face added or moved to another upstream version appears with
+  # that version, because nothing in this entry is typed.
+  @faces Enum.map(Faces.all(), fn face ->
+           %{
+             name: face.family,
+             version: face.version,
+             source: Faces.repository_url(face),
+             vendored: "priv/fonts/#{Faces.file(face)}",
+             what:
+               "The #{Faces.role_name(face)} A.3.5 self-hosts, instanced to the weight " <>
+                 "and optical-size axes and subsetted to Latin.",
+             licence: File.read!(Faces.licence_path(face))
+           }
+         end)
+
+  for face <- Faces.all() do
+    @external_resource Faces.licence_path(face)
+  end
 
   @notices [
     %{
@@ -70,5 +91,5 @@ defmodule PluteusWeb.Notices do
   Every vendored third party, with the notice its own files state.
   """
   @spec all() :: [map()]
-  def all, do: @notices
+  def all, do: @faces ++ @notices
 end
