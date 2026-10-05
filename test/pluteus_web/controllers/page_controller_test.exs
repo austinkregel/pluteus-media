@@ -56,6 +56,17 @@ defmodule PluteusWeb.PageControllerTest do
     assert html =~ "Copyright (c) Tailwind Labs, Inc."
     assert html =~ "The above copyright notice and this permission notice shall be included"
 
+    # A.3.5's two self-hosted faces are redistributed by this repository under the OFL,
+    # whose own terms require the copyright and licence notice accompany the files. Each
+    # face's copyright line is the first line of the licence it ships with, so asserting
+    # both licences arrived asserts both notices did.
+    assert html =~ "The Roboto Flex Project Authors"
+    assert html =~ "Adobe"
+
+    for licence <- ["SIL OPEN FONT LICENSE Version 1.1", "SIL Open Font License, Version 1.1"] do
+      assert html =~ licence
+    end
+
     for notice <- PluteusWeb.Notices.all() do
       assert html =~ notice.name
       assert html =~ notice.vendored
