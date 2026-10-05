@@ -7,9 +7,34 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/arrow-path.svg"
     },
     {
+      "path": "16/solid/bars-3.svg",
+      "sha256": "e23145545f7b9131a937d2f5a7543bb406da0fc13c77206792877ce764dafaf1",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/bars-3.svg"
+    },
+    {
+      "path": "16/solid/bars-arrow-down.svg",
+      "sha256": "764f723f5a11de7ada6002d2019928b9c32df434f15465195a34253479e06a1c",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/bars-arrow-down.svg"
+    },
+    {
       "path": "16/solid/book-open.svg",
       "sha256": "00bd4306e0cc94280a2f5a7569a7b24bca54560ffc6e9cd7e0fcc3f2dd583243",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/book-open.svg"
+    },
+    {
+      "path": "16/solid/check-circle.svg",
+      "sha256": "a94d3b04da892857279d30c3a8b2e820618f25f6365327ea462614e3d68080be",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/check-circle.svg"
+    },
+    {
+      "path": "16/solid/chevron-up-down.svg",
+      "sha256": "d16ec074682013768630bffc1186a5de88714b2b35b9ac22b9dc93c318dd0245",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/chevron-up-down.svg"
+    },
+    {
+      "path": "16/solid/clock.svg",
+      "sha256": "0867958a724231c739eaa62c3726792d6d83954583510149ace68779fdb58e3d",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/clock.svg"
     },
     {
       "path": "16/solid/document-text.svg",
@@ -22,14 +47,84 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/exclamation-circle.svg"
     },
     {
+      "path": "16/solid/exclamation-triangle.svg",
+      "sha256": "910dfd9f473a375683f0dd5bf7a360cb5f50ab336fc3522a25b31efe70e168dc",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/exclamation-triangle.svg"
+    },
+    {
+      "path": "16/solid/film.svg",
+      "sha256": "590d44e1f87ae1df7ffd72d2632cc6d19beb81f067fd1357f6873dab35bd9324",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/film.svg"
+    },
+    {
       "path": "16/solid/information-circle.svg",
       "sha256": "6ae80cbd5c5459d02ea4822a3715d632bd49d010faab8ab26824aacb0a31ebd3",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/information-circle.svg"
     },
     {
+      "path": "16/solid/map-pin.svg",
+      "sha256": "bad0afdb51beb90ef04a7d35dc8b67571bd633207bf10dc73347d8b69bb58664",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/map-pin.svg"
+    },
+    {
+      "path": "16/solid/microphone.svg",
+      "sha256": "e7ed0b5acfd1aa7206c5e26169ac0cabe13e1c9373bc60a799c094b7b1b5814b",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/microphone.svg"
+    },
+    {
+      "path": "16/solid/pause.svg",
+      "sha256": "7e5aa3f69e14a88ccdcb32c32d862a2aba1dbf051fcbf3c313a4a591ea783c22",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/pause.svg"
+    },
+    {
+      "path": "16/solid/photo.svg",
+      "sha256": "881555a8b9c771588f2eb663d445779e146850c1dce7956f990817b80474f005",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/photo.svg"
+    },
+    {
       "path": "16/solid/play.svg",
       "sha256": "5904a7af15c6a5ecfbb242f59d443cc05409d95b6777777a8bf6267b77fedda8",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/play.svg"
+    },
+    {
+      "path": "16/solid/plus.svg",
+      "sha256": "f0def73ae744dcee28a1c54e7ce7f099f7be28bcfd448f6dddea49801be98a62",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/plus.svg"
+    },
+    {
+      "path": "16/solid/queue-list.svg",
+      "sha256": "aa8575cc1253b806c2964ac94ccdcbd93993d48438ef826492d20653aad151ea",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/queue-list.svg"
+    },
+    {
+      "path": "16/solid/rectangle-stack.svg",
+      "sha256": "e3427bf743d863b760dd803e1218f161f55d35c42f0d9be65e1a6225f61e9815",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/rectangle-stack.svg"
+    },
+    {
+      "path": "16/solid/shield-check.svg",
+      "sha256": "3b8fd452f099487d5a622e868e2604d02e3d55525b8a138991f27d0e32f598f7",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/shield-check.svg"
+    },
+    {
+      "path": "16/solid/squares-2x2.svg",
+      "sha256": "4253a2b4c7e5cf1cce5b97d0098ca6557e3641d81f1b62c860efaf5c6f297f4f",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/squares-2x2.svg"
+    },
+    {
+      "path": "16/solid/tv.svg",
+      "sha256": "4965eaf1ee7042d38a09476a01e45b41f7997215e97fe5fd10ca79a332a33781",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/tv.svg"
+    },
+    {
+      "path": "16/solid/user.svg",
+      "sha256": "7e040f9406171b34c8b9cbe4696a2879e7f615eede466ecc50127977944876e3",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/user.svg"
+    },
+    {
+      "path": "16/solid/video-camera.svg",
+      "sha256": "a6ab19d3304d695e6d2aaa7a264f5b15f49d0f5fbd844b4662616f88e4d1dc40",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/video-camera.svg"
     },
     {
       "path": "16/solid/x-mark.svg",
@@ -42,9 +137,34 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/arrow-path.svg"
     },
     {
+      "path": "20/solid/bars-3.svg",
+      "sha256": "8b68ab23a745deef393f6ef430addd08d4e1e0eb13bef1601126d65bfc507f6e",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/bars-3.svg"
+    },
+    {
+      "path": "20/solid/bars-arrow-down.svg",
+      "sha256": "d21cba61ec9c170f6fa2954b271aa6440f30065ae03adcd94b49cb5c96af2424",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/bars-arrow-down.svg"
+    },
+    {
       "path": "20/solid/book-open.svg",
       "sha256": "d719a115c948d9c0cac53fd1d74d5df34992d4a0f2d5ff7900e85ade580a0c13",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/book-open.svg"
+    },
+    {
+      "path": "20/solid/check-circle.svg",
+      "sha256": "b619a82b056cdc2052b8066cdfbf788d5e68a0009d06b65c724369ea33501d6f",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/check-circle.svg"
+    },
+    {
+      "path": "20/solid/chevron-up-down.svg",
+      "sha256": "88c20ab517b01b2763c0713044940755b4c03a72ad0fcaa87803b07a6c30a2e4",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/chevron-up-down.svg"
+    },
+    {
+      "path": "20/solid/clock.svg",
+      "sha256": "65e600e2386ac0035276f8ebdd84c5a7c1248343de319c4319081af671bdb85d",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/clock.svg"
     },
     {
       "path": "20/solid/document-text.svg",
@@ -57,14 +177,84 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/exclamation-circle.svg"
     },
     {
+      "path": "20/solid/exclamation-triangle.svg",
+      "sha256": "0efea39b29ae6d8d62748c8c74b6acae118e01b8d2ec764afd5121efff5f6ba6",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/exclamation-triangle.svg"
+    },
+    {
+      "path": "20/solid/film.svg",
+      "sha256": "0c3cf3ebc4c0da545632866866a5c1b29eea0f22c7a6da50cecc6a33815388d6",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/film.svg"
+    },
+    {
       "path": "20/solid/information-circle.svg",
       "sha256": "b0d0a191c30778c5cf677846243dd64c4efbec72a657d1c7ab025588bc1a0bf7",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/information-circle.svg"
     },
     {
+      "path": "20/solid/map-pin.svg",
+      "sha256": "394311e0d95f0191f811869a21efbdd7cd41a8f2b936ec16b3b30ee48d78cc6e",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/map-pin.svg"
+    },
+    {
+      "path": "20/solid/microphone.svg",
+      "sha256": "60aef7ffe36fb1db441b0a4725d7c4094a05d54015d00fd2106d91eb6abe0101",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/microphone.svg"
+    },
+    {
+      "path": "20/solid/pause.svg",
+      "sha256": "95b7a3b8585a3cefd509f8d1a536dfbd009bc02871e2209d8277dd7f5dca95fb",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/pause.svg"
+    },
+    {
+      "path": "20/solid/photo.svg",
+      "sha256": "023289b173ced0a2a5ba90db1e79af280a9a4eb447fa0db7be2844bb6432b862",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/photo.svg"
+    },
+    {
       "path": "20/solid/play.svg",
       "sha256": "aaf30b27b9fa12a421c13be3e9c71d967c73805453cfcf1a1261ecb59dddc9f2",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/play.svg"
+    },
+    {
+      "path": "20/solid/plus.svg",
+      "sha256": "3fdba588fa071fe2d0a26e520f68e4dd8ca67c053ed9fe2e8185daff6622a609",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/plus.svg"
+    },
+    {
+      "path": "20/solid/queue-list.svg",
+      "sha256": "5c184e1fde4ffbc612dff2b8fd897ae084bb8a1172f90b9947aff6e001c84a60",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/queue-list.svg"
+    },
+    {
+      "path": "20/solid/rectangle-stack.svg",
+      "sha256": "cce666534d0a4f9661371b9b6bef0dc53dffe409ec41195b52e39ef1f330fb2d",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/rectangle-stack.svg"
+    },
+    {
+      "path": "20/solid/shield-check.svg",
+      "sha256": "4716a049d531b483b50e4520c8b9bff74dbc5fa86a7527da96fef49106d1fdab",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/shield-check.svg"
+    },
+    {
+      "path": "20/solid/squares-2x2.svg",
+      "sha256": "8e9b341a349413f7b01dc0cb72a2e1079b2fd9157d5bff6744fcfdf906cf56c2",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/squares-2x2.svg"
+    },
+    {
+      "path": "20/solid/tv.svg",
+      "sha256": "279496a6a792e85e6cf3e0e9344afea4b6ec69e64972780b01767e41014da7ce",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/tv.svg"
+    },
+    {
+      "path": "20/solid/user.svg",
+      "sha256": "ecb1586671e6e41b36354c32b9b1dcb985830efc61aa52cc7df51bf5cd3b62c9",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/user.svg"
+    },
+    {
+      "path": "20/solid/video-camera.svg",
+      "sha256": "0fc5a195bb872d8b45e8f3f610f9a0c17a02b94bfdd82310d9d5db6d422b9fb8",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/video-camera.svg"
     },
     {
       "path": "20/solid/x-mark.svg",
@@ -77,9 +267,34 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/arrow-path.svg"
     },
     {
+      "path": "24/outline/bars-3.svg",
+      "sha256": "0e76cceaeef6685444adf1ccb47d743d791d30e19181289ce19d3fb5e5c7ed74",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/bars-3.svg"
+    },
+    {
+      "path": "24/outline/bars-arrow-down.svg",
+      "sha256": "ba8a25c167a4584156697a58a5a129406c660f1cdab7b0cf99dcf956075b4877",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/bars-arrow-down.svg"
+    },
+    {
       "path": "24/outline/book-open.svg",
       "sha256": "dc4fab6a62dcebe7c1c31096a7062151363b803b62919ba47ef32ba37ad127df",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/book-open.svg"
+    },
+    {
+      "path": "24/outline/check-circle.svg",
+      "sha256": "720aa6154ca2d170226559dd33c6125e5492f4d70d034e6426018d27359362ac",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/check-circle.svg"
+    },
+    {
+      "path": "24/outline/chevron-up-down.svg",
+      "sha256": "d6b1c12060e27ba6cd94041ef5df9a22169cc0b6ba30e25109c4c3060d9d7375",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/chevron-up-down.svg"
+    },
+    {
+      "path": "24/outline/clock.svg",
+      "sha256": "373d9798f3bde27f665fd49fd4b78b6896de13e1b30670c1930d9553cd1ff3e3",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/clock.svg"
     },
     {
       "path": "24/outline/document-text.svg",
@@ -92,14 +307,84 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/exclamation-circle.svg"
     },
     {
+      "path": "24/outline/exclamation-triangle.svg",
+      "sha256": "3952df551d6c3b81b236831a5457931d9df1d8e5d9112e8f5de01b5c61e3144d",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/exclamation-triangle.svg"
+    },
+    {
+      "path": "24/outline/film.svg",
+      "sha256": "d40485c1eace7d01294cd8ce37db358ea59cc939bd41f5f11d9c85a3239a5f9d",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/film.svg"
+    },
+    {
       "path": "24/outline/information-circle.svg",
       "sha256": "622b5f527d68f6e55cc0556f6720754b16273a53b0aa7c4d6f387d9e27bab076",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/information-circle.svg"
     },
     {
+      "path": "24/outline/map-pin.svg",
+      "sha256": "2e5e3a42d2f4111d1e54fed11e8f5634c5716fa3a541bb6787e998e147233639",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/map-pin.svg"
+    },
+    {
+      "path": "24/outline/microphone.svg",
+      "sha256": "8d01f205baa837943ecd8e36baa521894b4398d19e75348edaa719746b6c7763",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/microphone.svg"
+    },
+    {
+      "path": "24/outline/pause.svg",
+      "sha256": "51d46111a245a9add33367dc8c9ff87724f7b68bec1a52d218b79b0a96fc5985",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/pause.svg"
+    },
+    {
+      "path": "24/outline/photo.svg",
+      "sha256": "7097d901bd73841390a5a73f99193af198d3392bc84371e7063e520956eb7360",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/photo.svg"
+    },
+    {
       "path": "24/outline/play.svg",
       "sha256": "88392682dbe1eac79795a5abe2c1b7a8eee73e696f9f770ffc7b0b851b898e8c",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/play.svg"
+    },
+    {
+      "path": "24/outline/plus.svg",
+      "sha256": "f3bd7870b4ac4bcb2153705981bdd9663f185c4563af496998803e245aca0d54",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/plus.svg"
+    },
+    {
+      "path": "24/outline/queue-list.svg",
+      "sha256": "aa08b011e64493839e49d26fd8d200997e9d181b139b5ee951c4d8d498265914",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/queue-list.svg"
+    },
+    {
+      "path": "24/outline/rectangle-stack.svg",
+      "sha256": "3a72740f2a315c6b1a377f73b72f5dd62a9db970423769610672ebe87dcddf41",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/rectangle-stack.svg"
+    },
+    {
+      "path": "24/outline/shield-check.svg",
+      "sha256": "db8ceec9867b8dcb63efb1da7afaf6c66729e93f0e94b4352e97d6249d83680f",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/shield-check.svg"
+    },
+    {
+      "path": "24/outline/squares-2x2.svg",
+      "sha256": "45f2eac7a2fda730f8ac492ed12431f894ae30b6469405f7468c788fe7963223",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/squares-2x2.svg"
+    },
+    {
+      "path": "24/outline/tv.svg",
+      "sha256": "113ca7aa6b815c971c4d235a7011c25c62670d4367c907f878205fa4bb87f470",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/tv.svg"
+    },
+    {
+      "path": "24/outline/user.svg",
+      "sha256": "73fa969e35b58fdf764fb90fce1f848c4ca4c4b20184ce8bf9bd442700456356",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/user.svg"
+    },
+    {
+      "path": "24/outline/video-camera.svg",
+      "sha256": "e52b171160eaf64d015882bc3c5c060ac5066b9c86b710d4cd2954eab88ce841",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/video-camera.svg"
     },
     {
       "path": "24/outline/x-mark.svg",
@@ -118,13 +403,32 @@
     "24/outline"
   ],
   "inventory": [
+    "film",
+    "tv",
+    "video-camera",
+    "microphone",
+    "photo",
+    "document-text",
+    "book-open",
+    "plus",
+    "user",
+    "map-pin",
+    "clock",
+    "rectangle-stack",
+    "squares-2x2",
+    "exclamation-triangle",
+    "chevron-up-down",
+    "play",
+    "pause",
+    "queue-list",
     "arrow-path",
     "exclamation-circle",
     "information-circle",
-    "play",
     "x-mark",
-    "book-open",
-    "document-text"
+    "bars-3",
+    "bars-arrow-down",
+    "shield-check",
+    "check-circle"
   ],
   "licence": "MIT, Copyright (c) Tailwind Labs, Inc.",
   "tag": "v2.2.0"
