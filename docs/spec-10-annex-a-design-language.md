@@ -428,10 +428,16 @@ Long-form text is constrained by a measure in `ch`, adjustable by the reader.
 | `sys.size.measure` | `55ch` |
 
 `ch` is the advance of the zero glyph, which in a proportional face is wider
-than the average lowercase letter, so a measure in `ch` yields more characters
-than its number suggests: 55ch renders approximately 65 characters in the
-shipped face. The character count is what matters and MUST be verified by
-counting when the face changes.
+than the average character of running prose, so a measure in `ch` yields more
+characters than its number suggests. The comparison is against prose and not
+against the lowercase alphabet: the space and the narrow letters are most of
+what pulls the average down, and in a face whose figures are set to the width
+of its lowercase the alphabet alone would predict a measure narrower than 55
+characters when the text reaches more than 60.
+
+Counted in the shipped faces, 55ch is approximately 65 characters: 62 in the
+reading face and 71 in the interface face. The character count is what matters
+and MUST be verified by counting when the face changes.
 
 [WCAG22] §1.4.8 requires that a mechanism be available for a width of no more
 than 80 characters, for unjustified text and for generous line spacing. It is
