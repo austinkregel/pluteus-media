@@ -23,6 +23,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Annotations
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
+  alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Representative
   alias Pluteus.Ingest
@@ -308,6 +309,7 @@ defmodule Pluteus.Ingest.Place do
     # taken over the parts the digital item holds and this is one of them.
     acquisition |> Acquisition.placed_changeset(narration.digital_item_id) |> Repo.update!()
 
+    record_chapters(acquisition, narration, sequence)
     restate_extent(narration)
     record_analysis_source(narration.manifestation_id, narration.digital_item_id)
 
@@ -316,6 +318,72 @@ defmodule Pluteus.Ingest.Place do
 
     :placed
   end
+
+  # §6.9. A chapter is a region of the reading rather than a holding of its own, so it is
+  # a temporal address on the manifestation and nothing more: no work, no manifestation,
+  # no digital item. The container states it, which is why nothing is derived here and a
+  # container stating none produces none.
+  #
+  # A chapter's own times are relative to the file that declares them, and the address is
+  # against the whole reading, so each is shifted past the parts that come before it. A
+  # chapter at nought in part two is an hour into the reading, and recording it at nought
+  # would put it in part one.
+  defp record_chapters(acquisition, narration, sequence) do
+    offset = parts_before(narration, sequence)
+
+    for chapter <- Streams.chapters(acquisition.probe) do
+      {:ok, %{address: address}} =
+        Catalog.create_address(narration.manifestation_id, %{
+          selector_type: :temporal,
+          start_ms: chapter["start_ms"] + offset,
+          end_ms: chapter["end_ms"] + offset
+        })
+
+      name_chapter(address.id, chapter["title"])
+    end
+
+    :ok
+  end
+
+  # A chapter the container titles is named by it. One it does not is a region with no name
+  # of its own, which §6.3's composed name answers rather than a number invented here.
+  defp name_chapter(_address_id, nil), do: :ok
+
+  defp name_chapter(address_id, title) do
+    {:ok, _} =
+      Catalog.create_nomen(%{
+        res_id: address_id,
+        nomen_string: title,
+        provenance: :automatic
+      })
+
+    :ok
+  end
+
+  # How much reading comes before a part: the stated duration of every part the reading
+  # holds at a lower sequence. An asset carries the sequence and the acquisition carries
+  # the probe that states the duration, and the two share an identifier.
+  defp parts_before(narration, sequence) do
+    Repo.all(
+      from a in Acquisition,
+        join: s in Asset,
+        on: s.id == a.id,
+        where: a.digital_item_id == ^narration.digital_item_id,
+        where: s.part_sequence < ^sequence,
+        select: a.probe
+    )
+    |> Enum.map(&stated_duration_ms/1)
+    |> Enum.sum()
+  end
+
+  defp stated_duration_ms(probe) when is_map(probe) do
+    case get_in(probe, ["format", "duration"]) do
+      nil -> 0
+      _stated -> Streams.duration_ms(probe)
+    end
+  end
+
+  defp stated_duration_ms(_unprobed), do: 0
 
   defp next_part(digital_item_id) do
     sequences = for asset <- Catalog.assets_of(digital_item_id), do: asset.part_sequence || 0
@@ -334,13 +402,9 @@ defmodule Pluteus.Ingest.Place do
           select: a.probe
       )
 
-    stated =
-      for probe <- probes,
-          is_map(probe),
-          not is_nil(get_in(probe, ["format", "duration"])),
-          do: Streams.duration_ms(probe)
+    stated = probes |> Enum.map(&stated_duration_ms/1) |> Enum.sum()
 
-    record_measured(narration.manifestation_id, measured(:millisecond, Enum.sum(stated)))
+    record_measured(narration.manifestation_id, measured(:millisecond, stated))
   end
 
   defp record_measured(_manifestation_id, nil), do: :ok
