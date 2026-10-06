@@ -9,10 +9,10 @@ defmodule PluteusWeb.PageController do
   @doc """
   The design language, rendered.
 
-  Until spec-10 §9's surfaces exist there is nothing else for this address to be,
-  and Annex A's own review criterion (A.9.2) is that every rendering exists rather
-  than that the populated one looks right — which needs somewhere the renderings can
-  be seen side by side and every context switched over them.
+  Annex A's own review criterion (A.9.2) is that every rendering exists rather than
+  that the populated one looks right, which needs somewhere the renderings can be seen
+  side by side and every context switched over them. That is what this is, and it is why
+  it has an address of its own rather than the catalogue's.
 
   The roles are read from the token file rather than listed here, so a role added to
   the language appears without this page being edited. A swatch therefore names its
