@@ -38,11 +38,13 @@ defmodule Pluteus.Browse.Entries do
 
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog.Aggregation
+  alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Category
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.ManifestationPart
   alias Pluteus.Catalog.Nomen
+  alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
   alias Pluteus.Ingest.Place
@@ -145,14 +147,62 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
+  The decade each work's date falls in, from the date its container stated.
+
+  A work carries as many as its manifestations were issued in, which is why this is a
+  set rather than a column: a first pressing and a reissue are one work in two decades,
+  and both are true.
+
+  The decade is the stated date's first three digits, so a date stated only to the year
+  lands in a decade as surely as one stated to the day.
+  """
+  @spec decades() :: Ecto.Query.t()
+  def decades do
+    refinement = Refinements.name!("time-of-publication-or-manufacture")
+
+    from x in Expression,
+      join: e in Embodiment,
+      on: e.expression_id == x.id,
+      join: a in Association,
+      on: a.subject_id == e.manifestation_id and a.refinement == ^refinement,
+      join: n in Nomen,
+      on: n.res_id == a.object_id and is_nil(n.assigner_id),
+      distinct: true,
+      select: %{res_id: x.work_id, value: fragment("substr(?, 1, 3) || '0s'", n.nomen_string)}
+  end
+
+  @doc """
   The axes this release can narrow on. The rest are named and inert.
   """
   @spec narrowable_axes() :: [String.t()]
-  def narrowable_axes, do: ["category"]
+  def narrowable_axes, do: ["category", "decade"]
 
-  # Disjunctive within the axis: a work matching any of the values is held.
-  defp on({"category", values}, query) do
-    from [category: c] in with_category(query), where: c.value in ^values
+  @doc """
+  Each value of an axis with how many of a selection carry it.
+
+  Counted over distinct works, because an axis a work carries twice — two manifestations
+  issued in one decade — is one holding to a person looking at the number.
+  """
+  @spec distribution(String.t(), Ecto.Query.t()) :: %{String.t() => non_neg_integer()}
+  def distribution(axis, selection) do
+    selection
+    |> join(:inner, [work: w], v in subquery(values_of(axis)), as: :value, on: v.res_id == w.id)
+    |> group_by([value: v], v.value)
+    |> select([work: w, value: v], {v.value, count(w.id, :distinct)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  defp values_of("category"), do: effective_categories()
+  defp values_of("decade"), do: decades()
+
+  # Disjunctive within the axis: a work carrying any of the values is held. Matched
+  # through a subquery rather than a join, so a work carrying two of them is held once.
+  defp on({axis, values}, query) when axis in ["category", "decade"] do
+    carrying =
+      from v in subquery(values_of(axis)), where: v.value in ^values, select: v.res_id
+
+    from [work: w] in query, where: w.id in subquery(carrying)
   end
 
   defp on({axis, _values}, _query) do
