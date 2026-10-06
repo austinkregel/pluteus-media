@@ -1,6 +1,6 @@
 defmodule Pluteus.Ingest.TimeSpanKey do
   @moduledoc """
-  The date a time-span was grouped by, and the time-span it names (spec-01 §6.3).
+  The date a time-span was grouped by, and the time-span it names.
 
   A time-span is a res row and its name, with no subtype table of its own, so nothing
   else makes two holdings issued in the same year point at one span. This does: the key
