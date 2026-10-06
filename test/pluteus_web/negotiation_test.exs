@@ -247,7 +247,7 @@ defmodule PluteusWeb.NegotiationTest do
 
     test "the script names no default for the surface", %{conn: conn} do
       # A default in the script is the interface choosing a surface, which §4.4 forbids.
-      html = conn |> get("/") |> html_response(200)
+      html = conn |> get("/design") |> html_response(200)
 
       refute html =~ "distance: \"near\""
       refute html =~ "distance: \"far\""
@@ -257,7 +257,7 @@ defmodule PluteusWeb.NegotiationTest do
       # §4.4 gives the declaration one path and a modifier is a parameter of it. A
       # per-modifier path would be a route nothing serves, and the control would answer
       # a press with a 404 that nothing surfaces.
-      html = conn |> get("/") |> html_response(200)
+      html = conn |> get("/design") |> html_response(200)
 
       assert html =~ ~s|fetch("/surface", {|
       refute html =~ "fetch(`/${modifier}`"
@@ -266,7 +266,7 @@ defmodule PluteusWeb.NegotiationTest do
     test "the control returns to the surface with its narrowing", %{conn: conn} do
       # A narrowing lives in the query, so a return carrying the path alone answers a
       # declaration made from a narrowed surface by discarding the narrowing.
-      html = conn |> get("/") |> html_response(200)
+      html = conn |> get("/design") |> html_response(200)
 
       assert html =~ "return_to: location.pathname + location.search"
     end
