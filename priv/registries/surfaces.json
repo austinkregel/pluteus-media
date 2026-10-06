@@ -270,6 +270,27 @@
     }
   },
 
+  "category_icons": {
+    "for": "What identifies a category on a surface, and what the household calls it. The glyph identifies the category and the colour groups it: twelve glyphs over five hues, because colour is preattentive and good at coarse grouping and poor at carrying a dozen identities, while a glyph carries identity precisely, survives monochrome and forced colours, and reads at three metres where a hue distinction does not. The colour follows the broad class the bytes decide; the glyph carries the finer category the bytes cannot. A companion takes neither, because it is never presented as a holding and so nothing draws it.\n\nThe name is the household's word rather than a pluralized category: a person browsing says Music and Television, not Albums and Television episodes.\n\nA category that gathers others — a podcast, a comic series — takes the stack in its members' colour, because what distinguishes it from one of its members is that it is a collection of them, and a glyph shared with its member would leave colour as the only thing telling the two apart.",
+    "of_category": {
+      "music_recording": { "glyph": "music-recording", "class": "audio", "name": "Recordings" },
+      "album": { "glyph": "music-recording", "class": "audio", "name": "Music" },
+      "audiobook": { "glyph": "audiobook", "class": "audio", "name": "Audiobooks" },
+      "podcast_episode": { "glyph": "hero-microphone", "class": "audio", "name": "Episodes" },
+      "podcast": { "glyph": "hero-rectangle-stack", "class": "audio", "name": "Podcasts" },
+      "film": { "glyph": "hero-film", "class": "video", "name": "Films" },
+      "television_episode": { "glyph": "hero-tv", "class": "video", "name": "Television" },
+      "home_video": { "glyph": "hero-video-camera", "class": "video", "name": "Home video" },
+      "photograph": { "glyph": "hero-photo", "class": "image", "name": "Photographs" },
+      "scan": { "glyph": "scan", "class": "image", "name": "Scans" },
+      "document": { "glyph": "hero-document-text", "class": "text", "name": "Documents" },
+      "ebook": { "glyph": "hero-book-open", "class": "text", "name": "Ebooks" },
+      "comic_issue": { "glyph": "comic-issue", "class": "package", "name": "Comics" },
+      "comic_series": { "glyph": "hero-rectangle-stack", "class": "package", "name": "Comic series" },
+      "video_game": { "glyph": "video-game", "class": "software", "name": "Games" }
+    }
+  },
+
   "seek_granularities": {
     "for": "The small and large position steps §12.3's slider carries, in the unit the medium is measured along. Keyed by unit because a step is a quantity of the medium rather than of time: a reader steps by pages and a player by seconds. On a directional remote the small step is one key press, so it is the one a person repeats.",
     "of_unit": {
