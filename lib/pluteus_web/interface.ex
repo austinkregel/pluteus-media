@@ -6,9 +6,14 @@ defmodule PluteusWeb.Interface do
   to any one surface:
 
   **The session a LiveView mounts from.** `session/1` is the shape every interface
-  LiveView reads: the principal the request established, and the resolution profile the
-  request resolved. A surface with more to pass adds to it rather than composing its own,
-  so a key spelled one way in one caller and another way in the next cannot happen.
+  LiveView reads: the principal the request established, the resolution profile the
+  request resolved, and the context intents the chrome's controls render their pressed
+  state from. A surface with more to pass adds to it rather than composing its own, so a
+  key spelled one way in one caller and another way in the next cannot happen.
+
+  The contexts travel in the session rather than being read at mount, because the
+  controls have to state the person's own choice in the first paint: a mount that fetched
+  them would render the page once without them and correct it after.
 
   **The layout and the flash.** A surface is rendered from the `:api` pipeline, which
   carries neither, because that pipeline answers the representation for the same URI and
@@ -23,6 +28,7 @@ defmodule PluteusWeb.Interface do
   import Phoenix.Controller, only: [fetch_flash: 2, put_root_layout: 2]
 
   alias Phoenix.LiveView.Router, as: LiveRouter
+  alias PluteusWeb.Contexts
   alias PluteusWeb.Native
 
   @doc """
@@ -35,7 +41,8 @@ defmodule PluteusWeb.Interface do
     %{
       "principal_id" => conn.assigns.principal.id,
       "language" => profile.language,
-      "assigner_id" => profile.assigner_id
+      "assigner_id" => profile.assigner_id,
+      "contexts" => Contexts.held_by(conn.assigns.principal)
     }
   end
 
