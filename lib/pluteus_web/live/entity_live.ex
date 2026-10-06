@@ -34,21 +34,11 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
+  alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
   alias PluteusWeb.Native
 
   # §5.2's seven absences, each in words. A state with none raises rather than rendering
-  # as emptiness, which is the reading §5.1 says the catalog's holes must not get.
-  @absences %{
-    "not_held" => "not held",
-    "not_yet_examined" => "not yet examined",
-    "attempted_failed" => "a tool tried and could not establish this",
-    "unknown" => "unknown — a source was consulted and stated none",
-    "sought_not_found" => "looked for and not found",
-    "known_unknowable" => "known to be unrecoverable",
-    "known_absent" => "known to be absent"
-  }
-
   # §8.4's band 5 is structure and band 6 is connections. §8.5 forbids the model's own
   # words as a label, so each relation is said the way the interface says it.
   @structure %{
@@ -73,12 +63,6 @@ defmodule PluteusWeb.EntityLive do
     "credited_as" => "Credited on",
     "names" => "Names"
   }
-
-  @doc """
-  The words an absent field is said in.
-  """
-  @spec absence(String.t()) :: String.t()
-  def absence(state), do: Map.fetch!(@absences, state)
 
   @doc """
   Every relation the page places, with the band it goes in and the label it is said by.
@@ -495,9 +479,7 @@ defmodule PluteusWeb.EntityLive do
               ids={List.wrap(field["value"])}
               addresses={@addresses}
             />
-            <span :if={field["state"] != "held"} class="text-on-surface-muted">
-              {absence(field["state"])}
-            </span>
+            <Absence.statement :if={field["state"] != "held"} state={field["state"]} />
           </dd>
         </div>
       </dl>
@@ -525,10 +507,7 @@ defmodule PluteusWeb.EntityLive do
 
   defp value(assigns) do
     ~H"""
-    <span :if={@field["state"] == "held"}>{said(@field["value"])}</span>
-    <span :if={@field["state"] != "held"} class="text-on-surface-muted">
-      {absence(@field["state"])}
-    </span>
+    <Absence.field field={@field}>{said(@field["value"])}</Absence.field>
     """
   end
 
@@ -546,7 +525,7 @@ defmodule PluteusWeb.EntityLive do
   defp name(representation) do
     case representation["name"] do
       %{"state" => "held", "value" => value} -> value
-      _absent -> representation["composed_name"] || absence(representation["name"]["state"])
+      _absent -> representation["composed_name"] || Absence.words(representation["name"]["state"])
     end
   end
 
