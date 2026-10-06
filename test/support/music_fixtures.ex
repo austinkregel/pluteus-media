@@ -17,7 +17,6 @@ defmodule Pluteus.MusicFixtures do
   alias Pluteus.Catalog.Profile
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
-  alias Pluteus.Ingest.Place
   alias Pluteus.Music
   alias Pluteus.Repo
 
@@ -84,7 +83,7 @@ defmodule Pluteus.MusicFixtures do
       |> acquired()
       |> Enum.map(&Ingest.get_acquisition!/1)
 
-    Place.place_due(inbox)
+    place_all!(inbox)
     Normalize.normalize_due()
 
     songs =

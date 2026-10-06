@@ -10,7 +10,6 @@ defmodule PluteusWeb.SubsonicListsTest do
 
   alias Pluteus.Catalog
   alias Pluteus.Consumption
-  alias Pluteus.Ingest.Place
   alias Pluteus.MusicFixtures
   alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
@@ -113,7 +112,7 @@ defmodule PluteusWeb.SubsonicListsTest do
       )
 
       inbox |> acquire_settled!(~U[2026-09-18 12:00:00.000000Z]) |> acquired()
-      Place.place_due(inbox)
+      place_all!(inbox)
 
       [older, newer] = ids(context, "byYear", %{"fromYear" => "1950", "toYear" => "1970"})
       assert older == context.album
