@@ -136,16 +136,13 @@ defmodule PluteusWeb.BrowseLive do
     </header>
 
     <ol :if={@surface.entries != []} class="flex flex-col">
-      <li
-        :for={id <- @surface.entries}
-        class={[
-          "min-h-target-touch flex items-center gap-3 py-2",
-          "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle"
-        ]}
-      >
-        <a href={~p"/works/#{id}"} class="grow text-body-md text-on-surface-strong">
-          {@surface.names[id]}
-        </a>
+      <li :for={id <- @surface.entries}>
+        <.row
+          at={~p"/works/#{id}"}
+          name={@surface.names[id]}
+          category={@surface.categories[id]}
+          members={@surface.members[id]}
+        />
       </li>
     </ol>
 
@@ -238,6 +235,55 @@ defmodule PluteusWeb.BrowseLive do
 
   defp share(_count, 0), do: 0
   defp share(count, most), do: round(count / most * 100)
+
+  # The glyph stands where a cover would, so a row says what kind of thing it is before
+  # its name is read, and two holdings of different kinds are told apart without reading
+  # either. The second line carries what the name does not: two releases of one album
+  # have the same name and different track counts, and that count is the only thing on
+  # the row that distinguishes them.
+  attr :at, :string, required: true
+  attr :name, :string, required: true
+  attr :category, :string, default: nil
+  attr :members, :integer, default: nil
+
+  defp row(assigns) do
+    assigns = assign(assigns, :mark, assigns.category && Surfaces.category_icon(assigns.category))
+
+    ~H"""
+    <a
+      href={@at}
+      class={[
+        "flex items-center gap-4 px-2 py-3",
+        "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
+        "hover:bg-surface-raised"
+      ]}
+    >
+      <span
+        :if={@mark}
+        class={[
+          "flex size-11 shrink-0 items-center justify-center rounded-md",
+          "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+          "bg-surface-raised"
+        ]}
+      >
+        <.icon name={@mark.glyph} class={hue(@mark.class)} />
+      </span>
+      <span class="flex min-w-0 grow flex-col gap-0.5">
+        <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
+        <span :if={@mark} class="truncate text-body-sm text-on-surface-muted">
+          {@mark.name}{gathered(@mark, @members)}
+        </span>
+      </span>
+    </a>
+    """
+  end
+
+  # Only where the category says what it gathers. A photograph gathers nothing, and a
+  # count of nothing beside it would be a number with no noun to go with.
+  defp gathered(%{members: nil}, _count), do: ""
+  defp gathered(_mark, nil), do: ""
+  defp gathered(%{members: noun}, 1), do: " · 1 #{String.trim_trailing(noun, "s")}"
+  defp gathered(%{members: noun}, count), do: " · #{count} #{noun}"
 
   # Complete literals, because a class built from a value is invisible to the stylesheet
   # build and generates no rule: the element would render with no colour at all and
