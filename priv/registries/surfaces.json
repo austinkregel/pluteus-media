@@ -274,7 +274,7 @@
     "for": "What identifies a category on a surface, and what the household calls it. The glyph identifies the category and the colour groups it: twelve glyphs over five hues, because colour is preattentive and good at coarse grouping and poor at carrying a dozen identities, while a glyph carries identity precisely, survives monochrome and forced colours, and reads at three metres where a hue distinction does not. The colour follows the broad class the bytes decide; the glyph carries the finer category the bytes cannot. A companion takes neither, because it is never presented as a holding and so nothing draws it.\n\nThe name is the household's word rather than a pluralized category: a person browsing says Music and Television, not Albums and Television episodes.\n\nA category that gathers others — a podcast, a comic series — takes the stack in its members' colour, because what distinguishes it from one of its members is that it is a collection of them, and a glyph shared with its member would leave colour as the only thing telling the two apart.",
     "of_category": {
       "music_recording": { "glyph": "music-recording", "class": "audio", "name": "Recordings" },
-      "album": { "glyph": "music-recording", "class": "audio", "name": "Music" },
+      "album": { "glyph": "music-recording", "class": "audio", "name": "Music", "members": "tracks" },
       "audiobook": { "glyph": "audiobook", "class": "audio", "name": "Audiobooks" },
       "podcast_episode": { "glyph": "hero-microphone", "class": "audio", "name": "Episodes" },
       "podcast": { "glyph": "hero-rectangle-stack", "class": "audio", "name": "Podcasts" },
