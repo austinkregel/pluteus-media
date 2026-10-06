@@ -88,8 +88,12 @@ defmodule Pluteus.MixProject do
         "esbuild pluteus --minify",
         "phx.digest"
       ],
+      # `dev.ready` sits beside the test build's own compile because the two fail
+      # independently: a green suite says nothing about the build the server serves
+      # from, nor about whether its database has run the migrations in this tree.
       precommit: [
         "compile --warnings-as-errors",
+        "dev.ready",
         "deps.unlock --unused",
         "format --check-formatted",
         "credo --strict",
