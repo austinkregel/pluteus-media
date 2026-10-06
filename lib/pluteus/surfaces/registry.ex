@@ -69,6 +69,29 @@ defmodule Pluteus.Surfaces.Registry do
   def presented_categories, do: presentations() |> Map.keys() |> Enum.sort()
 
   @doc """
+  How a category is identified on a surface: the glyph that says which it is, the broad
+  class whose colour groups it, and the word a household uses for it.
+
+  Raises for a category nothing draws. A companion is the case: it is never presented as
+  a holding, so it carries no glyph and no colour, and a surface reaching for one has
+  mistaken what it is looking at rather than found a gap to fill in.
+  """
+  @spec category_icon(String.t()) :: %{glyph: String.t(), class: String.t(), name: String.t()}
+  def category_icon(category) do
+    %{"glyph" => glyph, "class" => class, "name" => name} =
+      fetch("category_icons") |> Map.fetch!("of_category") |> Map.fetch!(category)
+
+    %{glyph: glyph, class: class, name: name}
+  end
+
+  @doc """
+  Every category something draws.
+  """
+  @spec drawn_categories() :: [String.t()]
+  def drawn_categories,
+    do: fetch("category_icons") |> Map.fetch!("of_category") |> Map.keys() |> Enum.sort()
+
+  @doc """
   The small and large position steps of §12.3, in the unit the medium is measured along.
   """
   @spec seek_granularity(String.t() | atom()) :: map()
