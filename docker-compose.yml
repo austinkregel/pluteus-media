@@ -42,6 +42,26 @@ services:
       - default
       - analysis
 
+  # The interface reads the identity a reverse proxy has already established, and reads
+  # it only from a request carrying a secret a browser cannot supply — so without
+  # something in front of it, every rendered surface answers 401 and none can be opened.
+  # This stands in for that in development and authenticates nobody: whoever reaches the
+  # published port is the identity it asserts.
+  #
+  # Host 4101, beside the app's own 4100. Both are published on purpose: 4100 reaches the
+  # household's own pages directly, and 4101 is how a surface that needs a principal is
+  # opened.
+  proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      - app
+    ports:
+      - "4101:80"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - default
+
   # spec-04 §8.3 and §11. The analysing sidecar holds no database credentials
   # and sits on an internal network shared only with the app, so it reaches
   # neither the database nor anything outside. It reads storage through
