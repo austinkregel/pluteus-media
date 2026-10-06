@@ -17,9 +17,8 @@ defmodule Pluteus.Catalog.Association do
 
   import Ecto.Changeset
 
+  alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Res
-
-  @same_thing "same-thing"
 
   @primary_key false
   @foreign_key_type UUIDv7
@@ -43,9 +42,12 @@ defmodule Pluteus.Catalog.Association do
   linked rather than merged. Merging would require mutating the seeded row,
   which §7.5 forbids, or discarding the local one, which throws away the
   household's own provenance and assigner.
+
+  Read from the registry rather than written here, because §17 makes the refinements
+  seed data: a release renaming one changes the file and nothing else.
   """
   @spec same_thing() :: String.t()
-  def same_thing, do: @same_thing
+  def same_thing, do: Refinements.name!("same-thing")
 
   def changeset(association, attrs) do
     association
