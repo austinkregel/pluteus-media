@@ -60,7 +60,8 @@ defmodule PluteusWeb.BrowseLiveTest do
 
       {:ok, _live, html} = live(conn, ~p"/everything?category=photograph")
 
-      assert html =~ "2 holdings"
+      assert html =~ "of 3 holdings"
+      assert html =~ "oldest first"
     end
 
     test "a kind the registry does not name is refused, not answered", %{conn: conn} do
@@ -69,6 +70,62 @@ defmodule PluteusWeb.BrowseLiveTest do
       {:ok, _live, html} = live(conn, ~p"/everything?category=sculpture")
 
       assert html =~ "nothing here of a kind called sculpture"
+    end
+  end
+
+  describe "Narrowing: the values recede, the rows take over, the choice becomes a chip" do
+    test "the doors give way to rows naming each holding", %{conn: conn} do
+      named("A letter home", "document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=document")
+
+      assert html =~ "A letter home"
+      refute html =~ "Unfinished"
+    end
+
+    test "each narrowing is a chip in the rail", %{conn: conn} do
+      holding("document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=document")
+
+      assert html =~ "Narrowed by"
+      assert html =~ "Remove the facet Document"
+    end
+
+    test "a chip removes its own value and leaves the others", %{conn: conn} do
+      holding("document")
+      holding("photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=document,photograph")
+
+      # Removing one value must leave the other narrowing in place, not drop the axis.
+      assert html =~ "/everything?category=photograph"
+      assert html =~ "/everything?category=document"
+    end
+
+    test "removing the last narrowing leads back to the unnarrowed mode", %{conn: conn} do
+      holding("document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=document")
+
+      assert html =~ ~s|href="/everything"|
+    end
+
+    test "a narrowing holding nothing says so and says how to widen it", %{conn: conn} do
+      holding("document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=album")
+
+      assert html =~ "Nothing is held that is all of these at once"
+    end
+
+    test "the unnarrowed surface carries no chips", %{conn: conn} do
+      holding("document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything")
+
+      refute html =~ "Narrowed by"
+      assert html =~ "Unfinished"
     end
   end
 
@@ -140,9 +197,11 @@ defmodule PluteusWeb.BrowseLiveTest do
     end
   end
 
-  defp holding(category) do
+  defp holding(category), do: named("a #{category}", category)
+
+  defp named(name, category) do
     {:ok, %{work: work}} =
-      Catalog.create_work(%{nomen_string: "a #{category}", provenance: :automatic})
+      Catalog.create_work(%{nomen_string: name, provenance: :automatic})
 
     {:ok, _} = Catalog.categorize(work.id, Place.category_scheme(), category, :automatic)
 
