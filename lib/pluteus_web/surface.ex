@@ -42,6 +42,24 @@ defmodule PluteusWeb.Surface do
   end
 
   @doc """
+  Sends a device that has declared no surface to declare one, carrying where it was going.
+
+  §4.4 leaves the surface undetermined where no declaration exists and has the deployment
+  ask before it renders: "It does not choose." So this is what every rendered surface does
+  in place of rendering, and it is one function because a second spelling of the return
+  path is a second way for a person to lose their place.
+  """
+  @spec ask(Plug.Conn.t()) :: Plug.Conn.t()
+  def ask(conn) do
+    Phoenix.Controller.redirect(conn, to: "/surface?return_to=" <> going_to(conn))
+  end
+
+  defp going_to(%{request_path: path, query_string: ""}), do: URI.encode_www_form(path)
+
+  defp going_to(%{request_path: path, query_string: query}),
+    do: URI.encode_www_form(path <> "?" <> query)
+
+  @doc """
   Records a device's declaration.
   """
   @spec declare(Plug.Conn.t(), String.t()) :: Plug.Conn.t()
