@@ -31,6 +31,7 @@ defmodule PluteusWeb.EntityController do
   alias PluteusWeb.Interface
   alias PluteusWeb.Native
   alias PluteusWeb.Problem
+  alias PluteusWeb.Surface
 
   def index(conn, _params) do
     kind = conn.assigns.kind
@@ -178,11 +179,8 @@ defmodule PluteusWeb.EntityController do
   defp interface(conn, res, selector \\ nil) do
     if conn.assigns.distance,
       do: render_interface(conn, res, selector),
-      else: redirect(conn, to: ~p"/surface?return_to=#{conn.request_path <> query(conn)}")
+      else: Surface.ask(conn)
   end
-
-  defp query(%{query_string: ""}), do: ""
-  defp query(%{query_string: query}), do: "?" <> query
 
   defp render_interface(conn, res, selector) do
     session =
