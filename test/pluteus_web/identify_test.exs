@@ -17,7 +17,7 @@ defmodule PluteusWeb.IdentifyTest do
 
   describe "a request the proxy did not forward" do
     test "renders, with no principal and nothing said about contexts", %{conn: conn} do
-      conn = get(conn, "/")
+      conn = get(conn, "/design")
 
       assert conn.status == 200
       assert is_nil(conn.assigns.principal)
@@ -35,7 +35,7 @@ defmodule PluteusWeb.IdentifyTest do
         conn
         |> put_req_header("x-pluteus-proxy-secret", "guessed")
         |> put_req_header("x-authentik-email", a_subject())
-        |> get("/")
+        |> get("/design")
 
       assert conn.status == 401
     end
@@ -44,7 +44,7 @@ defmodule PluteusWeb.IdentifyTest do
       # The request came through the proxy and the proxy named no identity, which is the
       # proxy configured wrongly rather than a household-public request. Rendering it
       # would make a broken deployment look like a working one.
-      conn = conn |> via_proxy() |> get("/")
+      conn = conn |> via_proxy() |> get("/design")
 
       assert conn.status == 401
     end
@@ -52,7 +52,7 @@ defmodule PluteusWeb.IdentifyTest do
 
   describe "a request the proxy forwarded" do
     test "the principal is attached", %{conn: conn} do
-      conn = conn |> through_proxy(a_subject()) |> get("/")
+      conn = conn |> through_proxy(a_subject()) |> get("/design")
 
       assert conn.status == 200
       assert conn.assigns.principal.role == "member"
@@ -66,7 +66,7 @@ defmodule PluteusWeb.IdentifyTest do
       {:ok, _bound} = Principals.bind_identity(principal.id, issuer(), viewer)
       {:ok, _retired} = Administration.retire_principal(admin, principal.id)
 
-      conn = conn |> through_proxy(viewer) |> get("/")
+      conn = conn |> through_proxy(viewer) |> get("/design")
 
       assert conn.status == 403
       assert Jason.decode!(conn.resp_body)["title"] == "retired"
