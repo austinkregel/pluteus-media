@@ -1,0 +1,87 @@
+{
+  "relations": {
+    "LRM-R33": "a res to a place, declared at res level and many-to-many",
+    "LRM-R35": "a res to a time-span, declared at res level and many-to-many",
+    "LRM-R1": "a res to a res, which LRM leaves to an implementation to refine"
+  },
+  "refinements": [
+    {
+      "name": "time-of-capture",
+      "relation": "LRM-R35",
+      "for": "when a holding was made, as the holding itself records it. A photograph's own metadata says this; a file's timestamp never does, because it says when the bytes were last written",
+      "cited_by": "spec-05 9.7"
+    },
+    {
+      "name": "time-of-publication-or-manufacture",
+      "relation": "LRM-R35",
+      "for": "when a manifestation was issued or pressed, as the container states it. This is a property of the edition rather than of the work, which is why it hangs off the manifestation",
+      "cited_by": "spec-01 6.4"
+    },
+    {
+      "name": "place-of-capture",
+      "relation": "LRM-R33",
+      "for": "where a holding was made. A coordinate answers to the nearest named place and a distance, which is a resemblance rather than an address, so the place recorded is the one the evidence supports",
+      "cited_by": "spec-05 9.7"
+    },
+    {
+      "name": "place-within-place",
+      "relation": "LRM-R1",
+      "for": "a place inside a larger one, so that a holding placed at a locality is reachable from the region that contains it without the locality being restated",
+      "cited_by": "spec-05 9.7"
+    },
+    {
+      "name": "arrangement-position-of-source-numbering",
+      "relation": "LRM-R1",
+      "for": "a household's own position for a member against the number a source gives the same member, so that a source numbering a series differently is recorded rather than renumbering what the household holds",
+      "cited_by": "spec-05 9.2"
+    },
+    {
+      "name": "same-thing",
+      "relation": "LRM-R1",
+      "for": "a res a household made and a res a later release ships for the same concept. Both persist and neither is merged: merging would mutate the seeded row or destroy the local one, and the local one carries the household's own provenance and assigner",
+      "cited_by": "spec-01 7.5"
+    },
+    {
+      "name": "extent-of",
+      "relation": "LRM-R1",
+      "for": "a temporal address on a release's manifestation and the track manifestation it is the extent of. A release ripped to one file with a cue sheet beside it carries its tracks as positions within the medium rather than as digital items, so analysing a track reads that extent of the release's file",
+      "cited_by": "spec-04 6.4"
+    },
+    {
+      "name": "cover-art-of",
+      "relation": "LRM-R1",
+      "for": "a cover image and the holding it depicts",
+      "cited_by": "spec-04 4.6"
+    },
+    {
+      "name": "lyrics-of",
+      "relation": "LRM-R1",
+      "for": "a lyrics file and the recording it carries the words of. A deriving tool reads it into temporal annotations on the track",
+      "cited_by": "spec-04 4.6"
+    },
+    {
+      "name": "subtitles-of",
+      "relation": "LRM-R1",
+      "for": "a subtitle file and the moving image it is timed against",
+      "cited_by": "spec-04 4.6"
+    },
+    {
+      "name": "cue-sheet-of",
+      "relation": "LRM-R1",
+      "for": "a cue sheet and the single file whose track positions it states",
+      "cited_by": "spec-04 4.6"
+    },
+    {
+      "name": "description-of",
+      "relation": "LRM-R1",
+      "for": "a description file and the holding it describes",
+      "cited_by": "spec-04 4.6"
+    },
+    {
+      "name": "metadata-of",
+      "relation": "LRM-R1",
+      "for": "a metadata sidecar and the holding it asserts about. What it asserts is evidence for matching rather than for placement",
+      "cited_by": "spec-04 4.6"
+    }
+  ]
+}
