@@ -21,6 +21,8 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Nomen
+  alias Pluteus.Catalog.Refinements
+  alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
   alias Pluteus.Dedup
   alias Pluteus.Ingest
@@ -31,6 +33,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.Streams
+  alias Pluteus.Ingest.TimeSpanKey
   alias Pluteus.Lifecycle
   alias Pluteus.PlatformEvents
   alias Pluteus.Presentation.Geometry
@@ -1353,6 +1356,121 @@ defmodule Pluteus.Ingest.PlacementTest do
       end
     end
   end
+
+  describe "spec-01 §6.3. Placement relates a holding to when its edition was issued" do
+    test "the date the container states becomes a time-span the manifestation relates to",
+         %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "1959-08-17"))
+        })
+
+      assert [time_span] = issued(manifestation_of(track))
+
+      assert Repo.get!(Res, time_span).kind == :time_span
+      assert names(time_span) == ["1959-08-17"]
+    end
+
+    test "it hangs off the manifestation, because the date is the edition's",
+         %{inbox: inbox} do
+      # A reissue and a first pressing are one work and two dates, so the work is not
+      # what carries one.
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "1959"))
+        })
+
+      assert issued(manifestation_of(track)) != []
+      assert issued(work_of(track)) == []
+    end
+
+    test "two holdings stating one date relate to one time-span", %{inbox: inbox} do
+      # The point of the key: a time-span is a res and its name with no table of its
+      # own, so without it each holding would carry a span nothing else shares and
+      # nothing could be grouped by date.
+      [first, second] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "1959")),
+          "Milestones/01.flac" =>
+            media!(:flac, frequency: 500, tags: album("Milestones", 1, date: "1959"))
+        })
+
+      assert issued(manifestation_of(first)) == issued(manifestation_of(second))
+      assert [_one_span] = Repo.all(TimeSpanKey)
+    end
+
+    test "two dates stated to different precisions are two time-spans", %{inbox: inbox} do
+      # `1959` and `1959-08` are not the same statement, and collapsing them would
+      # either invent a month or discard one.
+      [coarse, fine] =
+        ingest!(inbox, %{
+          "A/01.flac" => media!(:flac, tags: album("A", 1, date: "1959")),
+          "B/01.flac" => media!(:flac, frequency: 500, tags: album("B", 1, date: "1959-08"))
+        })
+
+      refute issued(manifestation_of(coarse)) == issued(manifestation_of(fine))
+      assert Repo.all(TimeSpanKey) |> Enum.map(& &1.key) |> Enum.sort() == ["1959", "1959-08"]
+    end
+
+    test "a container stating no date relates to nothing", %{inbox: inbox} do
+      [track] = ingest!(inbox, %{"KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1))})
+
+      assert issued(manifestation_of(track)) == []
+      assert Repo.all(TimeSpanKey) == []
+    end
+
+    test "a date in a form whose field order it does not fix relates to nothing",
+         %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "17/08/1959"))
+        })
+
+      assert issued(manifestation_of(track)) == []
+    end
+
+    test "the file's own timestamp is never the date", %{inbox: inbox} do
+      # A copy resets it, an extraction sets it to the extraction and a restore to the
+      # restore, so it says when the bytes were last written and nothing else. These
+      # bytes are written now and state 1959; nothing may record this year.
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "1959"))
+        })
+
+      assert [time_span] = issued(manifestation_of(track))
+      assert names(time_span) == ["1959"]
+
+      this_year = to_string(Date.utc_today().year)
+      refute Enum.any?(Repo.all(TimeSpanKey), &String.starts_with?(&1.key, this_year))
+    end
+
+    test "a span whose res was recycled no longer dates anything", %{
+      inbox: inbox,
+      actor: actor
+    } do
+      [first] =
+        ingest!(inbox, %{"A/01.flac" => media!(:flac, tags: album("A", 1, date: "1959"))})
+
+      [gone] = issued(manifestation_of(first))
+      {:ok, _} = Lifecycle.recycle(gone, actor.id)
+
+      [second] =
+        ingest!(
+          inbox,
+          %{"B/01.flac" => media!(:flac, frequency: 500, tags: album("B", 1, date: "1959"))},
+          DateTime.add(@t0, 3_600)
+        )
+
+      [current] = issued(manifestation_of(second))
+
+      refute current == gone
+      assert [%{time_span_id: ^current}] = Repo.all(TimeSpanKey)
+    end
+  end
+
+  defp issued(res_id),
+    do: Catalog.associated(res_id, Refinements.name!("time-of-publication-or-manufacture"))
 
   describe "16. Contradictory evidence and a taken position are findings, never guesses" do
     test "a track carrying two release identifiers is not placed", %{inbox: inbox} do
