@@ -16,6 +16,7 @@ defmodule PluteusWeb.NegotiationTest do
   alias Pluteus.Principals
   alias Pluteus.Representation.ComposedName
   alias Pluteus.Representation.Field
+  alias PluteusWeb.Absence
   alias PluteusWeb.EntityLive
   alias PluteusWeb.Native
   alias PluteusWeb.Surface
@@ -542,15 +543,19 @@ defmodule PluteusWeb.NegotiationTest do
       assert html =~ ~s(href="/expressions/#{expression.id}")
     end
 
-    test "every absent state has words of its own" do
+    test "every absent state has words of its own, and no surface words one twice" do
       # §5.2 requires a surface distinguish all of them, so no two share a phrase and none
       # is left without one. A state with no words raises here rather than rendering as
       # emptiness on the page.
-      said =
-        for state <- Field.absent_states(), do: EntityLive.absence(to_string(state))
+      said = for state <- Field.absent_states(), do: Absence.words(to_string(state))
 
       assert length(said) == length(Field.absent_states())
       assert length(Enum.uniq(said)) == length(said)
+
+      # The words are one module's, so a second surface cannot word a state differently.
+      # Were the vocabulary copied, this is the assertion that would still pass while the
+      # two drifted, so it checks the sets agree rather than only that each has words.
+      assert Absence.states() == Enum.sort(Enum.map(Field.absent_states(), &to_string/1))
     end
   end
 end
