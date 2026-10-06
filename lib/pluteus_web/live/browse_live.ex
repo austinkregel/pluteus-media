@@ -201,10 +201,8 @@ defmodule PluteusWeb.BrowseLive do
     """
   end
 
-  # The glyph says which category this is and the colour says which broad class it
-  # belongs to, so the two carriers answer different questions and neither is decoration.
-  # The bar is the same hue and says how much is behind the door, which is what the eye
-  # is comparing once the doors are ordered by count.
+  # The glyph identifies the category; the colour groups it by broad class. The bar is
+  # the count as a share of the largest.
   attr :value, :string, required: true
   attr :count, :integer, required: true
   attr :share, :integer, required: true
@@ -236,11 +234,8 @@ defmodule PluteusWeb.BrowseLive do
   defp share(_count, 0), do: 0
   defp share(count, most), do: round(count / most * 100)
 
-  # The glyph stands where a cover would, so a row says what kind of thing it is before
-  # its name is read, and two holdings of different kinds are told apart without reading
-  # either. The second line carries what the name does not: two releases of one album
-  # have the same name and different track counts, and that count is the only thing on
-  # the row that distinguishes them.
+  # The glyph stands where a cover will. The second line distinguishes rows whose names
+  # do not: two releases of one album differ only by what they gather.
   attr :at, :string, required: true
   attr :name, :string, required: true
   attr :category, :string, default: nil
@@ -278,16 +273,13 @@ defmodule PluteusWeb.BrowseLive do
     """
   end
 
-  # Only where the category says what it gathers. A photograph gathers nothing, and a
-  # count of nothing beside it would be a number with no noun to go with.
+  # Only where the category names what it gathers.
   defp gathered(%{members: nil}, _count), do: ""
   defp gathered(_mark, nil), do: ""
   defp gathered(%{members: noun}, 1), do: " · 1 #{String.trim_trailing(noun, "s")}"
   defp gathered(%{members: noun}, count), do: " · #{count} #{noun}"
 
-  # Complete literals, because a class built from a value is invisible to the stylesheet
-  # build and generates no rule: the element would render with no colour at all and
-  # nothing would report it.
+  # Complete literals: a class built from a value generates no rule and renders colourless.
   defp hue("video"), do: "text-class-video"
   defp hue("audio"), do: "text-class-audio"
   defp hue("image"), do: "text-class-image"

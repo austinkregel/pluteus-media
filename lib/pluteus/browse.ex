@@ -91,9 +91,7 @@ defmodule Pluteus.Browse do
         do: {id, nomen.nomen_string}
   end
 
-  # What each entry is, so a row can carry the glyph that identifies it and the colour
-  # that groups it. The effective row, through the same subquery a narrowing and a count
-  # read, so a corrected category is corrected everywhere at once.
+  # The effective category, through the subquery a narrowing and a count also read.
   defp categorised([]), do: %{}
 
   defp categorised(entries) do
@@ -105,11 +103,7 @@ defmodule Pluteus.Browse do
     |> Map.new()
   end
 
-  # How many members an entry gathers. A release aggregates its tracks, and the count is
-  # what tells two releases of one album apart where their names cannot: a release that
-  # gathered one track is a file that arrived without the tag that would have joined it
-  # to its siblings, and a row saying so is the difference between a catalogue that looks
-  # wrong and one that says what happened.
+  # How many expressions an entry aggregates: a release's tracks.
   defp membered([]), do: %{}
 
   defp membered(entries) do

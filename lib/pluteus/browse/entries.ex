@@ -69,11 +69,8 @@ defmodule Pluteus.Browse.Entries do
       where: not exists(companion())
   end
 
-  # A companion is a holding in its own right and has an address of its own, but it is
-  # never *presented* as one: the cover art of a release belongs to the release, and a
-  # list of what the household holds that put it beside the release would be listing the
-  # same thing twice. It carries no category glyph and no class colour for the same
-  # reason, so there is nothing to draw it as.
+  # A companion has an address of its own but is never presented as a holding: the cover
+  # art of a release belongs to the release.
   defp companion do
     from c in Category,
       where: c.res_id == parent_as(:work).id,
