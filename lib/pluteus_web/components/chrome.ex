@@ -34,24 +34,41 @@ defmodule PluteusWeb.Chrome do
   # A.9.5 admits no name assembled at a call site, because a class or a name built at run
   # time is invisible to the compiler and to the CSS build: the check that a glyph exists
   # is what `attr values:` gives, and it only reaches a literal.
+  # The last element is the mode's own address, or nil where its surface does not exist
+  # yet. A mode with no address is rendered disabled carrying the reason (§17.3) rather
+  # than linking somewhere that would answer nothing, which is the stub a route to an
+  # unbuilt surface would be.
   @modes [
-    {"continue", "Continue", "hero-play-mini", "what you have not finished"},
-    {"recent", "Recently added", "hero-plus-mini", "what arrived most recently"},
-    {"people", "People", "hero-user-mini", "who made or appears in what you hold"},
-    {"places", "Places", "hero-map-pin-mini", "where a holding was made"},
-    {"time", "Time", "hero-clock-mini", "when a holding was made"},
-    {"sets", "Sets", "hero-rectangle-stack-mini", "the groupings a holding belongs to"},
-    {"everything", "Everything", "hero-squares-2x2-mini", "the whole catalogue"}
+    {"continue", "Continue", "hero-play-mini", "what you have not finished", nil},
+    {"recent", "Recently added", "hero-plus-mini", "what arrived most recently", nil},
+    {"people", "People", "hero-user-mini", "who made or appears in what you hold", nil},
+    {"places", "Places", "hero-map-pin-mini", "where a holding was made", nil},
+    {"time", "Time", "hero-clock-mini", "when a holding was made", nil},
+    {"sets", "Sets", "hero-rectangle-stack-mini", "the groupings a holding belongs to", nil},
+    {"everything", "Everything", "hero-squares-2x2-mini", "the whole catalogue", "/everything"}
   ]
 
+  # Four fit across a phone, and §9.2 forbids anything being reachable in the rail and
+  # not here. Seven do not fit, so what this holds is every mode that has a surface plus
+  # the ones a household reaches for most; a test asserts the first half, so a mode
+  # gaining a surface cannot quietly become unreachable at phone width.
+  @tabs ~w(continue people everything time)
+
   @doc """
-  §9.2's seven modes, each with the glyph and the noun it is named by.
+  §9.2's seven modes, each with the glyph and the noun it is named by, and its address
+  where it has a surface.
 
   Declared here rather than read from a registry, because the vocabulary is §9.2's own
   table and a mode the deployment invented would be a mode no surface answers for.
   """
-  @spec modes() :: [{String.t(), String.t(), String.t(), String.t()}]
+  @spec modes() :: [{String.t(), String.t(), String.t(), String.t(), String.t() | nil}]
   def modes, do: @modes
+
+  @doc """
+  The modes the tab bar carries below the rail's breakpoint, in the order it carries them.
+  """
+  @spec tabs() :: [{String.t(), String.t(), String.t(), String.t(), String.t() | nil}]
+  def tabs, do: for(slug <- @tabs, mode <- @modes, elem(mode, 0) == slug, do: mode)
 
   @doc """
   Wraps a surface in the chrome.
@@ -126,8 +143,15 @@ defmodule PluteusWeb.Chrome do
       <.search />
 
       <ul class="flex flex-col gap-1">
-        <li :for={{slug, noun, glyph, what} <- modes()}>
-          <.mode slug={slug} noun={noun} glyph={glyph} what={what} current={@mode == slug} />
+        <li :for={{slug, noun, glyph, what, at} <- modes()}>
+          <.mode
+            slug={slug}
+            noun={noun}
+            glyph={glyph}
+            what={what}
+            at={at}
+            current={@mode == slug}
+          />
         </li>
       </ul>
 
@@ -210,21 +234,17 @@ defmodule PluteusWeb.Chrome do
   attr :noun, :string, required: true
   attr :glyph, :string, required: true
   attr :what, :string, required: true
+  attr :at, :string, default: nil
   attr :current, :boolean, required: true
 
-  defp mode(assigns) do
+  defp mode(%{at: nil} = assigns) do
     ~H"""
     <button
       type="button"
       disabled
       aria-current={@current && "page"}
       aria-describedby={"mode-#{@slug}-why"}
-      class={[
-        "w-full min-h-target-touch flex items-center gap-3 rounded-md px-3 text-left",
-        "text-body-md text-on-surface-muted disabled:opacity-100",
-        "border-l-[length:var(--sys-border-width-component)] border-transparent",
-        @current && "border-border-strong bg-surface-overlay font-medium text-on-surface-strong"
-      ]}
+      class={["w-full text-left", mode_face(@current), "disabled:opacity-100"]}
     >
       <.icon name={@glyph} />
       <span>{@noun}</span>
@@ -233,6 +253,27 @@ defmodule PluteusWeb.Chrome do
       {@noun} shows {@what}. It has no surface yet.
     </p>
     """
+  end
+
+  # A mode whose surface exists is reached by an ordinary link, not a live navigation:
+  # every surface is behind forward authentication and declares a distance, and a live
+  # patch between modes would skip both.
+  defp mode(assigns) do
+    ~H"""
+    <a href={@at} aria-current={@current && "page"} class={mode_face(@current)}>
+      <.icon name={@glyph} />
+      <span>{@noun}</span>
+    </a>
+    """
+  end
+
+  defp mode_face(current) do
+    [
+      "min-h-target-touch flex items-center gap-3 rounded-md px-3",
+      "text-body-md text-on-surface-muted",
+      "border-l-[length:var(--sys-border-width-component)] border-transparent",
+      current && "border-border-strong bg-surface-overlay font-medium text-on-surface-strong"
+    ]
   end
 
   # §16.1 puts the findings link on every surface. The count is what phase 5's counting
@@ -293,22 +334,59 @@ defmodule PluteusWeb.Chrome do
         "bg-surface-raised"
       ]}
     >
-      <button
-        :for={{slug, noun, glyph, _what} <- Enum.take(modes(), 4)}
-        type="button"
-        disabled
-        aria-current={@mode == slug && "page"}
-        class={[
-          "flex-1 min-h-target-touch flex flex-col items-center justify-center gap-1 py-2",
-          "text-caption text-on-surface-muted disabled:opacity-100",
-          @mode == slug && "text-on-surface-strong font-medium"
-        ]}
-      >
-        <.icon name={glyph} />
-        <span>{noun}</span>
-      </button>
+      <.tab
+        :for={{slug, noun, glyph, what, at} <- tabs()}
+        slug={slug}
+        noun={noun}
+        glyph={glyph}
+        what={what}
+        at={at}
+        current={@mode == slug}
+      />
     </nav>
     """
+  end
+
+  attr :slug, :string, required: true
+  attr :noun, :string, required: true
+  attr :glyph, :string, required: true
+  attr :what, :string, required: true
+  attr :at, :string, default: nil
+  attr :current, :boolean, required: true
+
+  defp tab(%{at: nil} = assigns) do
+    ~H"""
+    <button
+      type="button"
+      disabled
+      aria-current={@current && "page"}
+      aria-describedby={"tab-#{@slug}-why"}
+      class={[tab_face(@current), "disabled:opacity-100"]}
+    >
+      <.icon name={@glyph} />
+      <span>{@noun}</span>
+    </button>
+    <p id={"tab-#{@slug}-why"} class="sr-only">
+      {@noun} shows {@what}. It has no surface yet.
+    </p>
+    """
+  end
+
+  defp tab(assigns) do
+    ~H"""
+    <a href={@at} aria-current={@current && "page"} class={tab_face(@current)}>
+      <.icon name={@glyph} />
+      <span>{@noun}</span>
+    </a>
+    """
+  end
+
+  defp tab_face(current) do
+    [
+      "flex-1 min-h-target-touch flex flex-col items-center justify-center gap-1 py-2",
+      "text-caption text-on-surface-muted",
+      current && "text-on-surface-strong font-medium"
+    ]
   end
 
   # §12.3's transport. Nothing plays yet, so its empty rendering is what is drawn, which
