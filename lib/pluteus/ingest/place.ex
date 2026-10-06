@@ -25,6 +25,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Representative
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
@@ -47,15 +48,6 @@ defmodule Pluteus.Ingest.Place do
 
   @category_scheme "work-category"
 
-  @companion_links %{
-    "cover_art" => "cover-art-of",
-    "lyrics" => "lyrics-of",
-    "subtitles" => "subtitles-of",
-    "cue_sheet" => "cue-sheet-of",
-    "description" => "description-of",
-    "metadata" => "metadata-of"
-  }
-
   @doc """
   The scheme placement records work categories in.
   """
@@ -65,9 +57,17 @@ defmodule Pluteus.Ingest.Place do
   @doc """
   The association refinement linking a companion of a kind to what it
   describes.
+
+  A companion kind names its own relation — a cover art file is the cover art of
+  what it depicts — so the refinement is the kind said as a relation rather than a
+  second vocabulary beside it. The name is asserted against the registry (spec-01
+  §6.3), so a kind the registry carries no refinement for raises here rather than
+  reaching `Pluteus.Catalog.associate/3` with a name it will refuse.
   """
   @spec companion_link(String.t()) :: String.t()
-  def companion_link(kind), do: Map.fetch!(@companion_links, kind)
+  def companion_link(kind) do
+    Refinements.name!(String.replace(kind, "_", "-") <> "-of")
+  end
 
   @doc """
   One pass of the place stage: every identified acquisition with no uncleared
