@@ -133,7 +133,7 @@ defmodule PluteusWeb.CoreComponents do
 
       <.button>Send!</.button>
       <.button phx-click="go" variant="strong">Send!</.button>
-      <.button navigate={~p"/"}>Home</.button>
+      <.button navigate={~p"/notices"}>Notices</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
   attr :class, :any, default: nil
