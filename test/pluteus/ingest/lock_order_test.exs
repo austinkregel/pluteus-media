@@ -100,32 +100,4 @@ defmodule Pluteus.Ingest.LockOrderTest do
 
     Ingest.get_acquisition!(id)
   end
-
-  defp queries_during(work) do
-    handler = "lock-order-#{System.unique_integer([:positive])}"
-    collector = self()
-
-    :telemetry.attach(
-      handler,
-      [:pluteus, :repo, :query],
-      fn _event, _measurements, metadata, pid -> send(pid, {handler, metadata.query}) end,
-      collector
-    )
-
-    try do
-      work.()
-    after
-      :telemetry.detach(handler)
-    end
-
-    drain(handler, [])
-  end
-
-  defp drain(handler, seen) do
-    receive do
-      {^handler, query} -> drain(handler, [query | seen])
-    after
-      0 -> Enum.reverse(seen)
-    end
-  end
 end
