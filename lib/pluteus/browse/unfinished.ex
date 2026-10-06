@@ -1,17 +1,15 @@
 defmodule Pluteus.Browse.Unfinished do
   @moduledoc """
   The gateway's Unfinished band: four doors into work the household has not finished
-  (spec-10 §9.2, §14.3, §16.1).
-
   Each is a door rather than a report, so each carries what it would open onto. Three
   count catalogue and derivation facts. The fourth counts nothing, and that is the whole
   of what makes it lawful.
 
   ## Why one of them carries no number
 
-  §14.3 forbids composing a surface from more than one principal's consumption, and binds
-  "any household total at any granularity". "How many holdings nobody here has looked at"
-  is exactly that total, so it cannot be shown to anyone.
+  No surface may be composed from more than one principal's consumption, at any
+  granularity. "How many holdings nobody here has looked at" is exactly such a total, so
+  it cannot be shown to anyone.
 
   What replaces it is the requesting principal's own looking, which is theirs to see. Even
   so no figure is reported: a number would be the first thing on the surface a person
@@ -20,17 +18,17 @@ defmodule Pluteus.Browse.Unfinished do
 
   ## What the other three are
 
-  *Unverified* is spec-03's integrity obligation falling due — an asset whose bytes have
-  not been read back inside its own interval. The overdue predicate is
+  *Unverified* is an integrity obligation falling due — an asset whose bytes have not
+  been read back inside its own interval. The overdue predicate is
   `Pluteus.Assets.unverified_query/1`'s and is not restated here, because a surface that
   disagreed with the pass doing the work would be worse than one that said nothing.
 
-  *No date recorded* is a holding whose container stated no date its form fixed. spec-05
-  §9.7 is explicit that this stays unexamined until a person says otherwise rather than
-  being guessed at, which is what makes it a door worth opening.
+  *No date recorded* is a holding whose container stated no date its form fixed. Such a
+  date stays unexamined until a person says otherwise rather than being guessed at, which
+  is what makes it a door worth opening.
 
-  *Needs a decision* is spec-03 §8.3's open candidates: a pair something raised as
-  possibly one thing, which only a member can settle.
+  *Needs a decision* is the open candidates: a pair something raised as possibly one
+  thing, which only a member can settle.
   """
 
   import Ecto.Query
@@ -68,7 +66,7 @@ defmodule Pluteus.Browse.Unfinished do
 
   defp counted(bucket, count), do: %{bucket: bucket, count: count, any?: count > 0}
 
-  # §14.3. Reported as a door with something behind it or nothing, never as a figure.
+  # Reported as a door with something behind it or nothing, never as a figure.
   #
   # An event names the res a person acted on — a digital item, a track — and a browse
   # entry is a work, so what the principal has looked at is reached through the works
@@ -98,7 +96,7 @@ defmodule Pluteus.Browse.Unfinished do
     )
   end
 
-  # spec-03's integrity obligation, counted over the holdings it falls due on rather than
+  # The integrity obligation, counted over the holdings it falls due on rather than
   # over the assets: a holding realized by six parts is one thing to attend to, and a
   # band whose numbers counted different kinds of thing would not be a band.
   defp unverified do
