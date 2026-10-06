@@ -16,28 +16,29 @@ defmodule PluteusWeb.Chrome do
   which is one responsive layout rather than two surfaces (§4.2). The transport is the
   floor under both.
 
-  ## What is not built yet, and why it is disabled rather than absent
+  ## A control with no surface is disabled, not absent
 
   §17.3: "A control for an affordance that does not exist MUST be rendered disabled and
   MUST carry a description saying why. A captions control that is available and does
   nothing is a lie told by an interface."
 
-  No mode surface exists yet, so every mode control is disabled and says so. Removing
-  them instead would make the chrome something other than the chrome, and a person could
-  not see what the interface is going to be; leaving them live would make each one a lie.
+  So a mode whose surface the deployment does not serve is rendered disabled and says
+  what it would show. Removing it would leave the vocabulary of modes incomplete, and a
+  person could not tell the interface holds a way of looking they cannot reach; leaving
+  it live would make it a lie.
   """
   use PluteusWeb, :html
 
+  alias Pluteus.Browse.Query
   alias PluteusWeb.Layouts
 
   # Each glyph is the whole name of the drawing at the band the chrome renders it in.
   # A.9.5 admits no name assembled at a call site, because a class or a name built at run
   # time is invisible to the compiler and to the CSS build: the check that a glyph exists
   # is what `attr values:` gives, and it only reaches a literal.
-  # The last element is the mode's own address, or nil where its surface does not exist
-  # yet. A mode with no address is rendered disabled carrying the reason (§17.3) rather
-  # than linking somewhere that would answer nothing, which is the stub a route to an
-  # unbuilt surface would be.
+  # The last element is the mode's own address, or nil where this deployment serves no
+  # surface for it. A mode with no address is rendered disabled carrying the reason
+  # rather than linking somewhere that would answer nothing.
   @modes [
     {"continue", "Continue", "hero-play-mini", "what you have not finished", nil},
     {"recent", "Recently added", "hero-plus-mini", "what arrived most recently", nil},
@@ -89,6 +90,10 @@ defmodule PluteusWeb.Chrome do
   attr :mode, :string, default: nil, doc: "the current mode, where a surface is one"
   attr :announcement, :string, default: "", doc: "what the live region currently says"
 
+  attr :query, :any,
+    default: nil,
+    doc: "the browse query this surface is showing, where it is a browse surface"
+
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -104,7 +109,12 @@ defmodule PluteusWeb.Chrome do
       </div>
 
       <div class="flex flex-1 min-h-0">
-        <.rail principal_name={@principal_name} contexts={@contexts} mode={@mode} />
+        <.rail
+          principal_name={@principal_name}
+          contexts={@contexts}
+          mode={@mode}
+          query={@query}
+        />
 
         <div class="flex flex-1 min-w-0 flex-col">
           <.top_bar principal_name={@principal_name} />
@@ -126,6 +136,7 @@ defmodule PluteusWeb.Chrome do
   attr :principal_name, :string, default: nil
   attr :contexts, :map, required: true
   attr :mode, :string, default: nil
+  attr :query, :any, default: nil
 
   defp rail(assigns) do
     ~H"""
@@ -155,6 +166,8 @@ defmodule PluteusWeb.Chrome do
         </li>
       </ul>
 
+      <.narrowed_by query={@query} />
+
       <.findings_link />
 
       <details class="mt-auto">
@@ -168,6 +181,64 @@ defmodule PluteusWeb.Chrome do
     </nav>
     """
   end
+
+  # The rail holds the current query and never the whole vocabulary, which is why the
+  # chips are here and the facet groups are on the surface: what a person has chosen
+  # belongs beside the modes, and what they could choose next belongs beside the results.
+  #
+  # Each active facet is removable on its own, so each chip carries the address of the
+  # query without that one value — not without its axis, which would drop a second decade
+  # a person meant to keep.
+  attr :query, :any, default: nil
+
+  defp narrowed_by(%{query: nil} = assigns), do: ~H""
+
+  defp narrowed_by(assigns) do
+    assigns = assign(assigns, :narrowings, Query.narrowings(assigns.query))
+
+    ~H"""
+    <div :if={@narrowings != []} class="flex flex-col gap-2">
+      <h2 class="text-title-md font-medium text-on-surface-strong">Narrowed by</h2>
+      <a
+        :for={{axis, value} <- @narrowings}
+        href={without(@query, axis, value)}
+        aria-label={"Remove the facet #{label(axis, value)}"}
+        class={[
+          "min-h-target-touch flex items-center gap-2 rounded-full pl-4 pr-3",
+          "border-[length:var(--sys-border-width-component)] border-border-strong",
+          "bg-surface-overlay text-body-md text-on-surface-strong"
+        ]}
+      >
+        <span class="grow">{label(axis, value)}</span>
+        <.icon name="hero-x-mark-micro" />
+      </a>
+    </div>
+    """
+  end
+
+  # The address of the same query with one value gone. The mode's own address is where it
+  # goes, because a narrowing is a narrowing *of a mode* and removing one does not leave
+  # the mode.
+  defp without(query, axis, value) do
+    widened = Query.widen(query, axis, value)
+    {_slug, _noun, _glyph, _what, at} = Enum.find(@modes, &(elem(&1, 0) == query.mode))
+
+    case Query.to_params(widened) do
+      params when params == %{} -> at
+      params -> at <> "?" <> URI.encode_query(params)
+    end
+  end
+
+  # A category reaches a person as the noun they would use, never as the model's own
+  # spelling of it. Only the first character is raised, so a value carrying a proper noun
+  # survives.
+  defp label("category", value) do
+    <<first::utf8, rest::binary>> = String.replace(value, "_", " ")
+
+    String.upcase(<<first::utf8>>) <> rest
+  end
+
+  defp label(_axis, value), do: value
 
   # §14.1: every surface states which principal it is acting as, continuously and
   # without being asked. The name is text rather than an initial, because a letter in a
