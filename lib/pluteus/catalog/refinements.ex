@@ -1,22 +1,22 @@
 defmodule Pluteus.Catalog.Refinements do
   @moduledoc """
-  The association refinements this release ships (spec-01 §6.3, §17).
+  The association refinements this release ships.
 
   LRM-R33 (a res to a place) and LRM-R35 (a res to a time-span) are declared at res
   level and are many-to-many, and both scope notes expect an implementation to refine
-  them into specific types. §6.3 makes that a MUST and fixes what the registry carries:
-  the refinements a document in this series cites, and no others. LRM names further
-  candidates — time of work conception, period of ownership of an item, date of birth of
-  a person — and none is carried, because a refinement nothing writes is a row that only
-  looks like coverage.
+  them into specific types. Refining them is required, and what the registry carries is
+  fixed: the refinements something in this deployment writes, and no others. LRM names
+  further candidates — time of work conception, period of ownership of an item, date of
+  birth of a person — and none is carried, because a refinement nothing writes is a row
+  that only looks like coverage.
 
-  §17 makes these seed data rather than specification, so a release adds one and no
-  deployment is asked to invent it.
+  These are seed data rather than specification, so a release adds one and no deployment
+  is asked to invent it.
 
   ## A relation written untyped stays untyped
 
-  §6.3 is explicit that a relation written before its refinement existed cannot be
-  classified afterwards: nothing recorded which kind it would have been. So the cost of
+  A relation written before its refinement existed cannot be classified afterwards:
+  nothing recorded which kind it would have been. So the cost of
   an unregistered refinement is not a row to fix later but a row whose meaning is gone,
   which is why `Pluteus.Catalog.associate/3` refuses a name this registry does not hold
   rather than writing it and leaving the question open.
