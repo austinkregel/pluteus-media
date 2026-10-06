@@ -30,6 +30,28 @@ defmodule PluteusWeb.Router do
     plug PluteusWeb.Surface
   end
 
+  # Every surface spec-10 §9 names is the requesting principal's own, so identity is
+  # required here rather than attached where the proxy happened to name one: §9.2's
+  # Continue is a principal's resume list and §14.1 makes every surface state who it is
+  # acting as. `ForwardAuth` refuses a request carrying no principal, which `Identify`
+  # on the `:browser` pipeline deliberately does not, because the design language and the
+  # licence notices are the household's.
+  #
+  # Unlike `:api` this answers only HTML: a browse mode is not a res and has no
+  # representation to negotiate for.
+  pipeline :interface do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {PluteusWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug PluteusWeb.ForwardAuth
+    plug PluteusWeb.Contexts
+    plug PluteusWeb.Surface
+    plug PluteusWeb.Declared
+  end
+
   # spec-07 §3.2: the one surface exempt from forward authentication, where a
   # client key is the request's authentication. The request must still have
   # come through the proxy.
@@ -65,6 +87,22 @@ defmodule PluteusWeb.Router do
     pipe_through :onboarding
 
     post "/onboarding", OnboardingController, :create
+  end
+
+  # §9.2's modes. One LiveView answers every mode with the mode as its `live_action`, so a
+  # mode gaining a surface is a route rather than another page. Only the one that has a
+  # surface has a route: a route to an unbuilt one would answer nothing, and the chrome
+  # renders the other six disabled carrying the reason instead (§17.3).
+  #
+  # The live session carries only the session shape `PluteusWeb.Interface` owns. The
+  # identity hook is declared in `PluteusWeb.live_view/0` rather than here, so it holds
+  # however a LiveView was reached — including `EntityLive`, which a controller renders.
+  scope "/", PluteusWeb do
+    pipe_through :interface
+
+    live_session :interface, session: {PluteusWeb.Interface, :session, []} do
+      live "/everything", BrowseLive, :everything
+    end
   end
 
   # §9.1's entity URIs. The kind is fixed by the path, so an identifier
