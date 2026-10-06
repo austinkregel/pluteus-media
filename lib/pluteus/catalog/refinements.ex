@@ -73,9 +73,8 @@ defmodule Pluteus.Catalog.Refinements do
   @spec unknown(String.t()) :: String.t()
   def unknown(name) do
     "#{inspect(name)} is not an association refinement this release ships. " <>
-      "spec-01 §6.3 carries the refinements the series cites and no others, and a " <>
-      "relation written without one cannot be classified afterwards. " <>
-      "The names are: #{Enum.join(names(), ", ")}."
+      "A relation recorded without one cannot be classified afterwards, so nothing " <>
+      "is written. The names are: #{Enum.join(names(), ", ")}."
   end
 
   @doc """
