@@ -38,6 +38,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.SerialKey
   alias Pluteus.Ingest.Streams
+  alias Pluteus.Ingest.TimeSpanKey
   alias Pluteus.Lifecycle
   alias Pluteus.PlatformEvents
   alias Pluteus.Presentation.Geometry
@@ -170,9 +171,13 @@ defmodule Pluteus.Ingest.Place do
   # would deadlock instead of queueing.
   #
   # The order every placement keeps is: the tool version, then its one grouping key — a
-  # release, a serial or a narration — then the artist keys its credits name. `locked!/3`
-  # holds a placement to it, taking the key's lock on the read, since an insert that
-  # conflicts locks nothing and the row may already be there.
+  # release, a serial or a narration — then the artist keys its credits name, then the
+  # time-span key for the date its container states. `locked!/3` holds a placement to it,
+  # taking the key's lock on the read, since an insert that conflicts locks nothing and
+  # the row may already be there.
+  #
+  # The time-span key comes last because it is taken where a holding's manifestation is
+  # carried, which every path reaches after it has credited everyone.
   #
   # The tool version is taken first because a placement of a file carrying no streams
   # would otherwise never take it at all.
@@ -322,6 +327,7 @@ defmodule Pluteus.Ingest.Place do
 
     record_chapters(acquisition, narration, sequence)
     restate_extent(narration)
+    record_issue_date(acquisition, narration.manifestation_id)
     record_analysis_source(narration.manifestation_id, narration.digital_item_id)
 
     {:ok, _event} =
@@ -629,6 +635,7 @@ defmodule Pluteus.Ingest.Place do
 
     record_probe(acquisition)
     record_extent(acquisition, manifestation_id)
+    record_issue_date(acquisition, manifestation_id)
     record_analysis_source(manifestation_id, digital_item.id)
 
     acquisition |> Acquisition.placed_changeset(digital_item.id) |> Repo.update!()
@@ -688,6 +695,66 @@ defmodule Pluteus.Ingest.Place do
         {:ok, _} = Addressing.record_extent(manifestation_id, unit, magnitude)
         :ok
     end
+  end
+
+  # spec-01 §6.3's refinement of LRM-R35: when the edition in hand was issued, as the
+  # container itself states it. It goes on the manifestation because it is a property of
+  # the edition and not of the work — a reissue and a first pressing are one work and two
+  # dates — and on the manifestation this holding is carried by, which is the one the
+  # container is stating a date for.
+  #
+  # A container stating no date, or stating one in a form whose field order the form
+  # itself does not fix, relates to no time-span. The date is then genuinely unexamined
+  # rather than wrong, and [spec-10] §5.2 is what says so on a surface. Nothing here
+  # consults the file's own timestamp, which spec-04 §4.5 forbids as evidence: it records
+  # when the bytes were last written and a copy resets it.
+  defp record_issue_date(acquisition, manifestation_id) do
+    case Streams.date(embedded_tags(acquisition), Registry.issued_by()) do
+      nil ->
+        :ok
+
+      date ->
+        {:ok, _} =
+          Catalog.associate(
+            manifestation_id,
+            time_span_for(date),
+            Refinements.name!("time-of-publication-or-manufacture")
+          )
+
+        :ok
+    end
+  end
+
+  # Joins the time-span holding the date, or creates it, as `release_for/4` joins a
+  # release. Taken after a placement's grouping key and its artist keys, which is where
+  # every path reaches it, so two placements queue on it rather than deadlocking.
+  #
+  # A span whose res has since been recycled or purged no longer dates anything, and a
+  # new span takes the date over.
+  defp time_span_for(date) do
+    now = DateTime.utc_now()
+
+    {inserted, _} =
+      Repo.insert_all(TimeSpanKey, [%{key: date, inserted_at: now, updated_at: now}],
+        on_conflict: :nothing,
+        conflict_target: :key
+      )
+
+    existing = locked!(TimeSpanKey, :key, date)
+
+    if inserted == 0 and live?(existing.time_span_id),
+      do: existing.time_span_id,
+      else: create_time_span(existing, date)
+  end
+
+  # The span is named by the date as stated, at the precision stated. A year is a year
+  # and not a January, so nothing is filled out to make the name uniform.
+  defp create_time_span(time_span_key, date) do
+    {:ok, %{res: res}} = Catalog.create_named_res(:time_span, automatic(date))
+
+    time_span_key |> Ecto.Changeset.change(time_span_id: res.id) |> Repo.update!()
+
+    res.id
   end
 
   # A sounding or moving holding is measured in time, which its container states.
