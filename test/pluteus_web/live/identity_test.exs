@@ -26,6 +26,19 @@ defmodule PluteusWeb.Live.IdentityTest do
     %{conn: conn |> through_proxy(@subject) |> on_a_surface(), work: work}
   end
 
+  describe "A rendered entity page can be joined" do
+    test "the page carries a forgery token the session can verify", %{conn: conn, work: work} do
+      # Without one the join is refused as misconfigured, and the client recovers by
+      # reloading the page — which lands here again and reloads again, for as long as it
+      # is open. The pipeline this page renders from cannot carry the plug, because it
+      # also serves the writes the plug would start refusing.
+      conn = conn |> asking() |> get("/works/#{work.id}")
+
+      assert html_response(conn, 200) =~ "csrf-token"
+      assert Plug.Conn.get_session(conn, "_csrf_token")
+    end
+  end
+
   describe "spec-10 §14.3. One page, one principal" do
     test "the connected mount establishes the principal from the socket", %{
       conn: conn,
