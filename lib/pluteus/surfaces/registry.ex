@@ -76,12 +76,17 @@ defmodule Pluteus.Surfaces.Registry do
   a holding, so it carries no glyph and no colour, and a surface reaching for one has
   mistaken what it is looking at rather than found a gap to fill in.
   """
-  @spec category_icon(String.t()) :: %{glyph: String.t(), class: String.t(), name: String.t()}
+  @spec category_icon(String.t()) :: %{
+          glyph: String.t(),
+          class: String.t(),
+          name: String.t(),
+          members: String.t() | nil
+        }
   def category_icon(category) do
     %{"glyph" => glyph, "class" => class, "name" => name} =
-      fetch("category_icons") |> Map.fetch!("of_category") |> Map.fetch!(category)
+      drawn = fetch("category_icons") |> Map.fetch!("of_category") |> Map.fetch!(category)
 
-    %{glyph: glyph, class: class, name: name}
+    %{glyph: glyph, class: class, name: name, members: drawn["members"]}
   end
 
   @doc """
