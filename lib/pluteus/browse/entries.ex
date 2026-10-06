@@ -117,12 +117,29 @@ defmodule Pluteus.Browse.Entries do
       select: %{res_id: c.res_id, value: c.value}
   end
 
-  # Disjunctive within the axis: a work matching any of the values is held.
-  defp on({"category", values}, query) do
+  @doc """
+  The same selection with each work's effective category beside it, bound as `:category`.
+
+  Both a narrowing and a count read the category through this, so neither is free to
+  decide which of a corrected work's rows is authoritative.
+  """
+  @spec with_category(Ecto.Query.t()) :: Ecto.Query.t()
+  def with_category(query) do
     from [work: w] in query,
       join: c in subquery(effective_categories()),
-      on: c.res_id == w.id,
-      where: c.value in ^values
+      as: :category,
+      on: c.res_id == w.id
+  end
+
+  @doc """
+  The axes this release can narrow on. The rest are named and inert (§9.3).
+  """
+  @spec narrowable_axes() :: [String.t()]
+  def narrowable_axes, do: ["category"]
+
+  # Disjunctive within the axis: a work matching any of the values is held.
+  defp on({"category", values}, query) do
+    from [category: c] in with_category(query), where: c.value in ^values
   end
 
   defp on({axis, _values}, _query) do

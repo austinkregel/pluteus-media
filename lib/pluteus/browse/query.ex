@@ -93,6 +93,16 @@ defmodule Pluteus.Browse.Query do
   end
 
   @doc """
+  The same query with one axis carrying nothing.
+
+  What a facet's own counts are computed over. §9.3 makes the count beside a value what
+  selecting it will hold, and selecting it widens its own axis rather than replacing the
+  query, so the axis's own narrowing comes off and goes back on one value at a time.
+  """
+  @spec without(t(), String.t()) :: t()
+  def without(%__MODULE__{} = query, axis), do: put(query, axis, [])
+
+  @doc """
   Every value a query carries, as `{axis, value}` pairs in a stable order. What the
   "Narrowed by" chips are rendered from.
   """
