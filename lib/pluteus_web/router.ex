@@ -45,7 +45,10 @@ defmodule PluteusWeb.Router do
   scope "/", PluteusWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    # The design language, rendered. It is not at `/`, which is the catalogue's own
+    # address: a reference for the people building the interface is not what a person
+    # opening the deployment is looking for.
+    get "/design", PageController, :home
 
     # spec-10 Annex A.8.1 puts half of the vendored glyph set's licence obligation
     # beside the files and the other half in the interface, so this route is what the
