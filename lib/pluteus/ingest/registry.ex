@@ -334,6 +334,13 @@ defmodule Pluteus.Ingest.Registry do
   end
 
   @doc """
+  The tags that state when a manifestation was issued, in the order they are read
+  (spec-01 §6.3, §6.4).
+  """
+  @spec issued_by() :: [String.t()]
+  def issued_by, do: registry()["dates"]["issued_by"]
+
+  @doc """
   Every category placement can record (spec-04 §6.3, §6.9).
 
   Three sources reach the category scheme: the default for a broad class or a companion
