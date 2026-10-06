@@ -36,6 +36,7 @@ defmodule Pluteus.Catalog do
   alias Pluteus.Catalog.ManifestationPart
   alias Pluteus.Catalog.Measurement
   alias Pluteus.Catalog.Nomen
+  alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
   alias Pluteus.Catalog.WorkCreator
@@ -587,14 +588,23 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
-  Records an association between two res, refined by type (LRM-R1).
+  Records an association between two res, refined by type (§6.3).
 
   §7.5's link between a household row and a seed for the same concept is one of
   these, written with `Association.same_thing/0`.
+
+  A refinement this release does not ship raises rather than being written. §6.3 is
+  explicit that a relation recorded without one cannot be classified afterwards —
+  nothing recorded which kind it would have been — so the row would not be a row to
+  repair later but a row whose meaning is already gone.
   """
   @spec associate(Ecto.UUID.t(), Ecto.UUID.t(), String.t()) ::
           {:ok, Association.t()} | {:error, Ecto.Changeset.t()}
   def associate(subject_id, object_id, refinement) do
+    unless Refinements.known?(refinement) do
+      raise ArgumentError, Refinements.unknown(refinement)
+    end
+
     %Association{}
     |> Association.changeset(%{
       subject_id: subject_id,
