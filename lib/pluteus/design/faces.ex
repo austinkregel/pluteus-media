@@ -80,6 +80,12 @@ defmodule Pluteus.Design.Faces do
   def file(%{id: id}), do: "#{id}.woff2"
 
   @doc """
+  Every face's file name, which is what the endpoint serves under `/fonts`.
+  """
+  @spec files() :: [String.t()]
+  def files, do: Enum.map(all(), &file/1)
+
+  @doc """
   The path a stylesheet fetches a face from.
 
   Served by the endpoint's static plug, so it is a path under `/fonts` rather than the
