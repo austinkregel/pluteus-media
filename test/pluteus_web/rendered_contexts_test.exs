@@ -34,7 +34,8 @@ defmodule PluteusWeb.RenderedContextsTest do
     Map.merge(context, %{principal: principal, viewer: viewer})
   end
 
-  defp rendered(conn, viewer), do: conn |> through_proxy(viewer) |> get("/") |> html_response(200)
+  defp rendered(conn, viewer),
+    do: conn |> through_proxy(viewer) |> get("/design") |> html_response(200)
 
   describe "Annex A.1.6. Which modifiers the store answers for" do
     test "the stored set is the registry's and the controls', never a list of its own" do
@@ -170,7 +171,7 @@ defmodule PluteusWeb.RenderedContextsTest do
       # The precedence is the whole of the fix: with `localStorage` first, the next person
       # to use a household browser inherits the last one's settings, which is what §14.5
       # forbids.
-      html = conn |> get("/") |> html_response(200)
+      html = conn |> get("/design") |> html_response(200)
 
       {intent_at, _length} = :binary.match(html, "intents[modifier] ||")
       {storage_at, _length} = :binary.match(html, "localStorage.getItem(key(modifier))")
@@ -181,7 +182,7 @@ defmodule PluteusWeb.RenderedContextsTest do
     test "a stored modifier does not read this browser's key at all", %{conn: conn} do
       # Ordering alone would leave the shared key as the fallback, so a stored modifier the
       # server said nothing about would inherit whatever the last person chose here.
-      html = conn |> get("/") |> html_response(200)
+      html = conn |> get("/design") |> html_response(200)
 
       assert html =~ "(stored.has(modifier) ? null : localStorage.getItem(key(modifier)))"
     end
@@ -194,7 +195,7 @@ defmodule PluteusWeb.RenderedContextsTest do
       # it nor writes it: writing would put a preference §14.5 makes confidential into
       # storage the next person can read, and clearing would lose an anonymous choice for
       # good the moment someone signs in.
-      html = conn |> get("/") |> html_response(200)
+      html = conn |> get("/design") |> html_response(200)
 
       {branch_at, _length} = :binary.match(html, "if (stored.has(modifier)) {")
       {persist_at, _length} = :binary.match(html, "persist(modifier, context, previous);")
