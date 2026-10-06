@@ -102,21 +102,23 @@ defmodule Pluteus.Design.Icons do
     do: ~w(film tv video-camera microphone photo document-text book-open)
 
   # One per mode of §9.2 the base set serves, plus the findings link §16.1 requires on
-  # every surface and the switch §14.2 puts beside the principal. Continue takes `play`,
-  # which the transport also names.
+  # every surface, the switch §14.2 puts beside the principal, and the search §9.5 makes
+  # a surface of its own. Continue takes `play`, which the transport also names.
   defp modes,
     do: ~w(plus user map-pin clock rectangle-stack squares-2x2 exclamation-triangle
-           chevron-up-down)
+           chevron-up-down magnifying-glass)
 
-  # §12.3's transport. The position slider carries no glyph.
-  defp transport, do: ~w(play pause queue-list)
+  # §12.3's transport, which requires volume and mute as well as play and pause. The
+  # position slider carries no glyph.
+  defp transport, do: ~w(play pause queue-list speaker-wave speaker-x-mark)
 
   # What a control on a surface needs: a notice's two marks, a retry, a dismissal, the
   # sort and density controls of a narrowed surface, the verified state §16.2 renders
-  # distinctly from unverified, and the one state §5.2 leaves unmarked.
+  # distinctly from unverified, the one state §5.2 leaves unmarked, and the pair §17.6's
+  # traversal is carried by, which must be a control rather than a scroll position.
   defp controls,
     do: ~w(arrow-path exclamation-circle information-circle x-mark bars-3 bars-arrow-down
-           shield-check check-circle)
+           shield-check check-circle chevron-left chevron-right)
 
   @doc """
   Every vendored name, and the drawing each one resolves to.
