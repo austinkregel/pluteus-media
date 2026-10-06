@@ -93,6 +93,10 @@ defmodule PluteusWeb.Chrome do
     default: nil,
     doc: "the browse query this surface is showing, where it is a browse surface"
 
+  attr :playing, :any,
+    default: nil,
+    doc: "what is playing, or nil — with nothing playing there is no transport"
+
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -119,7 +123,7 @@ defmodule PluteusWeb.Chrome do
         </div>
       </div>
 
-      <.transport />
+      <.transport :if={@playing} playing={@playing} />
       <.tab_bar mode={@mode} />
     </div>
     """
@@ -451,8 +455,8 @@ defmodule PluteusWeb.Chrome do
     ]
   end
 
-  # The transport. Its empty rendering is a rendering the component owes, not a state to
-  # leave out: a floor that appears only once something plays moves the whole surface.
+  attr :playing, :any, required: true
+
   defp transport(assigns) do
     ~H"""
     <div
@@ -465,7 +469,7 @@ defmodule PluteusWeb.Chrome do
         "bg-surface-raised"
       ]}
     >
-      <p class="text-body-sm text-on-surface-muted">Nothing is playing.</p>
+      <span class="truncate text-body-md text-on-surface-strong">{@playing}</span>
     </div>
     """
   end
