@@ -506,7 +506,11 @@ defmodule PluteusWeb.NegotiationTest do
       assert html =~ "not yet examined"
     end
 
-    test "the live region is rendered and empty", %{conn: conn, work: work} do
+    test "the live region is rendered and empty, once, in the chrome", %{conn: conn, work: work} do
+      # §17.7: "Live regions MUST be rendered unconditionally and empty, and messages
+      # inserted into them." It belongs to the chrome rather than to a surface, because
+      # §17.7's walk to the nearest surviving sibling has to cross between the two and a
+      # document with one per surface would have two.
       html =
         conn
         |> put_req_header("accept", "text/html")
@@ -515,7 +519,10 @@ defmodule PluteusWeb.NegotiationTest do
 
       assert html =~ ~s(role="status")
       assert html =~ ~s(aria-live="polite")
-      assert html =~ ~r/id="entity-announcement"[^>]*>\s*<\/div>/
+      assert html =~ ~r/id="shell-announcement"[^>]*>\s*<\/div>/
+
+      regions = html |> String.split(~s(aria-live=)) |> length() |> Kernel.-(1)
+      assert regions == 1, "#{regions} live regions on one document"
     end
 
     test "every link carries a stable identity derived from what it points at", %{
