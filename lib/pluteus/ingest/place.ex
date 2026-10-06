@@ -714,15 +714,22 @@ defmodule Pluteus.Ingest.Place do
         :ok
 
       date ->
-        {:ok, _} =
-          Catalog.associate(
-            manifestation_id,
-            time_span_for(date),
-            Refinements.name!("time-of-publication-or-manufacture")
-          )
-
-        :ok
+        relate(manifestation_id, time_span_for(date))
     end
+  end
+
+  # A reading in several parts is one manifestation carrying an asset per part, so every
+  # part states the same date about the same res and the relation is already there by the
+  # second. The relation is the same fact however many files state it, so it is recorded
+  # where it is absent rather than written again and refused.
+  defp relate(manifestation_id, time_span_id) do
+    refinement = Refinements.name!("time-of-publication-or-manufacture")
+
+    unless time_span_id in Catalog.associated(manifestation_id, refinement) do
+      {:ok, _} = Catalog.associate(manifestation_id, time_span_id, refinement)
+    end
+
+    :ok
   end
 
   # Joins the time-span holding the date, or creates it, as `release_for/4` joins a
