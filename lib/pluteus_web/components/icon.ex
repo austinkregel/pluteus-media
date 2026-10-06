@@ -49,6 +49,13 @@ defmodule PluteusWeb.Icon do
     @external_resource path
   end
 
+  # The wildcard above is evaluated once, so a drawing added since this module was last
+  # compiled matches nothing and registers no resource of its own: a glyph vendored
+  # after the fact would be absent from the vocabulary with nothing to say so. The
+  # manifest is rewritten by every run of the vendor task, so depending on it is what
+  # makes a new drawing recompile this module rather than needing to be remembered.
+  @external_resource Path.join(Icons.root(), "SOURCES.json")
+
   @vendored (for {name, path, grid} <- @paths, into: %{} do
                {view_box, paint} = Map.fetch!(Icons.paint(), grid)
                [_opening, rest] = String.split(File.read!(path), ">", parts: 2)
