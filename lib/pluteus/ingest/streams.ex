@@ -77,6 +77,49 @@ defmodule Pluteus.Ingest.Streams do
   end
 
   @doc """
+  The date a container states, at the precision it states it: a year, a year and a
+  month, or a day.
+
+  The precision is kept rather than filled out. A container stating `2019` says the
+  year and nothing about the month, and a date completed to January would say
+  something the file does not. A value carrying a time of day is read to the day,
+  which is as fine as the thing being dated gets.
+
+  Only [RFC3339]'s ordering is read. A tagger writing `04/05/2019` has stated a
+  date whose field order its own form does not fix, and the three readings of it
+  are a year apart or a month apart; none is preferred here. Such a value gives no
+  date, as a vinyl side's `A1` gives no position.
+  """
+  @spec date(map(), [String.t()]) :: String.t() | nil
+  def date(tags, keys) do
+    case first(tags, keys) do
+      nil -> nil
+      value -> stated(String.trim(value))
+    end
+  end
+
+  defp stated(<<_::binary-4, "-", _::binary-2, "-", _::binary-2, _rest::binary>> = value) do
+    day = String.slice(value, 0, 10)
+
+    case Date.from_iso8601(day) do
+      {:ok, _a_day_there_is} -> day
+      {:error, _no_such_day} -> nil
+    end
+  end
+
+  defp stated(<<year::binary-4, "-", month::binary-2>> = value) do
+    if numeric?([year, month]) and String.to_integer(month) in 1..12, do: value
+  end
+
+  defp stated(<<year::binary-4>>) do
+    if numeric?([year]), do: year
+  end
+
+  defp stated(_no_date_in_an_order_its_own_form_fixes), do: nil
+
+  defp numeric?(parts), do: Enum.all?(parts, &match?({_number, ""}, Integer.parse(&1)))
+
+  @doc """
   The MusicBrainz release identifiers a file carries, distinct. Taggers write
   them under different keys, and ffprobe joins repeated values with `;`, so a
   file tagged twice can carry two.
