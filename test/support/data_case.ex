@@ -50,6 +50,47 @@ defmodule Pluteus.DataCase do
   end
 
   @doc """
+  Every query the repo ran while the given work was done, in the order it ran them.
+
+  Two different things are asserted with this and neither can be seen in an outcome. A
+  lock order is invisible until two transactions meet, and the cost of a surface is
+  invisible until the catalog is large: a surface that issues a query per row behaves
+  correctly on three holdings and falls over on thirty thousand, so what has to be
+  asserted is that the number does not grow.
+
+  Not usable from an async test. The repo's telemetry is process-wide, so a test running
+  beside one that collected queries would put its own in the same stream.
+  """
+  @spec queries_during((-> any())) :: [String.t()]
+  def queries_during(work) do
+    handler = "queries-#{System.unique_integer([:positive])}"
+    collector = self()
+
+    :telemetry.attach(
+      handler,
+      [:pluteus, :repo, :query],
+      fn _event, _measurements, metadata, pid -> send(pid, {handler, metadata.query}) end,
+      collector
+    )
+
+    try do
+      work.()
+    after
+      :telemetry.detach(handler)
+    end
+
+    drain(handler, [])
+  end
+
+  defp drain(handler, seen) do
+    receive do
+      {^handler, query} -> drain(handler, [query | seen])
+    after
+      0 -> Enum.reverse(seen)
+    end
+  end
+
+  @doc """
   A helper that transforms changeset errors into a map of messages.
 
       assert {:error, changeset} = Accounts.create_user(%{password: "short"})
