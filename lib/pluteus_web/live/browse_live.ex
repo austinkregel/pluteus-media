@@ -116,6 +116,11 @@ defmodule PluteusWeb.BrowseLive do
     <div class="flex flex-col gap-10">
       <.kinds facet={@surface.facets["category"]} />
       <.decades facet={@surface.facets["decade"]} />
+      <.people
+        facet={@surface.facets["person"]}
+        labels={@surface.labels}
+        places={@surface.facets["place"]}
+      />
       <.unfinished doors={@surface.unfinished} />
       <.inert_axes facets={@surface.facets} />
     </div>
@@ -338,6 +343,53 @@ defmodule PluteusWeb.BrowseLive do
   defp bar("text"), do: "bg-class-text"
   defp bar("software"), do: "bg-class-software"
   defp bar("package"), do: "bg-class-package"
+
+  # Who and where sit together because they are the same question asked of a holding, and
+  # where cannot be answered, so the band says so beside the people it can name.
+  attr :facet, :any, required: true
+  attr :labels, :map, required: true
+  attr :places, :any, required: true
+
+  defp people(assigns) do
+    assigns = assign(assigns, :values, offered(assigns.facet))
+
+    ~H"""
+    <section aria-labelledby="people-heading">
+      <h2 id="people-heading" class="text-title-md font-medium text-on-surface-strong">
+        By who and where
+      </h2>
+      <p class="mb-3 text-body-sm text-on-surface-muted">Most credited first.</p>
+
+      <ul :if={@values != []} class="flex flex-wrap gap-2">
+        <li :for={{value, count} <- @values}>
+          <a
+            href={~p"/everything?#{[person: value]}"}
+            class={[
+              "min-h-target-touch flex items-center gap-2 rounded-full px-4",
+              "border-[length:var(--sys-border-width-component)] border-border-subtle",
+              "bg-surface-raised hover:bg-surface-overlay"
+            ]}
+          >
+            <.icon name="hero-user-mini" class="text-on-surface-muted" />
+            <span class="text-body-md text-on-surface-strong">{@labels[value] || value}</span>
+            <span class="font-mono text-caption text-on-surface-muted">{count}</span>
+          </a>
+        </li>
+      </ul>
+
+      <p :if={@values == []} class="text-body-md text-on-surface-muted">
+        Nothing here credits anybody.
+      </p>
+
+      <p :if={match?({:inert, _why}, @places)} class="mt-3 text-body-sm text-on-surface-muted">
+        Places: {elem(@places, 1)}.
+      </p>
+    </section>
+    """
+  end
+
+  defp offered({:available, values}), do: Enum.sort_by(values, &(-elem(&1, 1)))
+  defp offered({:inert, _why}), do: []
 
   # One door reports no figure. That is deliberate rather than an omission: a count of
   # what one person has looked at is the first thing on a surface another could hold
