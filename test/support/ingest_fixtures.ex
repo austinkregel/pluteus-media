@@ -8,9 +8,13 @@ defmodule Pluteus.IngestFixtures do
   the test names and nothing borrowed.
   """
 
+  import Ecto.Query
   import ExUnit.Callbacks, only: [on_exit: 1]
 
   alias Pluteus.Ingest
+  alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Place
+  alias Pluteus.Repo
   alias Pluteus.Storage
   alias Pluteus.StorageFixtures
 
@@ -165,6 +169,45 @@ defmodule Pluteus.IngestFixtures do
   """
   @spec acquired(map()) :: [Ecto.UUID.t()]
   def acquired(report), do: for({_path, {:acquired, {id, _}}} <- report.files, do: id)
+
+  @doc """
+  One placement pass over an inbox whose files are all expected to be placed,
+  raising where an acquisition was left unplaced and naming why.
+
+  Every stage of ingest reports a failure the same way: it records a finding and
+  leaves the holding where it was. That is what the stage is supposed to do — one
+  file nobody can identify must not stop the pass — but it means a test whose
+  setup half failed carries on against a catalog missing a holding, and fails
+  later somewhere that cannot say why. An unidentified file is the worst of
+  these, because the placement pass never reaches it at all: it takes only what
+  is identified, so the pass reports nothing about the file and it is simply
+  absent from everything the test goes on to read.
+
+  What is asserted is that no acquisition is left behind, which is the condition
+  a test depends on and which a finding recorded about something else does not
+  disturb: a companion that could not be linked is placed, and says so in its
+  own state. A test that means to leave a holding unplaced calls
+  `Pluteus.Ingest.Place.place_due/1` and reads the outcome itself.
+  """
+  @spec place_all!(Path.t()) :: [{Ecto.UUID.t(), term()}]
+  def place_all!(inbox) do
+    outcomes = Place.place_due(inbox)
+
+    case Repo.all(from a in Acquisition, where: a.state != :placed) do
+      [] -> outcomes
+      left -> raise "ingest left #{length(left)} acquisition(s) unplaced:\n" <> account(left)
+    end
+  end
+
+  defp account(unplaced) do
+    Enum.map_join(unplaced, "\n", fn acquisition ->
+      "  #{acquisition.inbox_path} is #{acquisition.state}" <>
+        Enum.map_join(Ingest.findings_for_acquisition(acquisition.id), "", fn finding ->
+          "\n    #{finding.stage} #{finding.kind}: " <>
+            inspect(finding.detail, limit: :infinity, printable_limit: 4_000)
+        end)
+    end)
+  end
 
   @doc """
   Removes an identifier's bytes when the test exits.
