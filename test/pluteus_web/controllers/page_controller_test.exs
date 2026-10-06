@@ -3,18 +3,18 @@ defmodule PluteusWeb.PageControllerTest do
 
   alias Pluteus.Design.Tokens
 
-  test "GET / renders the design language", %{conn: conn} do
-    html = conn |> get(~p"/") |> html_response(200)
+  test "GET /design renders the design language", %{conn: conn} do
+    html = conn |> get(~p"/design") |> html_response(200)
 
     assert html =~ "The design language"
   end
 
-  test "GET / shows every sys colour role", %{conn: conn} do
+  test "GET /design shows every sys colour role", %{conn: conn} do
     # The page reads the roles from the token file, so a role added to the language
     # appears here without the template being edited — and this is what says so. A.11
     # makes the `sys` names the public interface, and a role nothing renders is a role
     # nobody sees break.
-    html = conn |> get(~p"/") |> html_response(200)
+    html = conn |> get(~p"/design") |> html_response(200)
 
     roles =
       Tokens.all()
@@ -28,12 +28,12 @@ defmodule PluteusWeb.PageControllerTest do
     end
   end
 
-  test "GET / offers every context, and the two attributes each records", %{conn: conn} do
+  test "GET /design offers every context, and the two attributes each records", %{conn: conn} do
     # A.10.1 requires the resolved value and the person's intent both be recorded, so
     # that "follow the system" is a third state rather than a lost one. The script is
     # what writes them; this asserts the controls that drive it exist for all five
     # modifiers, since a modifier with no control is one nobody can reach.
-    html = conn |> get(~p"/") |> html_response(200)
+    html = conn |> get(~p"/design") |> html_response(200)
 
     for {modifier, contexts} <- PluteusWeb.Layouts.modifiers() do
       assert html =~ ~s(data-modifier="#{modifier}")
@@ -73,17 +73,17 @@ defmodule PluteusWeb.PageControllerTest do
     end
   end
 
-  test "GET / links to the notices, since a page nothing reaches discharges nothing",
+  test "GET /design links to the notices, since a page nothing reaches discharges nothing",
        %{conn: conn} do
-    assert conn |> get(~p"/") |> html_response(200) =~ ~s(href="/notices")
+    assert conn |> get(~p"/design") |> html_response(200) =~ ~s(href="/notices")
   end
 
-  test "GET / carries no daisyUI class and no framework marketing", %{conn: conn} do
+  test "GET /design carries no daisyUI class and no framework marketing", %{conn: conn} do
     # A.10.1 removes daisyUI because its flat named-theme axis cannot express A.1.6's
     # five orthogonal modifiers, and because its component classes bind a component to
     # daisyUI's token names rather than to `sys`, which A.1.4 forbids. A class left
     # behind would render as nothing at all rather than as an error.
-    html = conn |> get(~p"/") |> html_response(200)
+    html = conn |> get(~p"/design") |> html_response(200)
 
     for class <- ~w(btn-primary alert-info card badge base-content base-200 toast) do
       refute html =~ ~s(class="#{class}), "a daisyUI class survives: #{class}"
