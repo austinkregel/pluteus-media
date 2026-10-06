@@ -1,20 +1,19 @@
 defmodule Pluteus.Browse.Counts do
   @moduledoc """
-  What each facet value would leave a surface holding (spec-10 §9.3).
+  What each facet value would leave a surface holding.
 
-  §9.3 is exact about what a count means: "Every facet value MUST carry a count computed
-  against the current query. A count not recomputed is a false statement about what
-  selecting it will do." So the number beside a value is not a distribution over the
-  catalog and not a distribution over the query — it is the size of the query a person
-  would be looking at *after* selecting it.
+  A count is computed against the current query, and a count not recomputed is a false
+  statement about what selecting it will do. So the number beside a value is not a
+  distribution over the catalog and not a distribution over the query — it is the size of
+  the query a person would be looking at *after* selecting it.
 
   Since values are disjunctive within an axis, selecting one widens that axis and leaves
   every other axis alone. So each axis's counts are computed over the query with that
   axis's own narrowing removed, and each value's count is that selection restricted to
   the axis's values plus the one.
 
-  Nothing is cached. A count held from a previous render is the false statement §9.3
-  names, and there is no interval short enough to make it true.
+  Nothing is cached. A count held from a previous render is that false statement, and
+  there is no interval short enough to make it true.
 
   ## Why the whole axis is one query
 
@@ -33,12 +32,12 @@ defmodule Pluteus.Browse.Counts do
 
   ## An axis is named even where it answers nothing
 
-  §9.3 requires a facet with no available values still be named and shown inert, and
-  §17.3 requires a control for an affordance that does not exist carry the reason. An
-  axis whose relation nothing reads yet is therefore reported inert *with its reason*,
-  which is a different statement from an axis the catalog has no values for. Reporting
-  the second where the first is true would say the household holds nothing of a kind it
-  may well hold.
+  A facet with no available values is still named and shown inert, and a control for an
+  affordance that does not exist carries the reason. So an axis this release takes no
+  facet on is reported inert *with its reason*, which is a
+  different statement from an axis the catalog has no values for. Reporting the second
+  where the first is true would say the household holds nothing of a kind it may well
+  hold.
   """
 
   import Ecto.Query
@@ -95,19 +94,17 @@ defmodule Pluteus.Browse.Counts do
     |> Map.new()
   end
 
-  # Stated per axis rather than from one sentence, because the axes are not waiting on
-  # the same thing and a person reading the surface is owed the actual reason.
-  defp inert("person"),
-    do: "the people a holding credits are not read into a facet yet"
+  # Stated per axis rather than from one sentence, because the axes do not answer nothing
+  # for the same reason and a person reading the surface is owed the actual one.
+  defp inert("person"), do: "no facet is taken on the people a holding credits"
 
   defp inert("place"),
     do:
-      "where a holding was made needs a gazetteer to answer a coordinate with a named " <>
-        "place, which this release does not ship"
+      "answering where a holding was made needs a gazetteer to reach a named place from " <>
+        "a coordinate, and this deployment holds none"
 
-  defp inert("decade"),
-    do: "the dates holdings carry are not gathered into decades yet"
+  defp inert("decade"), do: "no facet is taken on when a holding was made"
 
   defp inert("language"),
-    do: "the languages a holding's expressions are in are not read into a facet yet"
+    do: "no facet is taken on the languages a holding's expressions are in"
 end
