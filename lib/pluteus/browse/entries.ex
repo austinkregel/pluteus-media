@@ -46,6 +46,7 @@ defmodule Pluteus.Browse.Entries do
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
   alias Pluteus.Ingest.Place
+  alias Pluteus.Ingest.Registry
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Repo
@@ -64,7 +65,21 @@ defmodule Pluteus.Browse.Entries do
       where: w.id not in subquery(from b in RecycledRes, select: b.res_id),
       where: w.id not in subquery(from t in Tombstone, select: t.res_id),
       where: not exists(aggregated()),
-      where: exists(embodies_a_whole())
+      where: exists(embodies_a_whole()),
+      where: not exists(companion())
+  end
+
+  # A companion is a holding in its own right and has an address of its own, but it is
+  # never *presented* as one: the cover art of a release belongs to the release, and a
+  # list of what the household holds that put it beside the release would be listing the
+  # same thing twice. It carries no category glyph and no class colour for the same
+  # reason, so there is nothing to draw it as.
+  defp companion do
+    from c in Category,
+      where: c.res_id == parent_as(:work).id,
+      where: c.scheme == ^Place.category_scheme(),
+      where: c.value in ^Registry.companion_kinds(),
+      select: 1
   end
 
   @doc """
