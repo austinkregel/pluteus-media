@@ -15,17 +15,22 @@ defmodule PluteusWeb.Interface do
   controls have to state the person's own choice in the first paint: a mount that fetched
   them would render the page once without them and correct it after.
 
-  **The layout and the flash.** A surface is rendered from the `:api` pipeline, which
-  carries neither, because that pipeline answers the representation for the same URI and
-  a JSON request has no use for a root layout or a flash. So both are put on the
-  connection here, on the way to a render, rather than on every request that might not
-  be one.
+  **The layout, the flash and the forgery token.** A surface is rendered from the `:api`
+  pipeline, which carries none of them, because that pipeline answers the representation
+  for the same URI and a JSON request has no use for a root layout or a flash. So they
+  are put on the connection here, on the way to a render, rather than on every request
+  that might not be one — and the forgery plug cannot go on the pipeline itself, where it
+  would start refusing the writes that same pipeline serves.
 
   Without the flash a surface can set one and have nowhere to show it, which fails
   silently: the message is in the session and no element renders it.
+
+  Without the forgery token the session holds nothing to verify the token in the page
+  against, so a live socket's join is refused as misconfigured and the client recovers by
+  reloading — which lands on the same page, and reloads again.
   """
 
-  import Phoenix.Controller, only: [fetch_flash: 2, put_root_layout: 2]
+  import Phoenix.Controller, only: [fetch_flash: 2, protect_from_forgery: 2, put_root_layout: 2]
 
   alias Phoenix.LiveView.Router, as: LiveRouter
   alias PluteusWeb.Contexts
@@ -54,6 +59,7 @@ defmodule PluteusWeb.Interface do
     conn
     |> fetch_flash([])
     |> LiveRouter.fetch_live_flash([])
+    |> protect_from_forgery([])
     |> put_root_layout(html: {PluteusWeb.Layouts, :root})
   end
 end
