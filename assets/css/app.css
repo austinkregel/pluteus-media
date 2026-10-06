@@ -10,6 +10,11 @@
 @source "../css";
 @source "../js";
 @source "../../lib/pluteus_web";
+/* The design layer names classes the interface never spells out itself: a glyph's size
+ * comes from the band its name's suffix selects, so the class exists only in that table.
+ * Unscanned, a band nothing else happens to use generates no rule and its glyph renders
+ * at whatever size the box gives it. */
+@source "../../lib/pluteus/design";
 
 /* Annex A.10.1's three layers, generated. It clears Tailwind's default theme first,
  * so the only names a utility can be built from are the design language's — A.1.4
