@@ -273,18 +273,26 @@ defmodule Pluteus.Assets do
   state that silently becomes loss.
   """
   @spec unverified(DateTime.t()) :: [Asset.t()]
-  def unverified(now \\ DateTime.utc_now()) do
-    Repo.all(
-      from a in Asset,
-        where:
-          is_nil(a.verified_at) or
-            fragment(
-              "? + make_interval(secs => ?) < ?",
-              a.verified_at,
-              a.verification_interval_seconds,
-              ^now
-            )
-    )
+  def unverified(now \\ DateTime.utc_now()), do: Repo.all(unverified_query(now))
+
+  @doc """
+  The same selection, unrun, for a caller that needs to count it or join it rather than
+  read it.
+
+  One definition of overdue: a second one written beside this is how a surface comes to
+  disagree with the pass that does the work.
+  """
+  @spec unverified_query(DateTime.t()) :: Ecto.Query.t()
+  def unverified_query(now \\ DateTime.utc_now()) do
+    from a in Asset,
+      where:
+        is_nil(a.verified_at) or
+          fragment(
+            "? + make_interval(secs => ?) < ?",
+            a.verified_at,
+            a.verification_interval_seconds,
+            ^now
+          )
   end
 
   @doc """
