@@ -40,17 +40,18 @@ defmodule Pluteus.BrowseTest do
     end
 
     test "the cost is stated, so a change to it has to be meant", %{principal: principal} do
-      # Twelve at the time of writing: the entries and their names, the query's total and
-      # the whole catalogue's, the facet distribution, this principal's own looking and
-      # the works it names, the overdue holdings, the undated ones and the undecided
-      # pairs.
+      # Fifteen at the time of writing: the entries, their names, what each of them is
+      # and how much it gathers, the query's total and the whole catalogue's, a
+      # distribution per narrowable axis, this principal's own looking and the works it
+      # names, the overdue holdings, the undated ones and the undecided pairs.
       #
       # A bound rather than that exact figure, since a query added for a reason is not a
       # defect. What would be is one creeping in unnoticed, which this catches by failing
-      # with the new number.
+      # with the new number. An axis costs one query however many values it offers, which
+      # is the property the assertions above hold.
       holdings(5, "photograph")
 
-      assert cost(principal) <= 14, "a render now costs #{cost(principal)} queries"
+      assert cost(principal) <= 18, "a render now costs #{cost(principal)} queries"
     end
 
     test "the cost does not grow with how many values a facet offers",

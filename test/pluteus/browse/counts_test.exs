@@ -62,6 +62,43 @@ defmodule Pluteus.Browse.CountsTest do
     end
   end
 
+  describe "23. The decade a holding was made in counts the same way" do
+    setup do
+      issued(work("photograph"), "1959")
+      issued(work("photograph"), "1959-08-17")
+      issued(work("document"), "1964")
+
+      :ok
+    end
+
+    test "a date reaches the decade it falls in, however finely it was stated" do
+      assert %{"1950s" => _fifties, "1960s" => _sixties} = decades(%{})
+      assert decades(%{})["1950s"] == 2
+    end
+
+    test "each count is what selecting that decade leaves held" do
+      assert_counts_hold("decade", %{})
+      assert_counts_hold("decade", %{"decade" => "1950s"})
+    end
+
+    test "narrowing by a decade and a kind is both at once" do
+      {:ok, query} = Query.parse("everything", %{"decade" => "1950s", "category" => "document"})
+
+      assert Entries.count(query) == 0
+    end
+
+    test "a holding issued in two decades is not counted into the surface twice" do
+      # The case the arithmetic has to get right: a work already held under a selected
+      # decade must add nothing under another, or the count would promise a holding that
+      # selecting it does not gain.
+      both = work("scan")
+      issued(both, "1959")
+      issued(both, "1964")
+
+      assert_counts_hold("decade", %{"decade" => "1950s"})
+    end
+  end
+
   describe "23. A count is of the current query, not of the catalog" do
     test "a count drops when something else narrows the surface away" do
       before = counts_for(%{})
@@ -112,18 +149,40 @@ defmodule Pluteus.Browse.CountsTest do
 
   # The whole of criterion 23: for every value offered, select it and confirm the
   # surface holds exactly what the count advertised.
-  defp assert_counts_hold(params) do
+  defp assert_counts_hold(params), do: assert_counts_hold("category", params)
+
+  defp assert_counts_hold(axis, params) do
     {:ok, query} = Query.parse("everything", params)
-    {:available, counts} = Counts.for_query(query)["category"]
+    {:available, counts} = Counts.for_query(query)[axis]
 
     assert counts != [], "no value was offered, so this asserts nothing"
 
     for {value, advertised} <- counts do
-      held = Entries.count(Query.narrow(query, "category", value))
+      held = Entries.count(Query.narrow(query, axis, value))
 
       assert held == advertised,
              "selecting #{value} left #{held} holdings where the count said #{advertised}"
     end
+  end
+
+  defp decades(params) do
+    {:ok, query} = Query.parse("everything", params)
+    {:available, counts} = Counts.for_query(query)["decade"]
+
+    Map.new(counts)
+  end
+
+  defp issued(work_id, date) do
+    [expression] = Catalog.expressions_of(work_id)
+    [manifestation] = Catalog.manifestations_of(expression.id)
+
+    {:ok, %{res: span}} =
+      Catalog.create_named_res(:time_span, %{nomen_string: date, provenance: :automatic})
+
+    {:ok, _} =
+      Catalog.associate(manifestation.id, span.id, "time-of-publication-or-manufacture")
+
+    work_id
   end
 
   defp counts_for(params) do

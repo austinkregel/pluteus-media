@@ -145,8 +145,14 @@ defmodule PluteusWeb.BrowseLiveTest do
 
       assert html =~ "Places"
       assert html =~ "gazetteer"
-      assert html =~ "Decades"
       assert html =~ "Languages"
+      assert html =~ "People"
+    end
+
+    test "an axis that can answer is not among them", %{conn: conn} do
+      {:ok, _live, html} = live(conn, ~p"/everything")
+
+      assert html =~ "By when it was made"
     end
 
     test "the place axis does not claim the household holds nothing", %{conn: conn} do
