@@ -143,16 +143,22 @@ defmodule PluteusWeb.BrowseLiveTest do
     test "each inert axis is named with its own reason", %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/everything")
 
-      assert html =~ "Places"
       assert html =~ "gazetteer"
       assert html =~ "Languages"
-      assert html =~ "People"
     end
 
-    test "an axis that can answer is not among them", %{conn: conn} do
+    test "an axis that can answer opens a band of its own", %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/everything")
 
       assert html =~ "By when it was made"
+      assert html =~ "By who and where"
+    end
+
+    test "the place that cannot be answered is said beside the people that can",
+         %{conn: conn} do
+      {:ok, _live, html} = live(conn, ~p"/everything")
+
+      assert html =~ "Places: answering where a holding was made"
     end
 
     test "the place axis does not claim the household holds nothing", %{conn: conn} do

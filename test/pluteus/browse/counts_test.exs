@@ -15,6 +15,7 @@ defmodule Pluteus.Browse.CountsTest do
   alias Pluteus.Browse.Entries
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog
+  alias Pluteus.Ingest.Credits
   alias Pluteus.Ingest.Place
   alias Pluteus.Surfaces.Registry, as: Surfaces
 
@@ -99,6 +100,36 @@ defmodule Pluteus.Browse.CountsTest do
     end
   end
 
+  describe "23. The people a holding credits count the same way" do
+    setup do
+      %{
+        miles: credited(work("album"), "Miles Davis"),
+        bill: credited(work("album"), "Bill Evans")
+      }
+    end
+
+    test "each person offered is one the catalogue credits", %{miles: miles} do
+      {:available, counts} = facet("person", %{})
+
+      assert Enum.any?(counts, &(elem(&1, 0) == miles))
+    end
+
+    test "each count is what selecting that person leaves held" do
+      assert_counts_hold("person", %{})
+    end
+
+    test "a holding credited to two people is not counted into the surface twice",
+         %{miles: miles} do
+      # A work carries as many credits as it names, so this is the multi-valued case
+      # again: already held under one, it must add nothing under the other.
+      both = work("album")
+      credited(both, "Miles Davis")
+      credited(both, "Bill Evans")
+
+      assert_counts_hold("person", %{"person" => miles})
+    end
+  end
+
   describe "23. A count is of the current query, not of the catalog" do
     test "a count drops when something else narrows the surface away" do
       before = counts_for(%{})
@@ -163,6 +194,20 @@ defmodule Pluteus.Browse.CountsTest do
       assert held == advertised,
              "selecting #{value} left #{held} holdings where the count said #{advertised}"
     end
+  end
+
+  defp facet(axis, params) do
+    {:ok, query} = Query.parse("everything", params)
+
+    Counts.for_query(query)[axis]
+  end
+
+  defp credited(work_id, name) do
+    agent = Credits.artist_for(name, nil)
+
+    Credits.record({:work, work_id}, :artist, [{name, nil}])
+
+    agent.id
   end
 
   defp decades(params) do
