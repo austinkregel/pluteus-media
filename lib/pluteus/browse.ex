@@ -1,4 +1,6 @@
 defmodule Pluteus.Browse do
+  import Ecto.Query
+
   @moduledoc """
   What a browse surface needs to render, assembled in one call.
 
@@ -25,8 +27,11 @@ defmodule Pluteus.Browse do
   alias Pluteus.Browse.Entries
   alias Pluteus.Browse.Query
   alias Pluteus.Browse.Unfinished
+  alias Pluteus.Catalog.Aggregation
+  alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Repo
 
   @typedoc """
   A rendered surface's own facts: the query it is showing, the entries it holds, how many
@@ -37,6 +42,8 @@ defmodule Pluteus.Browse do
           query: Query.t(),
           entries: [Ecto.UUID.t()],
           names: %{Ecto.UUID.t() => String.t()},
+          categories: %{Ecto.UUID.t() => String.t()},
+          members: %{Ecto.UUID.t() => non_neg_integer()},
           total: non_neg_integer(),
           catalogue: non_neg_integer(),
           facets: %{String.t() => Counts.facet()},
@@ -64,6 +71,8 @@ defmodule Pluteus.Browse do
       query: query,
       entries: entries,
       names: named(entries, profile),
+      categories: categorised(entries),
+      members: membered(entries),
       total: Entries.count(query),
       catalogue: Entries.count(Query.unnarrowed(query)),
       facets: Counts.for_query(query),
@@ -80,5 +89,38 @@ defmodule Pluteus.Browse do
     for {id, nomen} <- Resolution.resolve_many(entries, profile),
         into: %{},
         do: {id, nomen.nomen_string}
+  end
+
+  # What each entry is, so a row can carry the glyph that identifies it and the colour
+  # that groups it. The effective row, through the same subquery a narrowing and a count
+  # read, so a corrected category is corrected everywhere at once.
+  defp categorised([]), do: %{}
+
+  defp categorised(entries) do
+    Repo.all(
+      from c in subquery(Entries.effective_categories()),
+        where: c.res_id in ^entries,
+        select: {c.res_id, c.value}
+    )
+    |> Map.new()
+  end
+
+  # How many members an entry gathers. A release aggregates its tracks, and the count is
+  # what tells two releases of one album apart where their names cannot: a release that
+  # gathered one track is a file that arrived without the tag that would have joined it
+  # to its siblings, and a row saying so is the difference between a catalogue that looks
+  # wrong and one that says what happened.
+  defp membered([]), do: %{}
+
+  defp membered(entries) do
+    Repo.all(
+      from x in Expression,
+        join: a in Aggregation,
+        on: a.aggregating_expression_id == x.id,
+        where: x.work_id in ^entries,
+        group_by: x.work_id,
+        select: {x.work_id, count(a.aggregated_expression_id)}
+    )
+    |> Map.new()
   end
 end
