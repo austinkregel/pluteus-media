@@ -27,6 +27,16 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/check-circle.svg"
     },
     {
+      "path": "16/solid/chevron-left.svg",
+      "sha256": "bdf877e8155cc95391b4873df5469955607812ac40ec72308fecdb3b4eab811c",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/chevron-left.svg"
+    },
+    {
+      "path": "16/solid/chevron-right.svg",
+      "sha256": "88b75d4b372fc52e4b7c2194deb080f633574747b47534b2c9ff549969645f10",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/chevron-right.svg"
+    },
+    {
       "path": "16/solid/chevron-up-down.svg",
       "sha256": "d16ec074682013768630bffc1186a5de88714b2b35b9ac22b9dc93c318dd0245",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/chevron-up-down.svg"
@@ -60,6 +70,11 @@
       "path": "16/solid/information-circle.svg",
       "sha256": "6ae80cbd5c5459d02ea4822a3715d632bd49d010faab8ab26824aacb0a31ebd3",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/information-circle.svg"
+    },
+    {
+      "path": "16/solid/magnifying-glass.svg",
+      "sha256": "4a38114adc3ca0648db244e816f56f4b7ccd7c66914e03ea5a353f4bb94def40",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/magnifying-glass.svg"
     },
     {
       "path": "16/solid/map-pin.svg",
@@ -105,6 +120,16 @@
       "path": "16/solid/shield-check.svg",
       "sha256": "3b8fd452f099487d5a622e868e2604d02e3d55525b8a138991f27d0e32f598f7",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/shield-check.svg"
+    },
+    {
+      "path": "16/solid/speaker-wave.svg",
+      "sha256": "1259f8a7d626a076a08badda99824d5f6262a315fe41dd4c2f95e6d6320c4731",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/speaker-wave.svg"
+    },
+    {
+      "path": "16/solid/speaker-x-mark.svg",
+      "sha256": "661acec0a9474b6a5f900d95c19300085fb3ad2ccbb16491f9e82332ff32c54a",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/16/solid/speaker-x-mark.svg"
     },
     {
       "path": "16/solid/squares-2x2.svg",
@@ -157,6 +182,16 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/check-circle.svg"
     },
     {
+      "path": "20/solid/chevron-left.svg",
+      "sha256": "3ae628b509c43a6295e9866b2f51047ddd5a0f0df7b59d2eab79b8f902526c05",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/chevron-left.svg"
+    },
+    {
+      "path": "20/solid/chevron-right.svg",
+      "sha256": "7eb6620f0b0d4cbb5f19b8c5970507412357ce453beb46462a52ed0b3d5c41be",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/chevron-right.svg"
+    },
+    {
       "path": "20/solid/chevron-up-down.svg",
       "sha256": "88c20ab517b01b2763c0713044940755b4c03a72ad0fcaa87803b07a6c30a2e4",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/chevron-up-down.svg"
@@ -190,6 +225,11 @@
       "path": "20/solid/information-circle.svg",
       "sha256": "b0d0a191c30778c5cf677846243dd64c4efbec72a657d1c7ab025588bc1a0bf7",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/information-circle.svg"
+    },
+    {
+      "path": "20/solid/magnifying-glass.svg",
+      "sha256": "8a17adedd8c598f02b3bbaa015cbcc927b2bbae5f2cf9a6e5358a7fc2b4c4a18",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/magnifying-glass.svg"
     },
     {
       "path": "20/solid/map-pin.svg",
@@ -235,6 +275,16 @@
       "path": "20/solid/shield-check.svg",
       "sha256": "4716a049d531b483b50e4520c8b9bff74dbc5fa86a7527da96fef49106d1fdab",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/shield-check.svg"
+    },
+    {
+      "path": "20/solid/speaker-wave.svg",
+      "sha256": "3566feb33622edec698814dc5b734262b1e41482365e443580e4128219784693",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/speaker-wave.svg"
+    },
+    {
+      "path": "20/solid/speaker-x-mark.svg",
+      "sha256": "1413b56f4a3487cdef4bf526602a5889a48683d5b4d617e8e3a70ae88b88b4ff",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/20/solid/speaker-x-mark.svg"
     },
     {
       "path": "20/solid/squares-2x2.svg",
@@ -287,6 +337,16 @@
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/check-circle.svg"
     },
     {
+      "path": "24/outline/chevron-left.svg",
+      "sha256": "b6730529926d4e494f1115f09b7c8d32480edfd49cf02ceee0ca873a20de88ee",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/chevron-left.svg"
+    },
+    {
+      "path": "24/outline/chevron-right.svg",
+      "sha256": "db9cc118ca95a91b0ffe68dbf1052d5c5820bf5cc46b4f9f9109ac5bfc3a5fe6",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/chevron-right.svg"
+    },
+    {
       "path": "24/outline/chevron-up-down.svg",
       "sha256": "d6b1c12060e27ba6cd94041ef5df9a22169cc0b6ba30e25109c4c3060d9d7375",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/chevron-up-down.svg"
@@ -320,6 +380,11 @@
       "path": "24/outline/information-circle.svg",
       "sha256": "622b5f527d68f6e55cc0556f6720754b16273a53b0aa7c4d6f387d9e27bab076",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/information-circle.svg"
+    },
+    {
+      "path": "24/outline/magnifying-glass.svg",
+      "sha256": "3566eaf416d279baea18ebc5ccb5a9500f646a1afd42d1dc04f48581e24797eb",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/magnifying-glass.svg"
     },
     {
       "path": "24/outline/map-pin.svg",
@@ -365,6 +430,16 @@
       "path": "24/outline/shield-check.svg",
       "sha256": "db8ceec9867b8dcb63efb1da7afaf6c66729e93f0e94b4352e97d6249d83680f",
       "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/shield-check.svg"
+    },
+    {
+      "path": "24/outline/speaker-wave.svg",
+      "sha256": "ac7afd8bf01135feb569004d6010289075deaad5cac9fff4243087dd701759d6",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/speaker-wave.svg"
+    },
+    {
+      "path": "24/outline/speaker-x-mark.svg",
+      "sha256": "2b492521abd78c47eca84d3339be2c68c69a6c590e267070455c6d2394520336",
+      "url": "https://raw.githubusercontent.com/tailwindlabs/heroicons/v2.2.0/optimized/24/outline/speaker-x-mark.svg"
     },
     {
       "path": "24/outline/squares-2x2.svg",
@@ -418,9 +493,12 @@
     "squares-2x2",
     "exclamation-triangle",
     "chevron-up-down",
+    "magnifying-glass",
     "play",
     "pause",
     "queue-list",
+    "speaker-wave",
+    "speaker-x-mark",
     "arrow-path",
     "exclamation-circle",
     "information-circle",
@@ -428,7 +506,9 @@
     "bars-3",
     "bars-arrow-down",
     "shield-check",
-    "check-circle"
+    "check-circle",
+    "chevron-left",
+    "chevron-right"
   ],
   "licence": "MIT, Copyright (c) Tailwind Labs, Inc.",
   "tag": "v2.2.0"
