@@ -1412,6 +1412,26 @@ defmodule Pluteus.Ingest.PlacementTest do
       assert Repo.all(TimeSpanKey) |> Enum.map(& &1.key) |> Enum.sort() == ["1959", "1959-08"]
     end
 
+    test "a reading in several parts is dated once, not once per part", %{inbox: inbox} do
+      # Every part of a reading is an asset of one digital item under one manifestation,
+      # so each part states the same date about the same res. Writing the relation again
+      # for the second part is refused by the triple's own index, and placement would
+      # have recorded a crash and left the part unplaced.
+      placed =
+        ingest!(inbox, %{
+          "Earthsea/01.m4b" => reading(book: "Earthsea", tags: %{"date" => "1968"}),
+          "Earthsea/02.m4b" => reading(book: "Earthsea", duration: 7, tags: %{"date" => "1968"})
+        })
+
+      assert [first, second] = placed
+      assert first.digital_item_id == second.digital_item_id
+
+      reading_manifestation = Repo.get!(DigitalItem, first.digital_item_id).manifestation_id
+
+      assert [time_span] = issued(reading_manifestation)
+      assert names(time_span) == ["1968"]
+    end
+
     test "a container stating no date relates to nothing", %{inbox: inbox} do
       [track] = ingest!(inbox, %{"KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1))})
 
@@ -1753,7 +1773,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   defp ingest!(inbox, files, from \\ @t0) do
     for {path, bytes} <- files, do: drop!(inbox, path, bytes)
     ids = inbox |> acquire_settled!(from) |> acquired()
-    Place.place_due(inbox)
+    place_all!(inbox)
     ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.sort_by(& &1.inbox_path)
   end
 
