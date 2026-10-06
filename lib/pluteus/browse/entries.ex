@@ -1,17 +1,17 @@
 defmodule Pluteus.Browse.Entries do
   @moduledoc """
-  What a browse surface is a list of (spec-10 §8.1, §9.2).
+  What a browse surface is a list of.
 
-  §8.1: "A res is a browse entry where no other res in the catalog presents it", and a
-  res is presented where an aggregating work selects its expression or its manifestation
-  is a part under a whole-part relation. So a release carries the entry and its tracks do
-  not, and a complete serial manifestation carries the entry and its episodes do not.
+  A res is a browse entry where no other res in the catalog presents it, and a res is
+  presented where an aggregating work selects its expression or its manifestation is a
+  part under a whole-part relation. So a release carries the entry and its tracks do not,
+  and a complete serial manifestation carries the entry and its episodes do not.
 
   ## The entry is the work
 
-  §8.1's rule is about a res, and by its letter a work, the expression realizing it and
-  the manifestation embodying it are each an entry, since none of the three is presented
-  by the other two. Counting all three would count one holding three times, so the work
+  That rule is about a res, and by its letter a work, the expression realizing it and the
+  manifestation embodying it are each an entry, since none of the three is presented by
+  the other two. Counting all three would count one holding three times, so the work
   is what carries the entry here. That is where the evidence is: `work-category` is
   recorded on the work, which is the scheme every category facet turns on, and
   `Pluteus.Catalog.works_of_many/1` already maps any res to its work in a bounded number
@@ -28,7 +28,8 @@ defmodule Pluteus.Browse.Entries do
   `Pluteus.Catalog.category_of/2` prefers a local assignment to an automatic one and an
   automatic one to a seed, so a work corrected by a member carries two category rows.
   Matching either would put that work under two categories, and the facet counts would
-  stop summing to the total — which is the false statement §9.3 forbids. So narrowing and
+  stop summing to the total, which is a false statement about what selecting one does. So
+  narrowing and
   counting share one subquery that takes the effective row per work, and neither is free
   to decide it separately.
   """
@@ -132,7 +133,7 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
-  The axes this release can narrow on. The rest are named and inert (§9.3).
+  The axes this release can narrow on. The rest are named and inert.
   """
   @spec narrowable_axes() :: [String.t()]
   def narrowable_axes, do: ["category"]
@@ -144,11 +145,11 @@ defmodule Pluteus.Browse.Entries do
 
   defp on({axis, _values}, _query) do
     raise ArgumentError,
-          "#{inspect(axis)} is a facet axis nothing narrows by yet. " <>
-            "The axes this release narrows on are: category."
+          "#{inspect(axis)} is not a facet axis this release narrows on. " <>
+            "The axes it narrows on are: #{Enum.join(narrowable_axes(), ", ")}."
   end
 
-  # §8.1's first presenting relation, as an expression of this work being selected by an
+  # The first presenting relation, as an expression of this work being selected by an
   # aggregating one.
   defp aggregated do
     from x in Expression,
@@ -158,7 +159,7 @@ defmodule Pluteus.Browse.Entries do
       select: 1
   end
 
-  # §8.1's second, read the other way round: the work is an entry where something it
+  # The second, read the other way round: the work is an entry where something it
   # embodies is nobody's part, rather than where nothing it embodies is a part.
   defp embodies_a_whole do
     from x in Expression,
