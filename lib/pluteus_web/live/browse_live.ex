@@ -115,9 +115,54 @@ defmodule PluteusWeb.BrowseLive do
 
     <div class="flex flex-col gap-10">
       <.kinds facet={@surface.facets["category"]} />
+      <.decades facet={@surface.facets["decade"]} />
       <.unfinished doors={@surface.unfinished} />
       <.inert_axes facets={@surface.facets} />
     </div>
+    """
+  end
+
+  # Oldest first, because a decade spine read in any other order is not a spine.
+  attr :facet, :any, required: true
+
+  defp decades(%{facet: {:available, []}} = assigns) do
+    ~H"""
+    <section aria-labelledby="decades-heading">
+      <h2 id="decades-heading" class="text-title-md font-medium text-on-surface-strong">
+        By when it was made
+      </h2>
+      <p class="mt-3 text-body-md text-on-surface-muted">
+        Nothing here states when it was made.
+      </p>
+    </section>
+    """
+  end
+
+  defp decades(assigns) do
+    assigns = assign(assigns, :values, Enum.sort(elem(assigns.facet, 1)))
+
+    ~H"""
+    <section aria-labelledby="decades-heading">
+      <h2 id="decades-heading" class="text-title-md font-medium text-on-surface-strong">
+        By when it was made
+      </h2>
+      <p class="mb-3 text-body-sm text-on-surface-muted">Oldest first.</p>
+      <ul class="flex flex-wrap gap-2">
+        <li :for={{value, count} <- @values}>
+          <a
+            href={~p"/everything?#{[decade: value]}"}
+            class={[
+              "min-h-target-touch flex items-center gap-2 rounded-full px-4",
+              "border-[length:var(--sys-border-width-component)] border-border-subtle",
+              "bg-surface-raised hover:bg-surface-overlay"
+            ]}
+          >
+            <span class="text-body-md text-on-surface-strong">{value}</span>
+            <span class="font-mono text-caption text-on-surface-muted">{count}</span>
+          </a>
+        </li>
+      </ul>
+    </section>
     """
   end
 
