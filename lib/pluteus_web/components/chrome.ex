@@ -97,7 +97,7 @@ defmodule PluteusWeb.Chrome do
 
   def shell(assigns) do
     ~H"""
-    <div id="shell" phx-hook="Focus" class="min-h-dvh bg-surface-base flex flex-col">
+    <div id="shell" phx-hook="Focus" class="h-dvh overflow-hidden bg-surface-base flex flex-col">
       <div
         id="shell-announcement"
         role="status"
