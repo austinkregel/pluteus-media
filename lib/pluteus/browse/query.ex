@@ -1,9 +1,8 @@
 defmodule Pluteus.Browse.Query do
   @moduledoc """
-  What a browse surface is currently showing: a mode, and the facets narrowing it
-  (spec-10 §9.2, §9.3).
+  What a browse surface is currently showing: a mode, and the facets narrowing it.
 
-  One value is the whole of a surface's state, which is what lets §9.3's counts be
+  One value is the whole of a surface's state, which is what lets the counts be
   computed against it rather than against the catalog. Every count a surface displays
   answers the question "how many holdings would I be left with", so a count taken against
   anything but the query in hand is a false statement about what selecting it will do.
@@ -12,18 +11,18 @@ defmodule Pluteus.Browse.Query do
 
   Two values on one axis widen — a holding is shown if it is a photograph *or* a scan —
   and two axes narrow, because a person asking for photographs from the 1950s is asking
-  for both at once. §9.3's counts follow from that and are not a separate rule: the count
+  for both at once. The counts follow from that and are not a separate rule: the count
   beside a value is what the query would hold with that value added to its own axis.
 
   ## The query is the address
 
-  §9.4 requires every narrowing be reachable and removable on its own, so the query
-  round-trips through URL parameters rather than living in a socket: a narrowed surface
-  can be linked to, reloaded and gone back to. Values are comma-separated within an axis,
-  since every axis carries identifiers or registry tokens and none admits a comma.
+  Every narrowing has to be reachable and removable on its own, so the query round-trips
+  through URL parameters rather than living in a socket: a narrowed surface can be linked
+  to, reloaded and gone back to. Values are comma-separated within an axis, since every
+  axis carries identifiers or registry tokens and none admits a comma.
 
-  A facet is named by one of the axes §9.2 carries, and a parameter that names none is not
-  a facet: a surface's own paging and format parameters reach it in the same map, so this
+  A facet is named by one of the known axes, and a parameter that names none is not a
+  facet: a surface's own paging and format parameters reach it in the same map, so this
   reads the axes rather than refusing what it does not recognise, as
   `Pluteus.Catalog.DeepLink.read/2` already does with a selector's dimensions.
 
@@ -83,7 +82,7 @@ defmodule Pluteus.Browse.Query do
   @doc """
   The same query with one value gone from an axis.
 
-  §9.4 requires each narrowing be removable on its own, so this takes the one value
+  Each narrowing is removable on its own, so this takes the one value
   rather than the axis: a surface narrowed to two decades and one category loses the
   decade a person dismisses and keeps the other.
   """
@@ -93,11 +92,19 @@ defmodule Pluteus.Browse.Query do
   end
 
   @doc """
+  The same mode with nothing narrowing it.
+
+  What a narrowed surface counts against to say how much of the whole it is showing.
+  """
+  @spec unnarrowed(t()) :: t()
+  def unnarrowed(%__MODULE__{} = query), do: %{query | facets: %{}}
+
+  @doc """
   The same query with one axis carrying nothing.
 
-  What a facet's own counts are computed over. §9.3 makes the count beside a value what
-  selecting it will hold, and selecting it widens its own axis rather than replacing the
-  query, so the axis's own narrowing comes off and goes back on one value at a time.
+  What a facet's own counts are computed over. The count beside a value is what selecting
+  it will hold, and selecting it widens its own axis rather than replacing the query, so
+  the axis's own narrowing comes off and goes back on one value at a time.
   """
   @spec without(t(), String.t()) :: t()
   def without(%__MODULE__{} = query, axis), do: put(query, axis, [])
