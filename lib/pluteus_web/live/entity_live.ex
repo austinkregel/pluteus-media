@@ -34,6 +34,7 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
+  alias PluteusWeb.Chrome
   alias PluteusWeb.Native
 
   # §5.2's seven absences, each in words. A state with none raises rather than rendering
@@ -116,7 +117,26 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:placed?, is_nil(session["unit"]) or not is_nil(extent))
      |> assign(:mark, mark(session["address"], extent))
      |> assign(:whole, session["whole"])
+     |> assign(:principal_name, principal_name(principal_id, profile))
+     |> assign(:contexts, session["contexts"] || %{})
      |> assign(:announcement, "")}
+  end
+
+  # §14.1 wants the name a person recognises, and a principal's name is its person's,
+  # resolved like any other res's at the boundary. A principal with no person of its own
+  # has none, and the chrome says that rather than being handed a stand-in.
+  defp principal_name(principal_id, profile) do
+    case Repo.get(Principal, principal_id) do
+      %Principal{person_id: nil} -> nil
+      %Principal{person_id: person} -> resolved_name(person, profile)
+    end
+  end
+
+  defp resolved_name(person, profile) do
+    case Resolution.resolve_many([person], profile) do
+      %{^person => nomen} -> nomen.nomen_string
+      %{} -> nil
+    end
   end
 
   # §10.2: the region is shown on the medium and not only named — a band across the
@@ -270,188 +290,190 @@ defmodule PluteusWeb.EntityLive do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <div id="entity" phx-hook="Focus" class="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <Layouts.flash_group flash={@flash} />
+    <Chrome.shell
+      principal_name={@principal_name}
+      contexts={@contexts}
+      announcement={@announcement}
+    >
+      <div id="entity" class="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+        <Layouts.flash_group flash={@flash} />
 
-      <div
-        id="entity-announcement"
-        role="status"
-        aria-live="polite"
-        class="sr-only"
-      >
-        {@announcement}
-      </div>
+        <header class="mb-10">
+          <p class="text-body-sm text-on-surface-muted">{@noun}</p>
+          <h1 id="entity-name" class="text-title-lg font-medium text-on-surface-strong">
+            {name(@representation)}
+          </h1>
+          <p :if={composed?(@representation)} class="mt-1 text-body-sm text-on-surface-muted">
+            No name of its own
+          </p>
+        </header>
 
-      <header class="mb-10">
-        <p class="text-body-sm text-on-surface-muted">{@noun}</p>
-        <h1 id="entity-name" class="text-title-lg font-semibold text-on-surface-strong">
-          {name(@representation)}
-        </h1>
-        <p :if={composed?(@representation)} class="mt-1 text-body-sm text-on-surface-muted">
-          Named by what it is made of, since nobody has named it.
-        </p>
-      </header>
+        <section
+          :if={@action}
+          id="entity-action"
+          aria-labelledby="entity-action-heading"
+          class="mb-10"
+        >
+          <h2 id="entity-action-heading" class="sr-only">What you can do with this</h2>
 
-      <section :if={@action} id="entity-action" aria-labelledby="entity-action-heading" class="mb-10">
-        <h2 id="entity-action-heading" class="sr-only">What you can do with this</h2>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              id="entity-primary-action"
+              type="button"
+              disabled
+              aria-describedby="entity-action-why"
+              class={[
+                "rounded-full px-4 min-h-target-pointer text-body-md font-medium",
+                "bg-fill-subtle text-on-surface-muted",
+                "border-[length:var(--sys-border-width-component)] border-border-component"
+              ]}
+            >
+              {verb(@noun)}
+            </button>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <button
-            id="entity-primary-action"
-            type="button"
-            disabled
-            aria-describedby="entity-action-why"
-            class={[
-              "rounded-full px-4 min-h-target-pointer text-body-md font-semibold",
-              "bg-fill-subtle text-on-surface-muted",
-              "border-[length:var(--sys-border-width-component)] border-border-component"
-            ]}
+            <a
+              :if={@action.alternatives > 0}
+              id="entity-alternatives"
+              href="#entity-band-5"
+              class="underline text-body-sm"
+            >
+              {@action.alternatives} other {plural("version", @action.alternatives)}
+            </a>
+          </div>
+
+          <p id="entity-action-why" class="mt-2 text-body-sm text-on-surface-muted">
+            {why(@action)}
+          </p>
+
+          <p
+            :if={@action.by == :nearest and @action.alternatives > 0}
+            class="mt-1 text-body-sm text-on-surface-muted"
           >
-            {verb(@noun)}
-          </button>
+            This is the version nearest what the work itself is, rather than one you asked for.
+          </p>
+        </section>
 
-          <a
-            :if={@action.alternatives > 0}
-            id="entity-alternatives"
-            href="#entity-band-5"
-            class="underline text-body-sm"
+        <section
+          :if={@medium.picture != [] or @medium.waveform}
+          id="entity-medium"
+          aria-labelledby="entity-medium-heading"
+          class="mb-10"
+        >
+          <h2 id="entity-medium-heading" class="sr-only">The thing itself</h2>
+
+          <div :if={@medium.picture != []} class="relative">
+            <img
+              id="entity-picture"
+              src={served(@medium, List.last(@medium.picture))}
+              srcset={srcset(@medium)}
+              sizes="(min-width: 48rem) 42rem, 100vw"
+              width={List.last(@medium.picture).width}
+              height={List.last(@medium.picture).height}
+              alt=""
+              class="w-full rounded-lg bg-surface-raised"
+            />
+            <div
+              :if={@mark[:box]}
+              id="entity-region-outline"
+              aria-hidden="true"
+              class="absolute rounded-sm border-[length:var(--sys-border-width-component)] border-border-strong outline outline-offset-[-3px] outline-[color:var(--sys-color-surface-base)]"
+              style={outline(@mark[:box])}
+            >
+            </div>
+          </div>
+
+          <canvas
+            :if={@medium.waveform}
+            id="entity-waveform"
+            phx-hook="Waveform"
+            data-src={served(@medium, @medium.waveform)}
+            data-from={@mark[:span] && @mark[:span].from}
+            data-to={@mark[:span] && @mark[:span].to}
+            height="96"
+            class="mt-4 w-full rounded-lg bg-surface-raised text-on-surface-strong"
+            aria-label="The loudness of this recording over its length"
           >
-            {@action.alternatives} other {plural("version", @action.alternatives)}
+          </canvas>
+        </section>
+
+        <section
+          :if={@address}
+          id="entity-region"
+          aria-labelledby="entity-region-heading"
+          class="mb-10 rounded-lg border-[length:var(--sys-border-width-component)] border-border-strong bg-surface-raised p-4"
+        >
+          <h2
+            id="entity-region-heading"
+            class="mb-1 text-title-md font-medium text-on-surface-strong"
+          >
+            What this link points at
+          </h2>
+          <p :if={@placed?} class="text-body-md text-on-surface-strong">{said_region(@address)}</p>
+          <p :if={!@placed?} class="text-body-md text-on-surface-strong">
+            This link points at {said_region(@address)}, which cannot be shown: how much of this
+            there is has never been recorded, so the region cannot be placed within it.
+          </p>
+          <a id="entity-whole" href={@whole} class="mt-3 inline-block underline text-body-sm">
+            Leave the region and see the whole
           </a>
-        </div>
+        </section>
 
-        <p id="entity-action-why" class="mt-2 text-body-sm text-on-surface-muted">
-          {why(@action)}
-        </p>
+        <section :if={facts(@representation) != []} aria-labelledby="entity-facts" class="mb-10">
+          <h2 id="entity-facts" class="mb-2 text-title-md font-medium text-on-surface-strong">
+            Facts
+          </h2>
+          <dl class="divide-y divide-border-subtle">
+            <div :for={{name, field} <- facts(@representation)} class="flex gap-4 py-2">
+              <dt class="w-48 shrink-0 text-body-sm text-on-surface-muted">{name}</dt>
+              <dd class="text-body-sm text-on-surface-strong">
+                <.value field={field} />
+              </dd>
+            </div>
+          </dl>
+        </section>
 
-        <p
-          :if={@action.by == :nearest and @action.alternatives > 0}
-          class="mt-1 text-body-sm text-on-surface-muted"
+        <.band
+          :for={{band, heading} <- [{5, "Structure"}, {6, "Connections"}]}
+          id={"entity-band-#{band}"}
+          heading={heading}
+          rows={in_band(@representation, band)}
+          addresses={@addresses}
+        />
+
+        <section
+          :if={@annotations.authored != [] or @annotations.derived != []}
+          id="entity-annotations"
+          aria-labelledby="entity-annotations-heading"
+          class="mb-10"
         >
-          This is the version nearest what the work itself is, rather than one you asked for.
-        </p>
-      </section>
-
-      <section
-        :if={@medium.picture != [] or @medium.waveform}
-        id="entity-medium"
-        aria-labelledby="entity-medium-heading"
-        class="mb-10"
-      >
-        <h2 id="entity-medium-heading" class="sr-only">The thing itself</h2>
-
-        <div :if={@medium.picture != []} class="relative">
-          <img
-            id="entity-picture"
-            src={served(@medium, List.last(@medium.picture))}
-            srcset={srcset(@medium)}
-            sizes="(min-width: 48rem) 42rem, 100vw"
-            width={List.last(@medium.picture).width}
-            height={List.last(@medium.picture).height}
-            alt=""
-            class="w-full rounded-lg bg-surface-raised"
-          />
-          <div
-            :if={@mark[:box]}
-            id="entity-region-outline"
-            aria-hidden="true"
-            class="absolute rounded-sm border-[length:var(--sys-border-width-component)] border-border-strong outline outline-offset-[-3px] outline-[color:var(--sys-color-surface-base)]"
-            style={outline(@mark[:box])}
+          <h2
+            id="entity-annotations-heading"
+            class="mb-2 text-title-md font-medium text-on-surface-strong"
           >
-          </div>
-        </div>
+            What has been said about this
+          </h2>
 
-        <canvas
-          :if={@medium.waveform}
-          id="entity-waveform"
-          phx-hook="Waveform"
-          data-src={served(@medium, @medium.waveform)}
-          data-from={@mark[:span] && @mark[:span].from}
-          data-to={@mark[:span] && @mark[:span].to}
-          height="96"
-          class="mt-4 w-full rounded-lg bg-surface-raised text-on-surface-strong"
-          aria-label="The loudness of this recording over its length"
-        >
-        </canvas>
-      </section>
+          <ul class="divide-y divide-border-subtle">
+            <li :for={%{annotation: annotation, by: by} <- @annotations.authored} class="py-3">
+              <p class="text-body-sm text-on-surface-strong">{said(annotation.body)}</p>
+              <p class="text-caption text-on-surface-muted">
+                {annotation.body_type} · {attribution(by)}
+              </p>
+            </li>
 
-      <section
-        :if={@address}
-        id="entity-region"
-        aria-labelledby="entity-region-heading"
-        class="mb-10 rounded-lg border-[length:var(--sys-border-width-component)] border-border-strong bg-surface-raised p-4"
-      >
-        <h2
-          id="entity-region-heading"
-          class="mb-1 text-title-sm font-semibold text-on-surface-strong"
-        >
-          What this link points at
-        </h2>
-        <p :if={@placed?} class="text-body-md text-on-surface-strong">{said_region(@address)}</p>
-        <p :if={!@placed?} class="text-body-md text-on-surface-strong">
-          This link points at {said_region(@address)}, which cannot be shown: how much of this
-          there is has never been recorded, so the region cannot be placed within it.
-        </p>
-        <a id="entity-whole" href={@whole} class="mt-3 inline-block underline text-body-sm">
-          Leave the region and see the whole
-        </a>
-      </section>
-
-      <section :if={facts(@representation) != []} aria-labelledby="entity-facts" class="mb-10">
-        <h2 id="entity-facts" class="mb-2 text-title-sm font-semibold text-on-surface-strong">
-          Facts
-        </h2>
-        <dl class="divide-y divide-border-subtle">
-          <div :for={{name, field} <- facts(@representation)} class="flex gap-4 py-2">
-            <dt class="w-48 shrink-0 text-body-sm text-on-surface-muted">{name}</dt>
-            <dd class="text-body-sm text-on-surface-strong">
-              <.value field={field} />
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section
-        :if={@annotations.authored != [] or @annotations.derived != []}
-        id="entity-annotations"
-        aria-labelledby="entity-annotations-heading"
-        class="mb-10"
-      >
-        <h2
-          id="entity-annotations-heading"
-          class="mb-2 text-title-sm font-semibold text-on-surface-strong"
-        >
-          What has been said about this
-        </h2>
-
-        <ul class="divide-y divide-border-subtle">
-          <li :for={%{annotation: annotation, by: by} <- @annotations.authored} class="py-3">
-            <p class="text-body-sm text-on-surface-strong">{said(annotation.body)}</p>
-            <p class="text-caption text-on-surface-muted">
-              {annotation.body_type} · {attribution(by)}
-            </p>
-          </li>
-
-          <li
-            :for={%{annotation: annotation, tool: tool, version: version} <- @annotations.derived}
-            class="py-3"
-          >
-            <p class="text-body-sm text-on-surface-strong">{said(annotation.body)}</p>
-            <p class="text-caption text-on-surface-muted">
-              {annotation.body_type} · {tool} {version}
-            </p>
-          </li>
-        </ul>
-      </section>
-
-      <.band
-        :for={{band, heading} <- [{5, "Structure"}, {6, "Connections"}]}
-        id={"entity-band-#{band}"}
-        heading={heading}
-        rows={in_band(@representation, band)}
-        addresses={@addresses}
-      />
-    </div>
+            <li
+              :for={%{annotation: annotation, tool: tool, version: version} <- @annotations.derived}
+              class="py-3"
+            >
+              <p class="text-body-sm text-on-surface-strong">{said(annotation.body)}</p>
+              <p class="text-caption text-on-surface-muted">
+                {annotation.body_type} · {tool} {version}
+              </p>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </Chrome.shell>
     """
   end
 
@@ -463,7 +485,7 @@ defmodule PluteusWeb.EntityLive do
   defp band(assigns) do
     ~H"""
     <section :if={@rows != []} aria-labelledby={@id} class="mb-10">
-      <h2 id={@id} class="mb-2 text-title-sm font-semibold text-on-surface-strong">{@heading}</h2>
+      <h2 id={@id} class="mb-2 text-title-md font-medium text-on-surface-strong">{@heading}</h2>
       <dl class="divide-y divide-border-subtle">
         <div :for={{label, field} <- @rows} class="flex gap-4 py-2">
           <dt class="w-48 shrink-0 text-body-sm text-on-surface-muted">{label}</dt>
