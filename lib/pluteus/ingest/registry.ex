@@ -54,6 +54,18 @@ defmodule Pluteus.Ingest.Registry do
     end)
   end
 
+  @doc """
+  Every companion kind a pattern can answer with.
+
+  `companion_kind/2` returns one of these or nil, so this is the whole of what a
+  companion may be. What each kind owes elsewhere — a category default, an association
+  refinement — is checked against this list rather than against a copy of it.
+  """
+  @spec companion_kinds() :: [String.t()]
+  def companion_kinds do
+    registry()["companions"] |> Enum.map(& &1["kind"]) |> Enum.uniq() |> Enum.sort()
+  end
+
   # A pattern names a file by its extension, narrowed to a set of base names where
   # it gives one; by a suffix, where the extension is not the whole of what names
   # it; or by the whole file name, for a dot file that has no extension to match.
