@@ -153,7 +153,7 @@ defmodule Pluteus.Ingest.Place do
 
     outcome =
       Actor.as(Principals.system!().id, fn ->
-        contended_rows_in_order()
+        contended_rows_in_order(acquisition)
 
         case place_by_class(acquisition) do
           :placed -> :placed
@@ -170,19 +170,30 @@ defmodule Pluteus.Ingest.Place do
   # what makes one release out of two tracks, and two that took them in different orders
   # would deadlock instead of queueing.
   #
-  # The order every placement keeps is: the tool version, then its one grouping key — a
-  # release, a serial or a narration — then the artist keys its credits name, then the
-  # time-span key for the date its container states. `locked!/3` holds a placement to it,
-  # taking the key's lock on the read, since an insert that conflicts locks nothing and
-  # the row may already be there.
+  # The order every placement keeps is: the tool version, then the time-span key for the
+  # date its container states, then its one grouping key — a release, a serial or a
+  # narration — then the artist keys its credits name. `locked!/3` holds a placement to
+  # it, taking the key's lock on the read, since an insert that conflicts locks nothing
+  # and the row may already be there.
   #
-  # The time-span key comes last because it is taken where a holding's manifestation is
-  # carried, which every path reaches after it has credited everyone.
+  # The two that do not depend on the catalog are taken here, before anything is written.
+  # The tool version comes first because a placement of a file carrying no streams would
+  # otherwise never take it at all. The time-span key is second, and it has to be here
+  # rather than where the date is recorded: a date is shared by every holding issued then,
+  # so it is as contended as an artist is, and taking it after the artist keys put the two
+  # in both orders across concurrent placements. That deadlocked.
   #
-  # The tool version is taken first because a placement of a file carrying no streams
-  # would otherwise never take it at all.
-  defp contended_rows_in_order do
+  # It is the whole transaction's order rather than one placement's. Several placements
+  # inside one transaction hold what each of them took, so a later one asking for a row
+  # in a different order than an earlier one is the same cycle.
+  defp contended_rows_in_order(acquisition) do
     {:ok, _} = Annotations.record_tool_version("ffprobe", Streams.ffprobe_version())
+
+    case issued_date(acquisition) do
+      nil -> :ok
+      date -> time_span_for(date)
+    end
+
     :ok
   end
 
@@ -708,15 +719,21 @@ defmodule Pluteus.Ingest.Place do
   # rather than wrong, and [spec-10] §5.2 is what says so on a surface. Nothing here
   # consults the file's own timestamp, which spec-04 §4.5 forbids as evidence: it records
   # when the bytes were last written and a copy resets it.
+  # The span itself was established before anything was written, where the order
+  # placements keep puts it, so this reads the one that is already there.
   defp record_issue_date(acquisition, manifestation_id) do
-    case Streams.date(embedded_tags(acquisition), Registry.issued_by()) do
-      nil ->
-        :ok
-
-      date ->
-        relate(manifestation_id, time_span_for(date))
+    case issued_date(acquisition) do
+      nil -> :ok
+      date -> relate(manifestation_id, Repo.get!(TimeSpanKey, date).time_span_id)
     end
   end
+
+  @doc """
+  The date a holding's container states it was issued, or nil where it states none.
+  """
+  @spec issued_date(Acquisition.t()) :: String.t() | nil
+  def issued_date(acquisition),
+    do: Streams.date(embedded_tags(acquisition), Registry.issued_by())
 
   # A reading in several parts is one manifestation carrying an asset per part, so every
   # part states the same date about the same res and the relation is already there by the
@@ -733,8 +750,8 @@ defmodule Pluteus.Ingest.Place do
   end
 
   # Joins the time-span holding the date, or creates it, as `release_for/4` joins a
-  # release. Taken after a placement's grouping key and its artist keys, which is where
-  # every path reaches it, so two placements queue on it rather than deadlocking.
+  # release, and held for the rest of the transaction so two placements stating one date
+  # queue on it rather than each making a span of its own.
   #
   # A span whose res has since been recycled or purged no longer dates anything, and a
   # new span takes the date over.
