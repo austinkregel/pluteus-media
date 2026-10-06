@@ -27,6 +27,7 @@ defmodule PluteusWeb.BrowseLive do
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
+  alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Chrome
 
   @impl Phoenix.LiveView
@@ -185,21 +186,75 @@ defmodule PluteusWeb.BrowseLive do
   end
 
   defp kinds(%{facet: {:available, _values}} = assigns) do
-    assigns = assign(assigns, :values, Enum.sort_by(elem(assigns.facet, 1), &(-elem(&1, 1))))
+    values = Enum.sort_by(elem(assigns.facet, 1), &(-elem(&1, 1)))
+    most = values |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> 0 end)
+
+    assigns = assigns |> assign(:values, values) |> assign(:most, most)
 
     ~H"""
     <section aria-labelledby="kinds-heading">
-      <h2 id="kinds-heading" class="mb-3 text-title-md font-medium text-on-surface-strong">
-        Kinds
-      </h2>
-      <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      <h2 id="kinds-heading" class="text-title-md font-medium text-on-surface-strong">By kind</h2>
+      <p class="mb-3 text-body-sm text-on-surface-muted">Most held first.</p>
+      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <li :for={{value, count} <- @values}>
-          <.door at={~p"/everything?#{[category: value]}"} label={noun(value)} count={count} />
+          <.kind value={value} count={count} share={share(count, @most)} />
         </li>
       </ul>
     </section>
     """
   end
+
+  # The glyph says which category this is and the colour says which broad class it
+  # belongs to, so the two carriers answer different questions and neither is decoration.
+  # The bar is the same hue and says how much is behind the door, which is what the eye
+  # is comparing once the doors are ordered by count.
+  attr :value, :string, required: true
+  attr :count, :integer, required: true
+  attr :share, :integer, required: true
+
+  defp kind(assigns) do
+    assigns = assign(assigns, :mark, Surfaces.category_icon(assigns.value))
+
+    ~H"""
+    <a
+      href={~p"/everything?#{[category: @value]}"}
+      class={[
+        "flex flex-col gap-3 rounded-md p-4",
+        "border-[length:var(--sys-border-width-component)] border-border-strong",
+        "bg-surface-raised hover:bg-surface-overlay"
+      ]}
+    >
+      <span class="flex items-center gap-3">
+        <.icon name={@mark.glyph} class={hue(@mark.class)} />
+        <span class="grow text-body-md text-on-surface-strong">{@mark.name}</span>
+        <span class="text-title-sm text-on-surface-strong">{@count}</span>
+      </span>
+      <span class="block h-1 overflow-hidden rounded-full bg-surface-overlay">
+        <span class={["block h-full", bar(@mark.class)]} style={"width: #{@share}%"}></span>
+      </span>
+    </a>
+    """
+  end
+
+  defp share(_count, 0), do: 0
+  defp share(count, most), do: round(count / most * 100)
+
+  # Complete literals, because a class built from a value is invisible to the stylesheet
+  # build and generates no rule: the element would render with no colour at all and
+  # nothing would report it.
+  defp hue("video"), do: "text-class-video"
+  defp hue("audio"), do: "text-class-audio"
+  defp hue("image"), do: "text-class-image"
+  defp hue("text"), do: "text-class-text"
+  defp hue("software"), do: "text-class-software"
+  defp hue("package"), do: "text-class-package"
+
+  defp bar("video"), do: "bg-class-video"
+  defp bar("audio"), do: "bg-class-audio"
+  defp bar("image"), do: "bg-class-image"
+  defp bar("text"), do: "bg-class-text"
+  defp bar("software"), do: "bg-class-software"
+  defp bar("package"), do: "bg-class-package"
 
   # One door reports no figure. That is deliberate rather than an omission: a count of
   # what one person has looked at is the first thing on a surface another could hold
@@ -311,14 +366,4 @@ defmodule PluteusWeb.BrowseLive do
   end
 
   defp slug(label), do: label |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, "-")
-
-  # The model's own vocabulary is never shown, so a category reaches a surface as
-  # the noun a person would use for it. Only the first character is raised:
-  # `String.capitalize/1` lowers everything after it, which would undo a value carrying a
-  # proper noun.
-  defp noun(category) do
-    <<first::utf8, rest::binary>> = String.replace(category, "_", " ")
-
-    String.upcase(<<first::utf8>>) <> rest
-  end
 end
