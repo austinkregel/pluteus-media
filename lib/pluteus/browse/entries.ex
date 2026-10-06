@@ -40,6 +40,7 @@ defmodule Pluteus.Browse.Entries do
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Category
+  alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.ManifestationPart
@@ -172,10 +173,25 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
+  The agents each work credits.
+
+  A credit names the work it is a credit on, so a release is reached by the artist it is
+  credited to and a track by its own. A track is not an entry — its release presents it —
+  so what a browse surface sees through this is the artist a release is credited to.
+  """
+  @spec creditors() :: Ecto.Query.t()
+  def creditors do
+    from c in Credit,
+      where: not is_nil(c.work_id),
+      distinct: true,
+      select: %{res_id: c.work_id, value: type(c.agent_id, :string)}
+  end
+
+  @doc """
   The axes this release can narrow on. The rest are named and inert.
   """
   @spec narrowable_axes() :: [String.t()]
-  def narrowable_axes, do: ["category", "decade"]
+  def narrowable_axes, do: ["category", "decade", "person"]
 
   @doc """
   Each value of an axis with how many of a selection carry it.
@@ -195,10 +211,11 @@ defmodule Pluteus.Browse.Entries do
 
   defp values_of("category"), do: effective_categories()
   defp values_of("decade"), do: decades()
+  defp values_of("person"), do: creditors()
 
   # Disjunctive within the axis: a work carrying any of the values is held. Matched
   # through a subquery rather than a join, so a work carrying two of them is held once.
-  defp on({axis, values}, query) when axis in ["category", "decade"] do
+  defp on({axis, values}, query) when axis in ["category", "decade", "person"] do
     carrying =
       from v in subquery(values_of(axis)), where: v.value in ^values, select: v.res_id
 
