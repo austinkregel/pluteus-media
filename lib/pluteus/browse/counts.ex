@@ -44,7 +44,6 @@ defmodule Pluteus.Browse.Counts do
 
   alias Pluteus.Browse.Entries
   alias Pluteus.Browse.Query
-  alias Pluteus.Repo
   alias Pluteus.Surfaces.Registry, as: Surfaces
 
   @typedoc """
@@ -67,31 +66,41 @@ defmodule Pluteus.Browse.Counts do
       else: {:inert, inert(axis)}
   end
 
-  defp counted("category", browse) do
-    selected = Query.on(browse, "category")
-    shares = shares(Query.without(browse, "category"))
+  defp counted(axis, browse) do
+    selected = Query.on(browse, axis)
+    adds = adds(axis, browse, selected)
     held = if selected == [], do: 0, else: Entries.count(browse)
 
-    (Map.keys(shares) ++ selected)
+    (Map.keys(adds) ++ selected)
     |> Enum.uniq()
     |> Enum.sort()
     |> Enum.map(fn value ->
-      own = if value in selected, do: 0, else: Map.get(shares, value, 0)
+      own = if value in selected, do: 0, else: Map.get(adds, value, 0)
 
       {value, held + own}
     end)
   end
 
-  # Each value's own share of the selection the axis does not narrow. One query for the
-  # axis, which is what keeps a surface's cost independent of how many values it offers.
-  defp shares(%Query{} = widened) do
+  # What each value would add to what is already held: its share of the selection this
+  # axis does not narrow, less whatever that selection already holds.
+  #
+  # Subtracting is what makes this right for an axis a work can carry twice. A work in
+  # two decades, one of them selected, is already held — counting it again under the
+  # other would promise a holding the selection would not gain. Where a work carries one
+  # value there is nothing to subtract and this is the plain share.
+  defp adds(axis, browse, selected) do
     Entries.base()
-    |> Entries.narrow(widened)
-    |> Entries.with_category()
-    |> group_by([category: c], c.value)
-    |> select([work: w, category: c], {c.value, count(w.id)})
-    |> Repo.all()
-    |> Map.new()
+    |> Entries.narrow(Query.without(browse, axis))
+    |> except(browse, selected)
+    |> then(&Entries.distribution(axis, &1))
+  end
+
+  defp except(selection, _browse, []), do: selection
+
+  defp except(selection, browse, _selected) do
+    held = from w in Entries.narrow(Entries.base(), browse), select: w.id
+
+    from [work: w] in selection, where: w.id not in subquery(held)
   end
 
   # Stated per axis rather than from one sentence, because the axes do not answer nothing
@@ -102,8 +111,6 @@ defmodule Pluteus.Browse.Counts do
     do:
       "answering where a holding was made needs a gazetteer to reach a named place from " <>
         "a coordinate, and this deployment holds none"
-
-  defp inert("decade"), do: "no facet is taken on when a holding was made"
 
   defp inert("language"),
     do: "no facet is taken on the languages a holding's expressions are in"
