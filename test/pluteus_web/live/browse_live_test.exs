@@ -161,7 +161,7 @@ defmodule PluteusWeb.BrowseLiveTest do
       {:ok, _live, html} = live(conn, ~p"/everything")
 
       assert html =~ ~s|href="/everything"|
-      assert html =~ "It has no surface yet."
+      assert html =~ "This deployment serves no surface for it."
     end
 
     test "every mode with an address is reachable at phone width too", %{conn: conn} do

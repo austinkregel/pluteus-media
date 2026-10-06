@@ -30,7 +30,6 @@ defmodule PluteusWeb.Chrome do
   use PluteusWeb, :html
 
   alias Pluteus.Browse.Query
-  alias PluteusWeb.Layouts
 
   # Each glyph is the whole name of the drawing at the band the chrome renders it in.
   # A.9.5 admits no name assembled at a call site, because a class or a name built at run
@@ -109,12 +108,7 @@ defmodule PluteusWeb.Chrome do
       </div>
 
       <div class="flex flex-1 min-h-0">
-        <.rail
-          principal_name={@principal_name}
-          contexts={@contexts}
-          mode={@mode}
-          query={@query}
-        />
+        <.rail principal_name={@principal_name} mode={@mode} query={@query} />
 
         <div class="flex flex-1 min-w-0 flex-col">
           <.top_bar principal_name={@principal_name} />
@@ -132,9 +126,8 @@ defmodule PluteusWeb.Chrome do
   end
 
   # The rail at 768px and above. Below it the same vocabulary is a top bar and a tab bar,
-  # so nothing is reachable in one and not the other (§9.2).
+  # so nothing is reachable in one and not the other.
   attr :principal_name, :string, default: nil
-  attr :contexts, :map, required: true
   attr :mode, :string, default: nil
   attr :query, :any, default: nil
 
@@ -144,40 +137,37 @@ defmodule PluteusWeb.Chrome do
       id="rail"
       aria-label="Modes and the current query"
       class={[
-        "hidden md:flex w-60 shrink-0 flex-col gap-6 overflow-y-auto",
+        "hidden md:flex w-60 shrink-0 flex-col overflow-y-auto",
         "border-r-[length:var(--sys-border-width-hairline)] border-border-subtle",
-        "bg-surface-raised px-4 py-6"
+        "bg-surface-raised"
       ]}
     >
-      <.identity principal_name={@principal_name} />
+      <div class="flex h-16 shrink-0 items-center px-4">
+        <span class="text-title-sm font-medium text-on-surface-strong">Pluteus</span>
+      </div>
 
       <.search />
 
-      <ul class="flex flex-col gap-1">
-        <li :for={{slug, noun, glyph, what, at} <- modes()}>
-          <.mode
-            slug={slug}
-            noun={noun}
-            glyph={glyph}
-            what={what}
-            at={at}
-            current={@mode == slug}
-          />
-        </li>
-      </ul>
+      <div class="flex flex-col gap-0.5 px-3">
+        <.mode
+          :for={{slug, noun, glyph, what, at} <- modes()}
+          slug={slug}
+          noun={noun}
+          glyph={glyph}
+          what={what}
+          at={at}
+          current={@mode == slug}
+        />
+      </div>
 
       <.narrowed_by query={@query} />
 
-      <.findings_link />
+      <div class="grow"></div>
 
-      <details class="mt-auto">
-        <summary class="min-h-target-pointer flex items-center text-body-sm text-on-surface-muted">
-          How this looks
-        </summary>
-        <div class="pt-3">
-          <Layouts.context_controls contexts={@contexts} />
-        </div>
-      </details>
+      <div class="flex flex-col gap-3 px-4 pb-4">
+        <.findings_link />
+        <.identity principal_name={@principal_name} />
+      </div>
     </nav>
     """
   end
@@ -247,25 +237,27 @@ defmodule PluteusWeb.Chrome do
 
   def identity(assigns) do
     ~H"""
-    <div class="flex items-center gap-3">
-      <span class="text-body-sm text-on-surface-muted">Acting as</span>
-      <span id="identity-principal" class="text-body-md font-medium text-on-surface-strong">
-        {@principal_name || "a principal with no person of its own"}
+    <div class={[
+      "flex items-center gap-3 pt-4",
+      "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle"
+    ]}>
+      <span id="identity-principal" class="grow truncate text-body-md text-on-surface-strong">
+        Acting as {@principal_name}
       </span>
       <button
         type="button"
         disabled
+        aria-label={"Acting as #{@principal_name}. Switch principal."}
         aria-describedby="identity-switch-why"
         class={[
-          "ml-auto min-h-target-pointer min-w-target-pointer flex items-center justify-center",
+          "shrink-0 min-h-target-pointer min-w-target-pointer flex items-center justify-center",
           "rounded-md text-on-surface-muted disabled:opacity-100"
         ]}
       >
         <.icon name="hero-chevron-up-down-mini" />
-        <span class="sr-only">Switch principal</span>
       </button>
       <p id="identity-switch-why" class="sr-only">
-        Switching goes through the identity provider, which this deployment does not yet ask.
+        Switching goes through the identity provider, and this deployment has no route to it.
       </p>
     </div>
     """
@@ -275,7 +267,7 @@ defmodule PluteusWeb.Chrome do
   # so rather than reaching a browse results page, which criterion 52 forbids it sharing.
   defp search(assigns) do
     ~H"""
-    <div>
+    <div class="px-4 pb-4">
       <label for="rail-search" class="sr-only">Search every name a thing carries</label>
       <div class="relative">
         <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted">
@@ -294,8 +286,8 @@ defmodule PluteusWeb.Chrome do
           ]}
         />
       </div>
-      <p id="rail-search-why" class="mt-1 text-caption text-on-surface-muted">
-        Search has no surface yet.
+      <p id="rail-search-why" class="sr-only">
+        Search has a surface of its own, and this deployment serves none.
       </p>
     </div>
     """
@@ -321,7 +313,7 @@ defmodule PluteusWeb.Chrome do
       <span>{@noun}</span>
     </button>
     <p id={"mode-#{@slug}-why"} class="sr-only">
-      {@noun} shows {@what}. It has no surface yet.
+      {@noun} shows {@what}. This deployment serves no surface for it.
     </p>
     """
   end
@@ -347,9 +339,8 @@ defmodule PluteusWeb.Chrome do
     ]
   end
 
-  # §16.1 puts the findings link on every surface. The count is what phase 5's counting
-  # context answers, so the link carries the words alone until it can carry a number
-  # rather than carrying one nobody computed.
+  # The findings link is on every surface. It carries the words alone rather than a
+  # number nobody computed.
   defp findings_link(assigns) do
     ~H"""
     <a
@@ -438,7 +429,7 @@ defmodule PluteusWeb.Chrome do
       <span>{@noun}</span>
     </button>
     <p id={"tab-#{@slug}-why"} class="sr-only">
-      {@noun} shows {@what}. It has no surface yet.
+      {@noun} shows {@what}. This deployment serves no surface for it.
     </p>
     """
   end
@@ -460,8 +451,8 @@ defmodule PluteusWeb.Chrome do
     ]
   end
 
-  # §12.3's transport. Nothing plays yet, so its empty rendering is what is drawn, which
-  # A.9.2 makes a required rendering rather than a state to leave until later.
+  # The transport. Its empty rendering is a rendering the component owes, not a state to
+  # leave out: a floor that appears only once something plays moves the whole surface.
   defp transport(assigns) do
     ~H"""
     <div
