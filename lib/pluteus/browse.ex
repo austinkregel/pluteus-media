@@ -44,6 +44,7 @@ defmodule Pluteus.Browse do
           names: %{Ecto.UUID.t() => String.t()},
           categories: %{Ecto.UUID.t() => String.t()},
           members: %{Ecto.UUID.t() => non_neg_integer()},
+          labels: %{String.t() => String.t()},
           total: non_neg_integer(),
           catalogue: non_neg_integer(),
           facets: %{String.t() => Counts.facet()},
@@ -66,8 +67,10 @@ defmodule Pluteus.Browse do
   @spec surface(Query.t(), Ecto.UUID.t(), Profile.t(), pos_integer()) :: surface()
   def surface(%Query{} = query, principal_id, %Profile{} = profile, limit \\ 60) do
     entries = Entries.ids(query, limit)
+    facets = Counts.for_query(query)
 
     %{
+      labels: labelled(facets, profile),
       query: query,
       entries: entries,
       names: named(entries, profile),
@@ -75,7 +78,7 @@ defmodule Pluteus.Browse do
       members: membered(entries),
       total: Entries.count(query),
       catalogue: Entries.count(Query.unnarrowed(query)),
-      facets: Counts.for_query(query),
+      facets: facets,
       unfinished: Unfinished.for_principal(principal_id)
     }
   end
@@ -89,6 +92,23 @@ defmodule Pluteus.Browse do
     for {id, nomen} <- Resolution.resolve_many(entries, profile),
         into: %{},
         do: {id, nomen.nomen_string}
+  end
+
+  # A facet value that is an identifier reaches a person as the name it is known by. The
+  # names come through resolution under the requesting principal's own profile, for the
+  # same reason a row's does.
+  defp labelled(facets, profile) do
+    case facets["person"] do
+      {:available, [_one | _more] = values} ->
+        ids = Enum.map(values, &elem(&1, 0))
+
+        for {id, nomen} <- Resolution.resolve_many(ids, profile),
+            into: %{},
+            do: {id, nomen.nomen_string}
+
+      _nothing_identified ->
+        %{}
+    end
   end
 
   # The effective category, through the subquery a narrowing and a count also read.
