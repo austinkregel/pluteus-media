@@ -1,6 +1,8 @@
 defmodule PluteusWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :pluteus
 
+  alias Pluteus.Design.Faces
+
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
@@ -23,6 +25,14 @@ defmodule PluteusWeb.Endpoint do
   socket "/socket", PluteusWeb.ClientSocket,
     websocket: [connect_info: [:x_headers]],
     longpoll: false
+
+  # The vendored faces, from where the vendor task writes them rather than from a copy
+  # under priv/static. One set of bytes, beside the licences that must travel with them.
+  plug Plug.Static,
+    at: "/fonts",
+    from: {:pluteus, "priv/fonts"},
+    gzip: false,
+    only: Faces.files()
 
   # Serve at "/" the static files from "priv/static" directory.
   #
