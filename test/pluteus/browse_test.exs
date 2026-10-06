@@ -17,6 +17,7 @@ defmodule Pluteus.BrowseTest do
   alias Pluteus.Browse
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Profile
   alias Pluteus.Ingest.Place
   alias Pluteus.Principals
 
@@ -39,16 +40,17 @@ defmodule Pluteus.BrowseTest do
     end
 
     test "the cost is stated, so a change to it has to be meant", %{principal: principal} do
-      # Eight at the time of writing: the entries, their total, the facet distribution,
-      # this principal's own looking and the works it names, the overdue holdings, the
-      # undated ones and the undecided pairs.
+      # Twelve at the time of writing: the entries and their names, the query's total and
+      # the whole catalogue's, the facet distribution, this principal's own looking and
+      # the works it names, the overdue holdings, the undated ones and the undecided
+      # pairs.
       #
       # A bound rather than that exact figure, since a query added for a reason is not a
       # defect. What would be is one creeping in unnoticed, which this catches by failing
       # with the new number.
       holdings(5, "photograph")
 
-      assert cost(principal) <= 10, "a render now costs #{cost(principal)} queries"
+      assert cost(principal) <= 14, "a render now costs #{cost(principal)} queries"
     end
 
     test "the cost does not grow with how many values a facet offers",
@@ -96,7 +98,7 @@ defmodule Pluteus.BrowseTest do
       holdings(10, "photograph")
 
       {:ok, query} = Query.parse("everything", %{})
-      surface = Browse.surface(query, principal.id, 4)
+      surface = Browse.surface(query, principal.id, %Profile{}, 4)
 
       assert [_one, _two, _three, _four] = surface.entries
       assert surface.total == 10
@@ -106,7 +108,7 @@ defmodule Pluteus.BrowseTest do
       holdings(1, "photograph")
 
       {:ok, query} = Query.parse("everything", %{})
-      surface = Browse.surface(query, principal.id)
+      surface = Browse.surface(query, principal.id, %Profile{})
 
       assert map_size(surface.facets) == 5
       assert [_looking, _unverified, _undated, _undecided] = surface.unfinished
@@ -117,7 +119,7 @@ defmodule Pluteus.BrowseTest do
   defp cost(principal, limit \\ 60, params \\ %{}) do
     {:ok, query} = Query.parse("everything", params)
 
-    queries_during(fn -> Browse.surface(query, principal.id, limit) end) |> length()
+    queries_during(fn -> Browse.surface(query, principal.id, %Profile{}, limit) end) |> length()
   end
 
   defp holdings(count, category) do

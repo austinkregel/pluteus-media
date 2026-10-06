@@ -115,11 +115,11 @@ defmodule Pluteus.Browse.EntriesTest do
       assert summed == count(%{})
     end
 
-    test "an axis nothing narrows by yet raises rather than listing everything" do
+    test "an axis this release does not narrow on raises rather than listing everything" do
       # Answering an unnarrowed surface would state a narrowing that did not happen.
       {:ok, query} = Query.parse("everything", %{"decade" => "1950"})
 
-      assert_raise ArgumentError, ~r/nothing narrows by yet/, fn ->
+      assert_raise ArgumentError, ~r/not a facet axis this release narrows on/, fn ->
         Entries.count(query)
       end
     end
