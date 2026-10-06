@@ -2,10 +2,13 @@ defmodule Pluteus.Ingest.LockOrderTest do
   @moduledoc """
   The order a placement takes the rows two placements contend for (spec-04 §6.1).
 
-  Two placements running at once meet on a grouping key and on the artist keys their
-  credits name. Taking them in one order is what makes them queue; taking them in two
-  orders is a deadlock, and the pair that would deadlock are a placement creating a
-  release and a placement joining one whose release has gone.
+  Two placements running at once meet on a grouping key, on the artist keys their credits
+  name, and on the time-span key for the date their containers state. Taking them in one
+  order is what makes them queue; taking them in two orders is a deadlock.
+
+  The order is the transaction's rather than one placement's, because several placements
+  in one transaction hold what each of them took: a later one asking for a row in a
+  different order than an earlier one closes the same cycle.
 
   Not async: the assertion is over every query the repo ran, and a test running beside it
   would put its own there too.
@@ -47,12 +50,41 @@ defmodule Pluteus.Ingest.LockOrderTest do
     assert held < artist, "the artist key was taken before the release key was held"
   end
 
+  test "a time-span key is held before any artist key is taken", %{inbox: inbox} do
+    # A date is shared by every holding issued then, so it is as contended as an artist
+    # is. Taking it where the date was recorded put it after the artist keys, and a
+    # transaction placing a dated holding and then a credited one held the span while
+    # wanting an artist, against another holding the artist and wanting the span. The
+    # database detected the cycle and the holding was left unplaced.
+    drop!(inbox, "ESP/01.flac", media!(:flac, tags: dated_track()))
+
+    inbox |> acquire_settled!(@t0) |> acquired()
+
+    queries = queries_during(fn -> Place.place_due(inbox) end)
+
+    held = Enum.find_index(queries, &(&1 =~ "time_span_keys" and &1 =~ "FOR UPDATE"))
+    artist = Enum.find_index(queries, &(&1 =~ "artist_keys"))
+
+    assert held, "the time-span key was never locked"
+    assert artist, "no artist key was taken, so this asserts nothing"
+    assert held < artist, "the artist key was taken before the time-span key was held"
+  end
+
   test "an artist key is held from the read rather than from the write" do
     # Two placements naming one artist queue on the key, so one artist is made for the
     # name. An insert that conflicts locks nothing, so the read is what holds it.
     queries = queries_during(fn -> Credits.artist_for("Bill Evans", nil) end)
 
     assert Enum.any?(queries, &(&1 =~ "artist_keys" and &1 =~ "FOR UPDATE"))
+  end
+
+  defp dated_track do
+    %{
+      "album" => "E.S.P.",
+      "album_artist" => "Miles Davis",
+      "track" => "1",
+      "date" => "1965"
+    }
   end
 
   defp identified_track(inbox) do
