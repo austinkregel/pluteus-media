@@ -192,7 +192,7 @@ defmodule PluteusWeb.BrowseLive do
       <li :for={id <- @surface.entries}>
         <.row
           at={~p"/works/#{id}"}
-          name={@surface.names[id]}
+          name={Map.fetch!(@surface.names, id)}
           category={@surface.categories[id]}
           members={@surface.members[id]}
         />
@@ -412,6 +412,7 @@ defmodule PluteusWeb.BrowseLive do
             label={door_label(door.bucket)}
             count={door.count}
             open={door.any?}
+            why={door_shut(door.bucket)}
           />
         </li>
       </ul>
@@ -429,6 +430,15 @@ defmodule PluteusWeb.BrowseLive do
   defp door_at("unverified"), do: ~p"/findings"
   defp door_at("needs_a_decision"), do: ~p"/findings"
   defp door_at(_a_narrowing_with_no_surface_yet), do: nil
+
+  # What a shut door says. Each states the absence its own figure measures, because the
+  # four are shut for four different reasons and the one a person is owed is theirs.
+  defp door_shut("nothing_you_have_looked_at"),
+    do: "There is nothing here you have not looked at."
+
+  defp door_shut("unverified"), do: "Nothing is overdue for verification."
+  defp door_shut("no_date_recorded"), do: "Everything held states when it was made."
+  defp door_shut("needs_a_decision"), do: "No pair is waiting on a decision."
 
   # An axis that offers nothing is still named, and carries why. The reason is the axis's
   # own: they do not answer nothing for the same reason, and a person reading the surface
@@ -468,6 +478,24 @@ defmodule PluteusWeb.BrowseLive do
   attr :label, :string, required: true
   attr :count, :any, default: nil
   attr :open, :boolean, default: true
+  attr :why, :string, required: true
+
+  # Nothing behind it and nowhere to go are different, and a door says which. Both are
+  # disabled, because a door onto nothing that can be opened is a lie about what is there.
+  defp door(%{open: false} = assigns) do
+    ~H"""
+    <button
+      type="button"
+      disabled
+      aria-describedby={"door-#{slug(@label)}-why"}
+      class={[door_face(), "w-full text-left disabled:opacity-100"]}
+    >
+      <span class="grow text-body-md text-on-surface-muted">{@label}</span>
+      <span :if={@count} class="font-mono text-caption text-on-surface-muted">{@count}</span>
+    </button>
+    <p id={"door-#{slug(@label)}-why"} class="sr-only">{@why}</p>
+    """
+  end
 
   defp door(%{at: nil} = assigns) do
     ~H"""
