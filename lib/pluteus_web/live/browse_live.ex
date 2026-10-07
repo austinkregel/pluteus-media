@@ -69,6 +69,9 @@ defmodule PluteusWeb.BrowseLive do
   defp refused({:unknown_mode, mode}),
     do: "There is no way of looking at the catalogue called #{mode}."
 
+  defp refused({:inert_axis, axis}),
+    do: "This cannot be gone through by #{axis}."
+
   # The name a person recognises, and a principal's name is its person's,
   # resolved like any other res's. A principal with no person of its own has none, and the
   # chrome says so rather than being handed a stand-in.
