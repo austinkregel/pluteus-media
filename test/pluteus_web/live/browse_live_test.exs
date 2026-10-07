@@ -12,7 +12,9 @@ defmodule PluteusWeb.BrowseLiveTest do
   use PluteusWeb.ConnCase, async: true
 
   alias Pluteus.Catalog
+  alias Pluteus.Dedup
   alias Pluteus.Ingest.Place
+  alias Pluteus.Principals
   alias PluteusWeb.Chrome
 
   setup %{conn: conn} do
@@ -49,9 +51,13 @@ defmodule PluteusWeb.BrowseLiveTest do
     end
 
     test "an empty catalogue says so rather than drawing an empty band", %{conn: conn} do
+      # Every band, not one: a band that drops its empty rendering draws a heading over
+      # nothing, which reads as a surface still loading rather than one with no answer.
       {:ok, _live, html} = live(conn, ~p"/everything")
 
-      assert html =~ "no kinds to go by"
+      assert html =~ "Nothing is held, so there are no kinds to go by."
+      assert html =~ "Nothing here states when it was made."
+      assert html =~ "Nothing here credits anybody."
     end
 
     test "a narrowing is carried in the address and the surface follows it", %{conn: conn} do
@@ -149,6 +155,45 @@ defmodule PluteusWeb.BrowseLiveTest do
     end
   end
 
+  describe "§17.3. A door renders as whatever is actually behind it" do
+    test "one with somewhere to go and something behind it is a link", %{conn: conn} do
+      an_open_candidate()
+
+      {:ok, live, _html} = live(conn, ~p"/everything")
+
+      assert has_element?(live, ~s|a[href="/findings"]|, "Needs a decision")
+    end
+
+    test "one with somewhere to go and nothing behind it is disabled and says why",
+         %{conn: conn} do
+      # The defect this exists to prevent: the door knows there is nothing behind it and
+      # renders a live link onto an empty surface anyway, which is a control for an
+      # affordance that does not exist.
+      {:ok, live, _html} = live(conn, ~p"/everything")
+
+      assert has_element?(live, "button[disabled]", "Needs a decision")
+      refute has_element?(live, ~s|a[href="/findings"]|, "Needs a decision")
+    end
+
+    test "one with something behind it and nowhere to go says that instead", %{conn: conn} do
+      holding("photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/everything")
+
+      assert html =~ "No date recorded has no surface to open onto."
+    end
+
+    test "each shut door states the absence its own figure measures", %{conn: conn} do
+      # Four doors shut for four reasons. A single reason would tell three of them wrong.
+      {:ok, _live, html} = live(conn, ~p"/everything")
+
+      assert html =~ "There is nothing here you have not looked at."
+      assert html =~ "Nothing is overdue for verification."
+      assert html =~ "Everything held states when it was made."
+      assert html =~ "No pair is waiting on a decision."
+    end
+  end
+
   describe "§9.3, §17.3. An axis that cannot answer is named and says why" do
     test "each inert axis is named with its own reason", %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/everything")
@@ -220,6 +265,21 @@ defmodule PluteusWeb.BrowseLiveTest do
   end
 
   defp holding(category), do: named("a #{category}", category)
+
+  # Who raised the pair is immaterial to the door, which counts every pair still open,
+  # so this takes a principal of its own rather than the one the proxy vouched for.
+  defp an_open_candidate do
+    {:ok, principal} = Principals.create_principal(%{role: "member"})
+
+    {:ok, candidate} =
+      Dedup.propose(
+        named("a letter", "document"),
+        named("the same letter", "document"),
+        principal.id
+      )
+
+    candidate
+  end
 
   defp named(name, category) do
     {:ok, %{work: work}} =
