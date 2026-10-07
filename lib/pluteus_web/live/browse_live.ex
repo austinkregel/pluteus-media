@@ -28,6 +28,7 @@ defmodule PluteusWeb.BrowseLive do
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
   alias Pluteus.Surfaces.Registry, as: Surfaces
+  alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
 
   @impl Phoenix.LiveView
@@ -295,7 +296,7 @@ defmodule PluteusWeb.BrowseLive do
   attr :members, :integer, default: nil
 
   defp row(assigns) do
-    assigns = assign(assigns, :mark, assigns.category && Surfaces.category_icon(assigns.category))
+    assigns = assign(assigns, :mark, mark(assigns.category))
 
     ~H"""
     <a
@@ -306,25 +307,35 @@ defmodule PluteusWeb.BrowseLive do
         "hover:bg-surface-raised"
       ]}
     >
-      <span
-        :if={@mark}
-        class={[
-          "flex size-11 shrink-0 items-center justify-center rounded-md",
-          "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
-          "bg-surface-raised"
-        ]}
-      >
-        <.icon name={@mark.glyph} class={hue(@mark.class)} />
+      <span class={[
+        "flex size-11 shrink-0 items-center justify-center rounded-md",
+        "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+        "bg-surface-raised"
+      ]}>
+        <.icon name={glyph(@mark)} class={ink(@mark)} />
       </span>
       <span class="flex min-w-0 grow flex-col gap-0.5">
         <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
-        <span :if={@mark} class="truncate text-body-sm text-on-surface-muted">
-          {@mark.name}{gathered(@mark, @members)}
-        </span>
+        <span class="truncate text-body-sm text-on-surface-muted">{kind(@mark, @members)}</span>
       </span>
     </a>
     """
   end
+
+  # A holding nothing has said the kind of. Said in words in the place the kind would
+  # have gone, with its own marker where the glyph goes: drawn as nothing instead, a row
+  # with no kind is indistinguishable from one whose second line failed to render.
+  defp mark(nil), do: :unkinded
+  defp mark(category), do: Surfaces.category_icon(category)
+
+  defp glyph(:unkinded), do: "state-not-yet-examined"
+  defp glyph(mark), do: mark.glyph
+
+  defp ink(:unkinded), do: "text-on-surface-muted"
+  defp ink(mark), do: hue(mark.class)
+
+  defp kind(:unkinded, _members), do: Absence.words("not_yet_examined")
+  defp kind(mark, members), do: "#{mark.name}#{gathered(mark, members)}"
 
   # Only where the category names what it gathers.
   defp gathered(%{members: nil}, _count), do: ""
@@ -423,6 +434,7 @@ defmodule PluteusWeb.BrowseLive do
   defp door_label("nothing_you_have_looked_at"), do: "Nothing you have looked at"
   defp door_label("unverified"), do: "Unverified"
   defp door_label("no_date_recorded"), do: "No date recorded"
+  defp door_label("no_kind_recorded"), do: "No kind recorded"
   defp door_label("needs_a_decision"), do: "Needs a decision"
 
   # Two of the four are about what a tool found rather than about the catalogue's shape,
@@ -438,6 +450,7 @@ defmodule PluteusWeb.BrowseLive do
 
   defp door_shut("unverified"), do: "Nothing is overdue for verification."
   defp door_shut("no_date_recorded"), do: "Everything held states when it was made."
+  defp door_shut("no_kind_recorded"), do: "Everything held states what kind it is."
   defp door_shut("needs_a_decision"), do: "No pair is waiting on a decision."
 
   # An axis that offers nothing is still named, and carries why. The reason is the axis's
