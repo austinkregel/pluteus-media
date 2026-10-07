@@ -142,6 +142,21 @@ defmodule Pluteus.Browse.EntriesTest do
       assert summed == count(%{})
     end
 
+    test "a holding nothing has said the kind of is counted apart, not dropped" do
+      # A kind is the one axis whose vocabulary is closed, so a holding without one
+      # carries no value any tile could stand for. Left out of both the tiles and this
+      # figure it would be in the total and in nothing that accounts for the total.
+      standalone("Harbour at dawn", "photograph")
+      unkinded("Blade Runner, commentary")
+
+      summed =
+        Enum.sum(for category <- categories_listed(), do: count(%{"category" => category}))
+
+      assert summed == 1
+      assert without_a_kind() == 1
+      assert summed + without_a_kind() == count(%{})
+    end
+
     test "an axis this release does not narrow on raises rather than listing everything" do
       # Built directly, because a parsed query refuses such an axis before it gets here.
       # This is the guard for the two disagreeing: an axis a query may express and
@@ -168,7 +183,22 @@ defmodule Pluteus.Browse.EntriesTest do
   end
 
   defp categories_listed do
-    for id <- all(), uniq: true, do: Catalog.category_of(id, Place.category_scheme())
+    for id <- all(),
+        category = Catalog.category_of(id, Place.category_scheme()),
+        uniq: true,
+        do: category
+  end
+
+  defp without_a_kind do
+    Repo.aggregate(from(w in Entries.without_category(Entries.base()), select: w.id), :count)
+  end
+
+  # What ingest leaves behind for a commentary stream: a work of its own embodied in the
+  # film's manifestation, which nothing categorizes.
+  defp unkinded(name) do
+    {:ok, %{work: work}} = Catalog.create_work(%{nomen_string: name, provenance: :automatic})
+
+    work.id
   end
 
   defp issued(work_id, date) do
