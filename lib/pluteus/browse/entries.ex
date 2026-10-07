@@ -148,6 +148,21 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
+  The same selection holding only the works no category row names a kind for.
+
+  A kind is what the first band groups by and the only axis whose vocabulary is closed,
+  so a holding without one is in the total and in no kind's figure. Counted through the
+  same subquery the band reads, because a count of what the band leaves out has to be
+  taken against what the band actually took.
+  """
+  @spec without_category(Ecto.Query.t()) :: Ecto.Query.t()
+  def without_category(query) do
+    kinded = from w in with_category(base()), select: w.id
+
+    from [work: w] in query, where: w.id not in subquery(kinded)
+  end
+
+  @doc """
   The decade each work's date falls in, from the date its container stated.
 
   A work carries as many as its manifestations were issued in, which is why this is a
