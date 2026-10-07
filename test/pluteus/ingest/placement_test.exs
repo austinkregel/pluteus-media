@@ -11,6 +11,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Actor
   alias Pluteus.Annotations
   alias Pluteus.Assets
+  alias Pluteus.Browse.Entries
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Addressing
@@ -1704,8 +1705,18 @@ defmodule Pluteus.Ingest.PlacementTest do
       by_work = Enum.group_by(expressions, & &1.work_id)
       assert map_size(by_work) == 2
 
-      [{_film_work, [_, _]}, {_commentary_work, [_]}] =
+      [{_film_work, [_, _]}, {commentary_work, [_]}] =
         Enum.sort_by(by_work, fn {_work, expressions} -> -length(expressions) end)
+
+      # Nothing categorizes it, and nothing presents it either, so it reaches a browse
+      # surface as a holding whose kind nobody has recorded. That is what the gateway's
+      # kind door counts and what a row with no kind says in words.
+      assert Catalog.category_of(commentary_work, Place.category_scheme()) == nil
+
+      assert Repo.exists?(
+               from w in Entries.without_category(Entries.base()),
+                 where: w.id == ^commentary_work
+             )
     end
 
     test "a downmix of one language is not a second expression", %{inbox: inbox} do
