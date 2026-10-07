@@ -211,7 +211,7 @@ defmodule Pluteus.Browse.Entries do
   The axes this release can narrow on. The rest are named and inert.
   """
   @spec narrowable_axes() :: [String.t()]
-  def narrowable_axes, do: ["category", "decade", "person"]
+  defdelegate narrowable_axes(), to: Query
 
   @doc """
   Each value of an axis with how many of a selection carry it.

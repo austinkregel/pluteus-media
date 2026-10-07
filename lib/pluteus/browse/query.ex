@@ -42,7 +42,21 @@ defmodule Pluteus.Browse.Query do
   @typedoc """
   Why a request named no query this release can answer.
   """
-  @type refusal :: {:unknown_mode, String.t()} | {:unknown_category, String.t()}
+  @type refusal ::
+          {:unknown_mode, String.t()}
+          | {:unknown_category, String.t()}
+          | {:inert_axis, String.t()}
+
+  # The axes a query may narrow on. Declared here rather than where the narrowing is
+  # implemented, because what a query can express is what an address can ask for: a
+  # request naming any other axis is refused before anything tries to answer it.
+  @narrowable ~w(category decade person)
+
+  @doc """
+  The axes a query may narrow on. The rest are named and inert.
+  """
+  @spec narrowable_axes() :: [String.t()]
+  def narrowable_axes, do: @narrowable
 
   @doc """
   The query a mode and a request's parameters name.
@@ -176,6 +190,10 @@ defmodule Pluteus.Browse.Query do
       [] -> {:ok, values}
       [unknown | _rest] -> {:error, {:unknown_category, unknown}}
     end
+  end
+
+  defp admissible(_values, axis) when axis not in @narrowable do
+    {:error, {:inert_axis, axis}}
   end
 
   defp admissible(values, _identifiers), do: {:ok, values}
