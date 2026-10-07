@@ -40,10 +40,12 @@ defmodule Pluteus.BrowseTest do
     end
 
     test "the cost is stated, so a change to it has to be meant", %{principal: principal} do
-      # Fifteen at the time of writing: the entries, their names, what each of them is
-      # and how much it gathers, the query's total and the whole catalogue's, a
-      # distribution per narrowable axis, this principal's own looking and the works it
-      # names, the overdue holdings, the undated ones and the undecided pairs.
+      # Seventeen as measured: the entries, their names, what each of them is and how
+      # much it gathers, the query's total and the whole catalogue's, a distribution per
+      # narrowable axis, this principal's own looking and the works it names, the overdue
+      # holdings, the undated ones, the unkinded ones and the undecided pairs. Resolving
+      # the names is itself bounded in three, so the list describes what the queries are
+      # for rather than giving one phrase per query.
       #
       # A bound rather than that exact figure, since a query added for a reason is not a
       # defect. What would be is one creeping in unnoticed, which this catches by failing
@@ -112,7 +114,7 @@ defmodule Pluteus.BrowseTest do
       surface = Browse.surface(query, principal.id, %Profile{})
 
       assert map_size(surface.facets) == 5
-      assert [_looking, _unverified, _undated, _undecided] = surface.unfinished
+      assert [_looking, _unverified, _undated, _unkinded, _undecided] = surface.unfinished
       assert surface.query == query
     end
   end
