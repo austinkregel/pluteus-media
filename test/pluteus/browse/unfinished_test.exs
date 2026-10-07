@@ -70,6 +70,21 @@ defmodule Pluteus.Browse.UnfinishedTest do
       assert %{count: 0, any?: false} = door(ada, "no_date_recorded")
     end
 
+    test "a holding nothing has said the kind of is behind the kind door", %{ada: ada} do
+      # What ingest leaves behind for a commentary stream: a work of its own embodied in
+      # the film's manifestation, which nothing categorizes. It carries no value the kinds
+      # band could draw, so this door is the only figure that accounts for it.
+      {:ok, _} = Catalog.create_work(%{nomen_string: "a commentary", provenance: :automatic})
+
+      assert %{count: 1, any?: true} = door(ada, "no_kind_recorded")
+    end
+
+    test "a holding whose kind is recorded is not", %{ada: ada} do
+      work()
+
+      assert %{count: 0, any?: false} = door(ada, "no_kind_recorded")
+    end
+
     test "an open candidate needs a decision and a settled one does not", %{ada: ada} do
       left = work()
       right = work()
@@ -87,7 +102,7 @@ defmodule Pluteus.Browse.UnfinishedTest do
          %{ada: ada} do
       doors = Unfinished.for_principal(ada.id)
 
-      assert [_looking, _unverified, _undated, _undecided] = doors
+      assert [_looking, _unverified, _undated, _unkinded, _undecided] = doors
 
       for door <- doors do
         if door.bucket == "nothing_you_have_looked_at",
