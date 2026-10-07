@@ -1,8 +1,8 @@
 defmodule Pluteus.Browse.Unfinished do
   @moduledoc """
-  The gateway's Unfinished band: four doors into work the household has not finished
-  Each is a door rather than a report, so each carries what it would open onto. Three
-  count catalogue and derivation facts. The fourth counts nothing, and that is the whole
+  The gateway's Unfinished band: five doors into work the household has not finished.
+  Each is a door rather than a report, so each carries what it would open onto. Four
+  count catalogue and derivation facts. The fifth counts nothing, and that is the whole
   of what makes it lawful.
 
   ## Why one of them carries no number
@@ -16,7 +16,7 @@ defmodule Pluteus.Browse.Unfinished do
   could compare against another person's, and the door works without it. So this answers
   whether there is anything behind it and nothing more.
 
-  ## What the other three are
+  ## What the other four are
 
   *Unverified* is an integrity obligation falling due — an asset whose bytes have not
   been read back inside its own interval. The overdue predicate is
@@ -26,6 +26,12 @@ defmodule Pluteus.Browse.Unfinished do
   *No date recorded* is a holding whose container stated no date its form fixed. Such a
   date stays unexamined until a person says otherwise rather than being guessed at, which
   is what makes it a door worth opening.
+
+  *No kind recorded* is a holding nothing has said the kind of. It is the one door the
+  rest of the gateway cannot report, because a kind is the only axis whose vocabulary is
+  closed: a holding without one carries no value any tile could stand for, so it is in
+  the total and in no tile's figure. Counting it here is what keeps the kinds band's
+  figures and the total reconcilable.
 
   *Needs a decision* is the open candidates: a pair something raised as possibly one
   thing, which only a member can settle.
@@ -52,7 +58,7 @@ defmodule Pluteus.Browse.Unfinished do
   @type door :: %{bucket: String.t(), count: non_neg_integer() | nil, any?: boolean()}
 
   @doc """
-  The four doors, for the principal asking.
+  The five doors, for the principal asking.
   """
   @spec for_principal(Ecto.UUID.t()) :: [door()]
   def for_principal(principal_id) do
@@ -60,6 +66,7 @@ defmodule Pluteus.Browse.Unfinished do
       unexamined_by(principal_id),
       counted("unverified", unverified()),
       counted("no_date_recorded", undated()),
+      counted("no_kind_recorded", unkinded()),
       counted("needs_a_decision", undecided())
     ]
   end
@@ -120,6 +127,15 @@ defmodule Pluteus.Browse.Unfinished do
         where: not exists(embodies_one_of(dated)),
         select: w.id
       ),
+      :count
+    )
+  end
+
+  # Through the band's own subquery rather than a predicate of its own, so a holding this
+  # counts is exactly a holding the kinds band left out.
+  defp unkinded do
+    Repo.aggregate(
+      from(w in Entries.without_category(Entries.base()), select: w.id),
       :count
     )
   end
