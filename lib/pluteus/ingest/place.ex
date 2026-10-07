@@ -729,6 +729,32 @@ defmodule Pluteus.Ingest.Place do
   end
 
   @doc """
+  Records the date a placed holding's container states, for a holding placed before
+  anything read one.
+
+  The same reading, taken afterwards: the same tags, the same time-span and the same
+  relation placement would have written. A holding whose container states no date it can
+  read is left alone, because there is nothing to record and a file's own timestamp is
+  not evidence of when anything was issued.
+  """
+  @spec record_date(Acquisition.t()) :: :recorded | :states_none
+  def record_date(%Acquisition{state: :placed} = acquisition) do
+    Actor.as(Principals.system!().id, fn ->
+      case issued_date(acquisition) do
+        nil ->
+          :states_none
+
+        date ->
+          manifestation = Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
+
+          relate(manifestation, time_span_for(date))
+
+          :recorded
+      end
+    end)
+  end
+
+  @doc """
   The date a holding's container states it was issued, or nil where it states none.
   """
   @spec issued_date(Acquisition.t()) :: String.t() | nil
