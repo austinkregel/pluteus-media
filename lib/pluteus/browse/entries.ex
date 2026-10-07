@@ -161,15 +161,35 @@ defmodule Pluteus.Browse.Entries do
   def decades do
     refinement = Refinements.name!("time-of-publication-or-manufacture")
 
-    from x in Expression,
-      join: e in Embodiment,
-      on: e.expression_id == x.id,
+    from m in subquery(answers_for()),
       join: a in Association,
-      on: a.subject_id == e.manifestation_id and a.refinement == ^refinement,
+      on: a.subject_id == m.manifestation_id and a.refinement == ^refinement,
       join: n in Nomen,
       on: n.res_id == a.object_id and is_nil(n.assigner_id),
       distinct: true,
-      select: %{res_id: x.work_id, value: fragment("substr(?, 1, 3) || '0s'", n.nomen_string)}
+      select: %{res_id: m.work_id, value: fragment("substr(?, 1, 3) || '0s'", n.nomen_string)}
+  end
+
+  # The manifestations a work answers for: its own, and those of the expressions it
+  # aggregates. A date is recorded against the edition it was stated for, so a release
+  # read from twelve files carries the date on each track and not on itself — and the
+  # release is the entry, so without this the date belongs to nothing anyone can see.
+  defp answers_for do
+    own =
+      from x in Expression,
+        join: e in Embodiment,
+        on: e.expression_id == x.id,
+        select: %{work_id: x.work_id, manifestation_id: e.manifestation_id}
+
+    presented =
+      from x in Expression,
+        join: g in Aggregation,
+        on: g.aggregating_expression_id == x.id,
+        join: e in Embodiment,
+        on: e.expression_id == g.aggregated_expression_id,
+        select: %{work_id: x.work_id, manifestation_id: e.manifestation_id}
+
+    union(own, ^presented)
   end
 
   @doc """
