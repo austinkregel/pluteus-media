@@ -16,6 +16,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
+  alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
@@ -1430,6 +1431,46 @@ defmodule Pluteus.Ingest.PlacementTest do
 
       assert [time_span] = issued(reading_manifestation)
       assert names(time_span) == ["1968"]
+    end
+
+    test "a holding placed before anything read a date can be read afterwards",
+         %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "1959"))
+        })
+
+      # As it would stand for a holding placed before the date was read at all.
+      manifestation = manifestation_of(track)
+      [span] = issued(manifestation)
+      Repo.delete_all(from a in Association, where: a.object_id == ^span)
+
+      assert issued(manifestation) == []
+      assert Place.record_date(track) == :recorded
+      assert [^span] = issued(manifestation)
+    end
+
+    test "reading a holding that already carries its date records nothing new",
+         %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "1959"))
+        })
+
+      before = issued(manifestation_of(track))
+
+      assert Place.record_date(track) == :recorded
+      assert issued(manifestation_of(track)) == before
+    end
+
+    test "a holding stating no date it can read is left alone", %{inbox: inbox} do
+      [track] =
+        ingest!(inbox, %{
+          "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1, date: "17/08/1959"))
+        })
+
+      assert Place.record_date(track) == :states_none
+      assert issued(manifestation_of(track)) == []
     end
 
     test "a container stating no date relates to nothing", %{inbox: inbox} do

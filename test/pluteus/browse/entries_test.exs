@@ -57,6 +57,33 @@ defmodule Pluteus.Browse.EntriesTest do
     end
   end
 
+  describe "A work is dated by what it answers for" do
+    test "a release gathering dated tracks is dated, because that is where the date is" do
+      # A date is recorded against the edition its container stated it for, so a release
+      # read from several files carries it on each track and not on itself. The release
+      # is the entry, so a release whose date lived only on its tracks would be undated
+      # on every surface that could show it.
+      %{release: release, tracks: tracks} = release_of("Kind of Blue", ["So What", "Freddie"])
+
+      for track <- tracks, do: issued(track, "1959")
+
+      assert release in ids(%{"decade" => "1950s"})
+    end
+
+    test "a holding dated on its own manifestation is dated too" do
+      photograph = standalone("Harbour at dawn")
+      issued(photograph, "1964-03")
+
+      assert photograph in ids(%{"decade" => "1960s"})
+    end
+
+    test "a holding nothing dated is in no decade" do
+      standalone("Harbour at dawn")
+
+      assert ids(%{"decade" => "1960s"}) == []
+    end
+  end
+
   describe "§14.2. What the catalog no longer holds is not listed" do
     test "a recycled entry drops out" do
       photograph = standalone("Harbour at dawn")
@@ -139,6 +166,18 @@ defmodule Pluteus.Browse.EntriesTest do
 
   defp categories_listed do
     for id <- all(), uniq: true, do: Catalog.category_of(id, Place.category_scheme())
+  end
+
+  defp issued(work_id, date) do
+    [expression | _rest] = Catalog.expressions_of(work_id)
+    [manifestation | _more] = Catalog.manifestations_of(expression.id)
+
+    {:ok, %{res: span}} =
+      Catalog.create_named_res(:time_span, %{nomen_string: date, provenance: :automatic})
+
+    {:ok, _} = Catalog.associate(manifestation.id, span.id, "time-of-publication-or-manufacture")
+
+    work_id
   end
 
   defp standalone(name, category \\ "photograph") do
