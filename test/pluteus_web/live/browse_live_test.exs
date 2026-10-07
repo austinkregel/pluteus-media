@@ -64,6 +64,16 @@ defmodule PluteusWeb.BrowseLiveTest do
       assert html =~ "oldest first"
     end
 
+    test "an axis nothing narrows by is answered, not crashed into", %{conn: conn} do
+      # A surface that raised here would take the page down, and the client recovers
+      # from that by reloading onto the same address.
+      holding("photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?language=en")
+
+      assert html =~ "This cannot be gone through by language."
+    end
+
     test "a kind the registry does not name is refused, not answered", %{conn: conn} do
       holding("photograph")
 

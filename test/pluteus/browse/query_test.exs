@@ -87,15 +87,32 @@ defmodule Pluteus.Browse.QueryTest do
                Query.parse("everything", %{"category" => "document,sculpture"})
     end
 
+    test "an axis nothing narrows by is refused rather than carried" do
+      # A query carrying one would reach the narrowing and raise there, which on a
+      # rendered surface is a crash and not an answer. What a query can express is what
+      # an address can ask for.
+      assert {:error, {:inert_axis, "language"}} =
+               Query.parse("everything", %{"language" => "en"})
+
+      assert {:error, {:inert_axis, "place"}} =
+               Query.parse("everything", %{"place" => "somewhere"})
+    end
+
+    test "every axis a query admits is one something narrows by" do
+      for axis <- Query.narrowable_axes() do
+        assert axis in Surfaces.facets(),
+               "#{axis} can be asked for and is not a facet this release names"
+      end
+    end
+
     test "an identifier-valued axis is not bounded by any registry" do
       # No registry knows the household's own people and places. An identifier naming
       # nothing selects nothing, which is an empty surface rather than a bad request.
       id = "01a10000-0000-7000-8000-000000000000"
 
-      assert {:ok, query} = Query.parse("everything", %{"person" => id, "place" => id})
+      assert {:ok, query} = Query.parse("everything", %{"person" => id})
 
       assert Query.on(query, "person") == [id]
-      assert Query.on(query, "place") == [id]
     end
   end
 
