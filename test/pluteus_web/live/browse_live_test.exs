@@ -135,6 +135,19 @@ defmodule PluteusWeb.BrowseLiveTest do
       assert html =~ "Nothing is held that is all of these at once"
     end
 
+    test "a row whose kind nothing records says so where the kind would have gone",
+         %{conn: conn} do
+      # Rendering nothing there is the failure §5.3 names: a second line left blank is
+      # indistinguishable from one that did not render. The row is reached by decade,
+      # because a kind nothing recorded is a value no narrowing can name.
+      dated(named("Blade Runner, commentary", nil), "1982")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?decade=1980s")
+
+      assert html =~ "Blade Runner, commentary"
+      assert html =~ "not yet examined"
+    end
+
     test "the unnarrowed surface carries no chips", %{conn: conn} do
       holding("document")
 
@@ -281,12 +294,27 @@ defmodule PluteusWeb.BrowseLiveTest do
     candidate
   end
 
+  # A nil category is what ingest leaves behind for a commentary stream: a work of its
+  # own embodied in the film's manifestation, which nothing categorizes.
   defp named(name, category) do
     {:ok, %{work: work}} =
       Catalog.create_work(%{nomen_string: name, provenance: :automatic})
 
-    {:ok, _} = Catalog.categorize(work.id, Place.category_scheme(), category, :automatic)
+    if category,
+      do: {:ok, _} = Catalog.categorize(work.id, Place.category_scheme(), category, :automatic)
 
     work.id
+  end
+
+  defp dated(work_id, date) do
+    [expression | _rest] = Catalog.expressions_of(work_id)
+    [manifestation | _more] = Catalog.manifestations_of(expression.id)
+
+    {:ok, %{res: span}} =
+      Catalog.create_named_res(:time_span, %{nomen_string: date, provenance: :automatic})
+
+    {:ok, _} = Catalog.associate(manifestation.id, span.id, "time-of-publication-or-manufacture")
+
+    work_id
   end
 end
