@@ -48,6 +48,7 @@ defmodule PluteusWeb.Transport do
   alias Pluteus.Continuity.Registry, as: Continuity
   alias Pluteus.Playback
   alias Pluteus.Surfaces.Registry, as: Surfaces
+  alias PluteusWeb.Absence
 
   @doc """
   The bar, from what the transport is showing.
@@ -72,7 +73,8 @@ defmodule PluteusWeb.Transport do
     ~H"""
     <div
       id="transport"
-      aria-label="Transport"
+      phx-hook="MediaSession"
+      data-step={@steps["large"]}
       class={[
         "flex flex-col gap-2 px-4 py-2",
         "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle",
@@ -90,25 +92,19 @@ defmodule PluteusWeb.Transport do
 
         <span class="flex min-w-0 grow flex-col">
           <span class="truncate text-body-md text-on-surface-strong">{@showing.name}</span>
-          <span :if={@refusal} class="truncate text-body-sm text-on-surface-muted">
-            {@refusal}
+          <span class="truncate text-body-sm text-on-surface-muted">
+            {@refusal || kind_of(@showing.category)}
           </span>
         </span>
 
-        <.controls showing={@showing} playing?={@playing?} refused?={@refusal != nil} />
+        <.controls
+          showing={@showing}
+          playing?={@playing?}
+          refused?={@refusal != nil}
+          queue_open?={@queue_open?}
+        />
 
         <.volume />
-
-        <button
-          type="button"
-          phx-click="transport-queue"
-          aria-expanded={to_string(@queue_open?)}
-          aria-controls="transport-queue"
-          aria-label={"The queue, #{length(@showing.queue)} entries"}
-          class={control()}
-        >
-          <.icon name="hero-queue-list-mini" />
-        </button>
       </div>
 
       <.position
@@ -120,6 +116,12 @@ defmodule PluteusWeb.Transport do
     </div>
     """
   end
+
+  # What a glyph and a hue carry, said. A.2.6 makes the glyph identify a category and the
+  # colour group it, and §5.3 forbids an absence being conveyed by emptiness — a hidden
+  # drawing is both at once, so the kind is in the line beneath the name as well.
+  defp kind_of(nil), do: Absence.words("not_yet_examined")
+  defp kind_of(category), do: Surfaces.category_icon(category).name
 
   # The glyph stands for what is playing, in the hue of its broad class. A res whose kind
   # nothing records carries A.8.8's marker for that rather than an empty square.
@@ -144,9 +146,14 @@ defmodule PluteusWeb.Transport do
     """
   end
 
+  # A.9.3 makes the transport a toolbar, which is one tab stop its arrow keys move
+  # within. The two sliders stay outside it for the reason A.9.4 gives of the position
+  # one: a slider consumes the arrow keys a toolbar navigates with, and that is as true
+  # of volume as it is of position.
   attr :showing, :map, required: true
   attr :playing?, :boolean, required: true
   attr :refused?, :boolean, required: true
+  attr :queue_open?, :boolean, required: true
 
   defp controls(assigns) do
     assigns =
@@ -155,7 +162,7 @@ defmodule PluteusWeb.Transport do
       |> assign(:last?, Playback.next_after(assigns.showing) == nil)
 
     ~H"""
-    <div class="flex items-center gap-1">
+    <div id="transport-controls" role="toolbar" aria-label="Transport" class="flex items-center gap-1">
       <button
         type="button"
         phx-click="transport-previous"
@@ -185,15 +192,7 @@ defmodule PluteusWeb.Transport do
       >
         <.icon name="next-mini" />
       </button>
-    </div>
-    """
-  end
 
-  # Volume reaches no server, so it is a plain input the media element beside it reads.
-  # A step rather than a drag, because §17.5 forbids a function that requires one.
-  defp volume(assigns) do
-    ~H"""
-    <div class="hidden items-center gap-2 sm:flex">
       <button
         type="button"
         id="transport-mute"
@@ -204,6 +203,27 @@ defmodule PluteusWeb.Transport do
         <.icon name="hero-speaker-wave-mini" />
       </button>
 
+      <button
+        type="button"
+        phx-click="transport-queue"
+        aria-expanded={to_string(@queue_open?)}
+        aria-controls="transport-queue"
+        aria-label={"The queue, #{length(@showing.queue)} entries"}
+        class={control()}
+      >
+        <.icon name="hero-queue-list-mini" />
+      </button>
+    </div>
+    """
+  end
+
+  # Volume reaches no server, so it is a plain input the media element beside it reads.
+  # A step rather than a drag, because §17.5 forbids a function that requires one, and a
+  # native range because A.2.7 assigns semantic colour from element semantics: a control
+  # built from a generic element with a role attribute receives none.
+  defp volume(assigns) do
+    ~H"""
+    <div class="hidden items-center gap-2 sm:flex">
       <label for="transport-volume" class="sr-only">Volume</label>
       <input
         type="range"
@@ -213,7 +233,7 @@ defmodule PluteusWeb.Transport do
         step="5"
         value="100"
         aria-valuetext="100 per cent"
-        class="w-24 accent-[color:var(--sys-color-fill-solid)]"
+        class="w-24 accent-fill-solid"
       />
     </div>
     """
@@ -251,7 +271,7 @@ defmodule PluteusWeb.Transport do
         value={@showing.position_ms}
         disabled={@disabled?}
         aria-valuetext={spoken(@showing.position_ms, @extent)}
-        class="grow accent-[color:var(--sys-color-fill-solid)]"
+        class="grow accent-fill-solid"
       />
 
       <button
@@ -284,7 +304,6 @@ defmodule PluteusWeb.Transport do
     ~H"""
     <audio
       id="transport-medium"
-      phx-hook="MediaSession"
       data-parts={parts(@showing)}
       data-from={from(@showing)}
       data-to={to(@showing)}
@@ -343,8 +362,8 @@ defmodule PluteusWeb.Transport do
             aria-current={index == @showing.index && "true"}
             class={[
               "min-h-target-touch flex w-full items-center gap-3 px-2 text-left",
-              "hover:bg-surface-overlay",
-              index == @showing.index && "bg-surface-overlay"
+              "hover:bg-fill-subtle-strong",
+              index == @showing.index && "bg-fill-subtle"
             ]}
           >
             <span class="w-6 shrink-0 font-mono text-caption text-on-surface-muted">
@@ -395,9 +414,13 @@ defmodule PluteusWeb.Transport do
 
   defp seconds(milliseconds), do: div(milliseconds, 1000)
 
+  # The touch floor rather than the pointer one. A.4.2 sizes a target for the coarsest
+  # pointer present rather than the primary one, and §4.2 makes this one layout that
+  # serves a phone — so nothing shrinks by default and a fine pointer gets a denser mode
+  # by choosing one.
   defp control do
     [
-      "min-h-target-pointer min-w-target-pointer flex shrink-0 items-center justify-center",
+      "min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center",
       "rounded-md text-on-surface-strong hover:bg-fill-subtle",
       "disabled:text-on-surface-muted disabled:hover:bg-transparent"
     ]
