@@ -47,6 +47,8 @@ defmodule Pluteus.Playback do
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Catalog.Association
+  alias Pluteus.Catalog.Cover
+  alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Extent
@@ -112,6 +114,8 @@ defmodule Pluteus.Playback do
           name: String.t(),
           category: String.t() | nil,
           playable: {:ok, playable()} | {:error, refusal()},
+          credited: [String.t()],
+          cover: Ecto.UUID.t() | nil,
           position_ms: non_neg_integer(),
           extent_ms: non_neg_integer() | nil,
           index: non_neg_integer(),
@@ -144,6 +148,8 @@ defmodule Pluteus.Playback do
       name: named(names, current.res_id, profile),
       category: Catalog.category_of(Catalog.work_of(current.res_id), Place.category_scheme()),
       playable: for_manifestation(current.res_id),
+      credited: credited_for(current, profile),
+      cover: Cover.for_manifestation(current.res_id, current.queued_from),
       position_ms: queue.position_ms,
       extent_ms: extent_ms(current.res_id),
       index: queue.current_index,
@@ -156,6 +162,35 @@ defmodule Pluteus.Playback do
           }
         end
     }
+  end
+
+  # Who what is playing is by, which is the fact a person wants beside its name.
+  #
+  # A track crediting nobody is said to be by whoever its release is by: a container
+  # names an album artist and leaves the track's own blank where they are the same
+  # person, so taking the track's alone would leave most of a library anonymous.
+  defp credited_for(entry, profile) do
+    case credited(Catalog.work_of(entry.res_id), profile) do
+      [] -> credited(entry.queued_from, profile)
+      credited -> credited
+    end
+  end
+
+  defp credited(nil, _profile), do: []
+
+  defp credited(work_id, profile) do
+    agents =
+      Repo.all(
+        from c in Credit,
+          where: c.work_id == ^work_id,
+          where: not is_nil(c.agent_id),
+          order_by: [c.role, c.position],
+          select: c.agent_id
+      )
+
+    named = agents |> Enum.uniq() |> Resolution.resolve_many(profile)
+
+    agents |> Enum.map(&named[&1]) |> Enum.reject(&is_nil/1) |> Enum.map(& &1.nomen_string)
   end
 
   # The whole a position is measured along: spec-01 §8.4's recorded figure, which is the
