@@ -71,10 +71,11 @@ defmodule Pluteus.Browse.UnfinishedTest do
     end
 
     test "a holding nothing has said the kind of is behind the kind door", %{ada: ada} do
-      # What ingest leaves behind for a commentary stream: a work of its own embodied in
-      # the film's manifestation, which nothing categorizes. It carries no value the kinds
-      # band could draw, so this door is the only figure that accounts for it.
-      {:ok, _} = Catalog.create_work(%{nomen_string: "a commentary", provenance: :automatic})
+      # No placement path leaves one, so this is built directly. It carries no value the
+      # kinds band could draw, which is why this door is the only figure on the gateway
+      # that could account for it, and why a path that stopped categorizing would show up
+      # here rather than nowhere.
+      {:ok, _} = Catalog.create_work(%{nomen_string: "uncategorized", provenance: :automatic})
 
       assert %{count: 1, any?: true} = door(ada, "no_kind_recorded")
     end
