@@ -88,12 +88,12 @@ defmodule PluteusWeb.Transport do
       <.queue :if={@queue_open?} showing={@showing} />
 
       <div class="flex items-center gap-3">
-        <.standing_for category={@showing.category} />
+        <.standing_for showing={@showing} />
 
         <span class="flex min-w-0 grow flex-col">
           <span class="truncate text-body-md text-on-surface-strong">{@showing.name}</span>
           <span class="truncate text-body-sm text-on-surface-muted">
-            {@refusal || kind_of(@showing.category)}
+            {@refusal || by(@showing)}
           </span>
         </span>
 
@@ -117,28 +117,42 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # What a glyph and a hue carry, said. A.2.6 makes the glyph identify a category and the
-  # colour group it, and §5.3 forbids an absence being conveyed by emptiness — a hidden
-  # drawing is both at once, so the kind is in the line beneath the name as well.
+  # Who it is by, then what it is. Both are said, because a glyph and a hue are carriers
+  # §5.3 and A.2.6 each forbid being the only one, and who made something is the fact a
+  # person wants beside its name.
+  defp by(%{credited: [], category: category}), do: kind_of(category)
+
+  defp by(%{credited: credited, category: category}),
+    do: "#{Enum.join(credited, ", ")} · #{kind_of(category)}"
+
   defp kind_of(nil), do: Absence.words("not_yet_examined")
   defp kind_of(category), do: Surfaces.category_icon(category).name
 
-  # The glyph stands for what is playing, in the hue of its broad class. A res whose kind
-  # nothing records carries A.8.8's marker for that rather than an empty square.
-  attr :category, :string, default: nil
+  # The cover it is known by, and the glyph where there is none — in the hue of its broad
+  # class, since A.2.6 has the glyph identify the category and the colour group it. A res
+  # whose kind nothing records carries A.8.8's marker for that rather than an empty square.
+  attr :showing, :map, required: true
 
   defp standing_for(assigns) do
-    assigns = assign(assigns, :mark, assigns.category && Surfaces.category_icon(assigns.category))
+    category = assigns.showing.category
+    assigns = assign(assigns, :mark, category && Surfaces.category_icon(category))
 
     ~H"""
     <span class={[
-      "flex size-10 shrink-0 items-center justify-center rounded-md",
+      "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md",
       "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "bg-surface-base"
     ]}>
-      <.icon :if={@mark} name={@mark.glyph} class={hue(@mark.class)} />
+      <img
+        :if={@showing.cover}
+        src={~p"/manifestations/#{@showing.cover}/presentation/image-320"}
+        alt=""
+        class="size-full object-cover"
+        onerror="this.remove()"
+      />
+      <.icon :if={!@showing.cover && @mark} name={@mark.glyph} class={hue(@mark.class)} />
       <.icon
-        :if={!@mark}
+        :if={!@showing.cover && !@mark}
         name="state-not-yet-examined-mini"
         class="text-on-surface-muted"
       />
