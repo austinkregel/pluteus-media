@@ -25,6 +25,10 @@ defmodule PluteusWeb.BrowseLive do
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Continuity.Registry, as: Continuity
+  alias Pluteus.Events
+  alias Pluteus.Playback
+  alias Pluteus.Preferences
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
   alias Pluteus.Surfaces.Registry, as: Surfaces
@@ -40,7 +44,25 @@ defmodule PluteusWeb.BrowseLive do
      |> assign(:profile, profile)
      |> assign(:principal_name, principal_name(socket.assigns.principal_id, profile))
      |> assign(:contexts, session["contexts"] || %{})
-     |> assign(:announcement, "")}
+     |> assign(:announcement, "")
+     |> assign(:device_id, session["device_id"])
+     |> assign(:device_revoked, session["device_revoked"])
+     |> assign(:playing?, false)
+     |> assign(:queue_open?, false)
+     |> assign(:offering, nil)
+     |> assign(:offer_seconds, 0)
+     |> showing()}
+  end
+
+  # The transport is read from the queue rather than held, because the queue belongs to
+  # the principal and not to this socket: a position reported from a phone changes what
+  # this surface should show, and a copy kept here would go stale against it.
+  defp showing(socket) do
+    assign(
+      socket,
+      :showing,
+      Playback.current(socket.assigns.principal_id, socket.assigns.profile)
+    )
   end
 
   # The query is read from the parameters on every navigation rather than held, because
@@ -59,6 +81,178 @@ defmodule PluteusWeb.BrowseLive do
 
       {:error, refusal} ->
         {:noreply, socket |> put_flash(:error, refused(refusal)) |> assign(:surface, nil)}
+    end
+  end
+
+  # §12.3's controls. Each changes the queue, which is the principal's own and shared with
+  # every other surface, so the answer is read back from it rather than assumed.
+  #
+  # A browser whose enrolment was revoked has no device to key a position or a queue by,
+  # so there is nothing for these to act on and the chrome says so instead of carrying
+  # them.
+  @impl Phoenix.LiveView
+  def handle_event("transport-play", _params, socket) do
+    {:noreply, assign(socket, :playing?, not socket.assigns.playing?)}
+  end
+
+  def handle_event("transport-queue", _params, socket) do
+    {:noreply, assign(socket, :queue_open?, not socket.assigns.queue_open?)}
+  end
+
+  def handle_event("transport-next", _params, socket) do
+    {:noreply, jumped(socket, socket.assigns.showing.index + 1)}
+  end
+
+  def handle_event("transport-previous", _params, socket) do
+    {:noreply, jumped(socket, socket.assigns.showing.index - 1)}
+  end
+
+  def handle_event("transport-jump", %{"index" => index}, socket) do
+    {:noreply, jumped(socket, String.to_integer(index))}
+  end
+
+  # §13.1: every surface reports a position and no surface owns it. A report below §13.2's
+  # floor or above its ceiling is discarded there, so what comes back says which — and
+  # above the ceiling the res is recorded consumed, which is the deployment's own
+  # judgement rather than the client's claim.
+  def handle_event("transport-position", %{"res" => res_id, "position_ms" => position}, socket) do
+    reported(socket, res_id, position)
+
+    {:noreply, showing(socket)}
+  end
+
+  # §12.4: where the played res is a member of an ordered grouping and a next member
+  # exists, the surface offers it. Nothing begins without a person having asked, so the
+  # offer counts down and the queue is untouched until it is taken.
+  def handle_event("transport-finished", %{"res" => res_id}, socket) do
+    reported(socket, res_id, finished_at(socket))
+
+    {:noreply, socket |> assign(:playing?, false) |> showing() |> offer()}
+  end
+
+  # Taking the offer is the person asking, so this is the one path on which audio begins
+  # at the end of an entry. The interval running out advances the queue and leaves it
+  # paused, which is what §12.4's two sentences say together.
+  def handle_event("transport-offer-take", _params, socket) do
+    advanced = socket |> cancel_offer() |> then(&jumped(&1, &1.assigns.showing.index + 1))
+
+    {:noreply, assign(advanced, :playing?, true)}
+  end
+
+  def handle_event("transport-offer-cancel", _params, socket) do
+    {:noreply, cancel_offer(socket)}
+  end
+
+  # The element could not start. A browser refusing to play without a gesture is the
+  # common cause, and a control that looks pressed and makes no sound is worse than one
+  # that says it did not.
+  def handle_event("transport-refused", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:playing?, false)
+     |> put_flash(:error, "This browser would not start playing without being asked again.")}
+  end
+
+  def handle_event("play", _params, %{assigns: %{device_id: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, unenrolled())}
+  end
+
+  def handle_event("play", %{"res" => work_id}, socket) do
+    :ok =
+      Playback.play(
+        socket.assigns.principal_id,
+        socket.assigns.device_id,
+        work_id,
+        socket.assigns.profile
+      )
+
+    {:noreply, socket |> assign(:playing?, true) |> showing()}
+  end
+
+  defp unenrolled do
+    "This browser holds no enrolment, so there is nowhere to record what it plays."
+  end
+
+  # A report from a browser with no enrolment has no device to be keyed by, and §13.2's
+  # own refusals are the pass's to make, so each outcome is carried rather than matched
+  # on: a position below the floor is not an error and not a position either.
+  defp reported(%{assigns: %{device_id: nil}}, _res_id, _position), do: :no_device
+
+  defp reported(socket, res_id, position) do
+    Events.report_position(%{
+      principal_id: socket.assigns.principal_id,
+      device_id: socket.assigns.device_id,
+      res_id: res_id,
+      position: position,
+      unit: :millisecond,
+      reported_at: DateTime.utc_now(),
+      sequence: System.unique_integer([:monotonic, :positive]),
+      playing: false
+    })
+  end
+
+  # Where the element stopped is the end of the entry, which is the end of its region
+  # where it has one and the end of the whole otherwise.
+  defp finished_at(%{assigns: %{showing: %{playable: {:ok, playable}}}}) do
+    case playable do
+      %{to_ms: to, from_ms: from} when is_integer(to) -> to - from
+      %{parts: parts} -> parts |> Enum.map(&(&1.duration_ms || 0)) |> Enum.sum()
+    end
+  end
+
+  # The offer exists only where a next member does and where this principal has not
+  # turned it off, which §12.4 requires be possible.
+  defp offer(socket) do
+    with "on" <- Preferences.held(socket.assigns.principal_id, "next_member_offer"),
+         %{} = next <- Playback.next_after(socket.assigns.showing) do
+      socket
+      |> assign(:offering, next)
+      |> assign(:offer_seconds, div(Continuity.next_member_offer_ms(), 1000))
+      |> tick_offer()
+    else
+      _nothing_to_offer -> cancel_offer(socket)
+    end
+  end
+
+  defp tick_offer(socket) do
+    Process.send_after(self(), :offer_tick, 1_000)
+
+    socket
+  end
+
+  defp cancel_offer(socket) do
+    socket |> assign(:offering, nil) |> assign(:offer_seconds, 0)
+  end
+
+  @impl Phoenix.LiveView
+  def handle_info(:offer_tick, %{assigns: %{offering: nil}} = socket), do: {:noreply, socket}
+
+  def handle_info(:offer_tick, %{assigns: %{offer_seconds: 1}} = socket) do
+    {:noreply, socket |> cancel_offer() |> then(&jumped(&1, &1.assigns.showing.index + 1))}
+  end
+
+  def handle_info(:offer_tick, socket) do
+    {:noreply,
+     socket
+     |> assign(:offer_seconds, socket.assigns.offer_seconds - 1)
+     |> tick_offer()}
+  end
+
+  # The queue is the principal's own and another of their devices may have changed it
+  # between this render and this press, so each outcome is read back rather than assumed.
+  # No catch-all: a refusal added to `jump/3` surfaces rather than being swallowed.
+  defp jumped(socket, index) do
+    case Playback.jump(socket.assigns.principal_id, socket.assigns.device_id, index) do
+      :ok ->
+        showing(socket)
+
+      {:error, :no_queue} ->
+        showing(socket)
+
+      {:error, :current_outside_queue} ->
+        socket
+        |> put_flash(:error, "That is no longer an entry of the queue.")
+        |> showing()
     end
   end
 
@@ -92,6 +286,12 @@ defmodule PluteusWeb.BrowseLive do
       mode={Atom.to_string(@live_action)}
       announcement={@announcement}
       query={@surface && @surface.query}
+      showing={@showing}
+      playing?={@playing?}
+      queue_open?={@queue_open?}
+      offering={@offering}
+      offer_seconds={@offer_seconds}
+      device_revoked={@device_revoked}
     >
       <div id="browse" class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
@@ -192,6 +392,7 @@ defmodule PluteusWeb.BrowseLive do
     <ol :if={@surface.entries != []} class="flex flex-col">
       <li :for={id <- @surface.entries}>
         <.row
+          res={id}
           at={~p"/works/#{id}"}
           name={Map.fetch!(@surface.names, id)}
           category={@surface.categories[id]}
@@ -290,6 +491,11 @@ defmodule PluteusWeb.BrowseLive do
 
   # The glyph stands where a cover will. The second line distinguishes rows whose names
   # do not: two releases of one album differ only by what they gather.
+  #
+  # The row is a link and the play control is a button beside it, not inside: a control
+  # within a link is reachable by neither keyboard path reliably, and §8.1's primary
+  # action and reaching the page are two different things a person may want.
+  attr :res, :string, required: true
   attr :at, :string, required: true
   attr :name, :string, required: true
   attr :category, :string, default: nil
@@ -299,26 +505,38 @@ defmodule PluteusWeb.BrowseLive do
     assigns = assign(assigns, :mark, mark(assigns.category))
 
     ~H"""
-    <a
-      href={@at}
-      class={[
-        "flex items-center gap-4 px-2 py-3",
-        "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
-        "hover:bg-surface-raised"
-      ]}
-    >
-      <span class={[
-        "flex size-11 shrink-0 items-center justify-center rounded-md",
-        "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
-        "bg-surface-raised"
-      ]}>
-        <.icon name={glyph(@mark)} class={ink(@mark)} />
-      </span>
-      <span class="flex min-w-0 grow flex-col gap-0.5">
-        <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
-        <span class="truncate text-body-sm text-on-surface-muted">{kind(@mark, @members)}</span>
-      </span>
-    </a>
+    <div class={[
+      "flex items-center gap-2 pr-2",
+      "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
+      "hover:bg-surface-raised"
+    ]}>
+      <a href={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
+        <span class={[
+          "flex size-11 shrink-0 items-center justify-center rounded-md",
+          "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+          "bg-surface-raised"
+        ]}>
+          <.icon name={glyph(@mark)} class={ink(@mark)} />
+        </span>
+        <span class="flex min-w-0 grow flex-col gap-0.5">
+          <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
+          <span class="truncate text-body-sm text-on-surface-muted">{kind(@mark, @members)}</span>
+        </span>
+      </a>
+
+      <button
+        type="button"
+        phx-click="play"
+        phx-value-res={@res}
+        aria-label={"Play #{@name}"}
+        class={[
+          "min-h-target-pointer min-w-target-pointer flex shrink-0 items-center justify-center",
+          "rounded-md text-on-surface-strong hover:bg-fill-subtle"
+        ]}
+      >
+        <.icon name="hero-play-mini" />
+      </button>
+    </div>
     """
   end
 
