@@ -7,9 +7,14 @@ defmodule PluteusWeb.Interface do
 
   **The session a LiveView mounts from.** `session/1` is the shape every interface
   LiveView reads: the principal the request established, the resolution profile the
-  request resolved, and the context intents the chrome's controls render their pressed
-  state from. A surface with more to pass adds to it rather than composing its own, so a
-  key spelled one way in one caller and another way in the next cannot happen.
+  request resolved, the context intents the chrome's controls render their pressed state
+  from, and the device the browser is. A surface with more to pass adds to it rather than
+  composing its own, so a key spelled one way in one caller and another way in the next
+  cannot happen.
+
+  The device may be absent, and why is carried with it: a LiveView cannot mint one,
+  because a socket is not the request that holds the cookie, and a transport with nothing
+  to key a position by has to say that rather than discard what it reports.
 
   The contexts travel in the session rather than being read at mount, because the
   controls have to state the person's own choice in the first paint: a mount that fetched
@@ -47,7 +52,9 @@ defmodule PluteusWeb.Interface do
       "principal_id" => conn.assigns.principal.id,
       "language" => profile.language,
       "assigner_id" => profile.assigner_id,
-      "contexts" => Contexts.held_by(conn.assigns.principal)
+      "contexts" => Contexts.held_by(conn.assigns.principal),
+      "device_id" => conn.assigns[:device_id],
+      "device_revoked" => conn.assigns[:device_revoked]
     }
   end
 
