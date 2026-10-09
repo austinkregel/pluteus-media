@@ -122,23 +122,132 @@ const Waveform = {
 // A track of a release held in one file is a region of that file: the element is given
 // the whole and told where to begin and end, which is what makes playing track four a
 // range-limited play rather than a second stream.
+// The hook is on the bar rather than on the element, because §12.3's controls act on the
+// element and a control bound to nothing is §17.3's lie: available and doing nothing.
 const MediaSession = {
   mounted() {
     this.reportedAt = 0
 
-    this.el.addEventListener("timeupdate", () => this.advanced())
-    this.el.addEventListener("ended", () => this.finished())
-
+    this.bind()
     this.follow()
   },
 
   updated() {
+    this.bind()
     this.follow()
+  },
+
+  medium() {
+    return this.el.querySelector("#transport-medium")
+  },
+
+  // Bound once per element, because `updated` runs on every patch and the element
+  // survives them. A listener added twice reports twice.
+  bind() {
+    const medium = this.medium()
+
+    if (medium && !medium.dataset.bound) {
+      medium.dataset.bound = "true"
+      medium.addEventListener("timeupdate", () => this.advanced())
+      medium.addEventListener("ended", () => this.finished())
+    }
+
+    if (this.bound) return
+    this.bound = true
+
+    this.on("#transport-position", "input", (control) => this.seek(parseInt(control.value, 10)))
+    this.on("#transport-back", "click", () => this.nudge(-this.step()))
+    this.on("#transport-forward", "click", () => this.nudge(this.step()))
+    this.on("#transport-volume", "input", (control) => this.setVolume(control))
+    this.on("#transport-mute", "click", (control) => this.toggleMute(control))
+
+    // A toolbar is one tab stop its arrow keys move within (A.9.3). The sliders stay
+    // outside it, so the keys it navigates with are not the keys they consume.
+    this.roving()
+  },
+
+  on(selector, event, handle) {
+    const control = this.el.querySelector(selector)
+    if (control) control.addEventListener(event, () => handle(control))
+  },
+
+  step() {
+    return parseInt(this.el.dataset.step, 10)
+  },
+
+  // Where in the sequence, which is what the slider and the server both speak in.
+  elapsed() {
+    const {from} = this.state()
+
+    return this.medium().currentTime * 1000 - from
+  },
+
+  seek(elapsed) {
+    const {from, parts} = this.state()
+    const {part, offset} = this.within(parts, elapsed)
+    const medium = this.medium()
+
+    if (medium.src !== new URL(part.src, window.location.href).href) {
+      medium.src = part.src
+      medium.addEventListener("loadedmetadata", () => (medium.currentTime = (from + offset) / 1000), {once: true})
+    } else {
+      medium.currentTime = (from + offset) / 1000
+    }
+
+    this.reportedAt = elapsed
+    this.pushEvent("transport-position", {res: this.state().res, position_ms: Math.floor(elapsed)})
+  },
+
+  nudge(by) {
+    const control = this.el.querySelector("#transport-position")
+    const bounded = Math.min(Math.max(this.elapsed() + by, 0), parseInt(control.max, 10))
+
+    control.value = bounded
+    control.setAttribute("aria-valuetext", control.getAttribute("aria-valuetext"))
+    this.seek(bounded)
+  },
+
+  setVolume(control) {
+    const per_cent = parseInt(control.value, 10)
+
+    this.medium().volume = per_cent / 100
+    control.setAttribute("aria-valuetext", `${per_cent} per cent`)
+
+    const mute = this.el.querySelector("#transport-mute")
+    if (mute) mute.setAttribute("aria-pressed", per_cent === 0 ? "true" : "false")
+  },
+
+  // The name states the action it will perform (§12.3), so it reads Unmute while muted.
+  toggleMute(control) {
+    const medium = this.medium()
+    medium.muted = !medium.muted
+
+    control.setAttribute("aria-pressed", medium.muted ? "true" : "false")
+    control.setAttribute("aria-label", medium.muted ? "Unmute" : "Mute")
+  },
+
+  roving() {
+    const toolbar = this.el.querySelector("#transport-controls")
+    if (!toolbar) return
+
+    const stops = () => [...toolbar.querySelectorAll("button:not([disabled])")]
+
+    toolbar.addEventListener("keydown", (event) => {
+      const moves = {ArrowRight: 1, ArrowLeft: -1}
+      if (!(event.key in moves)) return
+
+      const here = stops().indexOf(document.activeElement)
+      if (here < 0) return
+
+      event.preventDefault()
+      const all = stops()
+      all[(here + moves[event.key] + all.length) % all.length].focus()
+    })
   },
 
   // The parts, the bounds and where the server says the person is.
   state() {
-    const {parts, from, to, position, interval, res} = this.el.dataset
+    const {parts, from, to, position, interval, res} = this.medium().dataset
 
     return {
       parts: JSON.parse(parts),
@@ -147,11 +256,13 @@ const MediaSession = {
       position: parseInt(position, 10),
       interval: parseInt(interval, 10),
       res,
-      playing: this.el.dataset.playing === "true"
+      playing: this.medium().dataset.playing === "true"
     }
   },
 
-  // Which part holds a position in the sequence, and how far into that part it is.
+  // Which part holds a position in the sequence, and how far into that part it is. A
+  // position past every part is one the sequence does not contain, which is a fact about
+  // the caller and not a place to start from, so it is refused rather than clamped.
   within(parts, position) {
     let remaining = position
 
@@ -167,19 +278,20 @@ const MediaSession = {
       remaining -= length
     }
 
-    return {part: parts[0], offset: 0}
+    throw new Error(`position ${position} is past every part of this holding`)
   },
 
   follow() {
     const {parts, from, position, playing} = this.state()
     if (!parts.length) return
 
+    const medium = this.medium()
     const {part, offset} = this.within(parts, position)
 
-    if (this.el.src !== new URL(part.src, window.location.href).href) {
-      this.el.src = part.src
+    if (medium.src !== new URL(part.src, window.location.href).href) {
+      medium.src = part.src
       this.seekTo = from + offset
-    } else if (Math.abs(this.el.currentTime * 1000 - (from + offset)) > 2000) {
+    } else if (Math.abs(medium.currentTime * 1000 - (from + offset)) > 2000) {
       this.seekTo = from + offset
     }
 
@@ -188,25 +300,28 @@ const MediaSession = {
       this.seekTo = undefined
 
       const seek = () => {
-        this.el.currentTime = target / 1000
+        medium.currentTime = target / 1000
       }
 
-      if (this.el.readyState > 0) seek()
-      else this.el.addEventListener("loadedmetadata", seek, {once: true})
+      if (medium.readyState > 0) seek()
+      else medium.addEventListener("loadedmetadata", seek, {once: true})
     }
 
-    if (playing) this.el.play().catch(() => this.pushEvent("transport-refused", {}))
-    else this.el.pause()
+    // The rejection says what went wrong — a gesture refused, a source unsupported, a
+    // decode that failed — and guessing one of them for all of them would report a cause
+    // nobody established.
+    if (playing) medium.play().catch((cause) => this.pushEvent("transport-refused", {why: `${cause}`}))
+    else medium.pause()
   },
 
   advanced() {
     const {from, to, interval, res} = this.state()
-    const at = this.el.currentTime * 1000
+    const at = this.medium().currentTime * 1000
 
     // The end of the region is the end of this entry, which the element does not know:
     // the file goes on past it.
     if (to !== null && at >= to) {
-      this.el.pause()
+      this.medium().pause()
       return this.finished()
     }
 
