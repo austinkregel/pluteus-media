@@ -47,8 +47,10 @@ defmodule Pluteus.Playback do
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
+  alias Pluteus.Catalog.Grouping
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Selection
+  alias Pluteus.Consumption
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle.RecycledRes
@@ -82,6 +84,50 @@ defmodule Pluteus.Playback do
           {:holds_no_file, Ecto.UUID.t()}
           | {:not_normalized, Ecto.UUID.t()}
           | {:sequence_unmeasured, Ecto.UUID.t()}
+
+  @doc """
+  The queue playing a res fills, and which of its entries is the one asked for.
+
+  Playing a grouping fills the queue with its members, and playing a member fills it with
+  the grouping's members and starts at that one — so what follows a track is the rest of
+  its release rather than nothing, which is also what makes §12.4's question answerable.
+  A holding that is a member of nothing and carries no members is a queue of one.
+
+  Each entry records the grouping it came in with, which §12.3 requires: a track reached
+  from its release and the same track reached on its own are different queue entries, and
+  only the record tells them apart.
+  """
+  @spec queue_for(Ecto.UUID.t()) :: {[Consumption.entry()], non_neg_integer()}
+  def queue_for(work_id) do
+    case Grouping.members_of(work_id) do
+      [] -> from_its_grouping(work_id)
+      members -> {entries(members, work_id), 0}
+    end
+  end
+
+  defp from_its_grouping(work_id) do
+    case Grouping.grouping_of(work_id) do
+      nil ->
+        {[%{res_id: work_id, queued_from: nil}], 0}
+
+      grouping ->
+        members = Grouping.members_of(grouping)
+
+        {entries(members, grouping), at(members, work_id, grouping)}
+    end
+  end
+
+  # A grouping that does not carry the member it was reached through is a broken
+  # relation, not a queue to start at the beginning of.
+  defp at(members, work_id, grouping) do
+    Enum.find_index(members, &(&1 == work_id)) ||
+      raise ArgumentError,
+            "#{work_id} is a member of #{grouping}, which does not carry it among its members"
+  end
+
+  defp entries(members, queued_from) do
+    for res_id <- members, do: %{res_id: res_id, queued_from: queued_from}
+  end
 
   @doc """
   The bytes playing a work acts on, under the requesting principal's own selection.
