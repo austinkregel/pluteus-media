@@ -23,6 +23,16 @@ defmodule Pluteus.Browse.Entries do
   well as the release manifestation, and the media *are* parts, so asking that none of
   its manifestations be a part would present a release by its own discs.
 
+  ## An augmentation is a track, not a holding
+
+  A third relation presents a res: a manifestation carries an expression that augments
+  it. A commentary is an expression of a work of its own embodied in the film's
+  manifestation, so nothing aggregates it and the manifestation it embodies is nobody's
+  part — and it is a track of the film in the same way its second audio stream is, not a
+  second thing the household holds. So the embodiment has to be the work's own content
+  rather than any embodiment, and `Pluteus.Catalog.Embodiment` is where that is
+  recorded.
+
   ## The category has to be the effective one
 
   `Pluteus.Catalog.category_of/2` prefers a local assignment to an automatic one and an
@@ -275,11 +285,17 @@ defmodule Pluteus.Browse.Entries do
 
   # The second, read the other way round: the work is an entry where something it
   # embodies is nobody's part, rather than where nothing it embodies is a part.
+  #
+  # Embodies as content, not as an augmentation. A commentary is a work of its own
+  # carried in the film's manifestation, so it embodies a manifestation that is nobody's
+  # part and would otherwise be listed beside the film — and it is a track of the film
+  # rather than a second thing the household holds.
   defp embodies_a_whole do
     from x in Expression,
       join: e in Embodiment,
       on: e.expression_id == x.id,
       where: parent_as(:work).id == x.work_id,
+      where: not e.augmentation,
       where: e.manifestation_id not in subquery(from p in ManifestationPart, select: p.part_id),
       select: 1
   end
