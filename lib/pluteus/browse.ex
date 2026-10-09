@@ -28,6 +28,8 @@ defmodule Pluteus.Browse do
   alias Pluteus.Browse.Query
   alias Pluteus.Browse.Unfinished
   alias Pluteus.Catalog.Aggregation
+  alias Pluteus.Catalog.Cover
+  alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
@@ -44,6 +46,8 @@ defmodule Pluteus.Browse do
           names: %{Ecto.UUID.t() => String.t()},
           categories: %{Ecto.UUID.t() => String.t()},
           members: %{Ecto.UUID.t() => non_neg_integer()},
+          credited: %{Ecto.UUID.t() => [String.t()]},
+          covers: %{Ecto.UUID.t() => Ecto.UUID.t()},
           labels: %{String.t() => String.t()},
           total: non_neg_integer(),
           catalogue: non_neg_integer(),
@@ -76,6 +80,8 @@ defmodule Pluteus.Browse do
       names: named(entries, profile),
       categories: categorised(entries),
       members: membered(entries),
+      credited: credited(entries, profile),
+      covers: Cover.for_works(entries),
       total: Entries.count(query),
       catalogue: Entries.count(Query.unnarrowed(query)),
       facets: facets,
@@ -109,6 +115,37 @@ defmodule Pluteus.Browse do
       _nothing_identified ->
         %{}
     end
+  end
+
+  # Who a holding is by. The first fact a person looks for in a list of music, and a
+  # holding carrying none says nothing rather than saying so twice — the kind is already
+  # beside it.
+  #
+  # Credits are ordered by role and position, which is the order placement wrote them in,
+  # so an album artist leads the track artists it gathers.
+  defp credited([], _profile), do: %{}
+
+  defp credited(entries, profile) do
+    credits =
+      Repo.all(
+        from c in Credit,
+          where: c.work_id in ^entries,
+          where: not is_nil(c.agent_id),
+          order_by: [c.role, c.position],
+          select: {c.work_id, c.agent_id}
+      )
+
+    named =
+      credits
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.uniq()
+      |> Resolution.resolve_many(profile)
+
+    credits
+    |> Enum.group_by(&elem(&1, 0), &named[elem(&1, 1)])
+    |> Map.new(fn {work_id, nomens} ->
+      {work_id, nomens |> Enum.reject(&is_nil/1) |> Enum.map(& &1.nomen_string) |> Enum.uniq()}
+    end)
   end
 
   # The effective category, through the subquery a narrowing and a count also read.
