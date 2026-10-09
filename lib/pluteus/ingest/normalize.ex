@@ -68,24 +68,60 @@ defmodule Pluteus.Ingest.Normalize do
   end
 
   @doc """
-  The live asset of a digital item holding the Normalized role, or nil.
+  The live asset holding the Normalized role for a holding carried by one file, or nil.
+
+  A holding in several files has a master per part, so there is no one answer and this
+  raises rather than returning whichever row came back first. `master_of/2` is what names
+  the part.
   """
   @spec master_of(Ecto.UUID.t()) :: Asset.t() | nil
   def master_of(digital_item_id) do
+    case Repo.all(parts_of(digital_item_id)) do
+      [] ->
+        nil
+
+      [only] ->
+        only
+
+      masters ->
+        raise ArgumentError,
+              "digital item #{digital_item_id} is carried by #{length(masters)} files, " <>
+                "each with its own master, so which is meant has to be named"
+    end
+  end
+
+  @doc """
+  The live asset holding the Normalized role for one part of a holding, or nil.
+
+  The part is what the role is per: `one_normalized_master` counts within
+  `(digital item, part sequence)`, and a reading in several parts has a master for each.
+  A holding carried by one file records no sequence, which `nil` names.
+  """
+  @spec master_of(Ecto.UUID.t(), integer() | nil) :: Asset.t() | nil
+  def master_of(digital_item_id, part_sequence) do
     Repo.one(
-      from a in Asset,
-        join: r in AssetRole,
-        on: r.asset_id == a.id and r.role_class == :normalized,
-        where: a.digital_item_id == ^digital_item_id,
-        where: a.id not in subquery(from b in RecycledRes, select: b.res_id),
-        distinct: true
+      from a in parts_of(digital_item_id),
+        where: fragment("? IS NOT DISTINCT FROM ?", a.part_sequence, ^part_sequence)
     )
   end
 
+  defp parts_of(digital_item_id) do
+    from a in Asset,
+      join: r in AssetRole,
+      on: r.asset_id == a.id and r.role_class == :normalized,
+      where: a.digital_item_id == ^digital_item_id,
+      where: a.id not in subquery(from b in RecycledRes, select: b.res_id),
+      distinct: true
+  end
+
+  # Due is asked of a part and not of a holding. Asked of the holding, the second file of
+  # a reading in several parts is judged against the first file's master, found to need no
+  # standard format it does not already have, and left with no master of its own — so
+  # nothing can be played or served from it.
   defp due?(acquisition, standard) do
     original = Repo.get!(Asset, acquisition.id)
 
-    case master_of(acquisition.digital_item_id) do
+    case master_of(acquisition.digital_item_id, original.part_sequence) do
       nil ->
         true
 
@@ -106,7 +142,10 @@ defmodule Pluteus.Ingest.Normalize do
   @spec normalize(Acquisition.t(), map() | nil) :: :adopted | :re_encoded | :finding
   def normalize(%Acquisition{} = acquisition, standard) do
     original = Repo.get!(Asset, acquisition.id)
-    previous = master_of(acquisition.digital_item_id)
+
+    # The master this one replaces is the one for the same part. Taken for the holding,
+    # adopting the second file of a reading would recycle the first file's master.
+    previous = master_of(acquisition.digital_item_id, original.part_sequence)
 
     outcome =
       if re_encodes?(original, standard),
