@@ -358,20 +358,11 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # The whole the position is measured along, which is the sequence the parts make. A
-  # holding carried by one file reports its own length to the client, so there is nothing
-  # to state here and the slider waits for it.
-  defp extent(%{playable: {:ok, %{from_ms: from, to_ms: to}}}) when is_integer(from),
-    do: to - from
-
-  defp extent(%{playable: {:ok, %{parts: parts}}}) do
-    case Enum.map(parts, & &1.duration_ms) do
-      [nil] -> nil
-      durations -> Enum.sum(durations)
-    end
-  end
-
-  defp extent(%{playable: {:error, _refusal}}), do: nil
+  # The whole the position is measured along: spec-01 §8.4's recorded figure, which is
+  # what §13.2's floor and ceiling are measured against too, so the slider and the
+  # thresholds cannot disagree about how long something is. Where nothing recorded one
+  # the slider says so rather than drawing a scale it cannot place a value on.
+  defp extent(%{extent_ms: extent_ms}), do: extent_ms
 
   defp refusal(%{playable: {:error, refusal}}), do: Playback.why(refusal)
   defp refusal(%{playable: {:ok, _playable}}), do: nil
