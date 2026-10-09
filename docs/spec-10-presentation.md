@@ -455,13 +455,24 @@ res is presented by another where:
 
 - an aggregating work selects its expression (spec-01 §5.3, LRM-R25), or
 - its manifestation is a part under a whole-part relation (spec-01 §5.4,
-  §12.1, LRM-R26).
+  §12.1, LRM-R26), or
+- a manifestation carries its expression as an augmentation (spec-01 §5.3,
+  LRM-R3).
 
 So a release carries the entry and its tracks do not. A complete serial
 manifestation carries the entry and its seasons and episodes do not — which is
 what spec-01 §5.4 means by episode structure living at manifestation level,
 and what spec-01 Annex A §A.3 means in quoting LRM that a serial work "can be
-said to have only one expression and only one manifestation".
+said to have only one expression and only one manifestation". And a film
+carries the entry while the commentary riding in its container does not: the
+commentary is a work of its own (spec-04 §6.5) and a track of the film, the
+same as its second audio stream, so it is reachable through the film's track
+selection (spec-01 §8.6) and at its own URI, and it is not a second thing the
+household holds.
+
+A work MUST therefore be read as embodying what it is the work *of*: an
+augmenting embodiment does not make its work an entry, because such a work has
+no manifestation of its own anywhere.
 
 **[I]** The primary action MUST resolve to a specific expression and digital
 item without asking. Choosing MUST NOT be a precondition of acting. The
