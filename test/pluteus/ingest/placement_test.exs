@@ -12,6 +12,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   alias Pluteus.Annotations
   alias Pluteus.Assets
   alias Pluteus.Browse.Entries
+  alias Pluteus.Browse.Query
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Addressing
@@ -1705,18 +1706,16 @@ defmodule Pluteus.Ingest.PlacementTest do
       by_work = Enum.group_by(expressions, & &1.work_id)
       assert map_size(by_work) == 2
 
-      [{_film_work, [_, _]}, {commentary_work, [_]}] =
+      [{film_work, [_, _]}, {commentary_work, [_]}] =
         Enum.sort_by(by_work, fn {_work, expressions} -> -length(expressions) end)
 
-      # Nothing categorizes it, and nothing presents it either, so it reaches a browse
-      # surface as a holding whose kind nobody has recorded. That is what the gateway's
-      # kind door counts and what a row with no kind says in words.
-      assert Catalog.category_of(commentary_work, Place.category_scheme()) == nil
+      # The commentary rides in the film's manifestation, so it is a track of the film in
+      # the same way its second audio stream is. It keeps its own URI and reaches track
+      # selection; what it is not is a second thing the household holds.
+      listed = Entries.ids(%Query{mode: "everything"}, 100)
 
-      assert Repo.exists?(
-               from w in Entries.without_category(Entries.base()),
-                 where: w.id == ^commentary_work
-             )
+      assert film_work in listed
+      refute commentary_work in listed
     end
 
     test "a downmix of one language is not a second expression", %{inbox: inbox} do
