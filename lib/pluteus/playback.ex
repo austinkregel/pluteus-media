@@ -41,6 +41,7 @@ defmodule Pluteus.Playback do
   import Ecto.Query, only: [from: 2]
 
   alias Pluteus.Annotations
+  alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
@@ -49,8 +50,11 @@ defmodule Pluteus.Playback do
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Grouping
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Catalog.Resolution
   alias Pluteus.Catalog.Selection
   alias Pluteus.Consumption
+  alias Pluteus.Events
+  alias Pluteus.Ingest.Place
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle.RecycledRes
@@ -85,6 +89,81 @@ defmodule Pluteus.Playback do
           | {:not_normalized, Ecto.UUID.t()}
           | {:sequence_unmeasured, Ecto.UUID.t()}
 
+  @typedoc """
+  One place in the queue as a surface shows it.
+  """
+  @type queued :: %{
+          res_id: Ecto.UUID.t(),
+          name: String.t(),
+          queued_from: Ecto.UUID.t() | nil
+        }
+
+  @typedoc """
+  What the transport is showing: the entry that is current, where in it the principal is,
+  and the queue around it.
+
+  `playable` carries the refusal rather than being absent where there is nothing to play,
+  because §12.3's controls have to say why they cannot act rather than disappearing.
+  """
+  @type current :: %{
+          res_id: Ecto.UUID.t(),
+          name: String.t(),
+          category: String.t() | nil,
+          playable: {:ok, playable()} | {:error, refusal()},
+          position_ms: non_neg_integer(),
+          index: non_neg_integer(),
+          queue: [queued()]
+        }
+
+  @doc """
+  What the transport shows for one principal, or nil where nothing is current.
+
+  A saved queue with no current entry is not something playing: §12.3's queue outlives
+  any one session, and a surface that drew a transport for it would claim a position in
+  something nobody started.
+  """
+  @spec current(Ecto.UUID.t(), Profile.t()) :: current() | nil
+  def current(principal_id, %Profile{} = profile) do
+    case Consumption.play_queue(principal_id) do
+      nil -> nil
+      %{current_index: nil} -> nil
+      queue -> showing(queue, profile)
+    end
+  end
+
+  defp showing(queue, profile) do
+    entries = Enum.sort_by(queue.entries, & &1.position)
+    names = Resolution.visible_many(Enum.map(entries, & &1.res_id), profile)
+    current = Enum.at(entries, queue.current_index)
+
+    %{
+      res_id: current.res_id,
+      name: named(names, current.res_id, profile),
+      category: Catalog.category_of(Catalog.work_of(current.res_id), Place.category_scheme()),
+      playable: for_manifestation(current.res_id),
+      position_ms: queue.position_ms,
+      index: queue.current_index,
+      queue:
+        for entry <- entries do
+          %{
+            res_id: entry.res_id,
+            name: named(names, entry.res_id, profile),
+            queued_from: entry.queued_from
+          }
+        end
+    }
+  end
+
+  # A queue entry naming a res nothing resolves a name for is a res this principal may
+  # not see the name of, which is a queue entry nobody could have made. It is not a
+  # blank row to draw.
+  defp named(names, res_id, profile) do
+    case names[res_id] do
+      nil -> raise ArgumentError, "queued res #{res_id} resolves to no name this profile may see"
+      nomens -> Resolution.choose(nomens, profile).nomen_string
+    end
+  end
+
   @doc """
   The queue playing a res fills, and which of its entries is the one asked for.
 
@@ -97,32 +176,44 @@ defmodule Pluteus.Playback do
   from its release and the same track reached on its own are different queue entries, and
   only the record tells them apart.
   """
-  @spec queue_for(Ecto.UUID.t()) :: {[Consumption.entry()], non_neg_integer()}
-  def queue_for(work_id) do
-    case Grouping.members_of(work_id) do
-      [] -> from_its_grouping(work_id)
+  @spec queue_for(Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) ::
+          {[Consumption.entry()], non_neg_integer()}
+  def queue_for(work_id, principal_id, %Profile{} = profile) do
+    case Grouping.member_manifestations_of(work_id) do
+      [] -> from_its_grouping(work_id, principal_id, profile)
       members -> {entries(members, work_id), 0}
     end
   end
 
-  defp from_its_grouping(work_id) do
+  defp from_its_grouping(work_id, principal_id, profile) do
     case Grouping.grouping_of(work_id) do
       nil ->
-        {[%{res_id: work_id, queued_from: nil}], 0}
+        {[%{res_id: own_manifestation!(work_id, principal_id, profile), queued_from: nil}], 0}
 
       grouping ->
-        members = Grouping.members_of(grouping)
+        members = Grouping.member_manifestations_of(grouping)
+        mine = own_manifestation!(work_id, principal_id, profile)
 
-        {entries(members, grouping), at(members, work_id, grouping)}
+        {entries(members, grouping), at(members, mine, grouping)}
     end
+  end
+
+  # The manifestation this work resolves to for this principal. A holding that is a
+  # member of nothing is reached through §8.1's selection, which is where a work with
+  # several expressions is decided between.
+  defp own_manifestation!(work_id, principal_id, profile) do
+    selected = Selection.for_principal(work_id, principal_id, profile)
+
+    embodied_by(selected.expression.id) ||
+      raise ArgumentError, "#{work_id} resolves to an expression embodying no manifestation"
   end
 
   # A grouping that does not carry the member it was reached through is a broken
   # relation, not a queue to start at the beginning of.
-  defp at(members, work_id, grouping) do
-    Enum.find_index(members, &(&1 == work_id)) ||
+  defp at(members, manifestation_id, grouping) do
+    Enum.find_index(members, &(&1 == manifestation_id)) ||
       raise ArgumentError,
-            "#{work_id} is a member of #{grouping}, which does not carry it among its members"
+            "#{manifestation_id} belongs to #{grouping}, which does not carry it as a member"
   end
 
   defp entries(members, queued_from) do
@@ -130,54 +221,169 @@ defmodule Pluteus.Playback do
   end
 
   @doc """
+  Starts a res playing on one device: fills the queue from it, makes its entry current,
+  and resumes where this principal left it.
+
+  The position is the one §13.3 names among this principal's own reports. §13.2 gives a
+  category one unit, so a res whose position is measured in anything but milliseconds is
+  a res with two units and not a place a queue can carry: it raises rather than starting
+  silently at the beginning.
+  """
+  @spec play(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) :: :ok
+  def play(principal_id, device_id, work_id, %Profile{} = profile) do
+    {entries, index} = queue_for(work_id, principal_id, profile)
+    current = Enum.at(entries, index).res_id
+
+    {:ok, _queue} =
+      Consumption.save_play_queue(
+        principal_id,
+        entries,
+        index,
+        resumed(principal_id, current),
+        device_id
+      )
+
+    Consumption.playing(principal_id, device_id, current)
+  end
+
+  @doc """
+  Makes another entry of the queue current, at its own resume position.
+
+  The queue itself is untouched: jumping to an entry is §12.3's own operation and does
+  not reorder or shorten what a person assembled.
+  """
+  @spec jump(Ecto.UUID.t(), Ecto.UUID.t(), non_neg_integer()) ::
+          :ok | {:error, :current_outside_queue | :no_queue}
+  def jump(principal_id, device_id, index) do
+    case Consumption.play_queue(principal_id) do
+      nil ->
+        {:error, :no_queue}
+
+      queue ->
+        entries = Enum.sort_by(queue.entries, & &1.position)
+
+        with {:ok, entry} <- at_index(entries, index),
+             {:ok, _queue} <- save(principal_id, device_id, entries, index, entry) do
+          Consumption.playing(principal_id, device_id, entry.res_id)
+        end
+    end
+  end
+
+  defp at_index(entries, index) do
+    case Enum.at(entries, index) do
+      nil -> {:error, :current_outside_queue}
+      entry -> {:ok, entry}
+    end
+  end
+
+  defp save(principal_id, device_id, entries, index, entry) do
+    Consumption.save_play_queue(
+      principal_id,
+      for(e <- entries, do: %{res_id: e.res_id, queued_from: e.queued_from}),
+      index,
+      resumed(principal_id, entry.res_id),
+      device_id
+    )
+  end
+
+  @doc """
+  The entry after the one that is current, or nil where it is the last.
+
+  §12.4's question: the offer at the end exists only where a next member does.
+  """
+  @spec next_after(current()) :: queued() | nil
+  def next_after(%{queue: queue, index: index}), do: Enum.at(queue, index + 1)
+
+  defp resumed(principal_id, res_id) do
+    case Events.resume_position(principal_id, res_id) do
+      nil ->
+        0
+
+      %{unit: :millisecond, position: position} ->
+        position
+
+      %{unit: unit} ->
+        raise ArgumentError,
+              "the position held for #{res_id} is measured in #{unit} and a queue's is in " <>
+                "milliseconds, so this res is tracked in two units"
+    end
+  end
+
+  @doc """
+  The bytes playing one manifestation acts on.
+
+  The manifestation rather than the work, because that is what a position is measured
+  against and what a queue names.
+  """
+  @spec for_manifestation(Ecto.UUID.t()) :: {:ok, playable()} | {:error, refusal()}
+  def for_manifestation(manifestation_id) do
+    case carrier(manifestation_id) do
+      nil -> as_a_region(manifestation_id)
+      item_id -> whole(manifestation_id, item_id)
+    end
+  end
+
+  @doc """
   The bytes playing a work acts on, under the requesting principal's own selection.
+
+  §8.1's selection answers which expression a principal is given; which of that
+  expression's manifestations is then taken by identifier, so a holding carrying several
+  resolves to the same one across calls as §7.4 requires of what a surface shows.
   """
   @spec for_work(Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) ::
           {:ok, playable()} | {:error, refusal()}
   def for_work(work_id, principal_id, %Profile{} = profile) do
     selected = Selection.for_principal(work_id, principal_id, profile)
 
-    case selected.digital_item do
-      nil -> as_a_region(work_id, selected.expression.id)
-      item -> whole(work_id, item)
+    case embodied_by(selected.expression.id) do
+      nil -> {:error, {:holds_no_file, work_id}}
+      manifestation_id -> for_manifestation(manifestation_id)
     end
   end
 
-  defp whole(work_id, item_id) do
-    with {:ok, parts} <- parts(work_id, item_id) do
+  defp whole(manifestation_id, item_id) do
+    with {:ok, parts} <- parts(manifestation_id, item_id) do
       {:ok, %{parts: parts, from_ms: nil, to_ms: nil}}
     end
   end
 
-  # The expression embodies a manifestation nothing holds a file for, so either the
-  # household holds no file for it or its bytes are a region of something else's.
-  defp as_a_region(work_id, expression_id) do
-    with %{target_id: target, start_ms: from, end_ms: to} <- extent_of(expression_id),
+  # Nothing holds a file for this manifestation, so either the household holds none or
+  # its bytes are a region of another manifestation's.
+  defp as_a_region(manifestation_id) do
+    with %{target_id: target, start_ms: from, end_ms: to} <- extent_of(manifestation_id),
          item_id when is_binary(item_id) <- carrier(target),
-         {:ok, parts} <- parts(work_id, item_id) do
+         {:ok, parts} <- parts(manifestation_id, item_id) do
       {:ok, %{parts: parts, from_ms: from, to_ms: to}}
     else
-      nil -> {:error, {:holds_no_file, work_id}}
+      nil -> {:error, {:holds_no_file, manifestation_id}}
       {:error, refusal} -> {:error, refusal}
     end
   end
 
-  # The address spec-04 §6.4 wrote: its target is the manifestation carrying the bytes
-  # and its bounds are the region of them this work is.
-  defp extent_of(expression_id) do
+  # The address spec-04 §6.4 wrote: it is linked to the manifestation whose region it
+  # describes, and its target is the manifestation carrying the bytes.
+  defp extent_of(manifestation_id) do
     Repo.one(
       from a in Association,
         join: address in Address,
         on: address.id == a.subject_id,
-        join: b in Embodiment,
-        on: b.manifestation_id == a.object_id,
-        where: b.expression_id == ^expression_id,
         where: a.refinement == "extent-of",
+        where: a.object_id == ^manifestation_id,
         select: %{
           target_id: address.target_id,
           start_ms: address.start_ms,
           end_ms: address.end_ms
         }
+    )
+  end
+
+  defp embodied_by(expression_id) do
+    Repo.one(
+      from b in Embodiment,
+        where: b.expression_id == ^expression_id,
+        order_by: b.manifestation_id,
+        limit: 1,
+        select: b.manifestation_id
     )
   end
 
@@ -191,10 +397,10 @@ defmodule Pluteus.Playback do
     )
   end
 
-  defp parts(work_id, item_id) do
+  defp parts(res_id, item_id) do
     case masters(item_id) do
-      [] -> {:error, {:not_normalized, work_id}}
-      masters -> measured(work_id, masters, durations(item_id))
+      [] -> {:error, {:not_normalized, res_id}}
+      masters -> measured(res_id, masters, durations(item_id))
     end
   end
 
@@ -235,15 +441,15 @@ defmodule Pluteus.Playback do
     end)
   end
 
-  defp measured(_work_id, [only], durations) do
+  defp measured(_res_id, [only], durations) do
     {:ok, [part(only, durations[only.part_sequence])]}
   end
 
-  defp measured(work_id, masters, durations) do
+  defp measured(res_id, masters, durations) do
     parts = Enum.map(masters, &part(&1, durations[&1.part_sequence]))
 
     if Enum.any?(parts, &is_nil(&1.duration_ms)),
-      do: {:error, {:sequence_unmeasured, work_id}},
+      do: {:error, {:sequence_unmeasured, res_id}},
       else: {:ok, parts}
   end
 
