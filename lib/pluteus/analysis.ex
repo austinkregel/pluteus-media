@@ -25,6 +25,7 @@ defmodule Pluteus.Analysis do
   alias Pluteus.Annotations.ToolVersion
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Association
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Acquisition
@@ -39,9 +40,16 @@ defmodule Pluteus.Analysis do
   alias Pluteus.Representation.Registry, as: FieldRegistry
   alias Pluteus.Storage
 
+  @typedoc """
+  One thing a tool is run over.
+
+  `part_sequence` names which file of the holding carries the bytes, since a reading in
+  several files has a master per part and `source_id` alone does not say which.
+  """
   @type input :: %{
           input_id: Ecto.UUID.t(),
           source_id: Ecto.UUID.t(),
+          part_sequence: integer() | nil,
           stream: map() | nil,
           start_ms: non_neg_integer() | nil,
           end_ms: non_neg_integer() | nil
@@ -71,22 +79,38 @@ defmodule Pluteus.Analysis do
   """
   @spec inputs() :: [input()]
   def inputs do
-    from(a in Acquisition,
-      join: s in Source,
-      on: s.digital_item_id == a.digital_item_id,
-      where: a.state == :placed and a.media_class in [:audio, :video],
-      select: {a, s.manifestation_id}
-    )
-    |> Repo.all()
+    placed =
+      Repo.all(
+        from a in Acquisition,
+          join: s in Source,
+          on: s.digital_item_id == a.digital_item_id,
+          where: a.state == :placed and a.media_class in [:audio, :video],
+          select: {a, s.manifestation_id}
+      )
+
+    originals = originals_of(for {acquisition, _manifestation} <- placed, do: acquisition.id)
+
+    placed
     |> Enum.filter(fn {acquisition, manifestation_id} ->
-      live?(manifestation_id) and not is_nil(Normalize.master_of(acquisition.digital_item_id))
+      original = Map.fetch!(originals, acquisition.id)
+
+      live?(manifestation_id) and
+        not is_nil(Normalize.master_of(acquisition.digital_item_id, original.part_sequence))
     end)
     |> Enum.flat_map(fn {acquisition, manifestation_id} ->
-      inputs_of(acquisition, manifestation_id)
+      inputs_of(acquisition, manifestation_id, Map.fetch!(originals, acquisition.id))
     end)
   end
 
-  defp inputs_of(acquisition, manifestation_id) do
+  # The asset a placed acquisition became, which carries which part of its holding the
+  # bytes are. Fetched for the whole pass, and by key rather than by join: a placed
+  # acquisition that became no asset is a broken invariant, and `Map.fetch!` says so
+  # where an inner join would drop it in silence.
+  defp originals_of(acquisition_ids) do
+    Map.new(Repo.all(from a in Asset, where: a.id in ^acquisition_ids), &{&1.id, &1})
+  end
+
+  defp inputs_of(acquisition, manifestation_id, original) do
     audio_tracks =
       manifestation_id
       |> Catalog.addresses_of()
@@ -96,25 +120,39 @@ defmodule Pluteus.Analysis do
 
     cond do
       audio_tracks != [] ->
-        Enum.map(audio_tracks, &%{input(&1.id, acquisition) | stream: selector_of(&1)})
+        Enum.map(audio_tracks, &%{input(&1.id, acquisition, original) | stream: selector_of(&1)})
 
       extents != [] ->
         Enum.map(extents, fn {track_id, address} ->
-          %{input(track_id, acquisition) | start_ms: address.start_ms, end_ms: address.end_ms}
+          %{
+            input(track_id, acquisition, original)
+            | start_ms: address.start_ms,
+              end_ms: address.end_ms
+          }
         end)
 
       acquisition.media_class == :audio ->
-        [input(manifestation_id, acquisition)]
+        [input(whole_or_part(manifestation_id, acquisition, original), acquisition, original)]
 
       true ->
         []
     end
   end
 
-  defp input(input_id, acquisition) do
+  # A holding carried by one file is analysed as the manifestation it embodies. A reading
+  # in several files is analysed a part at a time, and what identifies a part is its own
+  # asset: keyed by the manifestation, every part of one reading would be the same input
+  # and the last run would supersede the rest.
+  defp whole_or_part(manifestation_id, _acquisition, %Asset{part_sequence: nil}),
+    do: manifestation_id
+
+  defp whole_or_part(_manifestation_id, acquisition, %Asset{}), do: acquisition.id
+
+  defp input(input_id, acquisition, original) do
     %{
       input_id: input_id,
       source_id: acquisition.digital_item_id,
+      part_sequence: original.part_sequence,
       stream: nil,
       start_ms: nil,
       end_ms: nil
@@ -185,7 +223,7 @@ defmodule Pluteus.Analysis do
   @spec analyse(module(), input(), map()) ::
           {:ok, Derivation.t()} | :refused | :failed | {:error, :transient, term()}
   def analyse(tool, input, %{name: name, version: version}) do
-    master = Normalize.master_of(input.source_id)
+    master = Normalize.master_of(input.source_id, input.part_sequence)
     request = request(master, input)
 
     case tool.analyse(request) do
