@@ -253,6 +253,20 @@ present in the container.
 An aggregating work MAY be described for any aggregate, and MAY be described
 later if not identified initially (LRM §5.7).
 
+A commentary stream is an **augmentation**: an expression of a work of its own
+carried in the manifestation it augments (spec-04 §6.5). A dub is a parallel
+expression of the work the manifestation is of. Both are one LRM-R3 row, so
+implementations MUST record which of the two a pairing is, against the pairing
+rather than against either entity — neither the expression nor the manifestation
+carries the fact, and an expression may augment one manifestation while being
+content in another.
+
+The distinction is load-bearing beyond description. A work reached only through
+augmenting embodiments has no manifestation of its own, so it is a track of
+another work's holding and not a holding; spec-10 §8.1 makes that a presenting
+relation and keeps the commentary off a browse surface. Without the record the
+two cases are indistinguishable and the commentary is listed beside the film.
+
 **Constraint:** whole-part MUST NOT be used between an aggregating work and the
 works it aggregates. LRM §5.7 states the aggregating work holds only the
 selection and arrangement criteria and does not contain the aggregated works.
