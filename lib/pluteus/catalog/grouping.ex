@@ -38,19 +38,31 @@ defmodule Pluteus.Catalog.Grouping do
   @doc """
   The works a grouping carries, in the order the relation carrying it puts them, or an
   empty list where the res carries no members.
+
+  What a page listing the members links to, since a browse entry is a work.
   """
   @spec members_of(Ecto.UUID.t()) :: [Ecto.UUID.t()]
   def members_of(work_id) do
-    case own_manifestation(work_id) do
-      nil -> []
-      manifestation_id -> by_position(manifestation_id, work_id)
+    case member_manifestations_of(work_id) do
+      [] -> by_arrangement(work_id)
+      manifestations -> works_embodying(manifestations)
     end
   end
 
-  defp by_position(manifestation_id, work_id) do
-    case leaves_under(manifestation_id) do
-      [] -> by_arrangement(work_id)
-      leaves -> works_embodying(leaves)
+  @doc """
+  The manifestations a grouping carries, in the same order.
+
+  What a queue names, because a position and an extent are recorded against the
+  manifestation ([spec-01] §8.4) and the OpenSubsonic surface's song is the same res. A
+  member reached this way needs no expression selected for it: the relation carrying the
+  order already named one manifestation, and §8.1's selection is about which expression
+  of a work to give where the work has several.
+  """
+  @spec member_manifestations_of(Ecto.UUID.t()) :: [Ecto.UUID.t()]
+  def member_manifestations_of(work_id) do
+    case own_manifestation(work_id) do
+      nil -> []
+      manifestation_id -> leaves_under(manifestation_id)
     end
   end
 
