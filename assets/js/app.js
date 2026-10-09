@@ -112,11 +112,122 @@ const Waveform = {
   }
 }
 
+// spec-10 §12.3's transport. The server owns the queue, the current entry and the
+// position; this drives the media element to follow them and reports back where it got to.
+//
+// A holding in several files is one sequence and a position is against the whole, so the
+// part carrying a position is arithmetic over the parts' own lengths. A holding in one
+// file reports its own length, which is why its single part carries none.
+//
+// A track of a release held in one file is a region of that file: the element is given
+// the whole and told where to begin and end, which is what makes playing track four a
+// range-limited play rather than a second stream.
+const MediaSession = {
+  mounted() {
+    this.reportedAt = 0
+
+    this.el.addEventListener("timeupdate", () => this.advanced())
+    this.el.addEventListener("ended", () => this.finished())
+
+    this.follow()
+  },
+
+  updated() {
+    this.follow()
+  },
+
+  // The parts, the bounds and where the server says the person is.
+  state() {
+    const {parts, from, to, position, interval, res} = this.el.dataset
+
+    return {
+      parts: JSON.parse(parts),
+      from: from === undefined || from === "" ? 0 : parseInt(from, 10),
+      to: to === undefined || to === "" ? null : parseInt(to, 10),
+      position: parseInt(position, 10),
+      interval: parseInt(interval, 10),
+      res,
+      playing: this.el.dataset.playing === "true"
+    }
+  },
+
+  // Which part holds a position in the sequence, and how far into that part it is.
+  within(parts, position) {
+    let remaining = position
+
+    for (let index = 0; index < parts.length; index++) {
+      const length = parts[index].duration_ms
+
+      // The last part, or the only one, absorbs whatever is left: a holding in one file
+      // knows its own length and the server did not have to state it.
+      if (length === null || index === parts.length - 1 || remaining < length) {
+        return {part: parts[index], offset: remaining}
+      }
+
+      remaining -= length
+    }
+
+    return {part: parts[0], offset: 0}
+  },
+
+  follow() {
+    const {parts, from, position, playing} = this.state()
+    if (!parts.length) return
+
+    const {part, offset} = this.within(parts, position)
+
+    if (this.el.src !== new URL(part.src, window.location.href).href) {
+      this.el.src = part.src
+      this.seekTo = from + offset
+    } else if (Math.abs(this.el.currentTime * 1000 - (from + offset)) > 2000) {
+      this.seekTo = from + offset
+    }
+
+    if (this.seekTo !== undefined) {
+      const target = this.seekTo
+      this.seekTo = undefined
+
+      const seek = () => {
+        this.el.currentTime = target / 1000
+      }
+
+      if (this.el.readyState > 0) seek()
+      else this.el.addEventListener("loadedmetadata", seek, {once: true})
+    }
+
+    if (playing) this.el.play().catch(() => this.pushEvent("transport-refused", {}))
+    else this.el.pause()
+  },
+
+  advanced() {
+    const {from, to, interval, res} = this.state()
+    const at = this.el.currentTime * 1000
+
+    // The end of the region is the end of this entry, which the element does not know:
+    // the file goes on past it.
+    if (to !== null && at >= to) {
+      this.el.pause()
+      return this.finished()
+    }
+
+    const elapsed = at - from
+    if (elapsed - this.reportedAt < interval) return
+
+    this.reportedAt = elapsed
+    this.pushEvent("transport-position", {res: res, position_ms: Math.floor(elapsed)})
+  },
+
+  finished() {
+    this.reportedAt = 0
+    this.pushEvent("transport-finished", {res: this.state().res})
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Focus, Waveform},
+  hooks: {...colocatedHooks, Focus, MediaSession, Waveform},
 })
 
 // Show progress bar on live navigation and form submits.
