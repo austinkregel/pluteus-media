@@ -43,11 +43,13 @@ defmodule Pluteus.Playback do
   alias Pluteus.Annotations
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.AssetRole
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
+  alias Pluteus.Catalog.Extent
   alias Pluteus.Catalog.Grouping
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
@@ -111,6 +113,7 @@ defmodule Pluteus.Playback do
           category: String.t() | nil,
           playable: {:ok, playable()} | {:error, refusal()},
           position_ms: non_neg_integer(),
+          extent_ms: non_neg_integer() | nil,
           index: non_neg_integer(),
           queue: [queued()]
         }
@@ -142,6 +145,7 @@ defmodule Pluteus.Playback do
       category: Catalog.category_of(Catalog.work_of(current.res_id), Place.category_scheme()),
       playable: for_manifestation(current.res_id),
       position_ms: queue.position_ms,
+      extent_ms: extent_ms(current.res_id),
       index: queue.current_index,
       queue:
         for entry <- entries do
@@ -152,6 +156,18 @@ defmodule Pluteus.Playback do
           }
         end
     }
+  end
+
+  # The whole a position is measured along: spec-01 §8.4's recorded figure, which is the
+  # same one §13.2's floor and ceiling are measured against. Taken from the parts instead
+  # it would be nil for a holding carried by one file — a probe's duration is recorded on
+  # the part only where there are parts — and the slider and the thresholds would be
+  # measuring different things.
+  defp extent_ms(res_id) do
+    case Addressing.get_extent(res_id, :millisecond) do
+      nil -> nil
+      %Extent{magnitude: magnitude} -> magnitude
+    end
   end
 
   # A queue entry naming a res nothing resolves a name for is a res this principal may
