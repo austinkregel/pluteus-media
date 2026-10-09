@@ -11,6 +11,7 @@ defmodule Pluteus.Principals do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Multi
+  alias Pluteus.Authorization
   alias Pluteus.Catalog.Res
   alias Pluteus.Principals.Device
   alias Pluteus.Principals.DeviceCredential
@@ -184,6 +185,59 @@ defmodule Pluteus.Principals do
     device_id
     |> credential_changeset(principal_id, granted, nil, now)
     |> Repo.insert()
+  end
+
+  @doc """
+  The device a browser is, for one principal (spec-06 §4.1).
+
+  A browser profile is a device: a position, a queue and an event are keyed by device
+  ([spec-01] §11.4), and the composite foreign key requires that device be one the
+  principal holds a credential on, so the interface cannot record where anybody is
+  until it has one. The credential carries no key, which `key_digest` admits and the
+  partial unique index on it allows: a browser authenticates through the proxy, so
+  there is no key to mint and `for_key/1` cannot reach it.
+
+  `claimed` is what the browser says it is, and a browser can say anything. It is
+  safe to believe because a device is not an identity and accumulates nothing of its
+  own: the credential a principal takes here names that principal, the foreign key
+  admits no other, and so a browser naming a device belonging to somebody else gains
+  a credential of its own on it and reads nothing. That is also §4.1 working as
+  written — two members sharing a browser are one screen with two credentials, which
+  is why `player_number` belongs to the device.
+
+  A revoked credential is reported rather than replaced. Minting a second one would
+  undo in silence the thing the person did deliberately.
+  """
+  @spec device_for_browser(Principal.t(), Ecto.UUID.t() | nil, String.t()) ::
+          {:ok, Device.t()} | {:revoked, Device.t()}
+  def device_for_browser(%Principal{} = principal, claimed, label) do
+    case claimed && Repo.get(Device, claimed) do
+      nil -> mint_browser(principal, label)
+      device -> credential_for_browser(principal, device)
+    end
+  end
+
+  defp credential_for_browser(principal, device) do
+    case credential_on(principal.id, device.id) do
+      %DeviceCredential{revoked_at: nil} ->
+        {:ok, device}
+
+      %DeviceCredential{} ->
+        {:revoked, device}
+
+      nil ->
+        {:ok, _credential} =
+          bind_credential(principal.id, device.id, Authorization.grantable_to(principal))
+
+        {:ok, device}
+    end
+  end
+
+  defp mint_browser(principal, label) do
+    {:ok, %{device: device}} =
+      bind_device(principal.id, label, Authorization.grantable_to(principal))
+
+    {:ok, device}
   end
 
   @doc """
