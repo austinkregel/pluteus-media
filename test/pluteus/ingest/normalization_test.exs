@@ -203,6 +203,65 @@ defmodule Pluteus.Ingest.NormalizationTest do
     end
   end
 
+  describe "28. A holding carried by several files holds the role per part" do
+    test "every part of a reading takes a master of its own", %{inbox: inbox} do
+      # The constraint counts within `(digital item, part sequence)`, so a reading in
+      # several files is permitted a master for each. Asked of the holding rather than
+      # of the part, the second file is judged against the first file's master, found to
+      # need no format it does not already have, and left with none of its own — so
+      # nothing could be played or served from it.
+      [first, second] = a_reading_in_two_parts(inbox)
+
+      assert first.digital_item_id == second.digital_item_id
+
+      Normalize.normalize_due(standard(@flac))
+
+      parts =
+        first.digital_item_id
+        |> Catalog.assets_of()
+        |> Enum.sort_by(& &1.part_sequence)
+
+      assert [one, two] = parts
+
+      for part <- parts do
+        assert :normalized in Assets.role_classes_of(part.id),
+               "part #{part.part_sequence} of the reading has no master to play from"
+      end
+
+      assert Normalize.master_of(first.digital_item_id, 1).id == one.id
+      assert Normalize.master_of(first.digital_item_id, 2).id == two.id
+    end
+
+    test "asking a holding in parts for its one master raises rather than choosing",
+         %{inbox: inbox} do
+      [first, _second] = a_reading_in_two_parts(inbox)
+
+      Normalize.normalize_due(standard(@flac))
+
+      assert_raise ArgumentError, ~r/which is meant has to be named/, fn ->
+        Normalize.master_of(first.digital_item_id)
+      end
+    end
+
+    defp a_reading_in_two_parts(inbox) do
+      files =
+        for number <- 1..2, into: %{} do
+          {"reading/#{number}.flac",
+           media!(:flac,
+             tags: %{
+               "genre" => "Audiobook",
+               "album" => "A Wizard of Earthsea",
+               "artist" => "Ursula K. Le Guin",
+               "title" => "Chapter #{number}",
+               "track" => "#{number}/2"
+             }
+           )}
+        end
+
+      ingest!(inbox, files)
+    end
+  end
+
   describe "26. A failed normalization is recorded against the digital item" do
     test "a re-encode that loses fidelity is a finding, never a master", %{inbox: inbox} do
       [track] = ingest!(inbox, %{"a.flac" => media!(:flac)})
