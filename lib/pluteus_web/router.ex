@@ -50,6 +50,10 @@ defmodule PluteusWeb.Router do
     plug PluteusWeb.Contexts
     plug PluteusWeb.Surface
     plug PluteusWeb.Declared
+
+    # After `Declared`, so a request that is about to be sent away to declare a surface
+    # does not enrol a device on the way.
+    plug PluteusWeb.Device
   end
 
   # spec-07 §3.2: the one surface exempt from forward authentication, where a
