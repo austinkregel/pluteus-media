@@ -13,11 +13,15 @@ defmodule Pluteus.PlaybackTest do
 
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Events
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
+  alias Pluteus.Ingest.Place
   alias Pluteus.Playback
+  alias Pluteus.PrincipalFixtures
   alias Pluteus.Principals
 
   setup do
@@ -67,7 +71,7 @@ defmodule Pluteus.PlaybackTest do
   describe "§8.1. A holding carried by its own file plays as that file" do
     test "it resolves to its normalized master and says what type it is",
          %{inbox: inbox, principal: principal, profile: profile} do
-      reading = a_reading(inbox, [%{"track" => "1"}])
+      %{work: reading} = a_reading(inbox, [%{"track" => "1"}])
 
       assert {:ok, played} = Playback.for_work(reading, principal.id, profile)
 
@@ -79,7 +83,7 @@ defmodule Pluteus.PlaybackTest do
   describe "A holding in several files is one sequence, in order" do
     test "the parts come back in the order they were read, each with its own length",
          %{inbox: inbox, principal: principal, profile: profile} do
-      reading = a_reading(inbox, [%{"track" => "1/2"}, %{"track" => "2/2"}])
+      %{work: reading} = a_reading(inbox, [%{"track" => "1/2"}, %{"track" => "2/2"}])
 
       assert {:ok, played} = Playback.for_work(reading, principal.id, profile)
 
@@ -95,12 +99,14 @@ defmodule Pluteus.PlaybackTest do
 
   describe "§12.3, §12.4. Playing a holding fills a queue it can carry on from" do
     test "playing a release queues its tracks in order, each from the release",
-         %{inbox: inbox} do
-      %{release: release, tracks: tracks} = a_release_in_one_file(inbox)
+         %{inbox: inbox, principal: principal, profile: profile} do
+      # The entries name manifestations rather than works: that is what a position is
+      # measured against, and what the OpenSubsonic surface calls a song.
+      %{release: release, sides: sides} = a_release_in_one_file(inbox)
 
-      assert {entries, 0} = Playback.queue_for(release)
+      assert {entries, 0} = Playback.queue_for(release, principal.id, profile)
 
-      assert Enum.map(entries, & &1.res_id) == tracks
+      assert Enum.map(entries, & &1.res_id) == sides
 
       for entry <- entries do
         assert entry.queued_from == release,
@@ -108,22 +114,118 @@ defmodule Pluteus.PlaybackTest do
       end
     end
 
-    test "playing a track queues the release and starts at that track", %{inbox: inbox} do
+    test "playing a track queues the release and starts at that track",
+         %{inbox: inbox, principal: principal, profile: profile} do
       # What follows a track is the rest of its release rather than nothing, which is
       # also what makes §12.4's question — whether a next member exists — answerable.
-      %{release: release, tracks: [first, second]} = a_release_in_one_file(inbox)
+      %{release: release, tracks: [_first, second], sides: sides} =
+        a_release_in_one_file(inbox)
 
-      assert {entries, 1} = Playback.queue_for(second)
+      assert {entries, 1} = Playback.queue_for(second, principal.id, profile)
 
-      assert Enum.map(entries, & &1.res_id) == [first, second]
+      assert Enum.map(entries, & &1.res_id) == sides
       assert Enum.all?(entries, &(&1.queued_from == release))
     end
 
     test "a holding that is a member of nothing is a queue of one, from nothing",
-         %{inbox: inbox} do
-      reading = a_reading(inbox, [%{"track" => "1"}])
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{work: reading, manifestation: manifestation} = a_reading(inbox, [%{"track" => "1"}])
 
-      assert {[%{res_id: ^reading, queued_from: nil}], 0} = Playback.queue_for(reading)
+      assert {[%{res_id: ^manifestation, queued_from: nil}], 0} =
+               Playback.queue_for(reading, principal.id, profile)
+    end
+  end
+
+  describe "§12.3. What the transport shows is the queue's own current entry" do
+    test "playing a track makes it current with its release around it",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{release: release, tracks: [_first, second], sides: sides} =
+        a_release_in_one_file(inbox)
+
+      device = a_device(principal)
+
+      :ok = Playback.play(principal.id, device, second, profile)
+
+      assert showing = Playback.current(principal.id, profile)
+
+      assert showing.res_id == Enum.at(sides, 1)
+      assert showing.index == 1
+      assert Enum.map(showing.queue, & &1.res_id) == sides
+      assert Enum.all?(showing.queue, &(&1.queued_from == release))
+      assert {:ok, %{from_ms: 3_000}} = showing.playable
+    end
+
+    test "each entry is named, and the current one says what kind it is",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{tracks: [first | _rest]} = a_release_in_one_file(inbox)
+      device = a_device(principal)
+
+      :ok = Playback.play(principal.id, device, first, profile)
+
+      showing = Playback.current(principal.id, profile)
+
+      assert showing.name == "So What"
+      assert showing.category == "music_recording"
+      assert Enum.map(showing.queue, & &1.name) == ["So What", "Freddie Freeloader"]
+    end
+
+    test "nothing is current where no queue was ever saved",
+         %{principal: principal, profile: profile} do
+      assert Playback.current(principal.id, profile) == nil
+    end
+
+    test "§12.4. The next entry exists only where the current one is not the last",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{tracks: [first, _second], sides: [_one, two]} = a_release_in_one_file(inbox)
+      device = a_device(principal)
+
+      :ok = Playback.play(principal.id, device, first, profile)
+      showing = Playback.current(principal.id, profile)
+
+      assert %{res_id: ^two} = Playback.next_after(showing)
+
+      :ok = Playback.jump(principal.id, device, 1)
+
+      assert Playback.next_after(Playback.current(principal.id, profile)) == nil
+    end
+
+    test "jumping outside the queue is refused rather than clamped",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{tracks: [first | _rest]} = a_release_in_one_file(inbox)
+      device = a_device(principal)
+
+      :ok = Playback.play(principal.id, device, first, profile)
+
+      assert {:error, :current_outside_queue} = Playback.jump(principal.id, device, 7)
+    end
+
+    test "jumping with no queue saved is refused", %{principal: principal} do
+      assert {:error, :no_queue} = Playback.jump(principal.id, a_device(principal), 0)
+    end
+  end
+
+  describe "§13.3. Playing something resumes where this principal left it" do
+    test "the position is the one reported, not the beginning", %{principal: principal} do
+      # §13.2 tracks nothing under ten minutes for this category, and the figure it
+      # measures against is the recorded extent rather than the file, so this is built
+      # from the catalog: what is under test is where a queue starts, not what a probe
+      # read.
+      %{work: work, manifestation: manifestation} = a_long_audiobook()
+      device = a_device(principal)
+
+      {:ok, _} = reported(principal, device, manifestation, 400_000, :millisecond)
+
+      :ok = Playback.play(principal.id, device, work, %Profile{})
+
+      assert Playback.current(principal.id, %Profile{}).position_ms == 400_000
+    end
+
+    test "nothing reported starts at the beginning", %{principal: principal} do
+      %{work: work} = a_long_audiobook()
+
+      :ok = Playback.play(principal.id, a_device(principal), work, %Profile{})
+
+      assert Playback.current(principal.id, %Profile{}).position_ms == 0
     end
   end
 
@@ -143,13 +245,43 @@ defmodule Pluteus.PlaybackTest do
          %{inbox: inbox, principal: principal, profile: profile} do
       # Placed but not normalized: there is a file and no master to play from, which
       # resolves itself and so is not the same fact as holding no file.
-      reading = a_reading(inbox, [%{"track" => "1"}], normalize: false)
+      %{work: reading} = a_reading(inbox, [%{"track" => "1"}], normalize: false)
 
       assert {:error, {:not_normalized, _id} = refusal} =
                Playback.for_work(reading, principal.id, profile)
 
       assert Playback.why(refusal) =~ "not been normalized"
     end
+  end
+
+  # A position and a queue are keyed per device, and the composite key requires the
+  # device be one the principal holds a credential on.
+  defp a_device(principal), do: PrincipalFixtures.a_device(principal.id, "a browser").id
+
+  # A holding long enough for §13.2 to track a position in at all, with no bytes: the
+  # thresholds measure against the recorded extent and the queue carries the position,
+  # so neither reads a file.
+  defp a_long_audiobook do
+    {:ok, %{work: work, manifestation: manifestation}} =
+      Catalog.create_work(%{nomen_string: "A Wizard of Earthsea", provenance: :automatic})
+
+    {:ok, _} = Catalog.categorize(work.id, Place.category_scheme(), "audiobook", :automatic)
+    {:ok, _} = Addressing.record_extent(manifestation.id, :millisecond, 3_600_000)
+
+    %{work: work.id, manifestation: manifestation.id}
+  end
+
+  defp reported(principal, device, res_id, position, unit) do
+    Events.report_position(%{
+      principal_id: principal.id,
+      device_id: device,
+      res_id: res_id,
+      position: position,
+      unit: unit,
+      reported_at: DateTime.utc_now(),
+      sequence: 1,
+      playing: false
+    })
   end
 
   defp a_release_in_one_file(inbox) do
@@ -179,7 +311,8 @@ defmodule Pluteus.PlaybackTest do
 
     %{
       release: work_of_manifestation(release),
-      tracks: Enum.map(parts, &work_of_manifestation(&1.part_id))
+      tracks: Enum.map(parts, &work_of_manifestation(&1.part_id)),
+      sides: Enum.map(parts, & &1.part_id)
     }
   end
 
@@ -206,7 +339,9 @@ defmodule Pluteus.PlaybackTest do
 
     [first | _rest] = ingest!(inbox, files, opts)
 
-    work_of_manifestation(manifestation_of(first))
+    manifestation = manifestation_of(first)
+
+    %{work: work_of_manifestation(manifestation), manifestation: manifestation}
   end
 
   defp ingest!(inbox, files, opts \\ []) do
