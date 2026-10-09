@@ -95,7 +95,7 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:principal_id, principal_id)
      |> assign(:representation, representation)
      |> assign(:noun, ComposedName.noun(res.kind))
-     |> assign(:addresses, addresses(representation))
+     |> assign(:addresses, addresses(representation, profile))
      |> assign(:medium, medium(res))
      |> assign(:address, session["address"])
      |> assign(:placed?, is_nil(session["unit"]) or not is_nil(extent))
@@ -255,21 +255,41 @@ defmodule PluteusWeb.EntityLive do
 
   defp extent(res, unit), do: Addressing.get_extent(res.id, String.to_existing_atom(unit))
 
-  # Each related res is linked at the URI spec-01 §9 gives it, which needs its kind. One
-  # query for the page rather than one per link, and a kind with no interface page is
-  # still linked: §9.1 keeps it reachable as the representation.
-  defp addresses(representation) do
+  # Each related res is linked at the URI spec-01 §9 gives it, under the name a person
+  # knows it by. Both in a bounded number of queries for the page rather than one per
+  # link, which is why they are gathered together: the kinds in one query, the names in
+  # resolution's own batched pass, and the composed name for every res that pass returns
+  # nothing displayable for.
+  #
+  # A kind with no interface page is still linked: §9.1 keeps it reachable as the
+  # representation.
+  defp addresses(representation, profile) do
     ids =
       for {_relation, %{"state" => "held", "value" => value}} <- representation["related"],
           id <- List.wrap(value),
           do: identifier(id)
 
+    res = Repo.all(from r in Res, where: r.id in ^ids)
     paths = Native.paths()
+    resolved = Resolution.visible_many(ids, profile)
+    composed = ComposedName.for_many(Enum.reject(res, &resolved[&1.id]), profile)
 
-    from(r in Res, where: r.id in ^ids, select: {r.id, r.kind})
-    |> Repo.all()
-    |> Map.new(fn {id, kind} -> {id, "/#{Map.fetch!(paths, kind)}/#{id}"} end)
+    Map.new(res, fn %Res{id: id, kind: kind} ->
+      {id,
+       %{
+         at: "/#{Map.fetch!(paths, kind)}/#{id}",
+         name: named(resolved[id], composed[id], profile)
+       }}
+    end)
   end
+
+  # §5.3: a res resolution returns no displayable name for is named by §6.3. A reified
+  # address and an annotation are in that position by construction, so the composed name
+  # is the answer for them rather than a fallback.
+  defp named(nil, composed, _profile) when is_binary(composed), do: composed
+
+  defp named(nomens, _composed, profile) when is_list(nomens),
+    do: Resolution.choose(nomens, profile).nomen_string
 
   @impl Phoenix.LiveView
   def render(assigns) do
@@ -279,7 +299,7 @@ defmodule PluteusWeb.EntityLive do
       contexts={@contexts}
       announcement={@announcement}
     >
-      <div id="entity" class="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <div id="entity" class="mx-auto max-w-measure px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
 
         <header class="mb-10">
@@ -490,14 +510,19 @@ defmodule PluteusWeb.EntityLive do
   attr :ids, :list, required: true
   attr :addresses, :map, required: true
 
-  # A related res is said by its identifier, because §4.1's representation names it by
-  # identifier and resolving every one of them here would be the embedding §4.1 forbids.
-  # The identity is the identifier, which §17.7 needs to be stable across a patch.
+  # A related res is said by the name a person knows it by, and linked at its own URI.
+  # spec-07 §4.1 names it by identifier on the wire, which is the contract; §3.3 holds
+  # that separate from what a surface the deployment draws owes a reader, and §8.2 asks
+  # each line be described by what distinguishes it.
+  #
+  # The element's identity stays the identifier, which §17.7 needs stable across a patch.
   defp links(assigns) do
     ~H"""
     <ul class="flex flex-col gap-1">
       <li :for={id <- Enum.map(@ids, &identifier/1)}>
-        <a id={"entity-link-#{id}"} href={Map.fetch!(@addresses, id)} class="underline">{id}</a>
+        <a id={"entity-link-#{id}"} href={Map.fetch!(@addresses, id).at} class="underline">
+          {Map.fetch!(@addresses, id).name}
+        </a>
       </li>
     </ul>
     """
