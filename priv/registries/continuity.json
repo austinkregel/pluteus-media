@@ -62,5 +62,7 @@
     "word": 400
   },
 
-  "inactivity_period_ms": 1800000
+  "inactivity_period_ms": 1800000,
+
+  "next_member_offer_ms": 10000
 }
