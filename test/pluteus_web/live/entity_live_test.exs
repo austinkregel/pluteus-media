@@ -1,0 +1,113 @@
+defmodule PluteusWeb.EntityLiveTest do
+  @moduledoc """
+  An entity's page as a person reaches it (spec-10 §8.4, §9.1, §10.1).
+
+  Built on a placed album rather than on rows assembled for the test, because what the
+  page renders is the representation of what ingest wrote: a holding with a credit, a
+  date and a file reaches relations a holding built by hand does not, and those are the
+  ones a page has to link to.
+  """
+
+  use PluteusWeb.ConnCase, async: true
+
+  alias Pluteus.Catalog
+  alias Pluteus.Catalog.Res
+  alias Pluteus.MusicFixtures
+  alias PluteusWeb.Native
+
+  setup %{conn: conn} do
+    library = MusicFixtures.library!()
+
+    %{
+      conn: conn |> through_proxy(a_subject()) |> on_a_surface(),
+      library: library,
+      album: work_of(library.albums["01 So What.flac"])
+    }
+  end
+
+  describe "§9.1, §10.1. A work answers with the interface where one is asked for" do
+    test "an album renders, named and said to be what it is", %{conn: conn, album: album} do
+      rendered = as_a_person(conn, ~p"/works/#{album}")
+
+      assert rendered.status == 200
+      assert html_response(rendered, 200) =~ "Kind of Blue"
+    end
+
+    test "the same address answers the representation where none is asked for",
+         %{conn: conn, album: album} do
+      answered = get(conn, ~p"/works/#{album}")
+
+      assert json_response(answered, 200)["kind"] == "work"
+    end
+  end
+
+  describe "§8.4. Every res the page relates to is linked at the address it has" do
+    test "an album links to the artist it credits", %{conn: conn, album: album} do
+      # The artist is a res of its own and the one kind a row may leave, being an agent
+      # of an undetermined one of the two. A page that could not address it raised
+      # rather than rendering, and every album credits one.
+      body = conn |> as_a_person(~p"/works/#{album}") |> html_response(200)
+
+      assert body =~ "/artists/"
+    end
+
+    test "it links to what realizes it", %{conn: conn, album: album} do
+      # The failure this exists to prevent is not a missing link but a raise: the page
+      # builds every related address at once, so one kind with no path takes the whole
+      # page down rather than leaving one link out of it. A work relates to its
+      # expressions; what embodies those is related to them and not to it.
+      body = conn |> as_a_person(~p"/works/#{album}") |> html_response(200)
+
+      assert body =~ "/expressions/"
+    end
+  end
+
+  describe "§10.1. Every res the model admits has an address" do
+    test "every kind that names a subtype is served under a path" do
+      # The tripwire. A kind added to the model and not to the table is not a missing
+      # link: every related address is built at once, so it is a page that raises.
+      for kind <- Res.kinds() -- Native.addressless() do
+        assert Map.has_key?(Native.paths(), kind),
+               "a res of kind #{kind} can be held and cannot be addressed"
+      end
+    end
+
+    test "the kinds §9.1 says answer with an interface are the ones that do" do
+      # §9.1 names agents rather than the kinds an agent may be, and there are three.
+      for kind <- ~w(person collective_agent artist)a do
+        assert Native.negotiates?(kind), "#{kind} is an agent and answers no interface"
+      end
+
+      for kind <- ~w(nomen annotation asset)a do
+        refute Native.negotiates?(kind), "#{kind} answers an interface §9.1 denies it"
+      end
+    end
+  end
+
+  describe "§9.1. A kind with no interface page stays reachable as the representation" do
+    test "an asset answers JSON whatever was asked for", %{conn: conn, library: library} do
+      # spec-03 §10 asks that an asset's location not be exposed on a reachable surface.
+      [asset] = Catalog.assets_of(item_of(library.songs["01 So What.flac"]))
+
+      answered = as_a_person(conn, ~p"/assets/#{asset.id}")
+
+      assert json_response(answered, 200)["kind"] == "asset"
+    end
+  end
+
+  defp as_a_person(conn, path) do
+    conn |> Plug.Conn.put_req_header("accept", "text/html") |> get(path)
+  end
+
+  defp work_of(manifestation_id) do
+    [expression | _rest] = Catalog.expressions_in(manifestation_id)
+
+    expression.work_id
+  end
+
+  defp item_of(manifestation_id) do
+    [item | _rest] = Catalog.digital_items_of(manifestation_id)
+
+    item.id
+  end
+end
