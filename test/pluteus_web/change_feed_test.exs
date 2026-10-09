@@ -176,7 +176,16 @@ defmodule PluteusWeb.ChangeFeedTest do
       {:ok, playlist} = Consumption.create_playlist(principal.id, "Evening", [])
       {:ok, _} = Consumption.update_playlist(principal.id, playlist.id, %{append: [res.id]})
       phone = PrincipalFixtures.a_device(principal.id, "phone")
-      {:ok, _} = Consumption.save_play_queue(principal.id, [res.id], 0, 0, phone.id)
+
+      {:ok, _} =
+        Consumption.save_play_queue(
+          principal.id,
+          [%{res_id: res.id, queued_from: nil}],
+          0,
+          0,
+          phone.id
+        )
+
       :ok = Consumption.playing(principal.id, phone.id, res.id)
       {:ok, _} = Consumption.played(principal.id, phone.id, res.id)
 
