@@ -397,6 +397,8 @@ defmodule PluteusWeb.BrowseLive do
           name={Map.fetch!(@surface.names, id)}
           category={@surface.categories[id]}
           members={@surface.members[id]}
+          credited={@surface.credited[id] || []}
+          cover={@surface.covers[id]}
         />
       </li>
     </ol>
@@ -500,6 +502,8 @@ defmodule PluteusWeb.BrowseLive do
   attr :name, :string, required: true
   attr :category, :string, default: nil
   attr :members, :integer, default: nil
+  attr :credited, :list, default: []
+  attr :cover, :string, default: nil
 
   defp row(assigns) do
     assigns = assign(assigns, :mark, mark(assigns.category))
@@ -508,19 +512,15 @@ defmodule PluteusWeb.BrowseLive do
     <div class={[
       "flex items-center gap-2 pr-2",
       "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
-      "hover:bg-surface-raised"
+      "hover:bg-fill-subtle"
     ]}>
       <a href={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
-        <span class={[
-          "flex size-11 shrink-0 items-center justify-center rounded-md",
-          "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
-          "bg-surface-raised"
-        ]}>
-          <.icon name={glyph(@mark)} class={ink(@mark)} />
-        </span>
+        <.cover at={@cover} mark={@mark} />
         <span class="flex min-w-0 grow flex-col gap-0.5">
           <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
-          <span class="truncate text-body-sm text-on-surface-muted">{kind(@mark, @members)}</span>
+          <span class="truncate text-body-sm text-on-surface-muted">
+            {said(@credited, @mark, @members)}
+          </span>
         </span>
       </a>
 
@@ -554,6 +554,39 @@ defmodule PluteusWeb.BrowseLive do
 
   defp kind(:unkinded, _members), do: Absence.words("not_yet_examined")
   defp kind(mark, members), do: "#{mark.name}#{gathered(mark, members)}"
+
+  # Who it is by, then what it is. The first is what a person scans a list of music for
+  # and the second is what tells two holdings of one name apart, so both are said and the
+  # one a person looks for leads.
+  defp said([], mark, members), do: kind(mark, members)
+  defp said(credited, mark, members), do: "#{Enum.join(credited, ", ")} · #{kind(mark, members)}"
+
+  # The cover a holding is known by, asked for at the size a row draws. §11.1 serves it
+  # from the presentation layer rather than from the stored bytes, and answers 202 while
+  # it is being made — so the glyph is what the row shows until then and where there is
+  # no cover at all, rather than a broken image.
+  attr :at, :string, default: nil
+  attr :mark, :any, required: true
+
+  defp cover(assigns) do
+    ~H"""
+    <span class={[
+      "flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md",
+      "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+      "bg-surface-raised"
+    ]}>
+      <img
+        :if={@at}
+        src={~p"/manifestations/#{@at}/presentation/image-320"}
+        alt=""
+        loading="lazy"
+        class="size-full object-cover"
+        onerror="this.remove()"
+      />
+      <.icon :if={!@at} name={glyph(@mark)} class={ink(@mark)} />
+    </span>
+    """
+  end
 
   # Only where the category names what it gathers.
   defp gathered(%{members: nil}, _count), do: ""
