@@ -492,10 +492,14 @@ defmodule PluteusWeb.Subsonic.Own do
     end
   end
 
+  # spec-07 §6.5's request is a list of songs and nothing more, so each entry was queued
+  # from nothing as far as this surface can say. [spec-10] §12.3's record is of what a
+  # client supplied, and inferring a release from the song would state a grouping the
+  # client never named.
   defp save_queue(conn, songs, current, position) do
     case Consumption.save_play_queue(
            principal_id(conn),
-           Enum.map(songs, & &1.id),
+           Enum.map(songs, &%{res_id: &1.id, queued_from: nil}),
            current,
            position,
            conn.assigns.device.id
