@@ -143,14 +143,14 @@ defmodule PluteusWeb.BrowseLive do
     {:noreply, cancel_offer(socket)}
   end
 
-  # The element could not start. A browser refusing to play without a gesture is the
-  # common cause, and a control that looks pressed and makes no sound is worse than one
-  # that says it did not.
-  def handle_event("transport-refused", _params, socket) do
+  # The element could not start, and it says why: a gesture refused, a source the browser
+  # will not decode and a load that was aborted are different facts, and a control that
+  # looks pressed and makes no sound is worse than one that says what stopped it.
+  def handle_event("transport-refused", %{"why" => why}, socket) do
     {:noreply,
      socket
      |> assign(:playing?, false)
-     |> put_flash(:error, "This browser would not start playing without being asked again.")}
+     |> put_flash(:error, "This browser would not start playing: #{why}")}
   end
 
   def handle_event("play", _params, %{assigns: %{device_id: nil}} = socket) do
@@ -293,7 +293,7 @@ defmodule PluteusWeb.BrowseLive do
       offer_seconds={@offer_seconds}
       device_revoked={@device_revoked}
     >
-      <div id="browse" class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div id="browse" class="mx-auto w-full px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
 
         <.doors :if={@surface && not narrowed?(@surface)} surface={@surface} />
