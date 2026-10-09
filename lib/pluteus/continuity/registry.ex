@@ -65,6 +65,17 @@ defmodule Pluteus.Continuity.Registry do
   @spec inactivity_period_ms() :: pos_integer()
   def inactivity_period_ms, do: fetch("inactivity_period_ms")
 
+  @doc """
+  How long [spec-10] §12.4's end-of-item offer stands before it acts.
+
+  §12.4 requires the offer "carry a visible interval before it acts" and states no
+  figure, and §20 names no registry for it. It is here because it is a continuity
+  quantity measured in the same unit as the reporting interval beside it, and because a
+  figure in code is one a deployment could not change without a release.
+  """
+  @spec next_member_offer_ms() :: pos_integer()
+  def next_member_offer_ms, do: fetch("next_member_offer_ms")
+
   defp fetch(key), do: Map.fetch!(registry(), key)
 
   defp registry, do: Registry.read(@source)
