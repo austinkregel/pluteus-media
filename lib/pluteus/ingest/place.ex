@@ -1056,6 +1056,12 @@ defmodule Pluteus.Ingest.Place do
       })
 
     {:ok, _} = Catalog.associate(extent.id, track.id, "extent-of")
+
+    # The track's own length, which is what spec-01 §8.4's recorded figure is for. The
+    # address says where in the release the track sits; it does not say how long the
+    # track is to anything asking about the track, and §13.2's floor and ceiling and
+    # every address against it are measured against the recorded figure.
+    {:ok, _} = Addressing.record_extent(track.id, :millisecond, finish - cue_track.start_ms)
   end
 
   # --- Containers (§6.5) --------------------------------------------------------------
