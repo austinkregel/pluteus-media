@@ -227,6 +227,12 @@ defmodule Pluteus.Catalog do
   Brings a work and its first expression into existence embodied in a
   manifestation that already exists: a commentary carried in a film's
   container (§5.3).
+
+  The embodiment is an augmentation, which is what distinguishes this from
+  `add_expression_embodied_in/3`. There the new expression is another rendering
+  of the same work and so part of what the manifestation is of; here it is a
+  work of its own riding in someone else's manifestation, and it has no
+  manifestation anywhere that is its own.
   """
   @spec create_work_embodied_in(Ecto.UUID.t(), String.t() | map()) ::
           {:ok, map()} | {:error, atom(), term(), map()}
@@ -241,7 +247,8 @@ defmodule Pluteus.Catalog do
     |> Multi.insert(:embodiment, fn %{expression: expression} ->
       Embodiment.changeset(%Embodiment{}, %{
         expression_id: expression.id,
-        manifestation_id: manifestation_id
+        manifestation_id: manifestation_id,
+        augmentation: true
       })
     end)
     |> Repo.transaction()
