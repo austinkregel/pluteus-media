@@ -40,20 +40,21 @@ defmodule Pluteus.BrowseTest do
     end
 
     test "the cost is stated, so a change to it has to be meant", %{principal: principal} do
-      # Seventeen as measured: the entries, their names, what each of them is and how
-      # much it gathers, the query's total and the whole catalogue's, a distribution per
-      # narrowable axis, this principal's own looking and the works it names, the overdue
-      # holdings, the undated ones, the unkinded ones and the undecided pairs. Resolving
-      # the names is itself bounded in three, so the list describes what the queries are
-      # for rather than giving one phrase per query.
+      # Twenty-two as measured: the entries, their names, what each of them is, how much
+      # it gathers, who it credits and the cover it wears, the query's total and the whole
+      # catalogue's, a distribution per narrowable axis, this principal's own looking and
+      # the works it names, the overdue holdings, the undated ones, the unkinded ones and
+      # the undecided pairs. Resolving a set of names is itself bounded in three, and the
+      # page resolves two — the entries and the agents they credit — so the list describes
+      # what the queries are for rather than giving one phrase per query.
       #
       # A bound rather than that exact figure, since a query added for a reason is not a
       # defect. What would be is one creeping in unnoticed, which this catches by failing
-      # with the new number. An axis costs one query however many values it offers, which
-      # is the property the assertions above hold.
+      # with the new number. An axis costs one query however many values it offers, and a
+      # row costs none, which are the properties the assertions above hold.
       holdings(5, "photograph")
 
-      assert cost(principal) <= 18, "a render now costs #{cost(principal)} queries"
+      assert cost(principal) <= 24, "a render now costs #{cost(principal)} queries"
     end
 
     test "the cost does not grow with how many values a facet offers",

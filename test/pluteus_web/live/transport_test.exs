@@ -50,6 +50,30 @@ defmodule PluteusWeb.TransportTest do
     end
   end
 
+  describe "A row and the bar say who a holding is by" do
+    test "the artist leads the second line, and the kind follows it", %{conn: conn} do
+      # The first thing a person scans a list of music for. The kind stays, because it is
+      # what tells two holdings of one name apart.
+      %{release: release} = a_credited_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+
+      assert render(live) =~ "Miles Davis · Music"
+
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      assert live |> element("#transport") |> render() =~ "Miles Davis · "
+    end
+
+    test "a holding crediting nobody says what it is and no more", %{conn: conn} do
+      a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+
+      assert render(live) =~ "Music · 2 tracks"
+    end
+  end
+
   describe "§12.3. Nothing current means no transport" do
     test "the bar is absent before anything is played", %{conn: conn} do
       {:ok, live, _html} = live(conn, ~p"/everything")
@@ -333,6 +357,31 @@ defmodule PluteusWeb.TransportTest do
     [_whole, asset] = Regex.run(~r|/assets/([^/]+)/content|, html)
 
     asset
+  end
+
+  # A release whose files name an album artist, so placement writes a credit and the
+  # surfaces have somebody to say it is by.
+  defp a_credited_release(_conn) do
+    inbox = inbox!()
+    prefix = unique_prefix()
+
+    tags = %{"album" => "Kind of Blue", "album_artist" => "Miles Davis"}
+
+    placed =
+      ingest!(inbox, %{
+        "#{prefix}/01 So What.flac" =>
+          media!(:flac, duration: 2, tags: Map.put(tags, "title", "So What")),
+        "#{prefix}/02 Freddie.flac" =>
+          media!(:flac, duration: 2, tags: Map.put(tags, "title", "Freddie"))
+      })
+
+    track =
+      placed
+      |> hd()
+      |> then(&Repo.get!(DigitalItem, &1.digital_item_id).manifestation_id)
+      |> work_of()
+
+    %{release: Grouping.grouping_of(track)}
   end
 
   # A holding carried by its own file: one asset, no region, and a length placement read
