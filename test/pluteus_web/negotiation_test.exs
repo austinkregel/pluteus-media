@@ -128,11 +128,13 @@ defmodule PluteusWeb.NegotiationTest do
 
   describe "spec-10 §9.1. Which kinds have an interface page" do
     test "the kinds that negotiate are the ones §9.1 names" do
-      # §9.1's list, with both kinds of agent counted.
+      # §9.1 names agents rather than the kinds an agent may be, and there are three: a
+      # person, a collective agent, and an artist — which spec-01 §3.1 makes an agent of
+      # an undetermined one of the two, and which every credit names.
       negotiating = Native.paths() |> Map.keys() |> Enum.filter(&Native.negotiates?/1)
 
       assert Enum.sort(negotiating) ==
-               ~w(address collective_agent digital_item expression item
+               ~w(address artist collective_agent digital_item expression item
                   manifestation person place time_span work)a
     end
 
