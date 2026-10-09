@@ -180,14 +180,15 @@ defmodule Pluteus.ConsumptionTest do
       bo: bo,
       songs: [a, b, c]
     } do
-      {:ok, queue} = Consumption.save_play_queue(ada.id, [a, b, a], 2, 90_000, devices["phone"])
+      {:ok, queue} =
+        Consumption.save_play_queue(ada.id, queued([a, b, a]), 2, 90_000, devices["phone"])
 
       assert entries(queue) == [a, b, a]
 
       assert {queue.current_index, queue.position_ms, queue.changed_by_device_id} ==
                {2, 90_000, devices["phone"]}
 
-      {:ok, queue} = Consumption.save_play_queue(ada.id, [c], 0, 0, devices["desk"])
+      {:ok, queue} = Consumption.save_play_queue(ada.id, queued([c]), 0, 0, devices["desk"])
       assert entries(queue) == [c]
       assert queue.changed_by_device_id == devices["desk"]
 
@@ -200,17 +201,40 @@ defmodule Pluteus.ConsumptionTest do
       bo: bo,
       songs: [a, b | _]
     } do
-      {:ok, _} = Consumption.save_play_queue(bo.id, [b], 0, 0, devices["tablet"])
+      {:ok, _} = Consumption.save_play_queue(bo.id, queued([b]), 0, 0, devices["tablet"])
 
       assert {:error, :current_outside_queue} =
-               Consumption.save_play_queue(ada.id, [a, b], 2, 0, devices["phone"])
+               Consumption.save_play_queue(ada.id, queued([a, b]), 2, 0, devices["phone"])
 
-      {:ok, _} = Consumption.save_play_queue(ada.id, [a, b], nil, 0, devices["phone"])
+      {:ok, _} = Consumption.save_play_queue(ada.id, queued([a, b]), nil, 0, devices["phone"])
       assert Consumption.play_queue(ada.id).current_index == nil
 
       {:ok, nil} = Consumption.save_play_queue(ada.id, [], nil, 0, devices["phone"])
       assert Consumption.play_queue(ada.id) == nil
       assert entries(Consumption.play_queue(bo.id)) == [b]
+    end
+
+    test "§12.3. An entry records the grouping it was queued from", %{
+      ada: ada,
+      devices: devices,
+      songs: [a, b | _]
+    } do
+      # So that "clear the rest of this release" is answerable without guessing, which
+      # the res alone cannot answer: the same song queued from a release and queued on
+      # its own are different entries.
+      {:ok, %{work: release}} = Catalog.create_work("Kind of Blue")
+
+      {:ok, queue} =
+        Consumption.save_play_queue(
+          ada.id,
+          [%{res_id: a, queued_from: nil}, %{res_id: b, queued_from: release.id}],
+          0,
+          0,
+          devices["phone"]
+        )
+
+      assert Enum.map(queue.entries, &{&1.res_id, &1.queued_from}) ==
+               [{a, nil}, {b, release.id}]
     end
   end
 
@@ -308,4 +332,7 @@ defmodule Pluteus.ConsumptionTest do
   end
 
   defp entries(%{entries: entries}), do: Enum.map(entries, & &1.res_id)
+
+  # A queue of entries queued from nothing, which is what a list of res on its own is.
+  defp queued(res_ids), do: for(res_id <- res_ids, do: %{res_id: res_id, queued_from: nil})
 end
