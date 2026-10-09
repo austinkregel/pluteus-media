@@ -93,6 +93,40 @@ defmodule Pluteus.PlaybackTest do
     end
   end
 
+  describe "§12.3, §12.4. Playing a holding fills a queue it can carry on from" do
+    test "playing a release queues its tracks in order, each from the release",
+         %{inbox: inbox} do
+      %{release: release, tracks: tracks} = a_release_in_one_file(inbox)
+
+      assert {entries, 0} = Playback.queue_for(release)
+
+      assert Enum.map(entries, & &1.res_id) == tracks
+
+      for entry <- entries do
+        assert entry.queued_from == release,
+               "an entry does not record the grouping it was queued from"
+      end
+    end
+
+    test "playing a track queues the release and starts at that track", %{inbox: inbox} do
+      # What follows a track is the rest of its release rather than nothing, which is
+      # also what makes §12.4's question — whether a next member exists — answerable.
+      %{release: release, tracks: [first, second]} = a_release_in_one_file(inbox)
+
+      assert {entries, 1} = Playback.queue_for(second)
+
+      assert Enum.map(entries, & &1.res_id) == [first, second]
+      assert Enum.all?(entries, &(&1.queued_from == release))
+    end
+
+    test "a holding that is a member of nothing is a queue of one, from nothing",
+         %{inbox: inbox} do
+      reading = a_reading(inbox, [%{"track" => "1"}])
+
+      assert {[%{res_id: ^reading, queued_from: nil}], 0} = Playback.queue_for(reading)
+    end
+  end
+
   describe "§5.2. Nothing to play is an answer, and each reason is its own" do
     test "a holding the household holds no file for says so",
          %{principal: principal, profile: profile} do
