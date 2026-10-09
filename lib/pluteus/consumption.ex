@@ -226,14 +226,24 @@ defmodule Pluteus.Consumption do
 
   # The play queue
 
+  @typedoc """
+  One place in a queue: the res, and the grouping it was queued from.
+
+  [spec-10] §12.3 requires the second be recorded rather than inferred, so an entry is a
+  pair and never a bare identifier. `queued_from` is nil for an entry queued on its own,
+  which is what there is to record about one — and is what the OpenSubsonic surface
+  supplies, since spec-07 §6.5's request carries no grouping.
+  """
+  @type entry :: %{res_id: Ecto.UUID.t(), queued_from: Ecto.UUID.t() | nil}
+
   @doc """
-  Saves the principal's play queue: `res_ids` in order, the entry at
+  Saves the principal's play queue: `entries` in order, the entry at
   `current_index` current, `position_ms` into it, saved from one of the
   principal's devices. An empty queue clears it.
   """
   @spec save_play_queue(
           Ecto.UUID.t(),
-          [Ecto.UUID.t()],
+          [entry()],
           non_neg_integer() | nil,
           non_neg_integer(),
           Ecto.UUID.t()
@@ -243,20 +253,20 @@ defmodule Pluteus.Consumption do
     {:ok, nil}
   end
 
-  def save_play_queue(principal_id, res_ids, current_index, position_ms, device_id) do
-    if current_index && current_index not in 0..(length(res_ids) - 1)//1 do
+  def save_play_queue(principal_id, entries, current_index, position_ms, device_id) do
+    if current_index && current_index not in 0..(length(entries) - 1)//1 do
       {:error, :current_outside_queue}
     else
       {:ok, _} =
         Repo.transaction(fn ->
-          write_queue(principal_id, res_ids, current_index, position_ms, device_id)
+          write_queue(principal_id, entries, current_index, position_ms, device_id)
         end)
 
       {:ok, play_queue(principal_id)}
     end
   end
 
-  defp write_queue(principal_id, res_ids, current_index, position_ms, device_id) do
+  defp write_queue(principal_id, entries, current_index, position_ms, device_id) do
     now = DateTime.utc_now()
 
     Repo.insert_all(
@@ -279,10 +289,15 @@ defmodule Pluteus.Consumption do
 
     Repo.insert_all(
       PlayQueueEntry,
-      res_ids
+      entries
       |> Enum.with_index()
-      |> Enum.map(fn {res_id, position} ->
-        %{principal_id: principal_id, position: position, res_id: res_id}
+      |> Enum.map(fn {entry, position} ->
+        %{
+          principal_id: principal_id,
+          position: position,
+          res_id: entry.res_id,
+          queued_from: entry.queued_from
+        }
       end)
     )
   end
