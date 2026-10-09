@@ -26,6 +26,30 @@ defmodule PluteusWeb.TransportTest do
     %{conn: conn |> through_proxy(subject) |> on_a_surface(), subject: subject}
   end
 
+  describe "A.9.3, §5.3. The bar names itself and says what it is playing" do
+    test "the controls are a toolbar, which is what carries the name", %{conn: conn} do
+      # An aria-label on an element whose role is generic reaches nothing, so the name
+      # has to sit on something that has a role.
+      %{release: release} = a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      assert has_element?(live, ~s|#transport-controls[role="toolbar"][aria-label="Transport"]|)
+    end
+
+    test "the kind is said in words and not only by a glyph and a hue", %{conn: conn} do
+      # A.2.6 makes the glyph identify the category and the colour group it, and §5.3
+      # forbids either being the sole carrier: a hidden drawing is both at once.
+      %{release: release} = a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      assert live |> element("#transport") |> render() =~ "Recordings"
+    end
+  end
+
   describe "§12.3. Nothing current means no transport" do
     test "the bar is absent before anything is played", %{conn: conn} do
       {:ok, live, _html} = live(conn, ~p"/everything")
@@ -95,6 +119,29 @@ defmodule PluteusWeb.TransportTest do
       refute slider =~ "disabled"
       assert slider =~ ~s|max="2000"|
       assert slider =~ "0:00 of 0:02"
+    end
+
+    test "§17.3. Every control that acts on the element is bound to it", %{conn: conn} do
+      # The failure this exists to prevent: a control rendered enabled, carrying a name
+      # that states the action it will perform, and wired to nothing. Asserting that a
+      # button exists by its name is what let five of them ship doing nothing, so this
+      # asserts the binding rather than the markup.
+      %{release: release} = a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      bar = live |> element("#transport") |> render()
+
+      for acted_on <- ~w(transport-position transport-back transport-forward
+                         transport-volume transport-mute) do
+        assert bar =~ ~s|id="#{acted_on}"|
+      end
+
+      # The hook is what binds them, and it is on the bar that holds both them and the
+      # element they act on.
+      assert bar =~ ~s|phx-hook="MediaSession"|
+      assert bar =~ ~s|data-step="60000"|
     end
 
     test "the large step is a control of its own in each direction, naming its interval",
@@ -268,10 +315,12 @@ defmodule PluteusWeb.TransportTest do
     end
   end
 
+  # The hook is on the bar rather than on the element, because §12.3's controls act on
+  # the element and the bar is what holds both.
   defp finished(live) do
     res = live |> element("#transport-medium") |> render() |> res_of()
 
-    render_hook(element(live, "#transport-medium"), "transport-finished", %{"res" => res})
+    render_hook(element(live, "#transport"), "transport-finished", %{"res" => res})
   end
 
   defp res_of(html) do
