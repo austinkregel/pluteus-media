@@ -22,6 +22,7 @@ defmodule PluteusWeb.Native do
     asset: "assets",
     person: "persons",
     collective_agent: "collective-agents",
+    artist: "artists",
     place: "places",
     time_span: "time-spans",
     nomen: "nomens",
@@ -32,17 +33,33 @@ defmodule PluteusWeb.Native do
   @default_limit 50
   @maximum_limit 500
 
-  # [spec-10] §9.1's kinds, with both kinds of agent named.
+  # [spec-10] §9.1's kinds. It names agents rather than the kinds an agent may be, and
+  # there are three: a person, a collective agent, and an artist — which spec-01 §3.1
+  # makes an agent of an undetermined one of the two, and which a credit names.
   @interface_kinds ~w(
     work expression manifestation item digital_item
-    person collective_agent place time_span address
+    person collective_agent artist place time_span address
   )a
 
   @doc """
   Every res kind the native API serves, with the path it is served under.
+
+  Total over the kinds that name a subtype, because §10.1 gives every res an address and
+  a surface builds every related address at once: one kind with no path takes a whole page
+  down rather than leaving one link out of it.
   """
   @spec paths() :: %{atom() => String.t()}
   def paths, do: @paths
+
+  @doc """
+  The one kind that is served under no path.
+
+  `res` is the identifier space itself and names no subtype, so there is no row it
+  addresses. Named rather than left as a gap in `paths/0`, so that a kind added to the
+  model and not to the table is a failure and not a silent omission.
+  """
+  @spec addressless() :: [atom()]
+  def addressless, do: [:res]
 
   @doc """
   Whether a kind answers with the interface where a request asks for one ([spec-10] §9.1).
