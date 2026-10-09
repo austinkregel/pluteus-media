@@ -44,6 +44,25 @@ defmodule Pluteus.Browse.EntriesTest do
       assert release in all()
     end
 
+    test "a commentary riding in a film's manifestation is a track of it, not an entry" do
+      %{film: film, commentary: commentary} = film_with_commentary("Stalker")
+
+      listed = all()
+
+      assert film in listed
+      refute commentary in listed, "the commentary was listed beside the film it rides in"
+    end
+
+    test "the film is still an entry although its manifestation carries another work" do
+      # The half that is easy to get wrong: excluding a work whose manifestation carries
+      # another work's expression would exclude the film too, since the relation is one
+      # row read from either side. What distinguishes them is which of the two is
+      # augmenting, and only the commentary is.
+      %{film: film} = film_with_commentary("Stalker")
+
+      assert film in all()
+    end
+
     test "a serial carries the entry and its issues do not" do
       %{serial: serial, issues: issues} = serial_of("Sandman", ["Preludes", "The Doll's House"])
 
@@ -147,7 +166,7 @@ defmodule Pluteus.Browse.EntriesTest do
       # carries no value any tile could stand for. Left out of both the tiles and this
       # figure it would be in the total and in nothing that accounts for the total.
       standalone("Harbour at dawn", "photograph")
-      unkinded("Blade Runner, commentary")
+      unkinded("A work nobody categorized")
 
       summed =
         Enum.sum(for category <- categories_listed(), do: count(%{"category" => category}))
@@ -193,12 +212,31 @@ defmodule Pluteus.Browse.EntriesTest do
     Repo.aggregate(from(w in Entries.without_category(Entries.base()), select: w.id), :count)
   end
 
-  # What ingest leaves behind for a commentary stream: a work of its own embodied in the
-  # film's manifestation, which nothing categorizes.
+  # A work nothing has categorized. No placement path leaves one — every one of them
+  # applies at least its class default — so this is built directly: what is under test is
+  # that the arithmetic accounts for the state the model permits, which is what would
+  # surface a path that stopped categorizing.
   defp unkinded(name) do
     {:ok, %{work: work}} = Catalog.create_work(%{nomen_string: name, provenance: :automatic})
 
     work.id
+  end
+
+  # spec-04 §6.5's commentary: a work of its own carried in the film's manifestation as
+  # an augmentation, which is the relation `create_work_embodied_in/2` exists for.
+  defp film_with_commentary(name) do
+    {:ok, %{work: film, manifestation: manifestation}} =
+      Catalog.create_work(%{nomen_string: name, provenance: :automatic})
+
+    {:ok, _} = Catalog.categorize(film.id, Place.category_scheme(), "home_video", :automatic)
+
+    {:ok, %{work: commentary}} =
+      Catalog.create_work_embodied_in(manifestation.id, %{
+        nomen_string: "#{name}, commentary",
+        provenance: :automatic
+      })
+
+    %{film: film.id, commentary: commentary.id}
   end
 
   defp issued(work_id, date) do
