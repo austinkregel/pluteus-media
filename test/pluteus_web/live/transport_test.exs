@@ -13,6 +13,7 @@ defmodule PluteusWeb.TransportTest do
 
   alias Pluteus.Catalog
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Grouping
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Preferences
@@ -75,6 +76,25 @@ defmodule PluteusWeb.TransportTest do
       # on every change rather than once when the control is reached.
       assert slider =~ "aria-valuetext"
       assert slider =~ "0:00 of"
+    end
+
+    test "a holding carried by its own file states its recorded length", %{conn: conn} do
+      # The length is spec-01 §8.4's recorded figure, which is what §13.2 measures
+      # against too. Summed from the parts instead it would be absent here — a probe's
+      # duration is recorded against a part only where there are parts — and the slider
+      # would be disabled for most of what a household holds.
+      # A file with no album beside its title is a release of its own, so this is the
+      # case where the entry played is carried by one file and nothing else.
+      recording = a_recording(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{recording}"]|) |> render_click()
+
+      slider = live |> element("#transport-position") |> render()
+
+      refute slider =~ "disabled"
+      assert slider =~ ~s|max="2000"|
+      assert slider =~ "0:00 of 0:02"
     end
 
     test "the large step is a control of its own in each direction, naming its interval",
@@ -264,6 +284,28 @@ defmodule PluteusWeb.TransportTest do
     [_whole, asset] = Regex.run(~r|/assets/([^/]+)/content|, html)
 
     asset
+  end
+
+  # A holding carried by its own file: one asset, no region, and a length placement read
+  # from the probe and recorded against the manifestation.
+  #
+  # A file with no album beside its title is a release of its own, so the entry a surface
+  # offers is the release above the track rather than the track the file became.
+  defp a_recording(_conn) do
+    inbox = inbox!()
+    prefix = unique_prefix()
+
+    [placed] =
+      ingest!(inbox, %{
+        "#{prefix}/alone.flac" => media!(:flac, duration: 2, tags: %{"title" => "Blue in Green"})
+      })
+
+    track =
+      placed.digital_item_id
+      |> then(&Repo.get!(DigitalItem, &1).manifestation_id)
+      |> work_of()
+
+    Grouping.grouping_of(track)
   end
 
   # A release held in one file, so its tracks are regions of the release's own bytes and
