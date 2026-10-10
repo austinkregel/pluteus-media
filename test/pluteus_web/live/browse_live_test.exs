@@ -41,13 +41,20 @@ defmodule PluteusWeb.BrowseLiveTest do
       assert html =~ "/everything?category=photograph"
     end
 
-    test "the ordering basis is stated, which §9.5 requires until a ranking spec exists",
-         %{conn: conn} do
-      holding("photograph")
+    # §9.5 has a surface say which order it is in, and it says it of the search surface:
+    # a result carries no figure, so an unexplained order there reads as a ranking nobody
+    # can check. A door band is ordered too, and every door prints the count it is ordered
+    # on, so what the order is made of is readable from the doors themselves.
+    test "the doors stand in the order of the counts they carry", %{conn: conn} do
+      for _each <- 1..3, do: holding("photograph")
+      holding("document")
 
       {:ok, _live, html} = live(conn, ~p"/everything")
 
-      assert html =~ "ordered by"
+      {photographs, _length} = :binary.match(html, "/everything?category=photograph")
+      {documents, _length} = :binary.match(html, "/everything?category=document")
+
+      assert photographs < documents
     end
 
     test "an empty catalogue says so rather than drawing an empty band", %{conn: conn} do
