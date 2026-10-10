@@ -24,6 +24,8 @@ defmodule Mix.Tasks.Dev.Ready do
 
   use Mix.Task
 
+  alias Pluteus.Storage.Mount
+
   @requirements []
 
   @impl Mix.Task
@@ -49,6 +51,8 @@ defmodule Mix.Tasks.Dev.Ready do
     Mix.Task.run("compile", ["--warnings-as-errors"])
     Mix.Task.run("app.config")
 
+    marked!()
+
     case pending() do
       [] ->
         Mix.shell().info("the development build and database are current")
@@ -63,6 +67,30 @@ defmodule Mix.Tasks.Dev.Ready do
 
             docker compose exec app mix ecto.migrate
         """)
+    end
+  end
+
+  # The node will not start under a root that does not carry its sentinel, which is the
+  # same class of failure as a stale build: the suite passes and every request is
+  # refused, because the server never came up. The development tree owns its roots
+  # rather than mounting them, so the remedy is to say so.
+  defp marked! do
+    unmarked =
+      for {name, root} <- Mount.roots(),
+          not File.regular?(Path.join(root, Mount.sentinel())),
+          do: "  #{name} at #{root}"
+
+    if unmarked != [] do
+      Mix.raise("""
+      the development build will not start; #{length(unmarked)} root(s) carry no \
+      #{Mount.sentinel()}:
+
+      #{Enum.join(unmarked, "\n")}
+
+      These are directories this tree owns rather than volumes it mounts. Mark them with:
+
+          docker compose run --rm app mix pluteus.mount.mark
+      """)
     end
   end
 
