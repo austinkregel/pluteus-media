@@ -86,6 +86,7 @@ defmodule PluteusWeb.Chrome do
     doc: "the resolved name of the acting principal's person, or nil where it has none"
 
   attr :contexts, :map, required: true, doc: "the intent each stored modifier carries"
+  attr :findings, :integer, required: true, doc: "how many findings the household has uncleared"
   attr :mode, :string, default: nil, doc: "the current mode, where a surface is one"
   attr :announcement, :string, default: "", doc: "what the live region currently says"
 
@@ -121,10 +122,15 @@ defmodule PluteusWeb.Chrome do
           mode={@mode}
           query={@query}
           contexts={@contexts}
+          findings={@findings}
         />
 
         <div class="flex flex-1 min-w-0 flex-col">
-          <.top_bar principal_name={@principal_name} contexts={@contexts} />
+          <.top_bar
+            principal_name={@principal_name}
+            contexts={@contexts}
+            findings={@findings}
+          />
 
           <main id="surface" class="flex-1 min-w-0 overflow-y-auto">
             {render_slot(@inner_block)}
@@ -149,6 +155,7 @@ defmodule PluteusWeb.Chrome do
   attr :mode, :string, default: nil
   attr :query, :any, default: nil
   attr :contexts, :map, required: true
+  attr :findings, :integer, required: true
 
   defp rail(assigns) do
     ~H"""
@@ -184,7 +191,7 @@ defmodule PluteusWeb.Chrome do
       <div class="grow"></div>
 
       <div class="flex flex-col gap-3 px-4 pb-4">
-        <.findings_link />
+        <.findings_link findings={@findings} />
         <.contexts contexts={@contexts} at="rail" />
         <.identity principal_name={@principal_name} />
       </div>
@@ -369,8 +376,10 @@ defmodule PluteusWeb.Chrome do
     ]
   end
 
-  # The findings link is on every surface. It carries the words alone rather than a
-  # number nobody computed.
+  # The findings link is on every surface, carrying how many are uncleared. A finding is
+  # the household's rather than a principal's, so the figure is nobody's consumption.
+  attr :findings, :integer, required: true
+
   defp findings_link(assigns) do
     ~H"""
     <a
@@ -381,16 +390,20 @@ defmodule PluteusWeb.Chrome do
         "hover:bg-fill-subtle-strong"
       ]}
     >
-      <.icon name="hero-exclamation-triangle-mini" />
-      <span>Findings</span>
+      <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
+      <span>{@findings} {findings_said(@findings)}</span>
     </a>
     """
   end
+
+  defp findings_said(1), do: "finding"
+  defp findings_said(_many), do: "findings"
 
   # Below the rail's breakpoint the principal still has to be stated (§14.1), so the top
   # bar carries it and the tab bar carries the modes.
   attr :principal_name, :string, default: nil
   attr :contexts, :map, required: true
+  attr :findings, :integer, required: true
 
   defp top_bar(assigns) do
     ~H"""
@@ -408,8 +421,8 @@ defmodule PluteusWeb.Chrome do
         href={~p"/findings"}
         class="ml-auto min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
       >
-        <.icon name="hero-exclamation-triangle-mini" />
-        <span class="sr-only">Findings</span>
+        <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
+        <span class="sr-only">{@findings} {findings_said(@findings)}</span>
       </a>
       <.contexts contexts={@contexts} at="top-bar" />
     </div>
