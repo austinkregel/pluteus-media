@@ -22,16 +22,27 @@ defmodule Pluteus.IngestFixtures do
 
   @doc """
   A fresh, empty inbox, removed when the test exits.
+
+  The name carries the run as well as the test. `System.unique_integer/1` is unique
+  within one virtual machine and starts low in the next, so a run that was killed
+  before its `on_exit` could fire leaves directories a later run takes the names of —
+  and an inbox holding another run's files is acquired along with this test's own,
+  which is a test failing somewhere far from the run that caused it.
+
+  `mkdir!` rather than `mkdir_p!` for the inbox itself, so a name that is somehow
+  still taken raises here instead of being quietly ingested.
   """
   @spec inbox!() :: Path.t()
   def inbox! do
-    inbox =
+    root =
       :pluteus
       |> Application.fetch_env!(Pluteus.Ingest)
       |> Keyword.fetch!(:inbox)
-      |> Path.join("t#{System.unique_integer([:positive])}")
 
-    File.mkdir_p!(inbox)
+    inbox = Path.join(root, "p#{System.pid()}-t#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(root)
+    File.mkdir!(inbox)
     on_exit(fn -> File.rm_rf!(inbox) end)
     inbox
   end
