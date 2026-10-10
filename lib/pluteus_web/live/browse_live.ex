@@ -19,22 +19,20 @@ defmodule PluteusWeb.BrowseLive do
   what is behind them, and the rows by when the catalog took each holding.
   """
 
-  use PluteusWeb, :live_view
+  use PluteusWeb, :surface
 
   alias Pluteus.Browse
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
-  alias Pluteus.Consumption
-  alias Pluteus.Continuity.Registry, as: Continuity
-  alias Pluteus.Events
   alias Pluteus.Playback
-  alias Pluteus.Preferences
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
+  alias PluteusWeb.Interface
+  alias PluteusWeb.TransportLive
 
   @impl Phoenix.LiveView
   def mount(_params, session, socket) do
@@ -47,21 +45,7 @@ defmodule PluteusWeb.BrowseLive do
      |> assign(:contexts, session["contexts"] || %{})
      |> assign(:announcement, "")
      |> assign(:device_id, session["device_id"])
-     |> assign(:device_revoked, session["device_revoked"])
-     |> assign(:playing?, false)
-     |> assign(:queue_open?, false)
-     |> assign(:offering, nil)
-     |> assign(:offer_seconds, 0)
-     |> showing()}
-  end
-
-  # Read from the queue rather than held: the queue is the principal's, not this socket's.
-  defp showing(socket) do
-    assign(
-      socket,
-      :showing,
-      Playback.current(socket.assigns.principal_id, socket.assigns.profile)
-    )
+     |> assign(:transport, Interface.transport(session))}
   end
 
   # The query is read from the parameters on every navigation rather than held, because
@@ -83,68 +67,9 @@ defmodule PluteusWeb.BrowseLive do
     end
   end
 
-  # §12.3's controls. Each changes the queue, so the answer is read back from it.
+  # The player is a LiveView of its own, so a surface starts something and says so on
+  # the principal's own topic rather than rendering the result itself.
   @impl Phoenix.LiveView
-  def handle_event("transport-play", _params, socket) do
-    {:noreply, assign(socket, :playing?, not socket.assigns.playing?)}
-  end
-
-  def handle_event("transport-queue", _params, socket) do
-    {:noreply, assign(socket, :queue_open?, not socket.assigns.queue_open?)}
-  end
-
-  def handle_event("transport-next", _params, socket) do
-    {:noreply, jumped(socket, socket.assigns.showing.index + 1)}
-  end
-
-  def handle_event("transport-previous", _params, socket) do
-    {:noreply, jumped(socket, socket.assigns.showing.index - 1)}
-  end
-
-  def handle_event("transport-jump", %{"index" => index}, socket) do
-    {:noreply, jumped(socket, String.to_integer(index))}
-  end
-
-  # §13.1. The bar is not re-rendered for a report: the element is where the position is
-  # while something plays, and a patch would move it.
-  def handle_event("transport-position", %{"res" => res_id, "position_ms" => position}, socket) do
-    reported(socket, res_id, position)
-    reached(socket, position)
-
-    {:noreply, socket}
-  end
-
-  # §12.4's offer. The queue is untouched until the interval runs out or it is taken.
-  def handle_event("transport-finished", %{"res" => res_id}, socket) do
-    at = finished_at(socket)
-
-    reported(socket, res_id, at)
-    reached(socket, at)
-
-    {:noreply, socket |> assign(:playing?, false) |> showing() |> offer()}
-  end
-
-  # Taking it is the person asking, which is the one path on which audio begins at the
-  # end of an entry: the interval running out advances the queue and leaves it paused.
-  def handle_event("transport-offer-take", _params, socket) do
-    advanced = socket |> cancel_offer() |> then(&jumped(&1, &1.assigns.showing.index + 1))
-
-    {:noreply, assign(advanced, :playing?, true)}
-  end
-
-  def handle_event("transport-offer-cancel", _params, socket) do
-    {:noreply, cancel_offer(socket)}
-  end
-
-  # The element could not start, and says why: a gesture refused, a source it will not
-  # decode and an aborted load are different facts.
-  def handle_event("transport-refused", %{"why" => why}, socket) do
-    {:noreply,
-     socket
-     |> assign(:playing?, false)
-     |> put_flash(:error, "This browser would not start playing: #{why}")}
-  end
-
   def handle_event("play", _params, %{assigns: %{device_id: nil}} = socket) do
     {:noreply, put_flash(socket, :error, unenrolled())}
   end
@@ -158,96 +83,13 @@ defmodule PluteusWeb.BrowseLive do
         socket.assigns.profile
       )
 
-    {:noreply, socket |> assign(:playing?, true) |> showing()}
+    :ok = TransportLive.announce(socket.assigns.principal_id)
+
+    {:noreply, socket}
   end
 
   defp unenrolled do
     "This browser holds no enrolment, so there is nowhere to record what it plays."
-  end
-
-  # §13.2's own refusals are the pass's to make, so each outcome is carried rather than
-  # matched on. A browser with no enrolment has no device to key either by.
-  defp reached(%{assigns: %{device_id: nil}}, _position), do: :no_device
-
-  defp reached(socket, position) do
-    Consumption.reached(socket.assigns.principal_id, position, socket.assigns.device_id)
-  end
-
-  defp reported(%{assigns: %{device_id: nil}}, _res_id, _position), do: :no_device
-
-  defp reported(socket, res_id, position) do
-    Events.report_position(%{
-      principal_id: socket.assigns.principal_id,
-      device_id: socket.assigns.device_id,
-      res_id: res_id,
-      position: position,
-      unit: :millisecond,
-      reported_at: DateTime.utc_now(),
-      sequence: System.unique_integer([:monotonic, :positive]),
-      playing: false
-    })
-  end
-
-  # The end of the entry's region where it has one, and of the whole otherwise.
-  defp finished_at(%{assigns: %{showing: %{playable: {:ok, playable}}}}) do
-    case playable do
-      %{to_ms: to, from_ms: from} when is_integer(to) -> to - from
-      %{parts: parts} -> parts |> Enum.map(&(&1.duration_ms || 0)) |> Enum.sum()
-    end
-  end
-
-  # Only where a next member exists and this principal has not turned it off.
-  defp offer(socket) do
-    with "on" <- Preferences.held(socket.assigns.principal_id, "next_member_offer"),
-         %{} = next <- Playback.next_after(socket.assigns.showing) do
-      socket
-      |> assign(:offering, next)
-      |> assign(:offer_seconds, div(Continuity.next_member_offer_ms(), 1000))
-      |> tick_offer()
-    else
-      _nothing_to_offer -> cancel_offer(socket)
-    end
-  end
-
-  defp tick_offer(socket) do
-    Process.send_after(self(), :offer_tick, 1_000)
-
-    socket
-  end
-
-  defp cancel_offer(socket) do
-    socket |> assign(:offering, nil) |> assign(:offer_seconds, 0)
-  end
-
-  @impl Phoenix.LiveView
-  def handle_info(:offer_tick, %{assigns: %{offering: nil}} = socket), do: {:noreply, socket}
-
-  def handle_info(:offer_tick, %{assigns: %{offer_seconds: 1}} = socket) do
-    {:noreply, socket |> cancel_offer() |> then(&jumped(&1, &1.assigns.showing.index + 1))}
-  end
-
-  def handle_info(:offer_tick, socket) do
-    {:noreply,
-     socket
-     |> assign(:offer_seconds, socket.assigns.offer_seconds - 1)
-     |> tick_offer()}
-  end
-
-  # Another of the principal's devices may have changed the queue between a render and a
-  # press. No catch-all, so a refusal added later surfaces.
-  defp jumped(socket, index) do
-    case Playback.jump(socket.assigns.principal_id, socket.assigns.device_id, index) do
-      :ok ->
-        showing(socket)
-
-      {:error, :no_queue} ->
-        showing(socket)
-
-      {:error, :current_outside_queue} ->
-        socket
-        |> put_flash(:error, "That is no longer an entry of the queue.")
-        |> showing()
-    end
   end
 
   # What is wrong is named rather than answered with an unnarrowed surface, which would
@@ -280,12 +122,8 @@ defmodule PluteusWeb.BrowseLive do
       mode={Atom.to_string(@live_action)}
       announcement={@announcement}
       query={@surface && @surface.query}
-      showing={@showing}
-      playing?={@playing?}
-      queue_open?={@queue_open?}
-      offering={@offering}
-      offer_seconds={@offer_seconds}
-      device_revoked={@device_revoked}
+      socket={@socket}
+      transport={@transport}
     >
       <div id="browse" class="mx-auto w-full px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
