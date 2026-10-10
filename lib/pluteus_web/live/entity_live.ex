@@ -16,7 +16,7 @@ defmodule PluteusWeb.EntityLive do
   region is rendered on every mount and is empty until something has happened.
   """
 
-  use PluteusWeb, :live_view
+  use PluteusWeb, :surface
 
   import Ecto.Query, only: [from: 2]
 
@@ -36,6 +36,7 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Representation.ComposedName
   alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
+  alias PluteusWeb.Interface
   alias PluteusWeb.Native
 
   # §5.2's seven absences, each in words. A state with none raises rather than rendering
@@ -103,6 +104,7 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:whole, session["whole"])
      |> assign(:principal_name, principal_name(principal_id, profile))
      |> assign(:contexts, session["contexts"] || %{})
+     |> assign(:transport, Interface.transport(session))
      |> assign(:announcement, "")}
   end
 
@@ -298,6 +300,8 @@ defmodule PluteusWeb.EntityLive do
       principal_name={@principal_name}
       contexts={@contexts}
       announcement={@announcement}
+      socket={@socket}
+      transport={@transport}
     >
       <div id="entity" class="mx-auto max-w-measure px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
