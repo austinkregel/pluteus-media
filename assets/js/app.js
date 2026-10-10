@@ -122,6 +122,14 @@ const Waveform = {
 // A track of a release held in one file is a region of that file: the element is given
 // the whole and told where to begin and end, which is what makes playing track four a
 // range-limited play rather than a second stream.
+// A position said the way the bar says it, so the client's own drawing and the server's
+// rendering do not disagree about a figure a person is reading.
+const clock = (milliseconds) => {
+  const total = Math.floor(milliseconds / 1000)
+
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`
+}
+
 // The hook is on the bar rather than on the element, because §12.3's controls act on the
 // element and a control bound to nothing is §17.3's lie: available and doing nothing.
 const MediaSession = {
@@ -195,15 +203,15 @@ const MediaSession = {
     }
 
     this.reportedAt = elapsed
-    this.pushEvent("transport-position", {res: this.state().res, position_ms: Math.floor(elapsed)})
+    this.reached = Math.floor(elapsed)
+    this.pushEvent("transport-position", {res: this.state().res, position_ms: this.reached})
   },
 
   nudge(by) {
     const control = this.el.querySelector("#transport-position")
     const bounded = Math.min(Math.max(this.elapsed() + by, 0), parseInt(control.max, 10))
 
-    control.value = bounded
-    control.setAttribute("aria-valuetext", control.getAttribute("aria-valuetext"))
+    this.drawn(bounded)
     this.seek(bounded)
   },
 
@@ -281,6 +289,10 @@ const MediaSession = {
     throw new Error(`position ${position} is past every part of this holding`)
   },
 
+  // The element follows the server where the server has something new to say, and not
+  // otherwise. Every patch runs this, and a position the hook itself reached is not a
+  // place to move to — comparing the element's clock instead dragged it back to wherever
+  // the last report left it, every reporting interval.
   follow() {
     const {parts, from, position, playing} = this.state()
     if (!parts.length) return
@@ -291,8 +303,10 @@ const MediaSession = {
     if (medium.src !== new URL(part.src, window.location.href).href) {
       medium.src = part.src
       this.seekTo = from + offset
-    } else if (Math.abs(medium.currentTime * 1000 - (from + offset)) > 2000) {
+      this.reached = position
+    } else if (position !== this.reached) {
       this.seekTo = from + offset
+      this.reached = position
     }
 
     if (this.seekTo !== undefined) {
@@ -326,10 +340,33 @@ const MediaSession = {
     }
 
     const elapsed = at - from
+    this.drawn(elapsed)
+
+    // §20's interval is how often the deployment is told, not how often the bar moves.
     if (elapsed - this.reportedAt < interval) return
 
     this.reportedAt = elapsed
-    this.pushEvent("transport-position", {res: res, position_ms: Math.floor(elapsed)})
+    this.reached = Math.floor(elapsed)
+    this.pushEvent("transport-position", {res: res, position_ms: this.reached})
+  },
+
+  // The progress a person watches is the client's own: the server records where playback
+  // reached and does not re-render the bar for it, so a position that advanced four times
+  // a second would otherwise cost a round trip each time.
+  drawn(elapsed) {
+    const slider = this.el.querySelector("#transport-position")
+    const elapsedAt = this.el.querySelector("#transport-elapsed")
+    if (!slider) return
+
+    const whole = parseInt(slider.max, 10)
+
+    slider.value = Math.floor(elapsed)
+    slider.setAttribute(
+      "aria-valuetext",
+      whole > 0 ? `${clock(elapsed)} of ${clock(whole)}` : `${clock(elapsed)}, of a length not recorded`
+    )
+
+    if (elapsedAt) elapsedAt.textContent = clock(elapsed)
   },
 
   finished() {

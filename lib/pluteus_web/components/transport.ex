@@ -261,7 +261,10 @@ defmodule PluteusWeb.Transport do
   defp position(assigns) do
     ~H"""
     <div class="flex items-center gap-3">
-      <span class="w-12 shrink-0 text-right font-mono text-caption text-on-surface-muted">
+      <span
+        id="transport-elapsed"
+        class="w-12 shrink-0 text-right font-mono text-caption text-on-surface-muted"
+      >
         {clock(@showing.position_ms)}
       </span>
 
