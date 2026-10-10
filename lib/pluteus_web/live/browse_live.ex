@@ -298,7 +298,7 @@ defmodule PluteusWeb.BrowseLive do
       class={[
         "flex flex-col gap-3 rounded-md p-4",
         "border-[length:var(--sys-border-width-component)] border-border-strong",
-        "bg-surface-raised hover:bg-fill-subtle"
+        "bg-fill-subtle hover:bg-fill-subtle-strong"
       ]}
     >
       <span class="flex items-center gap-3">
@@ -317,7 +317,7 @@ defmodule PluteusWeb.BrowseLive do
     [
       "min-h-target-touch flex items-center gap-2 rounded-full px-4",
       "border-[length:var(--sys-border-width-component)] border-border-subtle",
-      "bg-surface-raised hover:bg-fill-subtle"
+      "bg-fill-subtle hover:bg-fill-subtle-strong"
     ]
   end
 
@@ -360,7 +360,7 @@ defmodule PluteusWeb.BrowseLive do
         aria-label={"Play #{@name}"}
         class={[
           "min-h-target-pointer min-w-target-pointer flex shrink-0 items-center justify-center",
-          "rounded-md text-on-surface-strong hover:bg-fill-subtle"
+          "rounded-md text-on-surface-strong hover:bg-fill-subtle-strong"
         ]}
       >
         <.icon name="hero-play-mini" />
@@ -609,7 +609,7 @@ defmodule PluteusWeb.BrowseLive do
     [
       "min-h-target-touch flex items-center gap-3 rounded-md px-4",
       "border-[length:var(--sys-border-width-component)] border-border-subtle",
-      "bg-surface-raised hover:bg-surface-overlay"
+      "bg-fill-subtle hover:bg-fill-subtle-strong"
     ]
   end
 
