@@ -11,10 +11,13 @@ defmodule PluteusWeb.Live.Identity do
   showing one principal's page over another principal's connection — and spec-10 §14.3
   makes that the thing a surface may never do.
 
-  Declared in `PluteusWeb.live_view/0` rather than in a `live_session`, so it runs
-  however the LiveView was rendered. `PluteusWeb.EntityLive` is `live_render`ed from a
-  controller and belongs to no live session; declaring the hook in the module it is
-  used from is what gives it the same contract as a surface reached by a `live` route.
+  Declared by `PluteusWeb.surface/0` rather than in a `live_session`, so it runs however
+  the surface was rendered. `PluteusWeb.EntityLive` is `live_render`ed from a controller
+  and belongs to no live session; declaring the hook in the module it is used from is
+  what gives it the same contract as a surface reached by a `live` route.
+
+  A LiveView nested inside a surface does not declare it: it has no connection of its
+  own to establish anything against.
 
   A session carrying no principal raises rather than mounting anonymously. Every
   surface spec-10 §9 names is the requesting principal's, and the two household-public
