@@ -27,6 +27,7 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Catalog.Selection
+  alias Pluteus.Ingest
   alias Pluteus.Lifecycle
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Registry
@@ -104,6 +105,7 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:whole, session["whole"])
      |> assign(:principal_name, principal_name(principal_id, profile))
      |> assign(:contexts, session["contexts"] || %{})
+     |> assign(:findings, Ingest.open_finding_count())
      |> assign(:transport, Interface.transport(session))
      |> assign(:announcement, "")}
   end
@@ -299,6 +301,7 @@ defmodule PluteusWeb.EntityLive do
     <Chrome.shell
       principal_name={@principal_name}
       contexts={@contexts}
+      findings={@findings}
       announcement={@announcement}
       socket={@socket}
       transport={@transport}
