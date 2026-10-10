@@ -371,7 +371,7 @@ defmodule PluteusWeb.Chrome do
       class={[
         "min-h-target-touch flex items-center gap-3 rounded-md px-3",
         "text-body-md text-on-surface-strong",
-        "hover:bg-fill-subtle"
+        "hover:bg-fill-subtle-strong"
       ]}
     >
       <.icon name="hero-exclamation-triangle-mini" />
