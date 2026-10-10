@@ -48,6 +48,26 @@ defmodule Pluteus.IngestFixtures do
   end
 
   @doc """
+  Bytes nothing can make sense of, and the same bytes on every run.
+
+  Drawing them at random is a lottery. ffmpeg's weakest demuxers accept at a probe
+  score of 5, so a draw that happens to look like one of them is identified rather
+  than refused, and a test that asked for undecodable bytes fails long after the
+  draw that caused it. The sequence comes from a fixed seed instead, so what nothing
+  can decode today is what nothing could decode yesterday.
+  """
+  @spec undecodable(pos_integer()) :: binary()
+  def undecodable(length) do
+    {bytes, _state} =
+      Enum.map_reduce(1..length, :rand.seed_s(:exsss, {17, 23, 42}), fn _byte, state ->
+        {value, next} = :rand.uniform_s(256, state)
+        {value - 1, next}
+      end)
+
+    :binary.list_to_bin(bytes)
+  end
+
+  @doc """
   A directory name no other test will use, to drop a set of files under.
 
   `inbox_sightings` is keyed on the relative path and `acquisitions` carries a unique
