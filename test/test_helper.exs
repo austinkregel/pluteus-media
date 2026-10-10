@@ -9,6 +9,10 @@ ExUnit.start(max_cases: 32)
 # The root is scratch, configured under `tmp/`, so the run starts from nothing.
 File.rm_rf!(Pluteus.Storage.root())
 
+# Emptying it took the evidence that it is there. A test root is a directory this run
+# owns rather than a volume it mounts, so it places its own.
+Pluteus.Storage.Mount.mark!()
+
 # A deployment has exactly one System principal, and every sandboxed test that
 # made its own would wait on that uniqueness for every other test holding one
 # uncommitted. It is made once, committed, before any test runs.
