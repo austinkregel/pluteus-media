@@ -47,6 +47,7 @@ defmodule Pluteus.ConsumptionTest do
              playlists: 1,
              rate: 3,
              ratings: 2,
+             reached: 3,
              save_play_queue: 5,
              star: 2,
              star: 3,

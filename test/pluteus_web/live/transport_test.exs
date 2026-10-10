@@ -14,6 +14,7 @@ defmodule PluteusWeb.TransportTest do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Grouping
+  alias Pluteus.Consumption
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Preferences
@@ -71,6 +72,39 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
 
       assert render(live) =~ "Music · 2 tracks"
+    end
+  end
+
+  describe "§13.1. Reporting a position advances the queue and moves nothing" do
+    test "the queue carries where it reached, so a reload starts there",
+         %{conn: conn, subject: subject} do
+      %{release: release} = a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      reported(live, 1_500)
+
+      principal = Principals.principal_for(issuer(), subject)
+
+      assert Consumption.play_queue(principal.id).position_ms == 1_500
+    end
+
+    test "a report changes nothing the element is told", %{conn: conn} do
+      # Half of what sent playback back to the beginning every reporting interval. The
+      # seek itself is the client's and no test here reaches it; what this holds is the
+      # server's half — that reporting a position gives the element nothing new to
+      # follow, so a patch is never a reason for it to move.
+      %{release: release} = a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      before = live |> element("#transport-medium") |> render()
+      reported(live, 1_500)
+
+      assert live |> element("#transport-medium") |> render() == before,
+             "a position report changed what the element is told, so it would seek"
     end
   end
 
@@ -345,6 +379,15 @@ defmodule PluteusWeb.TransportTest do
     res = live |> element("#transport-medium") |> render() |> res_of()
 
     render_hook(element(live, "#transport"), "transport-finished", %{"res" => res})
+  end
+
+  defp reported(live, position_ms) do
+    res = live |> element("#transport-medium") |> render() |> res_of()
+
+    render_hook(element(live, "#transport"), "transport-position", %{
+      "res" => res,
+      "position_ms" => position_ms
+    })
   end
 
   defp res_of(html) do
