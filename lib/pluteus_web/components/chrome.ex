@@ -213,9 +213,9 @@ defmodule PluteusWeb.Chrome do
     ~H"""
     <div :if={@narrowings != []} class="flex flex-col gap-2">
       <h2 class="text-title-md font-medium text-on-surface-strong">Narrowed by</h2>
-      <a
+      <.link
         :for={{axis, value} <- @narrowings}
-        href={without(@query, axis, value)}
+        patch={without(@query, axis, value)}
         aria-label={"Remove the facet #{label(axis, value)}"}
         class={[
           "min-h-target-touch flex items-center gap-2 rounded-full pl-4 pr-3",
@@ -225,7 +225,7 @@ defmodule PluteusWeb.Chrome do
       >
         <span class="grow">{label(axis, value)}</span>
         <.icon name="hero-x-mark-micro" />
-      </a>
+      </.link>
     </div>
     """
   end
@@ -342,12 +342,22 @@ defmodule PluteusWeb.Chrome do
     """
   end
 
-  # A mode whose surface exists is reached by an ordinary link, not a live navigation:
-  # every surface is behind forward authentication and declares a distance, and a live
-  # patch between modes would skip both.
+  # Reaching another mode is an ordinary link: every surface is behind forward
+  # authentication and declares a distance, and a live navigation would skip both.
+  # Returning to the current mode is a patch — it stays in this LiveView, so it skips
+  # nothing, and it is how a narrowing is cleared without stopping what is playing.
+  defp mode(%{current: true} = assigns) do
+    ~H"""
+    <.link patch={@at} aria-current="page" class={mode_face(true)}>
+      <.icon name={@glyph} />
+      <span>{@noun}</span>
+    </.link>
+    """
+  end
+
   defp mode(assigns) do
     ~H"""
-    <a href={@at} aria-current={@current && "page"} class={mode_face(@current)}>
+    <a href={@at} class={mode_face(false)}>
       <.icon name={@glyph} />
       <span>{@noun}</span>
     </a>
@@ -372,7 +382,7 @@ defmodule PluteusWeb.Chrome do
       class={[
         "min-h-target-touch flex items-center gap-3 rounded-md px-3",
         "text-body-md text-on-surface-strong",
-        "hover:bg-surface-overlay"
+        "hover:bg-fill-subtle"
       ]}
     >
       <.icon name="hero-exclamation-triangle-mini" />
@@ -458,9 +468,18 @@ defmodule PluteusWeb.Chrome do
     """
   end
 
+  defp tab(%{current: true} = assigns) do
+    ~H"""
+    <.link patch={@at} aria-current="page" class={tab_face(true)}>
+      <.icon name={@glyph} />
+      <span>{@noun}</span>
+    </.link>
+    """
+  end
+
   defp tab(assigns) do
     ~H"""
-    <a href={@at} aria-current={@current && "page"} class={tab_face(@current)}>
+    <a href={@at} class={tab_face(false)}>
       <.icon name={@glyph} />
       <span>{@noun}</span>
     </a>
