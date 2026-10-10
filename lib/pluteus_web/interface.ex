@@ -59,6 +59,17 @@ defmodule PluteusWeb.Interface do
   end
 
   @doc """
+  The session the player mounts from.
+
+  The player is a LiveView of its own rendered sticky, so it does not take what a
+  surface was handed: it is not torn down with one and would outlive the hand-down.
+  """
+  @spec transport(%{String.t() => term()}) :: %{String.t() => term()}
+  def transport(session) do
+    Map.take(session, ~w(principal_id language assigner_id device_id device_revoked))
+  end
+
+  @doc """
   Puts the root layout and the flash on a connection that is about to render a surface.
   """
   @spec prepare(Plug.Conn.t()) :: Plug.Conn.t()
