@@ -30,7 +30,6 @@ defmodule PluteusWeb.Chrome do
   use PluteusWeb, :html
 
   alias Pluteus.Browse.Query
-  alias PluteusWeb.Transport
 
   # Each glyph is the whole name of the drawing at the band the chrome renders it in.
   # A.9.5 admits no name assembled at a call site, because a class or a name built at run
@@ -94,18 +93,13 @@ defmodule PluteusWeb.Chrome do
     default: nil,
     doc: "the browse query this surface is showing, where it is a browse surface"
 
-  attr :showing, :map,
-    default: nil,
-    doc: "what the transport is showing, or nil — with nothing current there is no transport"
+  attr :socket, :map,
+    required: true,
+    doc: "the surface's socket, which the player is rendered into as a sticky child"
 
-  attr :playing?, :boolean, default: false, doc: "whether the client is playing it"
-  attr :queue_open?, :boolean, default: false, doc: "whether the queue is disclosed"
-  attr :offering, :any, default: nil, doc: "the next member being offered at the end"
-  attr :offer_seconds, :integer, default: 0, doc: "how long the offer has left"
-
-  attr :device_revoked, :string,
-    default: nil,
-    doc: "the device whose enrolment this principal revoked, where it is this browser"
+  attr :transport, :map,
+    required: true,
+    doc: "the session the player mounts from, which `PluteusWeb.Interface` builds"
 
   slot :inner_block, required: true
 
@@ -133,16 +127,11 @@ defmodule PluteusWeb.Chrome do
         </div>
       </div>
 
-      <.revoked :if={@device_revoked} device={@device_revoked} />
-
-      <Transport.bar
-        :if={@showing}
-        showing={@showing}
-        playing?={@playing?}
-        queue_open?={@queue_open?}
-        offering={@offering}
-        offer_seconds={@offer_seconds}
-      />
+      {live_render(@socket, PluteusWeb.TransportLive,
+        id: "transport-live",
+        session: @transport,
+        sticky: true
+      )}
 
       <.tab_bar mode={@mode} />
     </div>
@@ -492,27 +481,5 @@ defmodule PluteusWeb.Chrome do
       "text-caption text-on-surface-muted",
       current && "text-on-surface-strong font-medium"
     ]
-  end
-
-  # A principal who revoked this browser's enrolment has it stay revoked, so nothing can
-  # be played here and nothing can be recorded about where anybody is. Said rather than
-  # left to look like a deployment that cannot play anything: taking a second credential
-  # would undo in silence the thing they did deliberately.
-  attr :device, :string, required: true
-
-  defp revoked(assigns) do
-    ~H"""
-    <p
-      id="device-revoked"
-      class={[
-        "px-4 py-2 text-body-sm text-on-surface-muted",
-        "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle",
-        "bg-surface-raised"
-      ]}
-    >
-      This browser was enrolled as {@device} and that enrolment is revoked, so nothing
-      plays here and no position is recorded. Enrol it again from your devices.
-    </p>
-    """
   end
 end
