@@ -393,7 +393,7 @@ defmodule Pluteus.Ingest.AcquisitionTest do
 
   describe "26. Acquisition and identification failures are recorded against the record" do
     test "bytes nothing can decode are a finding, not a guess", %{inbox: inbox} do
-      drop!(inbox, "so-what.mp3", :crypto.strong_rand_bytes(600))
+      drop!(inbox, "so-what.mp3", undecodable(600))
 
       [id] = inbox |> acquire_settled!(@t0) |> acquired()
 
@@ -405,7 +405,7 @@ defmodule Pluteus.Ingest.AcquisitionTest do
 
     test "a failed identification is not due again until a person clears it",
          %{inbox: inbox, actor: actor} do
-      drop!(inbox, "so-what.mp3", :crypto.strong_rand_bytes(600))
+      drop!(inbox, "so-what.mp3", undecodable(600))
       [id] = inbox |> acquire_settled!(@t0) |> acquired()
       [finding] = Ingest.findings_for_acquisition(id)
 
