@@ -148,8 +148,17 @@ defmodule Pluteus.Events.ContinuityTest do
       assert Thresholds.weigh("comic_issue", 2, 4) == :too_short
     end
 
-    test "an extent nobody recorded raises rather than being treated as long enough" do
-      assert_raise ArgumentError, fn -> Thresholds.weigh("film", 600_000, nil) end
+    test "an extent nobody recorded keeps nothing rather than being treated as long enough" do
+      # §8.4's figure is recorded where a probe reads one and left where it does not, so
+      # a holding without one is a state the catalog admits. Both the floor and the
+      # ceiling are measured against it, so the report is discarded and said to be rather
+      # than kept against a length nobody knows.
+      assert Thresholds.weigh("film", 600_000, nil) == :unmeasured
+      assert Thresholds.weigh("comic_issue", 20, nil) == :unmeasured
+    end
+
+    test "a category that keeps no position needs no measurement to say so" do
+      assert Thresholds.weigh("photograph", 1, nil) == :keeps_none
     end
 
     test "a category the registry does not name raises" do

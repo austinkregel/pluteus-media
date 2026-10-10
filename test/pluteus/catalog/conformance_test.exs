@@ -1739,7 +1739,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
                )
     end
 
-    test "a res whose extent nobody recorded cannot be reported against" do
+    test "a res whose extent nobody recorded keeps no position" do
       %{principal: principal} = a_household_member()
 
       {:ok, catalogued} = Catalog.create_work("An Unmeasured Film")
@@ -1749,11 +1749,14 @@ defmodule Pluteus.Catalog.ConformanceTest do
 
       device = PrincipalFixtures.a_device(principal.id, "a television")
 
-      # §13.2's floor and ceiling have nothing to be measured against, and a
-      # threshold chosen without one would be a value the registry does not hold.
-      assert_raise ArgumentError, fn ->
-        ConsumptionFixtures.report(principal.id, catalogued.work.id, device.id, 900_000)
-      end
+      # §13.2's floor and ceiling have nothing to be measured against, so the report is
+      # discarded and said to be. Raising instead would take down any surface that
+      # reported one, for a holding the catalog admits: §8.4's figure is recorded where a
+      # probe reads one and left where it does not.
+      assert {:discarded, :unmeasured} =
+               ConsumptionFixtures.report(principal.id, catalogued.work.id, device.id, 900_000)
+
+      assert Events.resume_position(principal.id, catalogued.work.id) == nil
     end
   end
 
