@@ -28,11 +28,13 @@ defmodule Pluteus.Browse do
   alias Pluteus.Browse.Query
   alias Pluteus.Browse.Unfinished
   alias Pluteus.Catalog.Aggregation
+  alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Cover
   alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Ingest.Acquisition
   alias Pluteus.Repo
 
   @typedoc """
@@ -51,6 +53,9 @@ defmodule Pluteus.Browse do
           labels: %{String.t() => String.t()},
           total: non_neg_integer(),
           catalogue: non_neg_integer(),
+          bytes: non_neg_integer(),
+          first_acquired: DateTime.t() | nil,
+          uncredited: non_neg_integer(),
           facets: %{String.t() => Counts.facet()},
           unfinished: [Unfinished.door()]
         }
@@ -84,9 +89,36 @@ defmodule Pluteus.Browse do
       covers: Cover.for_works(entries),
       total: Entries.count(query),
       catalogue: Entries.count(Query.unnarrowed(query)),
+      bytes: bytes(),
+      first_acquired: first_acquired(),
+      uncredited: uncredited(query),
       facets: facets,
       unfinished: Unfinished.for_principal(principal_id)
     }
+  end
+
+  # What is held, which is the bytes of every asset kept rather than of what arrived: a
+  # re-encoded master and the original it was made from are both on the disk, and a
+  # figure that counted one of them would not be the size of the thing it names.
+  # Postgres sums a bigint into a numeric, which arrives as a decimal, so the figure is
+  # brought back to a count of bytes rather than divided as one and raising.
+  defp bytes do
+    case Repo.aggregate(Asset, :sum, :size) do
+      nil -> 0
+      %Decimal{} = total -> Decimal.to_integer(total)
+      total when is_integer(total) -> total
+    end
+  end
+
+  # When the household started holding anything, which is the earliest arrival rather
+  # than the earliest date anything states: a record made in 1959 was not acquired then.
+  defp first_acquired, do: Repo.aggregate(Acquisition, :min, :inbox_released_at)
+
+  defp uncredited(query) do
+    Repo.aggregate(
+      from(w in Entries.uncredited(Entries.narrow(Entries.base(), query)), select: w.id),
+      :count
+    )
   end
 
   # A res carrying no nomen this profile may see is absent from resolution rather than
