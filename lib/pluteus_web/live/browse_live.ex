@@ -25,6 +25,7 @@ defmodule PluteusWeb.BrowseLive do
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Consumption
   alias Pluteus.Continuity.Registry, as: Continuity
   alias Pluteus.Events
   alias Pluteus.Playback
@@ -115,17 +116,25 @@ defmodule PluteusWeb.BrowseLive do
   # floor or above its ceiling is discarded there, so what comes back says which — and
   # above the ceiling the res is recorded consumed, which is the deployment's own
   # judgement rather than the client's claim.
+  # The bar is not re-rendered for it. The element is where the position is while
+  # something plays, and a patch carrying the server's idea of it would move the element
+  # back to wherever the last report left it — so the client draws its own progress and
+  # the server records where it reached.
   def handle_event("transport-position", %{"res" => res_id, "position_ms" => position}, socket) do
     reported(socket, res_id, position)
+    reached(socket, position)
 
-    {:noreply, showing(socket)}
+    {:noreply, socket}
   end
 
   # §12.4: where the played res is a member of an ordered grouping and a next member
   # exists, the surface offers it. Nothing begins without a person having asked, so the
   # offer counts down and the queue is untouched until it is taken.
   def handle_event("transport-finished", %{"res" => res_id}, socket) do
-    reported(socket, res_id, finished_at(socket))
+    at = finished_at(socket)
+
+    reported(socket, res_id, at)
+    reached(socket, at)
 
     {:noreply, socket |> assign(:playing?, false) |> showing() |> offer()}
   end
@@ -176,6 +185,14 @@ defmodule PluteusWeb.BrowseLive do
   # A report from a browser with no enrolment has no device to be keyed by, and §13.2's
   # own refusals are the pass's to make, so each outcome is carried rather than matched
   # on: a position below the floor is not an error and not a position either.
+  # The queue carries where it reached so another client resumes it and so a reload
+  # starts where this one left off. A browser with no enrolment has no queue to move.
+  defp reached(%{assigns: %{device_id: nil}}, _position), do: :no_device
+
+  defp reached(socket, position) do
+    Consumption.reached(socket.assigns.principal_id, position, socket.assigns.device_id)
+  end
+
   defp reported(%{assigns: %{device_id: nil}}, _res_id, _position), do: :no_device
 
   defp reported(socket, res_id, position) do
