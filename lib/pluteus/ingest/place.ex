@@ -755,6 +755,36 @@ defmodule Pluteus.Ingest.Place do
   end
 
   @doc """
+  Records how much of a placed holding there is, for one placed before anything measured
+  it: the probe already on the acquisition, read the way placement reads it.
+
+  A holding whose probe states no duration is left alone, and one already measured is
+  left as it is, so this can be run after any ingest.
+  """
+  @spec record_extent(Acquisition.t()) :: :recorded | :measured_already | :states_none
+  def record_extent(%Acquisition{state: :placed} = acquisition) do
+    Actor.as(Principals.system!().id, fn ->
+      manifestation = Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
+
+      case extent_of(acquisition) do
+        nil -> :states_none
+        {unit, magnitude} -> measure(manifestation, unit, magnitude)
+      end
+    end)
+  end
+
+  defp measure(manifestation_id, unit, magnitude) do
+    case Addressing.get_extent(manifestation_id, unit) do
+      nil ->
+        {:ok, _} = Addressing.record_extent(manifestation_id, unit, magnitude)
+        :recorded
+
+      _already ->
+        :measured_already
+    end
+  end
+
+  @doc """
   The date a holding's container states it was issued, or nil where it states none.
   """
   @spec issued_date(Acquisition.t()) :: String.t() | nil
