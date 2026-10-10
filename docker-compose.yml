@@ -16,6 +16,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    # The node refuses to start when a volume holding the household's bytes is not
+    # mounted, and a volume that is merely late is the ordinary case after a power cut.
+    # Docker backs off between restarts of its own accord, up to a minute, so a store
+    # that comes back some minutes after this host does is waited out rather than
+    # needing a hand.
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
