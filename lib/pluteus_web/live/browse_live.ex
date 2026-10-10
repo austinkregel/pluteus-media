@@ -145,7 +145,7 @@ defmodule PluteusWeb.BrowseLive do
     <header class="mb-8">
       <h1 class="text-title-lg font-medium text-on-surface-strong">Everything</h1>
       <p class="mt-1 text-body-sm text-on-surface-muted">
-        {@surface.total} {holdings(@surface.total)}, ordered by how many are behind each door
+        {@surface.total} {holdings(@surface.total)}
       </p>
     </header>
 
@@ -180,18 +180,30 @@ defmodule PluteusWeb.BrowseLive do
   end
 
   defp decades(assigns) do
-    assigns = assign(assigns, :values, Enum.sort(elem(assigns.facet, 1)))
+    values = Enum.sort(elem(assigns.facet, 1))
+    most = values |> Enum.map(&elem(&1, 1)) |> Enum.max()
+
+    assigns = assigns |> assign(:values, values) |> assign(:most, most)
 
     ~H"""
     <section aria-labelledby="decades-heading">
       <h2 id="decades-heading" class="text-title-md font-medium text-on-surface-strong">
         By when it was made
       </h2>
-      <p class="mb-3 text-body-sm text-on-surface-muted">Oldest first.</p>
-      <ul class="flex flex-wrap gap-2">
-        <li :for={{value, count} <- @values}>
-          <.link patch={~p"/everything?#{[decade: value]}"} class={pill()}>
-            <span class="text-body-md text-on-surface-strong">{value}</span>
+      <ul class="mt-3 flex items-end gap-2">
+        <li :for={{value, count} <- @values} class="flex min-w-0 grow basis-0 flex-col">
+          <.link patch={~p"/everything?#{[decade: value]}"} class="group flex flex-col gap-2">
+            <span class="flex h-24 items-end" aria-hidden="true">
+              <span
+                class={[
+                  "block w-full rounded-sm bg-fill-subtle",
+                  "group-hover:bg-fill-subtle-strong"
+                ]}
+                style={"height: #{height(count, @most)}%"}
+              >
+              </span>
+            </span>
+            <span class="truncate text-body-sm text-on-surface-strong">{value}</span>
             <span class="font-mono text-caption text-on-surface-muted">{count}</span>
           </.link>
         </li>
@@ -199,6 +211,11 @@ defmodule PluteusWeb.BrowseLive do
     </section>
     """
   end
+
+  # A bar stands for its count against the fullest decade, with a floor so that a decade
+  # holding one thing is still drawn: the figure is printed under every bar, so the floor
+  # cannot be the only thing a person reads a count from.
+  defp height(count, most), do: max(share(count, most), 4)
 
   # The narrowed phase: the values recede, the rows take over, and the choices are chips
   # in the rail. Same surface, which is what lets a count mean the same thing on both.
@@ -273,8 +290,7 @@ defmodule PluteusWeb.BrowseLive do
     ~H"""
     <section aria-labelledby="kinds-heading">
       <h2 id="kinds-heading" class="text-title-md font-medium text-on-surface-strong">By kind</h2>
-      <p class="mb-3 text-body-sm text-on-surface-muted">Most held first.</p>
-      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <ul class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <li :for={{value, count} <- @values}>
           <.kind value={value} count={count} share={share(count, @most)} />
         </li>
@@ -448,9 +464,7 @@ defmodule PluteusWeb.BrowseLive do
       <h2 id="people-heading" class="text-title-md font-medium text-on-surface-strong">
         By who and where
       </h2>
-      <p class="mb-3 text-body-sm text-on-surface-muted">Most credited first.</p>
-
-      <ul :if={@values != []} class="flex flex-wrap gap-2">
+      <ul :if={@values != []} class="mt-3 flex flex-wrap gap-2">
         <li :for={{value, count} <- @values}>
           <.link patch={~p"/everything?#{[person: value]}"} class={pill()}>
             <.icon name="hero-user-mini" class="text-on-surface-muted" />
