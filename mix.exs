@@ -74,10 +74,24 @@ defmodule Pluteus.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      # `pluteus.mount.mark` comes first wherever the application is about to start: a
+      # development tree and a test run own their roots rather than mounting them, so
+      # there is nobody else to place the evidence that they are there.
+      setup: [
+        "deps.get",
+        "pluteus.mount.mark",
+        "ecto.setup",
+        "assets.setup",
+        "assets.build"
+      ],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      test: [
+        "pluteus.mount.mark",
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "test"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       # `design.build` runs ahead of `tailwind` because the stylesheet it writes is
       # what Tailwind's input imports (spec-10 Annex A.10).
@@ -93,6 +107,7 @@ defmodule Pluteus.MixProject do
       # from, nor about whether its database has run the migrations in this tree.
       precommit: [
         "compile --warnings-as-errors",
+        "pluteus.mount.mark",
         "dev.ready",
         "deps.unlock --unused",
         "format --check-formatted",
