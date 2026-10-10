@@ -164,11 +164,8 @@ defmodule Pluteus.Playback do
     }
   end
 
-  # Who what is playing is by, which is the fact a person wants beside its name.
-  #
-  # A track crediting nobody is said to be by whoever its release is by: a container
-  # names an album artist and leaves the track's own blank where they are the same
-  # person, so taking the track's alone would leave most of a library anonymous.
+  # A track crediting nobody is by whoever its release is by: a container names an album
+  # artist and leaves the track's own blank where they are the same person.
   defp credited_for(entry, profile) do
     case credited(Catalog.work_of(entry.res_id), profile) do
       [] -> credited(entry.queued_from, profile)
@@ -193,11 +190,7 @@ defmodule Pluteus.Playback do
     agents |> Enum.map(&named[&1]) |> Enum.reject(&is_nil/1) |> Enum.map(& &1.nomen_string)
   end
 
-  # The whole a position is measured along: spec-01 §8.4's recorded figure, which is the
-  # same one §13.2's floor and ceiling are measured against. Taken from the parts instead
-  # it would be nil for a holding carried by one file — a probe's duration is recorded on
-  # the part only where there are parts — and the slider and the thresholds would be
-  # measuring different things.
+  # spec-01 §8.4's recorded figure, which §13.2's thresholds also measure against.
   defp extent_ms(res_id) do
     case Addressing.get_extent(res_id, :millisecond) do
       nil -> nil
@@ -205,9 +198,7 @@ defmodule Pluteus.Playback do
     end
   end
 
-  # A queue entry naming a res nothing resolves a name for is a res this principal may
-  # not see the name of, which is a queue entry nobody could have made. It is not a
-  # blank row to draw.
+  # A queue entry nobody could have made, rather than a blank row to draw.
   defp named(names, res_id, profile) do
     case names[res_id] do
       nil -> raise ArgumentError, "queued res #{res_id} resolves to no name this profile may see"
@@ -249,9 +240,7 @@ defmodule Pluteus.Playback do
     end
   end
 
-  # The manifestation this work resolves to for this principal. A holding that is a
-  # member of nothing is reached through §8.1's selection, which is where a work with
-  # several expressions is decided between.
+  # Through §8.1's selection, which is where a work with several expressions is decided.
   defp own_manifestation!(work_id, principal_id, profile) do
     selected = Selection.for_principal(work_id, principal_id, profile)
 
@@ -471,9 +460,8 @@ defmodule Pluteus.Playback do
     )
   end
 
-  # A part's length is its own probe's, which spec-04 §6.1 records against the asset
-  # whose bytes it read. That is the acquired asset, so the two are paired by the part
-  # they are of.
+  # spec-04 §6.1 records a probe against the asset whose bytes it read — the acquired
+  # one — so the two are paired by the part they are of.
   defp durations(item_id) do
     acquired =
       Repo.all(

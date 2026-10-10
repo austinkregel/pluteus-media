@@ -55,9 +55,7 @@ defmodule PluteusWeb.BrowseLive do
      |> showing()}
   end
 
-  # The transport is read from the queue rather than held, because the queue belongs to
-  # the principal and not to this socket: a position reported from a phone changes what
-  # this surface should show, and a copy kept here would go stale against it.
+  # Read from the queue rather than held: the queue is the principal's, not this socket's.
   defp showing(socket) do
     assign(
       socket,
@@ -85,12 +83,7 @@ defmodule PluteusWeb.BrowseLive do
     end
   end
 
-  # §12.3's controls. Each changes the queue, which is the principal's own and shared with
-  # every other surface, so the answer is read back from it rather than assumed.
-  #
-  # A browser whose enrolment was revoked has no device to key a position or a queue by,
-  # so there is nothing for these to act on and the chrome says so instead of carrying
-  # them.
+  # §12.3's controls. Each changes the queue, so the answer is read back from it.
   @impl Phoenix.LiveView
   def handle_event("transport-play", _params, socket) do
     {:noreply, assign(socket, :playing?, not socket.assigns.playing?)}
@@ -112,14 +105,8 @@ defmodule PluteusWeb.BrowseLive do
     {:noreply, jumped(socket, String.to_integer(index))}
   end
 
-  # §13.1: every surface reports a position and no surface owns it. A report below §13.2's
-  # floor or above its ceiling is discarded there, so what comes back says which — and
-  # above the ceiling the res is recorded consumed, which is the deployment's own
-  # judgement rather than the client's claim.
-  # The bar is not re-rendered for it. The element is where the position is while
-  # something plays, and a patch carrying the server's idea of it would move the element
-  # back to wherever the last report left it — so the client draws its own progress and
-  # the server records where it reached.
+  # §13.1. The bar is not re-rendered for a report: the element is where the position is
+  # while something plays, and a patch would move it.
   def handle_event("transport-position", %{"res" => res_id, "position_ms" => position}, socket) do
     reported(socket, res_id, position)
     reached(socket, position)
@@ -127,9 +114,7 @@ defmodule PluteusWeb.BrowseLive do
     {:noreply, socket}
   end
 
-  # §12.4: where the played res is a member of an ordered grouping and a next member
-  # exists, the surface offers it. Nothing begins without a person having asked, so the
-  # offer counts down and the queue is untouched until it is taken.
+  # §12.4's offer. The queue is untouched until the interval runs out or it is taken.
   def handle_event("transport-finished", %{"res" => res_id}, socket) do
     at = finished_at(socket)
 
@@ -139,9 +124,8 @@ defmodule PluteusWeb.BrowseLive do
     {:noreply, socket |> assign(:playing?, false) |> showing() |> offer()}
   end
 
-  # Taking the offer is the person asking, so this is the one path on which audio begins
-  # at the end of an entry. The interval running out advances the queue and leaves it
-  # paused, which is what §12.4's two sentences say together.
+  # Taking it is the person asking, which is the one path on which audio begins at the
+  # end of an entry: the interval running out advances the queue and leaves it paused.
   def handle_event("transport-offer-take", _params, socket) do
     advanced = socket |> cancel_offer() |> then(&jumped(&1, &1.assigns.showing.index + 1))
 
@@ -152,9 +136,8 @@ defmodule PluteusWeb.BrowseLive do
     {:noreply, cancel_offer(socket)}
   end
 
-  # The element could not start, and it says why: a gesture refused, a source the browser
-  # will not decode and a load that was aborted are different facts, and a control that
-  # looks pressed and makes no sound is worse than one that says what stopped it.
+  # The element could not start, and says why: a gesture refused, a source it will not
+  # decode and an aborted load are different facts.
   def handle_event("transport-refused", %{"why" => why}, socket) do
     {:noreply,
      socket
@@ -182,11 +165,8 @@ defmodule PluteusWeb.BrowseLive do
     "This browser holds no enrolment, so there is nowhere to record what it plays."
   end
 
-  # A report from a browser with no enrolment has no device to be keyed by, and §13.2's
-  # own refusals are the pass's to make, so each outcome is carried rather than matched
-  # on: a position below the floor is not an error and not a position either.
-  # The queue carries where it reached so another client resumes it and so a reload
-  # starts where this one left off. A browser with no enrolment has no queue to move.
+  # §13.2's own refusals are the pass's to make, so each outcome is carried rather than
+  # matched on. A browser with no enrolment has no device to key either by.
   defp reached(%{assigns: %{device_id: nil}}, _position), do: :no_device
 
   defp reached(socket, position) do
@@ -208,8 +188,7 @@ defmodule PluteusWeb.BrowseLive do
     })
   end
 
-  # Where the element stopped is the end of the entry, which is the end of its region
-  # where it has one and the end of the whole otherwise.
+  # The end of the entry's region where it has one, and of the whole otherwise.
   defp finished_at(%{assigns: %{showing: %{playable: {:ok, playable}}}}) do
     case playable do
       %{to_ms: to, from_ms: from} when is_integer(to) -> to - from
@@ -217,8 +196,7 @@ defmodule PluteusWeb.BrowseLive do
     end
   end
 
-  # The offer exists only where a next member does and where this principal has not
-  # turned it off, which §12.4 requires be possible.
+  # Only where a next member exists and this principal has not turned it off.
   defp offer(socket) do
     with "on" <- Preferences.held(socket.assigns.principal_id, "next_member_offer"),
          %{} = next <- Playback.next_after(socket.assigns.showing) do
@@ -255,9 +233,8 @@ defmodule PluteusWeb.BrowseLive do
      |> tick_offer()}
   end
 
-  # The queue is the principal's own and another of their devices may have changed it
-  # between this render and this press, so each outcome is read back rather than assumed.
-  # No catch-all: a refusal added to `jump/3` surfaces rather than being swallowed.
+  # Another of the principal's devices may have changed the queue between a render and a
+  # press. No catch-all, so a refusal added later surfaces.
   defp jumped(socket, index) do
     case Playback.jump(socket.assigns.principal_id, socket.assigns.device_id, index) do
       :ok ->
@@ -508,12 +485,8 @@ defmodule PluteusWeb.BrowseLive do
   defp share(_count, 0), do: 0
   defp share(count, most), do: round(count / most * 100)
 
-  # The glyph stands where a cover will. The second line distinguishes rows whose names
-  # do not: two releases of one album differ only by what they gather.
-  #
-  # The row is a link and the play control is a button beside it, not inside: a control
-  # within a link is reachable by neither keyboard path reliably, and §8.1's primary
-  # action and reaching the page are two different things a person may want.
+  # The play control is a button beside the link, not inside it: a control within a link
+  # is reliably reachable by neither keyboard path.
   attr :res, :string, required: true
   attr :at, :string, required: true
   attr :name, :string, required: true
@@ -557,9 +530,8 @@ defmodule PluteusWeb.BrowseLive do
     """
   end
 
-  # A holding nothing has said the kind of. Said in words in the place the kind would
-  # have gone, with its own marker where the glyph goes: drawn as nothing instead, a row
-  # with no kind is indistinguishable from one whose second line failed to render.
+  # A kind nothing recorded, said in words where the kind would have gone (§5.3), with
+  # A.8.8's marker where the glyph goes.
   defp mark(nil), do: :unkinded
   defp mark(category), do: Surfaces.category_icon(category)
 
@@ -572,16 +544,13 @@ defmodule PluteusWeb.BrowseLive do
   defp kind(:unkinded, _members), do: Absence.words("not_yet_examined")
   defp kind(mark, members), do: "#{mark.name}#{gathered(mark, members)}"
 
-  # Who it is by, then what it is. The first is what a person scans a list of music for
-  # and the second is what tells two holdings of one name apart, so both are said and the
-  # one a person looks for leads.
+  # Who it is by, then what it is: the kind stays, since it tells two holdings of one
+  # name apart.
   defp said([], mark, members), do: kind(mark, members)
   defp said(credited, mark, members), do: "#{Enum.join(credited, ", ")} · #{kind(mark, members)}"
 
-  # The cover a holding is known by, asked for at the size a row draws. §11.1 serves it
-  # from the presentation layer rather than from the stored bytes, and answers 202 while
-  # it is being made — so the glyph is what the row shows until then and where there is
-  # no cover at all, rather than a broken image.
+  # Asked for at the size the row draws. §11.1 answers 202 while it is being made, so the
+  # glyph stands in until then and where there is no cover.
   attr :at, :string, default: nil
   attr :mark, :any, required: true
 

@@ -2,15 +2,11 @@ defmodule Pluteus.Catalog.Cover do
   @moduledoc """
   The cover a holding is known by.
 
-  spec-04 §4.6 catalogues a cover as a holding of its own, so that ingest does not mistake
-  a picture beside an album for a photograph the household keeps. [spec-10] §12.2 then has
-  the render boundary present it as a property of what it describes rather than as a
-  holding: a cover never appears in a photograph grid, and a release wears it.
+  spec-04 §4.6 catalogues a cover as a holding of its own; [spec-10] §12.2 has the render
+  boundary present it as a property of what it describes instead.
 
-  What is answered is the manifestation carrying the cover, not its bytes. A surface asks
-  the presentation layer for the size it is drawing at (§11.1), which is what keeps a row
-  from fetching a scan at full size and what keeps the stored location off a reachable
-  surface (spec-03 §10).
+  Answered as the manifestation carrying it, so a surface asks the presentation layer for
+  the size it draws at (§11.1) rather than reaching the stored bytes (spec-03 §10).
   """
 
   import Ecto.Query, only: [from: 2]
@@ -24,10 +20,8 @@ defmodule Pluteus.Catalog.Cover do
   alias Pluteus.Repo
 
   @doc """
-  The cover each of the given works wears, keyed by work, in one query.
-
-  A work with none is absent rather than present with nothing, so a caller renders what
-  it has and says what it has not.
+  The cover each of the given works wears, keyed by work, in one query. A work with none
+  is absent rather than present with nothing.
   """
   @spec for_works([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => Ecto.UUID.t()}
   def for_works([]), do: %{}
@@ -50,10 +44,8 @@ defmodule Pluteus.Catalog.Cover do
   end
 
   @doc """
-  The cover one manifestation wears, or the one worn by the work it belongs to.
-
-  A track of a release has no cover of its own and is shown wearing the release's, which
-  is what a person means by the picture beside what is playing.
+  The cover one manifestation wears, or the one worn by the work it belongs to: a track
+  has none of its own and wears its release's.
   """
   @spec for_manifestation(Ecto.UUID.t(), Ecto.UUID.t() | nil) :: Ecto.UUID.t() | nil
   def for_manifestation(manifestation_id, grouping_work_id) do

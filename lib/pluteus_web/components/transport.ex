@@ -1,47 +1,15 @@
 defmodule PluteusWeb.Transport do
   @moduledoc """
-  The persistent transport ([spec-10] §12.3).
+  The persistent transport ([spec-10] §12.3), rendered from the queue's current entry.
 
-  Rendered from `Pluteus.Playback.current/2`, which is the queue's own current entry, so
-  the bar and the queue cannot disagree about what is playing. With nothing current there
-  is no transport: a bar saying nothing is playing is a control for an affordance that
-  does not exist.
+  A control's accessible name states the action it will perform, so play reads *Play*
+  while paused. The position's readable value is in `aria-valuetext`, which is announced
+  on every change where a name is announced once.
 
-  ## Every control states what it will do, not what is true
+  Volume and mute are the client's own and reach no server.
 
-  §12.3 requires the play control's accessible name state "the action it will perform",
-  so it reads *Play* while paused and *Pause* while playing. The same reading governs the
-  mute control.
-
-  ## The position slider
-
-  It carries its minimum, maximum, current value and a human-readable value, and the
-  readable one goes in `aria-valuetext` rather than in the accessible name: a name is
-  announced once when the control is reached, and a value has to be announced each time
-  it changes.
-
-  Both of §20's granularities: `step` is the small one, which is one key press and so the
-  one a person repeats, and the large one is a control of its own in each direction. §17.5
-  forbids any function requiring a drag, and §12.3 forbids the slider being the only way
-  to seek, so the large steps are buttons rather than a gesture.
-
-  It is outside the live region, which §12.3 requires in those words: a position
-  announced as it advanced would talk over everything else the region has to say.
-
-  ## Volume is not a position
-
-  Volume and mute are the client's own and reach no server. They are not consumption data
-  and nothing about them belongs to the catalog, so they are rendered here and read by
-  the media element beside them.
-
-  ## What it does not carry, and why
-
-  Skip intervals, the three track controls of §12.2 and full screen belong to the surface
-  a medium is played on rather than to the bar that persists across every surface, and
-  that surface's own board draws them. Playback speed is §12.3's "where the category
-  carries spoken word", and no registry says which categories those are — §20 holds no
-  such table, and naming them here would be the deployment inventing a vocabulary a
-  registry is supposed to carry.
+  Playback speed is not here: §12.3 scopes it to the categories that carry spoken word,
+  and §20 holds no table naming them.
   """
   use PluteusWeb, :html
 
@@ -117,9 +85,8 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # Who it is by, then what it is. Both are said, because a glyph and a hue are carriers
-  # §5.3 and A.2.6 each forbid being the only one, and who made something is the fact a
-  # person wants beside its name.
+  # Said, not left to a glyph and a hue, which §5.3 and A.2.6 each forbid being the only
+  # carrier.
   defp by(%{credited: [], category: category}), do: kind_of(category)
 
   defp by(%{credited: credited, category: category}),
@@ -128,9 +95,8 @@ defmodule PluteusWeb.Transport do
   defp kind_of(nil), do: Absence.words("not_yet_examined")
   defp kind_of(category), do: Surfaces.category_icon(category).name
 
-  # The cover it is known by, and the glyph where there is none — in the hue of its broad
-  # class, since A.2.6 has the glyph identify the category and the colour group it. A res
-  # whose kind nothing records carries A.8.8's marker for that rather than an empty square.
+  # The cover, the category glyph where there is none, and A.8.8's marker where the kind
+  # is unrecorded.
   attr :showing, :map, required: true
 
   defp standing_for(assigns) do
@@ -160,10 +126,8 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # A.9.3 makes the transport a toolbar, which is one tab stop its arrow keys move
-  # within. The two sliders stay outside it for the reason A.9.4 gives of the position
-  # one: a slider consumes the arrow keys a toolbar navigates with, and that is as true
-  # of volume as it is of position.
+  # A.9.3's toolbar: one tab stop, arrow keys within it. Both sliders stay outside, per
+  # A.9.4 — a slider consumes the keys a toolbar navigates with.
   attr :showing, :map, required: true
   attr :playing?, :boolean, required: true
   attr :refused?, :boolean, required: true
@@ -231,10 +195,8 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # Volume reaches no server, so it is a plain input the media element beside it reads.
-  # A step rather than a drag, because §17.5 forbids a function that requires one, and a
-  # native range because A.2.7 assigns semantic colour from element semantics: a control
-  # built from a generic element with a role attribute receives none.
+  # A native range with a step: §17.5 forbids requiring a drag, and A.2.7 assigns
+  # semantic colour from element semantics, which a div with a role does not receive.
   defp volume(assigns) do
     ~H"""
     <div class="hidden items-center gap-2 sm:flex">
@@ -308,12 +270,8 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # The element the hook drives. Its parts travel as data because a holding in several
-  # files is one sequence: a position is against the whole, so which file carries it is
-  # arithmetic over the parts and not something a single source could express.
-  #
-  # `data-playing` is what a person asked for and `data-position` where the queue says
-  # they are, so the element follows the server rather than the server following it.
+  # The parts travel as data because a holding in several files is one sequence: a
+  # position is against the whole, which no single source can express.
   attr :showing, :map, required: true
   attr :playing?, :boolean, required: true
 
@@ -334,9 +292,8 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # §12.4: the offer carries a visible interval before it acts and is cancellable, and
-  # audio does not begin without a person having asked. So the interval is counted down
-  # here and nothing starts until it runs out or the person says so.
+  # §12.4's offer: a visible interval before it acts, cancellable, and no audio begins
+  # unasked.
   attr :next, :map, required: true
   attr :seconds, :integer, required: true
 
@@ -394,10 +351,7 @@ defmodule PluteusWeb.Transport do
     """
   end
 
-  # The whole the position is measured along: spec-01 §8.4's recorded figure, which is
-  # what §13.2's floor and ceiling are measured against too, so the slider and the
-  # thresholds cannot disagree about how long something is. Where nothing recorded one
-  # the slider says so rather than drawing a scale it cannot place a value on.
+  # spec-01 §8.4's recorded figure, which §13.2's thresholds also measure against.
   defp extent(%{extent_ms: extent_ms}), do: extent_ms
 
   defp refusal(%{playable: {:error, refusal}}), do: Playback.why(refusal)
@@ -414,8 +368,7 @@ defmodule PluteusWeb.Transport do
   defp from(%{playable: {:ok, %{from_ms: from}}}), do: from
   defp to(%{playable: {:ok, %{to_ms: to}}}), do: to
 
-  # A position is spoken as a place in the whole, because a bare figure says nothing
-  # about how far through anything is.
+  # A place in the whole, since a bare figure says nothing about how far through.
   defp spoken(position_ms, nil), do: "#{clock(position_ms)}, of a length not recorded"
   defp spoken(position_ms, extent), do: "#{clock(position_ms)} of #{clock(extent)}"
 
@@ -431,10 +384,8 @@ defmodule PluteusWeb.Transport do
 
   defp seconds(milliseconds), do: div(milliseconds, 1000)
 
-  # The touch floor rather than the pointer one. A.4.2 sizes a target for the coarsest
-  # pointer present rather than the primary one, and §4.2 makes this one layout that
-  # serves a phone — so nothing shrinks by default and a fine pointer gets a denser mode
-  # by choosing one.
+  # The touch floor: A.4.2 sizes for the coarsest pointer present, and §4.2 puts a phone
+  # in scope.
   defp control do
     [
       "min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center",

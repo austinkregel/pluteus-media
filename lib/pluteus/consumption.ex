@@ -305,14 +305,9 @@ defmodule Pluteus.Consumption do
   @doc """
   Records how far into its current entry the principal's queue has reached.
 
-  Separate from `save_play_queue/5` because this is the one fact that changes while
-  something plays: rewriting every entry to move a position would be a write per report
-  over a list nobody touched.
-
-  The queue's position and the resume record (spec-01 §11.4) are the same fact kept for
-  two purposes — spec-07 §6.5's queue carries it so another client resumes the queue, and
-  §13 carries it so a holding resumes wherever it is next reached — so a report advances
-  both or they disagree about where a person is.
+  Separate from `save_play_queue/5` so that moving a position does not rewrite a list
+  nobody touched. It advances with the resume record (spec-01 §11.4), which is the same
+  fact kept for spec-07 §6.5's purpose, or the two disagree.
   """
   @spec reached(Ecto.UUID.t(), non_neg_integer(), Ecto.UUID.t()) :: :ok | {:error, :no_queue}
   def reached(principal_id, position_ms, device_id) do

@@ -40,8 +40,7 @@ defmodule PluteusWeb.TransportTest do
     end
 
     test "the kind is said in words and not only by a glyph and a hue", %{conn: conn} do
-      # A.2.6 makes the glyph identify the category and the colour group it, and §5.3
-      # forbids either being the sole carrier: a hidden drawing is both at once.
+      # §5.3 and A.2.6 each forbid a hidden glyph or a hue being the sole carrier.
       %{release: release} = a_release(conn)
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
@@ -53,8 +52,7 @@ defmodule PluteusWeb.TransportTest do
 
   describe "A row and the bar say who a holding is by" do
     test "the artist leads the second line, and the kind follows it", %{conn: conn} do
-      # The first thing a person scans a list of music for. The kind stays, because it is
-      # what tells two holdings of one name apart.
+      # The kind stays: it is what tells two holdings of one name apart.
       %{release: release} = a_credited_release(conn)
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
@@ -91,10 +89,8 @@ defmodule PluteusWeb.TransportTest do
     end
 
     test "a report changes nothing the element is told", %{conn: conn} do
-      # Half of what sent playback back to the beginning every reporting interval. The
-      # seek itself is the client's and no test here reaches it; what this holds is the
-      # server's half — that reporting a position gives the element nothing new to
-      # follow, so a patch is never a reason for it to move.
+      # The seek itself is the client's and no test here reaches it. This holds the
+      # server's half: a report gives the element nothing new to follow.
       %{release: release} = a_release(conn)
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
@@ -161,12 +157,9 @@ defmodule PluteusWeb.TransportTest do
     end
 
     test "a holding carried by its own file states its recorded length", %{conn: conn} do
-      # The length is spec-01 §8.4's recorded figure, which is what §13.2 measures
-      # against too. Summed from the parts instead it would be absent here — a probe's
-      # duration is recorded against a part only where there are parts — and the slider
-      # would be disabled for most of what a household holds.
-      # A file with no album beside its title is a release of its own, so this is the
-      # case where the entry played is carried by one file and nothing else.
+      # spec-01 §8.4's recorded figure, which is what §13.2 measures against. A file
+      # with no album beside its title is a release of its own, so the entry played here
+      # is carried by one file and nothing else.
       recording = a_recording(conn)
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
@@ -180,10 +173,8 @@ defmodule PluteusWeb.TransportTest do
     end
 
     test "§17.3. Every control that acts on the element is bound to it", %{conn: conn} do
-      # The failure this exists to prevent: a control rendered enabled, carrying a name
-      # that states the action it will perform, and wired to nothing. Asserting that a
-      # button exists by its name is what let five of them ship doing nothing, so this
-      # asserts the binding rather than the markup.
+      # The binding rather than the markup: a control that exists by name and is wired
+      # to nothing is what §17.3 forbids.
       %{release: release} = a_release(conn)
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
@@ -196,8 +187,6 @@ defmodule PluteusWeb.TransportTest do
         assert bar =~ ~s|id="#{acted_on}"|
       end
 
-      # The hook is what binds them, and it is on the bar that holds both them and the
-      # element they act on.
       assert bar =~ ~s|phx-hook="MediaSession"|
       assert bar =~ ~s|data-step="60000"|
     end
@@ -373,8 +362,6 @@ defmodule PluteusWeb.TransportTest do
     end
   end
 
-  # The hook is on the bar rather than on the element, because §12.3's controls act on
-  # the element and the bar is what holds both.
   defp finished(live) do
     res = live |> element("#transport-medium") |> render() |> res_of()
 
