@@ -36,7 +36,10 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      assert has_element?(live, ~s|#transport-controls[role="toolbar"][aria-label="Transport"]|)
+      assert has_element?(
+               player(live),
+               ~s|#transport-controls[role="toolbar"][aria-label="Transport"]|
+             )
     end
 
     test "the kind is said in words and not only by a glyph and a hue", %{conn: conn} do
@@ -46,7 +49,7 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      assert live |> element("#transport") |> render() =~ "Recordings"
+      assert live |> player() |> element("#transport") |> render() =~ "Recordings"
     end
   end
 
@@ -61,7 +64,7 @@ defmodule PluteusWeb.TransportTest do
 
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      assert live |> element("#transport") |> render() =~ "Miles Davis · "
+      assert live |> player() |> element("#transport") |> render() =~ "Miles Davis · "
     end
 
     test "a holding crediting nobody says what it is and no more", %{conn: conn} do
@@ -96,10 +99,10 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      before = live |> element("#transport-medium") |> render()
+      before = live |> player() |> element("#transport-medium") |> render()
       reported(live, 1_500)
 
-      assert live |> element("#transport-medium") |> render() == before,
+      assert live |> player() |> element("#transport-medium") |> render() == before,
              "a position report changed what the element is told, so it would seek"
     end
   end
@@ -111,14 +114,14 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      before = live |> element("#transport-medium") |> render()
+      before = live |> player() |> element("#transport-medium") |> render()
 
       render_patch(live, ~p"/everything?category=album,music_recording")
 
-      assert live |> element("#transport-medium") |> render() == before,
+      assert live |> player() |> element("#transport-medium") |> render() == before,
              "narrowing changed what the element is told, so it would reload"
 
-      assert has_element?(live, ~s|#transport-medium|)
+      assert has_element?(player(live), ~s|#transport-medium|)
     end
 
     test "every link that narrows carries a patch rather than a load", %{conn: conn} do
@@ -158,7 +161,7 @@ defmodule PluteusWeb.TransportTest do
     test "the bar is absent before anything is played", %{conn: conn} do
       {:ok, live, _html} = live(conn, ~p"/everything")
 
-      refute has_element?(live, "#transport")
+      refute has_element?(player(live), "#transport")
     end
   end
 
@@ -170,9 +173,9 @@ defmodule PluteusWeb.TransportTest do
 
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      assert has_element?(live, "#transport")
-      assert has_element?(live, ~s|button[aria-label="Pause"]|)
-      refute has_element?(live, ~s|button[aria-label="Play"][phx-click="transport-play"]|)
+      assert has_element?(player(live), "#transport")
+      assert has_element?(player(live), ~s|button[aria-label="Pause"]|)
+      refute has_element?(player(live), ~s|button[aria-label="Play"][phx-click="transport-play"]|)
     end
 
     test "pausing it offers to play again", %{conn: conn} do
@@ -181,9 +184,9 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
 
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
-      live |> element(~s|button[aria-label="Pause"]|) |> render_click()
+      live |> player() |> element(~s|button[aria-label="Pause"]|) |> render_click()
 
-      assert has_element?(live, ~s|button[aria-label="Play"][phx-click="transport-play"]|)
+      assert has_element?(player(live), ~s|button[aria-label="Play"][phx-click="transport-play"]|)
     end
   end
 
@@ -194,7 +197,7 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      slider = live |> element("#transport-position") |> render()
+      slider = live |> player() |> element("#transport-position") |> render()
 
       # The small step is the one a key press repeats; §20 holds both figures.
       assert slider =~ ~s|min="0"|
@@ -215,7 +218,7 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{recording}"]|) |> render_click()
 
-      slider = live |> element("#transport-position") |> render()
+      slider = live |> player() |> element("#transport-position") |> render()
 
       refute slider =~ "disabled"
       assert slider =~ ~s|max="2000"|
@@ -230,7 +233,7 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      bar = live |> element("#transport") |> render()
+      bar = live |> player() |> element("#transport") |> render()
 
       for acted_on <- ~w(transport-position transport-back transport-forward
                          transport-volume transport-mute) do
@@ -250,8 +253,8 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      assert has_element?(live, ~s|button[aria-label="Back 60 seconds"]|)
-      assert has_element?(live, ~s|button[aria-label="Forward 60 seconds"]|)
+      assert has_element?(player(live), ~s|button[aria-label="Back 60 seconds"]|)
+      assert has_element?(player(live), ~s|button[aria-label="Forward 60 seconds"]|)
     end
 
     test "the slider is not inside the live region", %{conn: conn} do
@@ -276,11 +279,11 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      first = live |> element("#transport-medium") |> render()
+      first = live |> player() |> element("#transport-medium") |> render()
 
-      live |> element(~s|button[phx-click="transport-next"]|) |> render_click()
+      live |> player() |> element(~s|button[phx-click="transport-next"]|) |> render_click()
 
-      second = live |> element("#transport-medium") |> render()
+      second = live |> player() |> element("#transport-medium") |> render()
 
       assert first =~ ~s|data-from="0"|
       assert first =~ ~s|data-to="3000"|
@@ -298,13 +301,13 @@ defmodule PluteusWeb.TransportTest do
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
-      live |> element(~s|button[phx-click="transport-queue"]|) |> render_click()
+      live |> player() |> element(~s|button[phx-click="transport-queue"]|) |> render_click()
 
-      queue = live |> element("#transport-queue") |> render()
+      queue = live |> player() |> element("#transport-queue") |> render()
 
       assert queue =~ "So What"
       assert queue =~ "Freddie Freeloader"
-      assert has_element?(live, ~s|#transport-queue button[aria-current="true"]|)
+      assert has_element?(player(live), ~s|#transport-queue button[aria-current="true"]|)
     end
 
     test "jumping to an entry makes it the one playing", %{conn: conn} do
@@ -312,11 +315,11 @@ defmodule PluteusWeb.TransportTest do
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
-      live |> element(~s|button[phx-click="transport-queue"]|) |> render_click()
+      live |> player() |> element(~s|button[phx-click="transport-queue"]|) |> render_click()
 
-      live |> element(~s|button[phx-value-index="1"]|) |> render_click()
+      live |> player() |> element(~s|button[phx-value-index="1"]|) |> render_click()
 
-      assert live |> element("#transport-medium") |> render() =~ ~s|data-from="3000"|
+      assert live |> player() |> element("#transport-medium") |> render() =~ ~s|data-from="3000"|
     end
 
     test "the first entry cannot be gone back from and the last cannot be gone on from",
@@ -326,13 +329,13 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
-      assert has_element?(live, ~s|button[phx-click="transport-previous"][disabled]|)
-      refute has_element?(live, ~s|button[phx-click="transport-next"][disabled]|)
+      assert has_element?(player(live), ~s|button[phx-click="transport-previous"][disabled]|)
+      refute has_element?(player(live), ~s|button[phx-click="transport-next"][disabled]|)
 
-      live |> element(~s|button[phx-click="transport-next"]|) |> render_click()
+      live |> player() |> element(~s|button[phx-click="transport-next"]|) |> render_click()
 
-      assert has_element?(live, ~s|button[phx-click="transport-next"][disabled]|)
-      refute has_element?(live, ~s|button[phx-click="transport-previous"][disabled]|)
+      assert has_element?(player(live), ~s|button[phx-click="transport-next"][disabled]|)
+      refute has_element?(player(live), ~s|button[phx-click="transport-previous"][disabled]|)
     end
   end
 
@@ -345,11 +348,11 @@ defmodule PluteusWeb.TransportTest do
 
       finished(live)
 
-      offer = live |> element("#transport-offer") |> render()
+      offer = live |> player() |> element("#transport-offer") |> render()
 
       assert offer =~ "Freddie Freeloader"
       assert offer =~ "10 seconds"
-      assert has_element?(live, ~s|button[phx-click="transport-offer-cancel"]|)
+      assert has_element?(player(live), ~s|button[phx-click="transport-offer-cancel"]|)
     end
 
     test "the offer leaves it paused, so audio does not begin unasked", %{conn: conn} do
@@ -360,7 +363,7 @@ defmodule PluteusWeb.TransportTest do
 
       finished(live)
 
-      assert has_element?(live, ~s|button[aria-label="Play"][phx-click="transport-play"]|)
+      assert has_element?(player(live), ~s|button[aria-label="Play"][phx-click="transport-play"]|)
     end
 
     test "taking the offer is the person asking, so that one plays", %{conn: conn} do
@@ -370,11 +373,11 @@ defmodule PluteusWeb.TransportTest do
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
       finished(live)
-      live |> element(~s|button[phx-click="transport-offer-take"]|) |> render_click()
+      live |> player() |> element(~s|button[phx-click="transport-offer-take"]|) |> render_click()
 
-      refute has_element?(live, "#transport-offer")
-      assert has_element?(live, ~s|button[aria-label="Pause"]|)
-      assert live |> element("#transport-medium") |> render() =~ ~s|data-from="3000"|
+      refute has_element?(player(live), "#transport-offer")
+      assert has_element?(player(live), ~s|button[aria-label="Pause"]|)
+      assert live |> player() |> element("#transport-medium") |> render() =~ ~s|data-from="3000"|
     end
 
     test "cancelling it withdraws the offer and moves nothing", %{conn: conn} do
@@ -384,10 +387,14 @@ defmodule PluteusWeb.TransportTest do
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
       finished(live)
-      live |> element(~s|button[phx-click="transport-offer-cancel"]|) |> render_click()
 
-      refute has_element?(live, "#transport-offer")
-      assert live |> element("#transport-medium") |> render() =~ ~s|data-from="0"|
+      live
+      |> player()
+      |> element(~s|button[phx-click="transport-offer-cancel"]|)
+      |> render_click()
+
+      refute has_element?(player(live), "#transport-offer")
+      assert live |> player() |> element("#transport-medium") |> render() =~ ~s|data-from="0"|
     end
 
     test "a principal who turned the offer off is not offered one",
@@ -408,20 +415,24 @@ defmodule PluteusWeb.TransportTest do
 
       finished(live)
 
-      refute has_element?(live, "#transport-offer")
+      refute has_element?(player(live), "#transport-offer")
     end
   end
 
-  defp finished(live) do
-    res = live |> element("#transport-medium") |> render() |> res_of()
+  # The player is a LiveView of its own, rendered sticky inside whatever surface is up,
+  # so its controls are addressed through the child rather than the page around it.
+  defp player(live), do: find_live_child(live, "transport-live")
 
-    render_hook(element(live, "#transport"), "transport-finished", %{"res" => res})
+  defp finished(live) do
+    res = live |> player() |> element("#transport-medium") |> render() |> res_of()
+
+    render_hook(element(player(live), "#transport"), "transport-finished", %{"res" => res})
   end
 
   defp reported(live, position_ms) do
-    res = live |> element("#transport-medium") |> render() |> res_of()
+    res = live |> player() |> element("#transport-medium") |> render() |> res_of()
 
-    render_hook(element(live, "#transport"), "transport-position", %{
+    render_hook(element(player(live), "#transport"), "transport-position", %{
       "res" => res,
       "position_ms" => position_ms
     })
