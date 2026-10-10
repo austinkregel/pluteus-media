@@ -179,6 +179,16 @@ defmodule Pluteus.Ingest do
   def open_findings,
     do: Repo.all(from f in Finding, where: is_nil(f.cleared_at), order_by: f.recorded_at)
 
+  @doc """
+  How many findings are uncleared.
+
+  A finding is the household's, not a principal's, so this is a household figure and the
+  chrome may carry it on every surface.
+  """
+  @spec open_finding_count() :: non_neg_integer()
+  def open_finding_count,
+    do: Repo.aggregate(from(f in Finding, where: is_nil(f.cleared_at)), :count)
+
   @spec findings_for_acquisition(Ecto.UUID.t()) :: [Finding.t()]
   def findings_for_acquisition(acquisition_id) do
     Repo.all(
