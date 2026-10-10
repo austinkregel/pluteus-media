@@ -926,7 +926,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "a file whose identification failed does not hold the directory back",
          %{inbox: inbox} do
       drop!(inbox, "Kind of Blue/01 So What.flac", media!(:flac))
-      drop!(inbox, "Kind of Blue/corrupt.flac", :crypto.strong_rand_bytes(700))
+      drop!(inbox, "Kind of Blue/corrupt.flac", undecodable(700))
       acquire_settled!(inbox, @t0)
 
       assert [{_, :placed}] = Place.place_due(inbox)
