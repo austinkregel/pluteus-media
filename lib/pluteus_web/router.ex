@@ -99,8 +99,8 @@ defmodule PluteusWeb.Router do
   # renders the other six disabled carrying the reason instead (§17.3).
   #
   # The live session carries only the session shape `PluteusWeb.Interface` owns. The
-  # identity hook is declared in `PluteusWeb.live_view/0` rather than here, so it holds
-  # however a LiveView was reached — including `EntityLive`, which a controller renders.
+  # identity hook is declared by `PluteusWeb.surface/0` rather than here, so it holds
+  # however a surface was reached — including `EntityLive`, which a controller renders.
   scope "/", PluteusWeb do
     pipe_through :interface
 
