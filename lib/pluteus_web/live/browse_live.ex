@@ -352,17 +352,10 @@ defmodule PluteusWeb.BrowseLive do
       <p class="mb-3 text-body-sm text-on-surface-muted">Oldest first.</p>
       <ul class="flex flex-wrap gap-2">
         <li :for={{value, count} <- @values}>
-          <a
-            href={~p"/everything?#{[decade: value]}"}
-            class={[
-              "min-h-target-touch flex items-center gap-2 rounded-full px-4",
-              "border-[length:var(--sys-border-width-component)] border-border-subtle",
-              "bg-surface-raised hover:bg-surface-overlay"
-            ]}
-          >
+          <.link patch={~p"/everything?#{[decade: value]}"} class={pill()}>
             <span class="text-body-md text-on-surface-strong">{value}</span>
             <span class="font-mono text-caption text-on-surface-muted">{count}</span>
-          </a>
+          </.link>
         </li>
       </ul>
     </section>
@@ -462,12 +455,12 @@ defmodule PluteusWeb.BrowseLive do
     assigns = assign(assigns, :mark, Surfaces.category_icon(assigns.value))
 
     ~H"""
-    <a
-      href={~p"/everything?#{[category: @value]}"}
+    <.link
+      patch={~p"/everything?#{[category: @value]}"}
       class={[
         "flex flex-col gap-3 rounded-md p-4",
         "border-[length:var(--sys-border-width-component)] border-border-strong",
-        "bg-surface-raised hover:bg-surface-overlay"
+        "bg-surface-raised hover:bg-fill-subtle"
       ]}
     >
       <span class="flex items-center gap-3">
@@ -478,8 +471,16 @@ defmodule PluteusWeb.BrowseLive do
       <span class="block h-1 overflow-hidden rounded-full bg-surface-overlay">
         <span class={["block h-full", bar(@mark.class)]} style={"width: #{@share}%"}></span>
       </span>
-    </a>
+    </.link>
     """
+  end
+
+  defp pill do
+    [
+      "min-h-target-touch flex items-center gap-2 rounded-full px-4",
+      "border-[length:var(--sys-border-width-component)] border-border-subtle",
+      "bg-surface-raised hover:bg-fill-subtle"
+    ]
   end
 
   defp share(_count, 0), do: 0
@@ -613,18 +614,11 @@ defmodule PluteusWeb.BrowseLive do
 
       <ul :if={@values != []} class="flex flex-wrap gap-2">
         <li :for={{value, count} <- @values}>
-          <a
-            href={~p"/everything?#{[person: value]}"}
-            class={[
-              "min-h-target-touch flex items-center gap-2 rounded-full px-4",
-              "border-[length:var(--sys-border-width-component)] border-border-subtle",
-              "bg-surface-raised hover:bg-surface-overlay"
-            ]}
-          >
+          <.link patch={~p"/everything?#{[person: value]}"} class={pill()}>
             <.icon name="hero-user-mini" class="text-on-surface-muted" />
             <span class="text-body-md text-on-surface-strong">{@labels[value] || value}</span>
             <span class="font-mono text-caption text-on-surface-muted">{count}</span>
-          </a>
+          </.link>
         </li>
       </ul>
 
