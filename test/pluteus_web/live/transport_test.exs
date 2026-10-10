@@ -104,6 +104,56 @@ defmodule PluteusWeb.TransportTest do
     end
   end
 
+  describe "Narrowing keeps what is playing" do
+    test "a facet is a patch, so the page is not loaded again", %{conn: conn} do
+      %{release: release} = a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+      live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
+
+      before = live |> element("#transport-medium") |> render()
+
+      render_patch(live, ~p"/everything?category=album,music_recording")
+
+      assert live |> element("#transport-medium") |> render() == before,
+             "narrowing changed what the element is told, so it would reload"
+
+      assert has_element?(live, ~s|#transport-medium|)
+    end
+
+    test "every link that narrows carries a patch rather than a load", %{conn: conn} do
+      # A load drops the socket, and with it the element that is playing.
+      a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything")
+
+      for narrowing <- ~w(category) do
+        assert has_element?(
+                 live,
+                 ~s|a[data-phx-link="patch"][href*="#{narrowing}="]|
+               ),
+               "the #{narrowing} facet loads the page rather than patching it"
+      end
+    end
+
+    test "a chip removing a narrowing patches too", %{conn: conn} do
+      a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+
+      assert has_element?(live, ~s|a[data-phx-link="patch"][aria-label^="Remove the facet"]|)
+    end
+
+    test "a row still loads the page, because one URI answers two representations",
+         %{conn: conn} do
+      a_release(conn)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=album")
+
+      refute has_element?(live, ~s|a[data-phx-link][href^="/works/"]|)
+    end
+  end
+
   describe "§12.3. Nothing current means no transport" do
     test "the bar is absent before anything is played", %{conn: conn} do
       {:ok, live, _html} = live(conn, ~p"/everything")
