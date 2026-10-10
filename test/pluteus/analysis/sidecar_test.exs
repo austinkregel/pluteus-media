@@ -75,7 +75,7 @@ defmodule Pluteus.Analysis.SidecarTest do
   end
 
   test "bytes that do not decode are a permanent failure" do
-    location = StorageFixtures.stored!("noise.flac", :crypto.strong_rand_bytes(500))
+    location = StorageFixtures.stored!("noise.flac", undecodable(500))
 
     assert {:error, :permanent, %{"detail" => %{"undecodable" => _}}} =
              Sidecar.analyse(%{
