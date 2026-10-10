@@ -5,8 +5,15 @@ defmodule Pluteus.Application do
 
   use Application
 
+  alias Pluteus.Storage.Mount
+
   @impl true
   def start(_type, _args) do
+    # Before anything opens a connection or serves a request. A node that came up
+    # without its volumes would write the household's bytes onto whatever disk the
+    # mount point sits on, and report every asset it could not read as unreadable.
+    :ok = Mount.ensure!()
+
     children = [
       PluteusWeb.Telemetry,
       Pluteus.Repo,
