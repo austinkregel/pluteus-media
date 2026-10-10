@@ -55,10 +55,10 @@ defmodule PluteusWeb.Transport do
 
       <.queue :if={@queue_open?} showing={@showing} />
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <.standing_for showing={@showing} />
 
-        <span class="flex min-w-0 grow flex-col">
+        <span class="flex w-56 min-w-0 shrink-0 flex-col">
           <span class="truncate text-body-md text-on-surface-strong">{@showing.name}</span>
           <span class="truncate text-body-sm text-on-surface-muted">
             {@refusal || by(@showing)}
@@ -72,15 +72,15 @@ defmodule PluteusWeb.Transport do
           queue_open?={@queue_open?}
         />
 
+        <.position
+          showing={@showing}
+          extent={@extent}
+          steps={@steps}
+          disabled?={@extent == nil or @refusal != nil}
+        />
+
         <.volume />
       </div>
-
-      <.position
-        showing={@showing}
-        extent={@extent}
-        steps={@steps}
-        disabled?={@extent == nil or @refusal != nil}
-      />
     </div>
     """
   end
@@ -222,7 +222,7 @@ defmodule PluteusWeb.Transport do
 
   defp position(assigns) do
     ~H"""
-    <div class="flex items-center gap-3">
+    <div class="flex min-w-0 grow basis-64 items-center gap-2">
       <span
         id="transport-elapsed"
         class="w-12 shrink-0 text-right font-mono text-caption text-on-surface-muted"
