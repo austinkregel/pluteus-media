@@ -116,10 +116,15 @@ defmodule PluteusWeb.Chrome do
       </div>
 
       <div class="flex flex-1 min-h-0">
-        <.rail principal_name={@principal_name} mode={@mode} query={@query} />
+        <.rail
+          principal_name={@principal_name}
+          mode={@mode}
+          query={@query}
+          contexts={@contexts}
+        />
 
         <div class="flex flex-1 min-w-0 flex-col">
-          <.top_bar principal_name={@principal_name} />
+          <.top_bar principal_name={@principal_name} contexts={@contexts} />
 
           <main id="surface" class="flex-1 min-w-0 overflow-y-auto">
             {render_slot(@inner_block)}
@@ -143,6 +148,7 @@ defmodule PluteusWeb.Chrome do
   attr :principal_name, :string, default: nil
   attr :mode, :string, default: nil
   attr :query, :any, default: nil
+  attr :contexts, :map, required: true
 
   defp rail(assigns) do
     ~H"""
@@ -179,6 +185,7 @@ defmodule PluteusWeb.Chrome do
 
       <div class="flex flex-col gap-3 px-4 pb-4">
         <.findings_link />
+        <.contexts contexts={@contexts} at="rail" />
         <.identity principal_name={@principal_name} />
       </div>
     </nav>
@@ -383,6 +390,7 @@ defmodule PluteusWeb.Chrome do
   # Below the rail's breakpoint the principal still has to be stated (§14.1), so the top
   # bar carries it and the tab bar carries the modes.
   attr :principal_name, :string, default: nil
+  attr :contexts, :map, required: true
 
   defp top_bar(assigns) do
     ~H"""
@@ -392,19 +400,72 @@ defmodule PluteusWeb.Chrome do
       "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "bg-surface-raised"
     ]}>
-      <span class="text-body-sm text-on-surface-muted">Acting as</span>
-      <span class="text-body-sm font-medium text-on-surface-strong">
+      <span class="shrink-0 text-body-sm text-on-surface-muted">Acting as</span>
+      <span class="truncate text-body-sm font-medium text-on-surface-strong">
         {@principal_name || "a principal with no person of its own"}
       </span>
       <a
         href={~p"/findings"}
-        class="ml-auto min-h-target-touch min-w-target-touch flex items-center justify-center rounded-md text-on-surface-strong"
+        class="ml-auto min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
       >
         <.icon name="hero-exclamation-triangle-mini" />
         <span class="sr-only">Findings</span>
       </a>
+      <.contexts contexts={@contexts} at="top-bar" />
     </div>
     """
+  end
+
+  # The rail carries this where there is one and the top bar below its breakpoint, so a
+  # context is not a thing only a wide screen can choose.
+  #
+  # A disclosure rather than a button and a state: the press that chooses a context is
+  # handled on the document, so a second copy of the group needs nothing of its own to
+  # work. Collapsed, each place spends one row on it rather than the whole vocabulary.
+  attr :contexts, :map, required: true
+  attr :at, :string, required: true, values: ~w(rail top-bar)
+
+  defp contexts(assigns) do
+    ~H"""
+    <details id={"contexts-#{@at}"} class={@at == "top-bar" && "relative shrink-0"}>
+      <summary class={summary_face(@at)}>
+        <.icon name="hero-bars-3-mini" />
+        <span class={@at == "top-bar" && "sr-only"}>Presentation</span>
+      </summary>
+
+      <div class={panel_face(@at)}>
+        <Layouts.context_controls contexts={@contexts} />
+      </div>
+    </details>
+    """
+  end
+
+  defp summary_face("rail") do
+    [
+      "min-h-target-touch flex items-center gap-3 rounded-md px-3",
+      "text-body-md text-on-surface-strong hover:bg-fill-subtle-strong",
+      "list-none [&::-webkit-details-marker]:hidden"
+    ]
+  end
+
+  defp summary_face("top-bar") do
+    [
+      "min-h-target-touch min-w-target-touch flex items-center justify-center",
+      "rounded-md text-on-surface-strong",
+      "list-none [&::-webkit-details-marker]:hidden"
+    ]
+  end
+
+  # The rail scrolls, so a panel lifted out of its flow would be clipped by the column
+  # it belongs to. The top bar's is lifted over the surface, which does not clip it.
+  defp panel_face("rail"), do: "pt-3"
+
+  defp panel_face("top-bar") do
+    [
+      "absolute right-0 z-10 mt-1 w-72 rounded-md p-4",
+      "border-[length:var(--sys-border-width-component)] border-border-strong",
+      "bg-surface-overlay"
+    ]
   end
 
   attr :mode, :string, default: nil
