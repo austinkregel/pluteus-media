@@ -41,6 +41,25 @@ defmodule Pluteus.Design.TiersTest do
     end
   end
 
+  describe "A.1.5 rule 1. A surface has no engaged state" do
+    test "no control takes a surface role for the rung it engages to" do
+      for {file, line, class} <- findings(["hover:bg-surface-", "focus:bg-surface-"]) do
+        flunk(
+          "#{file}:#{line} engages to #{class}. A surface is the ground a region sits " <>
+            "on and carries no state; the rung a control engages to is " <>
+            "sys.color.fill.subtle-strong"
+        )
+      end
+    end
+
+    test "a surface engaged to is caught and a fill rung is not" do
+      needles = ["hover:bg-surface-", "focus:bg-surface-"]
+
+      assert [_ | _] = offences(~s(<a class="hover:bg-surface-overlay">), needles)
+      assert [] = offences(~s(<a class="hover:bg-fill-subtle-strong">), needles)
+    end
+  end
+
   # Each primitive under every utility prefix Tailwind generates it for.
   defp primitive_classes do
     names =
