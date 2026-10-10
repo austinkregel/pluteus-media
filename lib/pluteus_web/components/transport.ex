@@ -385,11 +385,12 @@ defmodule PluteusWeb.Transport do
   defp seconds(milliseconds), do: div(milliseconds, 1000)
 
   # The touch floor: A.4.2 sizes for the coarsest pointer present, and §4.2 puts a phone
-  # in scope.
+  # in scope. The engaged rung is the strong one because the bar is a raised surface, and
+  # A.2.2 gives that surface and a resting fill the same ramp step.
   defp control do
     [
       "min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center",
-      "rounded-md text-on-surface-strong hover:bg-fill-subtle",
+      "rounded-md text-on-surface-strong hover:bg-fill-subtle-strong",
       "disabled:text-on-surface-muted disabled:hover:bg-transparent"
     ]
   end
