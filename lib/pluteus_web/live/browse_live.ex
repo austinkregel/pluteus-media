@@ -25,6 +25,7 @@ defmodule PluteusWeb.BrowseLive do
   alias Pluteus.Browse.Query
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Ingest
   alias Pluteus.Playback
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
@@ -43,6 +44,7 @@ defmodule PluteusWeb.BrowseLive do
      |> assign(:profile, profile)
      |> assign(:principal_name, principal_name(socket.assigns.principal_id, profile))
      |> assign(:contexts, session["contexts"] || %{})
+     |> assign(:findings, Ingest.open_finding_count())
      |> assign(:announcement, "")
      |> assign(:device_id, session["device_id"])
      |> assign(:transport, Interface.transport(session))}
@@ -119,6 +121,7 @@ defmodule PluteusWeb.BrowseLive do
     <Chrome.shell
       principal_name={@principal_name}
       contexts={@contexts}
+      findings={@findings}
       mode={Atom.to_string(@live_action)}
       announcement={@announcement}
       query={@surface && @surface.query}
@@ -145,16 +148,17 @@ defmodule PluteusWeb.BrowseLive do
     <header class="mb-8">
       <h1 class="text-title-lg font-medium text-on-surface-strong">Everything</h1>
       <p class="mt-1 text-body-sm text-on-surface-muted">
-        {@surface.total} {holdings(@surface.total)}
+        {Enum.join(standing(@surface), " · ")}
       </p>
     </header>
 
     <div class="flex flex-col gap-10">
       <.kinds facet={@surface.facets["category"]} />
-      <.decades facet={@surface.facets["decade"]} />
+      <.decades facet={@surface.facets["decade"]} undated={undated(@surface.unfinished)} />
       <.people
         facet={@surface.facets["person"]}
         labels={@surface.labels}
+        uncredited={@surface.uncredited}
         places={@surface.facets["place"]}
       />
       <.unfinished doors={@surface.unfinished} />
@@ -163,8 +167,40 @@ defmodule PluteusWeb.BrowseLive do
     """
   end
 
+  # What the catalogue stands at: how much is held, how much room it takes, and how far
+  # back it goes. An empty catalogue has no size worth stating and was never acquired,
+  # so those are left out rather than reported as nought and never.
+  defp standing(surface) do
+    ["#{surface.total} #{holdings(surface.total)}"] ++
+      extent_said(surface.bytes) ++ acquired_said(surface.first_acquired)
+  end
+
+  defp extent_said(0), do: []
+  defp extent_said(bytes), do: [room(bytes)]
+
+  defp acquired_said(nil), do: []
+
+  defp acquired_said(at),
+    do: ["first acquired #{Calendar.strftime(at, "%-d %B %Y")}"]
+
+  # Decimal rather than binary multiples, which is what a disk is sold and reported in.
+  @units ~w(bytes kB MB GB TB)
+
+  defp room(bytes), do: room(bytes / 1, @units)
+
+  defp room(size, [unit]), do: "#{Float.round(size, 1)} #{unit}"
+  defp room(size, [unit | _larger]) when size < 1000, do: "#{Float.round(size, 1)} #{unit}"
+  defp room(size, [_unit | larger]), do: room(size / 1000, larger)
+
+  # The holdings whose date nothing recorded, which the spine cannot place and the band
+  # would otherwise leave out of its own total.
+  defp undated(doors) do
+    Enum.find_value(doors, 0, &(&1.bucket == "no_date_recorded" && &1.count))
+  end
+
   # Oldest first, because a decade spine read in any other order is not a spine.
   attr :facet, :any, required: true
+  attr :undated, :integer, default: 0
 
   defp decades(%{facet: {:available, []}} = assigns) do
     ~H"""
@@ -207,6 +243,24 @@ defmodule PluteusWeb.BrowseLive do
             <span class="font-mono text-caption text-on-surface-muted">{count}</span>
           </.link>
         </li>
+
+        <li
+          :if={@undated > 0}
+          class={[
+            "flex w-20 shrink-0 flex-col gap-2 pl-3",
+            "border-l-[length:var(--sys-border-width-hairline)] border-border-subtle"
+          ]}
+        >
+          <span class="flex h-24 items-end" aria-hidden="true">
+            <span
+              class="block w-full rounded-sm bg-fill-subtle"
+              style={"height: #{height(@undated, @most)}%"}
+            >
+            </span>
+          </span>
+          <span class="truncate text-body-sm text-on-surface-muted">Undated</span>
+          <span class="font-mono text-caption text-on-surface-muted">{@undated}</span>
+        </li>
       </ul>
     </section>
     """
@@ -215,7 +269,9 @@ defmodule PluteusWeb.BrowseLive do
   # A bar stands for its count against the fullest decade, with a floor so that a decade
   # holding one thing is still drawn: the figure is printed under every bar, so the floor
   # cannot be the only thing a person reads a count from.
-  defp height(count, most), do: max(share(count, most), 4)
+  # Clamped at both ends: the undated are not a decade and can outnumber the fullest one,
+  # which fills the bar rather than drawing past the top of the band.
+  defp height(count, most), do: count |> share(most) |> max(4) |> min(100)
 
   # The narrowed phase: the values recede, the rows take over, and the choices are chips
   # in the rail. Same surface, which is what lets a count mean the same thing on both.
@@ -452,12 +508,22 @@ defmodule PluteusWeb.BrowseLive do
 
   # Who and where sit together because they are the same question asked of a holding, and
   # where cannot be answered, so the band says so beside the people it can name.
+  # As many as the band shows before the rest become one control. The People mode is
+  # where they all are, so this is a door's share and not a limit on who is reachable.
+  @named 4
+
   attr :facet, :any, required: true
   attr :labels, :map, required: true
+  attr :uncredited, :integer, required: true
   attr :places, :any, required: true
 
   defp people(assigns) do
-    assigns = assign(assigns, :values, offered(assigns.facet))
+    values = offered(assigns.facet)
+
+    assigns =
+      assigns
+      |> assign(:values, Enum.take(values, @named))
+      |> assign(:rest, max(length(values) - @named, 0))
 
     ~H"""
     <section aria-labelledby="people-heading">
@@ -471,6 +537,22 @@ defmodule PluteusWeb.BrowseLive do
             <span class="text-body-md text-on-surface-strong">{@labels[value] || value}</span>
             <span class="font-mono text-caption text-on-surface-muted">{count}</span>
           </.link>
+        </li>
+
+        <li :if={@uncredited > 0}>
+          <span class={pill()}>
+            <span class="text-body-md text-on-surface-muted">Nobody named yet</span>
+            <span class="font-mono text-caption text-on-surface-muted">{@uncredited}</span>
+          </span>
+        </li>
+
+        <li :if={@rest > 0}>
+          <button type="button" disabled class={pill()} aria-describedby="people-rest">
+            <span class="text-body-md text-on-surface-muted">{@rest} more</span>
+          </button>
+          <span id="people-rest" class="sr-only">
+            The rest are reached from People, which has no surface yet.
+          </span>
         </li>
       </ul>
 
@@ -548,7 +630,7 @@ defmodule PluteusWeb.BrowseLive do
         Other axes
       </h2>
       <ul class="flex flex-col gap-2">
-        <li :for={{axis, {:inert, why}} <- Enum.sort(@facets)}>
+        <li :for={{axis, {:inert, why}} <- elsewhere(@facets)}>
           <div class={[
             "rounded-md px-4 py-3",
             "border-[length:var(--sys-border-width-component)] border-border-subtle",
@@ -562,6 +644,12 @@ defmodule PluteusWeb.BrowseLive do
     </section>
     """
   end
+
+  # Every inert axis except the one a band of its own already answers for. Where a
+  # holding was made is the second half of "By who and where", and that band states it
+  # beside the people it can name, so repeating it here would have the surface report
+  # one absence twice.
+  defp elsewhere(facets), do: facets |> Map.drop(["place"]) |> Enum.sort()
 
   defp axis_noun("person"), do: "People"
   defp axis_noun("place"), do: "Places"
