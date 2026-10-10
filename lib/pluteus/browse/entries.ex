@@ -233,6 +233,22 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
+  The entries of a selection nothing credits.
+
+  Reached through `creditors/0` rather than through a predicate of its own, so a holding
+  this counts is exactly a holding the people band left out. That function already drops
+  a credit carrying no work, which is what makes the exclusion sound: `work_id` is
+  nullable since a credit may name an expression, and one null inside `NOT IN` makes the
+  whole predicate null and the band would silently report none.
+  """
+  @spec uncredited(Ecto.Query.t()) :: Ecto.Query.t()
+  def uncredited(query) do
+    credited = from c in subquery(creditors()), select: c.res_id
+
+    from [work: w] in query, where: w.id not in subquery(credited)
+  end
+
+  @doc """
   The axes this release can narrow on. The rest are named and inert.
   """
   @spec narrowable_axes() :: [String.t()]
