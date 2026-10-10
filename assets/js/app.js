@@ -112,26 +112,15 @@ const Waveform = {
   }
 }
 
-// spec-10 §12.3's transport. The server owns the queue, the current entry and the
-// position; this drives the media element to follow them and reports back where it got to.
-//
-// A holding in several files is one sequence and a position is against the whole, so the
-// part carrying a position is arithmetic over the parts' own lengths. A holding in one
-// file reports its own length, which is why its single part carries none.
-//
-// A track of a release held in one file is a region of that file: the element is given
-// the whole and told where to begin and end, which is what makes playing track four a
-// range-limited play rather than a second stream.
-// A position said the way the bar says it, so the client's own drawing and the server's
-// rendering do not disagree about a figure a person is reading.
+// Said the way the bar says it, so the client's drawing and the server's rendering agree.
 const clock = (milliseconds) => {
   const total = Math.floor(milliseconds / 1000)
 
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`
 }
 
-// The hook is on the bar rather than on the element, because §12.3's controls act on the
-// element and a control bound to nothing is §17.3's lie: available and doing nothing.
+// On the bar rather than the element, because §12.3's controls act on the element and
+// the bar holds both. The server owns the queue, the entry and the position.
 const MediaSession = {
   mounted() {
     this.reportedAt = 0
@@ -149,8 +138,8 @@ const MediaSession = {
     return this.el.querySelector("#transport-medium")
   },
 
-  // Bound once per element, because `updated` runs on every patch and the element
-  // survives them. A listener added twice reports twice.
+  // Once per element: `updated` runs on every patch, and a listener added twice reports
+  // twice.
   bind() {
     const medium = this.medium()
 
@@ -169,8 +158,6 @@ const MediaSession = {
     this.on("#transport-volume", "input", (control) => this.setVolume(control))
     this.on("#transport-mute", "click", (control) => this.toggleMute(control))
 
-    // A toolbar is one tab stop its arrow keys move within (A.9.3). The sliders stay
-    // outside it, so the keys it navigates with are not the keys they consume.
     this.roving()
   },
 
@@ -181,6 +168,12 @@ const MediaSession = {
 
   step() {
     return parseInt(this.el.dataset.step, 10)
+  },
+
+  measured() {
+    const slider = this.el.querySelector("#transport-position")
+
+    return slider && parseInt(slider.max, 10) > 0
   },
 
   // Where in the sequence, which is what the slider and the server both speak in.
@@ -268,9 +261,8 @@ const MediaSession = {
     }
   },
 
-  // Which part holds a position in the sequence, and how far into that part it is. A
-  // position past every part is one the sequence does not contain, which is a fact about
-  // the caller and not a place to start from, so it is refused rather than clamped.
+  // Which part holds a position in the sequence, and how far into it. A position past
+  // every part is refused rather than clamped.
   within(parts, position) {
     let remaining = position
 
@@ -289,10 +281,8 @@ const MediaSession = {
     throw new Error(`position ${position} is past every part of this holding`)
   },
 
-  // The element follows the server where the server has something new to say, and not
-  // otherwise. Every patch runs this, and a position the hook itself reached is not a
-  // place to move to — comparing the element's clock instead dragged it back to wherever
-  // the last report left it, every reporting interval.
+  // Every patch runs this, so it moves the element only where the server names a
+  // position the hook has not already reached.
   follow() {
     const {parts, from, position, playing} = this.state()
     if (!parts.length) return
@@ -342,6 +332,9 @@ const MediaSession = {
     const elapsed = at - from
     this.drawn(elapsed)
 
+    // Nothing recorded how long this is, which §13.2's thresholds measure against.
+    if (!this.measured()) return
+
     // §20's interval is how often the deployment is told, not how often the bar moves.
     if (elapsed - this.reportedAt < interval) return
 
@@ -350,9 +343,7 @@ const MediaSession = {
     this.pushEvent("transport-position", {res: res, position_ms: this.reached})
   },
 
-  // The progress a person watches is the client's own: the server records where playback
-  // reached and does not re-render the bar for it, so a position that advanced four times
-  // a second would otherwise cost a round trip each time.
+  // Drawn here rather than rendered: the bar moves with the element, not with a report.
   drawn(elapsed) {
     const slider = this.el.querySelector("#transport-position")
     const elapsedAt = this.el.querySelector("#transport-elapsed")
