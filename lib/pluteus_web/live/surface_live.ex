@@ -34,6 +34,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Player
+  alias PluteusWeb.TransportLive
 
   @impl Phoenix.LiveView
   def mount(_params, session, socket) do
@@ -59,9 +60,19 @@ defmodule PluteusWeb.SurfaceLive do
      |> assign(:work, held!(id))
      |> assign(:asked, asked)
      |> assign_new(:chosen, fn -> %{audio: nil, subtitle: nil} end)
-     |> assign_new(:current, fn -> 0 end)
-     |> assign_new(:rail_collapsed, fn -> asked == "play" end)
      |> showing(asked)}
+  end
+
+  defp unenrolled do
+    "This browser holds no enrolment, so there is nowhere to record what it plays."
+  end
+
+  # The queue's current entry, which the chrome's transport is carrying.
+  defp playing(principal_id, profile) do
+    case Playback.current(principal_id, profile) do
+      nil -> nil
+      showing -> showing.res_id
+    end
   end
 
   @impl Phoenix.LiveView
@@ -72,8 +83,29 @@ defmodule PluteusWeb.SurfaceLive do
     {:noreply, assign(socket, :chosen, chosen)}
   end
 
-  def handle_event("choose-entry", %{"index" => index}, socket) do
-    {:noreply, assign(socket, :current, String.to_integer(index))}
+  def handle_event("play-entry", _params, %{assigns: %{device_id: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, unenrolled())}
+  end
+
+  # Filled from the release and moved to the entry pressed, so what plays is the queue
+  # the chrome's transport carries rather than a second medium on this page.
+  def handle_event("play-entry", %{"index" => index}, socket) do
+    %{principal_id: principal, device_id: device, profile: profile, work: work} = socket.assigns
+
+    with :ok <- Playback.play(principal, device, work.id, profile),
+         :ok <- Playback.jump(principal, device, String.to_integer(index)),
+         :ok <- TransportLive.announce(principal) do
+      {:noreply, assign(socket, :playing, playing(principal, profile))}
+    else
+      {:error, {:not_played, _category}} ->
+        {:noreply, put_flash(socket, :error, "This is not something that plays.")}
+
+      {:error, :no_queue} ->
+        {:noreply, put_flash(socket, :error, "Nothing is held under this.")}
+
+      {:error, :current_outside_queue} ->
+        {:noreply, put_flash(socket, :error, "That is no longer an entry of the queue.")}
+    end
   end
 
   def handle_event("rail-toggle", _params, socket) do
@@ -107,21 +139,24 @@ defmodule PluteusWeb.SurfaceLive do
   defp showing(socket, asked) do
     work = socket.assigns.work
     category = Catalog.category_of(work.id, Place.category_scheme())
-    surface = category && Surfaces.surface_of(category)
 
-    unless surface == asked do
+    unless category && Surfaces.surface_of(category) == asked do
       raise NotFoundError, message: "this is not presented at #{asked}"
     end
 
+    surface = Surfaces.category_presentation(category)["primary_surface"]
+
     socket
     |> assign(:category, category)
-    |> assign(:surface, Surfaces.category_presentation(category)["primary_surface"])
+    |> assign(:surface, surface)
     |> assign(:name, named(work.id, socket.assigns.profile))
     |> assign(
       :playable,
       Playback.for_work(work.id, socket.assigns.principal_id, socket.assigns.profile)
     )
     |> assign(:queue, queued(work.id, socket.assigns.principal_id, socket.assigns.profile))
+    |> assign(:playing, playing(socket.assigns.principal_id, socket.assigns.profile))
+    |> assign_new(:rail_collapsed, fn -> surface == "player" end)
   end
 
   # A release is its tracks, so what a transport plays through is the queue the work
@@ -160,7 +195,7 @@ defmodule PluteusWeb.SurfaceLive do
       announcement={@announcement}
       socket={@socket}
       transport={@transport}
-      carries_medium={@asked == "play"}
+      carries_medium={@surface == "player"}
       rail_collapsed={@rail_collapsed}
     >
       <div id="presented" class="flex h-full min-h-0 w-full flex-col">
@@ -173,7 +208,7 @@ defmodule PluteusWeb.SurfaceLive do
           category={@category}
           playable={@playable}
           queue={@queue}
-          current={@current}
+          playing={@playing}
           chosen={@chosen}
         />
       </div>
@@ -190,7 +225,7 @@ defmodule PluteusWeb.SurfaceLive do
   attr :category, :string, required: true
   attr :playable, :any, required: true
   attr :queue, :list, required: true
-  attr :current, :integer, required: true
+  attr :playing, :any, required: true
   attr :chosen, :map, required: true
 
   defp presented(%{surface: "player"} = assigns) do
@@ -207,13 +242,13 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp presented(%{surface: "transport and queue"} = assigns) do
     ~H"""
-    <Music.surface name={@name} category={@category} queue={@queue} current={@current} />
+    <Music.surface name={@name} category={@category} queue={@queue} playing={@playing} />
     """
   end
 
   defp presented(%{surface: "transport and chapter list"} = assigns) do
     ~H"""
-    <Music.surface name={@name} category={@category} queue={@queue} current={@current} />
+    <Music.surface name={@name} category={@category} queue={@queue} playing={@playing} />
     """
   end
 
