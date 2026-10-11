@@ -33,6 +33,7 @@ defmodule PluteusWeb.Surfaces.Player do
   attr :name, :string, required: true
   attr :category, :string, required: true
   attr :playable, :any, required: true
+  attr :chosen, :map, required: true
 
   def surface(assigns) do
     assigns =
@@ -58,7 +59,7 @@ defmodule PluteusWeb.Surfaces.Player do
           />
         </div>
 
-        <.beside medium={@medium} />
+        <.beside medium={@medium} chosen={@chosen} />
       </div>
     </div>
     """
@@ -143,9 +144,10 @@ defmodule PluteusWeb.Surfaces.Player do
       ]}
       style={box(@reserved)}
     >
+      <%!-- No `controls`: §12.3's are below, and a second set over one medium leaves a
+            person pressing whichever they reached first. --%>
       <video
         id="player-medium"
-        controls
         preload="metadata"
         aria-label={@name}
         class="size-full"
@@ -156,11 +158,9 @@ defmodule PluteusWeb.Surfaces.Player do
     """
   end
 
-  # §12.3's controls, acting on the medium above them. The position slider sits outside
-  # the toolbar (A.9.4): a slider consumes the arrow keys a toolbar navigates with.
-  #
-  # Nothing here is wired to the medium yet, so every control is disabled and says why
-  # rather than sitting live and doing nothing (§17.3).
+  # The position slider sits outside the toolbar (A.9.4): a slider consumes the arrow
+  # keys a toolbar navigates with. Each control is disabled until the hook reaches the
+  # medium and enables it, so one that cannot act never looks as though it can (§17.3).
   attr :playable, :any, required: true
   attr :extent, :any, required: true
   attr :chapters, :list, required: true
@@ -170,7 +170,15 @@ defmodule PluteusWeb.Surfaces.Player do
 
   defp transport(assigns) do
     ~H"""
-    <div id="player-transport" class="flex shrink-0 flex-col gap-3">
+    <div
+      id="player-transport"
+      phx-hook="Player"
+      phx-update="ignore"
+      data-medium="player-medium"
+      data-small={@steps["small"]}
+      data-large={@steps["large"]}
+      class="flex shrink-0 flex-col gap-3"
+    >
       <.position extent={@extent} chapters={@chapters} />
 
       <div class="flex flex-wrap items-center gap-2">
@@ -178,25 +186,26 @@ defmodule PluteusWeb.Surfaces.Player do
           id="player-controls"
           role="toolbar"
           aria-label="Transport"
-          aria-describedby="player-controls-why"
           class="flex items-center gap-2"
         >
           <button
             type="button"
             disabled
+            data-act="back"
             aria-label={"Back #{seconds(@steps["small"])} seconds"}
             class={control()}
           >
             <.icon name="back-10-mini" />
           </button>
 
-          <button type="button" disabled aria-label="Play" class={accent()}>
+          <button type="button" disabled data-act="play" aria-label="Play" class={accent()}>
             <.icon name="hero-play-mini" />
           </button>
 
           <button
             type="button"
             disabled
+            data-act="forward"
             aria-label={"Forward #{seconds(@steps["large"])} seconds"}
             class={control()}
           >
@@ -204,7 +213,14 @@ defmodule PluteusWeb.Surfaces.Player do
           </button>
         </div>
 
-        <button type="button" disabled aria-label="Mute" aria-pressed="false" class={control()}>
+        <button
+          type="button"
+          disabled
+          data-act="mute"
+          aria-label="Mute"
+          aria-pressed="false"
+          class={control()}
+        >
           <.icon name="hero-speaker-wave-mini" />
         </button>
 
@@ -230,19 +246,17 @@ defmodule PluteusWeb.Surfaces.Player do
         <button
           type="button"
           disabled
+          data-act="fullscreen"
           class={[
             "min-h-target-pointer shrink-0 rounded-md px-4",
             "border-[length:var(--sys-border-width-component)] border-border-strong",
-            "text-body-md text-on-surface-muted disabled:opacity-100"
+            "text-body-md text-on-surface-strong hover:bg-fill-subtle-strong",
+            "disabled:text-on-surface-muted disabled:opacity-100"
           ]}
         >
           Full screen
         </button>
       </div>
-
-      <p id="player-controls-why" class="text-body-sm text-on-surface-muted">
-        The medium carries the browser's own controls. These act on nothing yet.
-      </p>
     </div>
     """
   end
@@ -256,7 +270,10 @@ defmodule PluteusWeb.Surfaces.Player do
   defp position(assigns) do
     ~H"""
     <div class="flex items-center gap-3">
-      <span class="w-12 shrink-0 text-right font-mono text-caption text-on-surface-muted">
+      <span
+        id="player-elapsed"
+        class="w-12 shrink-0 text-right font-mono text-caption text-on-surface-muted"
+      >
         {clock(0)}
       </span>
 
@@ -282,7 +299,7 @@ defmodule PluteusWeb.Surfaces.Player do
         </span>
       </div>
 
-      <span class="w-12 shrink-0 font-mono text-caption text-on-surface-muted">
+      <span id="player-remaining" class="w-12 shrink-0 font-mono text-caption text-on-surface-muted">
         {clock(@extent)}
       </span>
     </div>
@@ -333,6 +350,7 @@ defmodule PluteusWeb.Surfaces.Player do
   # §12.2's three controls, each its own state. Drawn beside the picture at the width
   # the board gives them and beneath it where there is none.
   attr :medium, :map, required: true
+  attr :chosen, :map, required: true
 
   defp beside(assigns) do
     ~H"""
@@ -347,17 +365,29 @@ defmodule PluteusWeb.Surfaces.Player do
     >
       <.choice
         id="player-subtitles"
+        kind="subtitle"
         heading="Subtitles"
         tracks={@medium.subtitle}
+        chosen={@chosen.subtitle}
         absent="No subtitle track is held with this, so there is nothing to show."
       />
 
       <.choice
         id="player-audio"
+        kind="audio"
         heading="Audio"
         tracks={@medium.audio}
+        chosen={@chosen.audio}
         absent="No audio track is held with this."
       />
+
+      <p
+        :if={@medium.audio != [] or @medium.subtitle != []}
+        class="text-caption text-on-surface-muted"
+      >
+        A choice is yours alone. This delivery plays the track the container marks as
+        its default; choosing another is honoured once a delivery can be negotiated.
+      </p>
     </aside>
     """
   end
@@ -366,8 +396,10 @@ defmodule PluteusWeb.Surfaces.Player do
   # for an affordance that does not exist disabled and carrying why, which for a track
   # list is the list saying what it is a list of and that it is empty.
   attr :id, :string, required: true
+  attr :kind, :string, required: true
   attr :heading, :string, required: true
   attr :tracks, :list, required: true
+  attr :chosen, :any, required: true
   attr :absent, :string, required: true
 
   defp choice(assigns) do
@@ -382,15 +414,29 @@ defmodule PluteusWeb.Surfaces.Player do
 
       <p :if={@tracks == []} class="mt-2 text-body-sm text-on-surface-muted">{@absent}</p>
 
-      <ul :if={@tracks != []} class="mt-2 flex flex-col gap-1">
+      <ul
+        :if={@tracks != []}
+        class="mt-2 flex flex-col gap-1"
+        role="radiogroup"
+        aria-labelledby={"#{@id}-heading"}
+      >
         <li :for={track <- @tracks}>
-          <span class={[
-            "flex min-h-target-pointer flex-col justify-center rounded-md px-3 py-1",
-            track.default? && "bg-fill-subtle"
-          ]}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={to_string(track.index == @chosen)}
+            phx-click="choose-track"
+            phx-value-kind={@kind}
+            phx-value-index={track.index}
+            class={[
+              "flex min-h-target-pointer w-full flex-col justify-center rounded-md px-3 py-1 text-left",
+              "hover:bg-fill-subtle-strong",
+              track.index == @chosen && "bg-fill-subtle"
+            ]}
+          >
             <span class="text-body-sm text-on-surface-strong">{spoken(track)}</span>
             <span class="text-caption text-on-surface-muted">{described(track)}</span>
-          </span>
+          </button>
         </li>
       </ul>
     </section>
