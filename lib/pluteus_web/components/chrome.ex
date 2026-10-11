@@ -102,6 +102,10 @@ defmodule PluteusWeb.Chrome do
     required: true,
     doc: "the session the player mounts from, which `PluteusWeb.Interface` builds"
 
+  attr :carries_medium, :boolean,
+    default: false,
+    doc: "whether the surface holds a medium of its own, which the rail and queue defer to"
+
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -123,6 +127,7 @@ defmodule PluteusWeb.Chrome do
           query={@query}
           contexts={@contexts}
           findings={@findings}
+          collapsed={@carries_medium}
         />
 
         <div class="flex flex-1 min-w-0 flex-col">
@@ -138,13 +143,17 @@ defmodule PluteusWeb.Chrome do
         </div>
       </div>
 
-      {live_render(@socket, PluteusWeb.TransportLive,
-        id: "transport-live",
-        session: @transport,
-        sticky: true
-      )}
+      <%!-- The queue's own player, which every surface carries except one that holds a
+            medium of its own: two media running at once is not something anybody asked
+            for, and §12.3's controls must act on the medium in front of the person. --%>
+      {@carries_medium ||
+        live_render(@socket, PluteusWeb.TransportLive,
+          id: "transport-live",
+          session: @transport,
+          sticky: true
+        )}
 
-      <.tab_bar mode={@mode} />
+      <.tab_bar :if={!@carries_medium} mode={@mode} />
     </div>
     """
   end
@@ -157,24 +166,34 @@ defmodule PluteusWeb.Chrome do
   attr :contexts, :map, required: true
   attr :findings, :integer, required: true
 
+  attr :collapsed, :boolean,
+    default: false,
+    doc: "whether width belongs to the surface, which leaves the rail its glyphs alone"
+
   defp rail(assigns) do
     ~H"""
     <nav
       id="rail"
       aria-label="Modes and the current query"
       class={[
-        "hidden md:flex w-60 shrink-0 flex-col overflow-y-auto",
+        "hidden md:flex shrink-0 flex-col overflow-y-auto",
+        if(@collapsed, do: "w-22", else: "w-60"),
         "border-r-[length:var(--sys-border-width-hairline)] border-border-subtle",
         "bg-surface-raised"
       ]}
     >
-      <div class="flex h-16 shrink-0 items-center px-4">
-        <span class="text-title-sm font-medium text-on-surface-strong">Pluteus</span>
+      <div class={["flex h-16 shrink-0 items-center", if(@collapsed, do: "px-3", else: "px-4")]}>
+        <span class={[
+          "font-medium text-on-surface-strong",
+          if(@collapsed, do: "text-caption", else: "text-title-sm")
+        ]}>
+          Pluteus
+        </span>
       </div>
 
-      <.search />
+      <.search :if={!@collapsed} />
 
-      <div class="flex flex-col gap-0.5 px-3">
+      <div class={["flex flex-col gap-0.5", if(@collapsed, do: "px-3", else: "px-3")]}>
         <.mode
           :for={{slug, noun, glyph, what, at} <- modes()}
           slug={slug}
@@ -183,17 +202,18 @@ defmodule PluteusWeb.Chrome do
           what={what}
           at={at}
           current={@mode == slug}
+          collapsed={@collapsed}
         />
       </div>
 
-      <.narrowed_by query={@query} />
+      <.narrowed_by :if={!@collapsed} query={@query} />
 
       <div class="grow"></div>
 
-      <div class="flex flex-col gap-3 px-4 pb-4">
-        <.findings_link findings={@findings} />
-        <.contexts contexts={@contexts} at="rail" />
-        <.identity principal_name={@principal_name} />
+      <div class={["flex flex-col gap-3 pb-4", if(@collapsed, do: "px-3", else: "px-4")]}>
+        <.findings_link findings={@findings} collapsed={@collapsed} />
+        <.contexts :if={!@collapsed} contexts={@contexts} at="rail" />
+        <.identity principal_name={@principal_name} collapsed={@collapsed} />
       </div>
     </nav>
     """
@@ -261,15 +281,23 @@ defmodule PluteusWeb.Chrome do
   # without being asked. The name is text rather than an initial, because a letter in a
   # disc is not a statement of who someone is.
   attr :principal_name, :string, default: nil
+  attr :collapsed, :boolean, default: false
 
   def identity(assigns) do
     ~H"""
     <div class={[
-      "flex items-center gap-3 pt-4",
+      "flex gap-3 pt-4",
+      if(@collapsed, do: "flex-col items-center", else: "items-center"),
       "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle"
     ]}>
-      <span id="identity-principal" class="grow truncate text-body-md text-on-surface-strong">
-        Acting as {@principal_name}
+      <span
+        id="identity-principal"
+        class={[
+          "truncate text-on-surface-strong",
+          if(@collapsed, do: "max-w-full text-caption", else: "grow text-body-md")
+        ]}
+      >
+        {if @collapsed, do: @principal_name, else: "Acting as #{@principal_name}"}
       </span>
       <button
         type="button"
@@ -326,6 +354,7 @@ defmodule PluteusWeb.Chrome do
   attr :what, :string, required: true
   attr :at, :string, default: nil
   attr :current, :boolean, required: true
+  attr :collapsed, :boolean, default: false
 
   defp mode(%{at: nil} = assigns) do
     ~H"""
@@ -334,10 +363,10 @@ defmodule PluteusWeb.Chrome do
       disabled
       aria-current={@current && "page"}
       aria-describedby={"mode-#{@slug}-why"}
-      class={["w-full text-left", mode_face(@current), "disabled:opacity-100"]}
+      class={["w-full text-left", mode_face(@current, @collapsed), "disabled:opacity-100"]}
     >
       <.icon name={@glyph} />
-      <span>{@noun}</span>
+      <span class={@collapsed && "sr-only"}>{@noun}</span>
     </button>
     <p id={"mode-#{@slug}-why"} class="sr-only">
       {@noun} shows {@what}. This deployment serves no surface for it.
@@ -351,47 +380,58 @@ defmodule PluteusWeb.Chrome do
   # nothing, and it is how a narrowing is cleared without stopping what is playing.
   defp mode(%{current: true} = assigns) do
     ~H"""
-    <.link patch={@at} aria-current="page" class={mode_face(true)}>
+    <.link patch={@at} aria-current="page" class={mode_face(true, @collapsed)}>
       <.icon name={@glyph} />
-      <span>{@noun}</span>
+      <span class={@collapsed && "sr-only"}>{@noun}</span>
     </.link>
     """
   end
 
   defp mode(assigns) do
     ~H"""
-    <a href={@at} class={mode_face(false)}>
+    <a href={@at} class={mode_face(false, @collapsed)} title={@collapsed && @noun}>
       <.icon name={@glyph} />
-      <span>{@noun}</span>
+      <span class={@collapsed && "sr-only"}>{@noun}</span>
     </a>
     """
   end
 
-  defp mode_face(current) do
+  # Collapsed, the word goes to the accessible name and the glyph carries the face. The
+  # left edge a current mode is marked by becomes a filled ground, since a 2px edge on a
+  # 64px square is a mark nobody finds.
+  defp mode_face(current, collapsed) do
     [
-      "min-h-target-touch flex items-center gap-3 rounded-md px-3",
+      "min-h-target-touch flex items-center rounded-md",
       "text-body-md text-on-surface-muted",
-      "border-l-[length:var(--sys-border-width-component)] border-transparent",
-      current && "border-border-strong bg-surface-overlay font-medium text-on-surface-strong"
+      if(collapsed,
+        do: "w-16 justify-center",
+        else: "gap-3 px-3 border-l-[length:var(--sys-border-width-component)] border-transparent"
+      ),
+      current && collapsed && "bg-surface-overlay text-on-surface-strong",
+      current && !collapsed &&
+        "border-border-strong bg-surface-overlay font-medium text-on-surface-strong"
     ]
   end
 
   # The findings link is on every surface, carrying how many are uncleared. A finding is
   # the household's rather than a principal's, so the figure is nobody's consumption.
   attr :findings, :integer, required: true
+  attr :collapsed, :boolean, default: false
 
   defp findings_link(assigns) do
     ~H"""
     <a
       href={~p"/findings"}
+      title={@collapsed && "#{@findings} #{findings_said(@findings)}"}
       class={[
-        "min-h-target-touch flex items-center gap-3 rounded-md px-3",
+        "min-h-target-touch flex items-center rounded-md",
         "text-body-md text-on-surface-strong",
-        "hover:bg-fill-subtle-strong"
+        "hover:bg-fill-subtle-strong",
+        if(@collapsed, do: "w-16 justify-center", else: "gap-3 px-3")
       ]}
     >
       <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
-      <span>{@findings} {findings_said(@findings)}</span>
+      <span class={@collapsed && "sr-only"}>{@findings} {findings_said(@findings)}</span>
     </a>
     """
   end
