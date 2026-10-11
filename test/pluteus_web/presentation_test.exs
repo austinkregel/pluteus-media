@@ -17,6 +17,7 @@ defmodule PluteusWeb.PresentationTest do
 
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
+  alias Pluteus.Catalog.Category
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
@@ -255,16 +256,32 @@ defmodule PluteusWeb.PresentationTest do
       assert html =~ "cannot be shown"
     end
 
-    test "a work holding a file says so, and still cannot open it", %{conn: conn, inbox: inbox} do
-      # §17.3 from the other side: the control is disabled because nothing opens a holding,
-      # not because there is nothing to open. The two reasons must not be confused — one is
-      # about the catalog and one about the deployment.
+    test "a work whose category is presented somewhere leads there",
+         %{conn: conn, inbox: inbox} do
+      # §12.1 presents a photograph on a viewer and §10.1 addresses that beneath the res,
+      # so the action is a link rather than a control carrying a reason it cannot act.
       [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      work = work_of(photo)
 
-      html = interface(conn, "/works/#{work_of(photo)}")
+      html = interface(conn, "/works/#{work}")
 
-      assert html =~ "A file is held"
-      assert html =~ "Nothing in this deployment opens one yet"
+      assert html =~ ~s|href="/works/#{work}/view"|
+      refute html =~ "holds no file of it"
+    end
+
+    test "a work nothing has said the kind of carries the reason instead",
+         %{conn: conn, inbox: inbox} do
+      # §17.3 from the other side, and the two reasons must not be confused: one is about
+      # the catalog holding no file, the other about nothing having said what the file is.
+      [photo] = ingest!(inbox, %{"holiday/IMG_0002.png" => media!(:png)})
+      work = work_of(photo)
+
+      {_count, _} = Repo.delete_all(from c in Category, where: c.res_id == ^work)
+
+      html = interface(conn, "/works/#{work}")
+
+      refute html =~ ~s|href="/works/#{work}/view"|
+      assert html =~ "Nothing has said what kind of thing this is"
       refute html =~ "holds no file of it"
     end
 
