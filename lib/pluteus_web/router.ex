@@ -56,6 +56,27 @@ defmodule PluteusWeb.Router do
     plug PluteusWeb.Device
   end
 
+  # An entity URI, which answers both things §10.1 names. `Representation` answers the
+  # representation and halts; what survives it is a request for the interface, and the
+  # rest of this is `:interface`'s, so the page is a route of the same live session as
+  # every other surface.
+  pipeline :entity do
+    plug :accepts, ["json", "html"]
+    plug PluteusWeb.Negotiate
+    plug :fetch_session
+    plug PluteusWeb.ForwardAuth
+    plug PluteusWeb.Surface
+    plug PluteusWeb.Representation
+
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {PluteusWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug PluteusWeb.Contexts
+    plug PluteusWeb.Declared
+    plug PluteusWeb.Device
+  end
+
   # spec-07 §3.2: the one surface exempt from forward authentication, where a
   # client key is the request's authentication. The request must still have
   # come through the proxy.
@@ -100,22 +121,35 @@ defmodule PluteusWeb.Router do
   #
   # The live session carries only the session shape `PluteusWeb.Interface` owns. The
   # identity hook is declared by `PluteusWeb.surface/0` rather than here, so it holds
-  # however a surface was reached — including `EntityLive`, which a controller renders.
-  scope "/", PluteusWeb do
-    pipe_through :interface
+  # however a surface was reached.
+  #
+  # Every interface surface is in this one session, which is what makes moving between
+  # them a live navigation rather than a page load — and so what keeps the transport
+  # playing while a person goes from a mode to a holding to its player.
+  live_session :interface, session: {PluteusWeb.Interface, :session, []} do
+    scope "/", PluteusWeb do
+      pipe_through :interface
 
-    live_session :interface, session: {PluteusWeb.Interface, :session, []} do
       live "/everything", BrowseLive, :everything
 
       # §12.1's primary surfaces, addressed beneath the work whose category names them
-      # (§10.1). Under the work because a category is the work's. These answer no
-      # representation, so there is nothing to negotiate and they are `live` routes —
-      # which is also what lets the player survive moving between holdings.
+      # (§10.1). Under the work because a category is the work's.
       #
       # A segment here that no category is presented at would be a route to nothing, so
       # the list is the registry's rather than this file's.
       for surface <- PluteusWeb.Native.surfaces() do
         live "/works/:id/#{surface}", SurfaceLive, :"#{surface}"
+      end
+    end
+
+    # §9.1's entity URIs, for the kinds that answer an interface. The representation is
+    # answered by the pipeline and halted there, so what reaches these is a request for
+    # the page. The kind is fixed by the path, as §9.1 requires.
+    scope "/", PluteusWeb do
+      pipe_through :entity
+
+      for {kind, path} <- PluteusWeb.Native.paths(), PluteusWeb.Native.negotiates?(kind) do
+        live "/#{path}/:id", EntityLive, :show
       end
     end
   end
@@ -127,7 +161,14 @@ defmodule PluteusWeb.Router do
 
     for {kind, path} <- PluteusWeb.Native.paths() do
       get "/#{path}", EntityController, :index, assigns: %{kind: kind}
-      get "/#{path}/:id", EntityController, :show, assigns: %{kind: kind}
+
+      # A kind §9.1 names has its one address above, where the representation is
+      # answered by the pipeline and the page by the route. A kind that answers no
+      # interface has only the representation, so it keeps its own route.
+      unless PluteusWeb.Native.negotiates?(kind) do
+        get "/#{path}/:id", EntityController, :show, assigns: %{kind: kind}
+      end
+
       delete "/#{path}/:id", EntityController, :delete, assigns: %{kind: kind}
       post "/#{path}/:id/categories", WriteController, :categorize, assigns: %{kind: kind}
 
