@@ -133,6 +133,8 @@ const Player = {
     this.elapsed = this.el.querySelector("#player-elapsed")
     this.remaining = this.el.querySelector("#player-remaining")
     this.play = this.el.querySelector("[data-act=play]")
+    this.playGlyph = this.el.querySelector("[data-glyph=play]")
+    this.pauseGlyph = this.el.querySelector("[data-glyph=pause]")
     this.volume = this.el.querySelector("#player-volume")
     this.mute = this.el.querySelector("[data-act=mute]")
 
@@ -222,10 +224,13 @@ const Player = {
     this.elapsed.textContent = clock(at)
   },
 
-  // A control's name says what pressing it will do, not what is happening.
+  // A control's name and its glyph say what pressing it will do, not what is happening.
   drawn() {
-    this.play.setAttribute("aria-label", this.medium.paused ? "Play" : "Pause")
-    this.play.dataset.playing = String(!this.medium.paused)
+    const paused = this.medium.paused
+
+    this.play.setAttribute("aria-label", paused ? "Play" : "Pause")
+    this.playGlyph.classList.toggle("hidden", !paused)
+    this.pauseGlyph.classList.toggle("hidden", paused)
     this.mute.setAttribute("aria-pressed", String(this.medium.muted))
     this.mute.setAttribute("aria-label", this.medium.muted ? "Unmute" : "Mute")
     this.volume.value = Math.round((this.medium.muted ? 0 : this.medium.volume) * 100)
