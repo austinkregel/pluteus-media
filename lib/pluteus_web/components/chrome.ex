@@ -104,7 +104,12 @@ defmodule PluteusWeb.Chrome do
 
   attr :carries_medium, :boolean,
     default: false,
-    doc: "whether the surface holds a medium of its own, which the rail and queue defer to"
+    doc: "whether the surface holds a medium of its own, which the queue's player defers to"
+
+  attr :rail_collapsed, :boolean,
+    default: false,
+    doc:
+      "whether the rail is down to its glyphs, which a surface opens collapsed and a person reopens"
 
   slot :inner_block, required: true
 
@@ -127,7 +132,8 @@ defmodule PluteusWeb.Chrome do
           query={@query}
           contexts={@contexts}
           findings={@findings}
-          collapsed={@carries_medium}
+          collapsed={@rail_collapsed}
+          collapsible={@carries_medium}
         />
 
         <div class="flex flex-1 min-w-0 flex-col">
@@ -146,12 +152,13 @@ defmodule PluteusWeb.Chrome do
       <%!-- The queue's own player, which every surface carries except one that holds a
             medium of its own: two media running at once is not something anybody asked
             for, and §12.3's controls must act on the medium in front of the person. --%>
-      {@carries_medium ||
-        live_render(@socket, PluteusWeb.TransportLive,
+      <%= if !@carries_medium do %>
+        {live_render(@socket, PluteusWeb.TransportLive,
           id: "transport-live",
           session: @transport,
           sticky: true
         )}
+      <% end %>
 
       <.tab_bar :if={!@carries_medium} mode={@mode} />
     </div>
@@ -170,6 +177,10 @@ defmodule PluteusWeb.Chrome do
     default: false,
     doc: "whether width belongs to the surface, which leaves the rail its glyphs alone"
 
+  attr :collapsible, :boolean,
+    default: false,
+    doc: "whether this surface offers the choice at all"
+
   defp rail(assigns) do
     ~H"""
     <nav
@@ -182,13 +193,33 @@ defmodule PluteusWeb.Chrome do
         "bg-surface-raised"
       ]}
     >
-      <div class={["flex h-16 shrink-0 items-center", if(@collapsed, do: "px-3", else: "px-4")]}>
+      <div class={[
+        "flex h-16 shrink-0 items-center gap-2",
+        if(@collapsed, do: "flex-col justify-center px-2 py-2", else: "px-4")
+      ]}>
         <span class={[
           "font-medium text-on-surface-strong",
-          if(@collapsed, do: "text-caption", else: "text-title-sm")
+          if(@collapsed, do: "text-caption", else: "grow text-title-sm")
         ]}>
           Pluteus
         </span>
+
+        <button
+          :if={@collapsible}
+          type="button"
+          phx-click="rail-toggle"
+          aria-expanded={to_string(!@collapsed)}
+          aria-controls="rail"
+          aria-label={
+            if @collapsed, do: "Show the mode names", else: "Leave the width to the surface"
+          }
+          class={[
+            "min-h-target-pointer min-w-target-pointer flex shrink-0 items-center justify-center",
+            "rounded-md text-on-surface-muted hover:bg-fill-subtle-strong"
+          ]}
+        >
+          <.icon name={if @collapsed, do: "hero-chevron-right-mini", else: "hero-chevron-left-mini"} />
+        </button>
       </div>
 
       <.search :if={!@collapsed} />
