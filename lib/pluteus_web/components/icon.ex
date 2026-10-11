@@ -96,6 +96,7 @@ defmodule PluteusWeb.Icon do
   attr :name, :string, required: true, values: @names
   attr :size, :integer, default: nil, values: [nil, 80, 96]
   attr :class, :any, default: nil
+  attr :rest, :global
 
   def icon(assigns) do
     assigns =
@@ -111,6 +112,7 @@ defmodule PluteusWeb.Icon do
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       {@glyph.paint}
+      {@rest}
     >
       {Phoenix.HTML.raw(@glyph.inner)}
     </svg>
