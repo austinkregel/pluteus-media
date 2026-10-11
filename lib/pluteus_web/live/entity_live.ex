@@ -619,7 +619,7 @@ defmodule PluteusWeb.EntityLive do
   # category §12.1 presents somewhere has a link instead, and a reason beside a working
   # control would be a reason for nothing.
   defp why(%{digital_item: nil}),
-    do: "The household describes this but holds no file of it, so there is nothing to open."
+    do: "No file is held for this."
 
   defp why(%{}), do: "Nothing has said what kind of thing this is, so nothing presents it."
 

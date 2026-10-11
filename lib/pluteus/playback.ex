@@ -593,10 +593,10 @@ defmodule Pluteus.Playback do
   """
   @spec why({atom(), Ecto.UUID.t()}) :: String.t()
   def why({:holds_no_file, _work_id}),
-    do: "The household describes this and holds no file for it, so there is nothing to play."
+    do: "No file is held for this."
 
   def why({:not_normalized, _work_id}),
-    do: "The bytes of this have not been normalized yet, so there is nothing to play from."
+    do: "The bytes of this are not normalized."
 
   def why({:sequence_unmeasured, _work_id}),
     do:
