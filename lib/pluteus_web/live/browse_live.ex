@@ -77,21 +77,28 @@ defmodule PluteusWeb.BrowseLive do
   end
 
   def handle_event("play", %{"res" => work_id}, socket) do
-    :ok =
-      Playback.play(
-        socket.assigns.principal_id,
-        socket.assigns.device_id,
-        work_id,
-        socket.assigns.profile
-      )
+    socket.assigns.principal_id
+    |> Playback.play(socket.assigns.device_id, work_id, socket.assigns.profile)
+    |> case do
+      :ok ->
+        :ok = TransportLive.announce(socket.assigns.principal_id)
 
-    :ok = TransportLive.announce(socket.assigns.principal_id)
+        {:noreply, socket}
 
-    {:noreply, socket}
+      # No row offers this, so reaching it means a press arrived for a holding the
+      # surface does not present a play control for.
+      {:error, {:not_played, category}} ->
+        {:noreply, put_flash(socket, :error, not_played(category))}
+    end
   end
 
   defp unenrolled do
     "This browser holds no enrolment, so there is nowhere to record what it plays."
+  end
+
+  defp not_played(category) do
+    "A #{Surfaces.category_icon(category).name |> String.downcase()} is not something " <>
+      "that plays, so there is nowhere to start it."
   end
 
   # What is wrong is named rather than answered with an unnarrowed surface, which would
@@ -283,7 +290,7 @@ defmodule PluteusWeb.BrowseLive do
       <h1 class="text-title-lg font-medium text-on-surface-strong">Everything</h1>
       <p class="mt-1 text-body-sm text-on-surface-muted">
         <span class="text-on-surface-strong">{@surface.total}</span>
-        of {@surface.catalogue} {holdings(@surface.catalogue)}, oldest first by when it was catalogued
+        of {@surface.catalogue} {holdings(@surface.catalogue)}
       </p>
     </header>
 
@@ -297,6 +304,7 @@ defmodule PluteusWeb.BrowseLive do
           members={@surface.members[id]}
           credited={@surface.credited[id] || []}
           cover={@surface.covers[id]}
+          format={@surface.formats[id]}
         />
       </li>
     </ol>
@@ -397,7 +405,9 @@ defmodule PluteusWeb.BrowseLive do
   defp share(count, most), do: round(count / most * 100)
 
   # The play control is a button beside the link, not inside it: a control within a link
-  # is reliably reachable by neither keyboard path.
+  # is reliably reachable by neither keyboard path. It is there only where the category's
+  # primary surface runs a medium against a clock — a document is read and a photograph
+  # looked at, and neither has a position to start from.
   attr :res, :string, required: true
   attr :at, :string, required: true
   attr :name, :string, required: true
@@ -405,9 +415,13 @@ defmodule PluteusWeb.BrowseLive do
   attr :members, :integer, default: nil
   attr :credited, :list, default: []
   attr :cover, :string, default: nil
+  attr :format, :string, default: nil
 
   defp row(assigns) do
-    assigns = assign(assigns, :mark, mark(assigns.category))
+    assigns =
+      assigns
+      |> assign(:mark, mark(assigns.category))
+      |> assign(:plays?, assigns.category != nil and Surfaces.plays?(assigns.category))
 
     ~H"""
     <div class={[
@@ -420,12 +434,13 @@ defmodule PluteusWeb.BrowseLive do
         <span class="flex min-w-0 grow flex-col gap-0.5">
           <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
           <span class="truncate text-body-sm text-on-surface-muted">
-            {said(@credited, @mark, @members)}
+            {said(@credited, @mark, @members, @format)}
           </span>
         </span>
       </a>
 
       <button
+        :if={@plays?}
         type="button"
         phx-click="play"
         phx-value-res={@res}
@@ -455,8 +470,15 @@ defmodule PluteusWeb.BrowseLive do
   defp kind(:unkinded, _members), do: Absence.words("not_yet_examined")
   defp kind(mark, members), do: "#{mark.name}#{gathered(mark, members)}"
 
-  # Who it is by, then what it is: the kind stays, since it tells two holdings of one
-  # name apart.
+  # Who it is by, then what it is, then what it is held as. The last is what tells two
+  # editions of one book apart: both are documents by nobody, and one is an EPUB and the
+  # other plain text. It is absent where the entry's assets agree on no one format.
+  defp said(credited, mark, members, format) do
+    [said(credited, mark, members), format]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" · ")
+  end
+
   defp said([], mark, members), do: kind(mark, members)
   defp said(credited, mark, members), do: "#{Enum.join(credited, ", ")} · #{kind(mark, members)}"
 
