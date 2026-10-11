@@ -119,6 +119,120 @@ const clock = (milliseconds) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`
 }
 
+// §12.3's controls for a surface holding its own medium. On the transport rather than
+// the element, because the controls act on the element and the transport holds both.
+const Player = {
+  mounted() {
+    this.medium = document.getElementById(this.el.dataset.medium)
+    if (!this.medium) return
+
+    this.small = Number(this.el.dataset.small || 10000)
+    this.large = Number(this.el.dataset.large || 30000)
+
+    this.position = this.el.querySelector("#player-position")
+    this.elapsed = this.el.querySelector("#player-elapsed")
+    this.remaining = this.el.querySelector("#player-remaining")
+    this.play = this.el.querySelector("[data-act=play]")
+    this.volume = this.el.querySelector("#player-volume")
+    this.mute = this.el.querySelector("[data-act=mute]")
+
+    // Until this runs the controls reach nothing, and one that is available and does
+    // nothing is a lie (§17.3).
+    this.el.querySelectorAll("[data-act], input[type=range]").forEach((control) => {
+      control.disabled = false
+    })
+
+    this.el.addEventListener("click", (event) => this.pressed(event))
+    this.position.addEventListener("input", () => this.scrub())
+    this.volume.addEventListener("input", () => this.louder())
+
+    this.medium.addEventListener("loadedmetadata", () => this.measured())
+    this.medium.addEventListener("timeupdate", () => this.moved())
+    this.medium.addEventListener("play", () => this.drawn())
+    this.medium.addEventListener("pause", () => this.drawn())
+    this.medium.addEventListener("volumechange", () => this.drawn())
+
+    this.measured()
+    this.drawn()
+  },
+
+  pressed(event) {
+    const control = event.target.closest("[data-act]")
+    if (!control) return
+
+    const acts = {
+      play: () => (this.medium.paused ? this.medium.play() : this.medium.pause()),
+      back: () => this.seek(this.medium.currentTime - this.small / 1000),
+      forward: () => this.seek(this.medium.currentTime + this.large / 1000),
+      mute: () => (this.medium.muted = !this.medium.muted),
+      fullscreen: () => this.fullscreen()
+    }
+
+    const act = acts[control.dataset.act]
+    if (act) act()
+  },
+
+  // A browser that refuses leaves the page as it was rather than being told it worked.
+  fullscreen() {
+    const box = this.medium.parentElement || this.medium
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else if (box.requestFullscreen) {
+      box.requestFullscreen().catch(() => {})
+    }
+  },
+
+  seek(seconds) {
+    const extent = this.medium.duration
+    if (!isFinite(extent)) return
+
+    this.medium.currentTime = Math.min(Math.max(seconds, 0), extent)
+  },
+
+  scrub() {
+    this.seek(Number(this.position.value) / 1000)
+  },
+
+  louder() {
+    this.medium.volume = Number(this.volume.value) / 100
+    this.medium.muted = this.medium.volume === 0
+  },
+
+  // The length the element reads is the length the slider runs to, which the server
+  // may have had none of to render.
+  measured() {
+    const extent = this.medium.duration
+
+    if (isFinite(extent)) {
+      this.position.max = Math.round(extent * 1000)
+      this.remaining.textContent = clock(extent * 1000)
+    }
+  },
+
+  moved() {
+    const at = Math.round(this.medium.currentTime * 1000)
+    const extent = isFinite(this.medium.duration) ? this.medium.duration * 1000 : null
+
+    this.position.value = at
+    this.position.setAttribute(
+      "aria-valuetext",
+      extent ? `${clock(at)} of ${clock(extent)}` : `${clock(at)}, of a length not recorded`
+    )
+    this.elapsed.textContent = clock(at)
+  },
+
+  // A control's name says what pressing it will do, not what is happening.
+  drawn() {
+    this.play.setAttribute("aria-label", this.medium.paused ? "Play" : "Pause")
+    this.play.dataset.playing = String(!this.medium.paused)
+    this.mute.setAttribute("aria-pressed", String(this.medium.muted))
+    this.mute.setAttribute("aria-label", this.medium.muted ? "Unmute" : "Mute")
+    this.volume.value = Math.round((this.medium.muted ? 0 : this.medium.volume) * 100)
+    this.volume.setAttribute("aria-valuetext", `${this.volume.value} per cent`)
+  }
+}
+
 // On the bar rather than the element, because §12.3's controls act on the element and
 // the bar holds both. The server owns the queue, the entry and the position.
 const MediaSession = {
@@ -370,7 +484,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Focus, MediaSession, Waveform},
+  hooks: {...colocatedHooks, Focus, MediaSession, Player, Waveform},
 })
 
 // Show progress bar on live navigation and form submits.
