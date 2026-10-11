@@ -16,6 +16,7 @@ defmodule Pluteus.PlaybackTest do
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Consumption
   alias Pluteus.Events
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
@@ -251,6 +252,52 @@ defmodule Pluteus.PlaybackTest do
                Playback.for_work(reading, principal.id, profile)
 
       assert Playback.why(refusal) =~ "not been normalized"
+    end
+  end
+
+  describe "§12.1. A category that is read or looked at is not started" do
+    # The refusal lives here rather than only in the surface that offers the control. A
+    # document has a file and a media type, so every step after this one succeeds: the
+    # queue saves, the holding becomes what the principal is playing, and the only sign
+    # is a transport showing a book.
+    test "a document is refused, naming the category it was refused for",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{work: reading} = a_reading(inbox, [%{"track" => "1"}])
+      device = a_device(principal)
+
+      {:ok, _category} =
+        Catalog.categorize(reading, Place.category_scheme(), "document", :local)
+
+      assert {:error, {:not_played, "document"}} =
+               Playback.play(principal.id, device, reading, profile)
+
+      assert Consumption.play_queue(principal.id) == nil
+    end
+
+    test "the same holding under a played category starts",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{work: reading} = a_reading(inbox, [%{"track" => "1"}])
+      device = a_device(principal)
+
+      {:ok, _category} =
+        Catalog.categorize(reading, Place.category_scheme(), "music_recording", :local)
+
+      assert :ok = Playback.play(principal.id, device, reading, profile)
+      assert %{} = Consumption.play_queue(principal.id)
+    end
+
+    # A category nobody has recorded is *not yet examined*, and refusing on a question
+    # nobody has answered would read as a statement that it cannot be played.
+    test "a holding nothing has categorized is started rather than refused",
+         %{inbox: inbox, principal: principal, profile: profile} do
+      %{work: reading} = a_reading(inbox, [%{"track" => "1"}])
+      device = a_device(principal)
+
+      for category <- Catalog.categories_of(reading) do
+        Repo.delete!(category)
+      end
+
+      assert :ok = Playback.play(principal.id, device, reading, profile)
     end
   end
 
