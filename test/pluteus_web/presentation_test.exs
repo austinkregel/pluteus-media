@@ -266,7 +266,7 @@ defmodule PluteusWeb.PresentationTest do
       html = interface(conn, "/works/#{work}")
 
       assert html =~ ~s|href="/works/#{work}/view"|
-      refute html =~ "holds no file of it"
+      refute html =~ "No file is held for this."
     end
 
     test "a work nothing has said the kind of carries the reason instead",
@@ -282,7 +282,7 @@ defmodule PluteusWeb.PresentationTest do
 
       refute html =~ ~s|href="/works/#{work}/view"|
       assert html =~ "Nothing has said what kind of thing this is"
-      refute html =~ "holds no file of it"
+      refute html =~ "No file is held for this."
     end
 
     test "a subject with no artefact carries no band at all", %{conn: conn, inbox: inbox} do
