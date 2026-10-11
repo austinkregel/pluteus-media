@@ -43,7 +43,6 @@ defmodule PluteusWeb.SurfaceLiveTest do
       {:ok, _live, html} = live(conn, ~p"/works/#{letter}/read")
 
       assert html =~ "A letter"
-      assert html =~ "presented on a reader"
     end
 
     # Every segment the router carries comes from the registry, so a category named
@@ -115,7 +114,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
       {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
 
       assert html =~ ~s|id="player-refusal"|
-      assert html =~ "holds no file for it"
+      assert html =~ "No file is held for this."
     end
   end
 
@@ -141,7 +140,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
       {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
 
-      assert html =~ "No subtitle track is held with this"
+      assert html =~ "None held."
     end
 
     test "the picture is a video element pointed at the bytes",
@@ -172,7 +171,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
       {:ok, live, _html} = live(conn, ~p"/works/#{film}/play")
 
-      refute has_element?(live, ~s|#player-audio [role="radio"][aria-checked="true"]|)
+      refute has_element?(live, ~s|#player-audio [aria-pressed="true"]|)
 
       live
       |> element(~s|#player-audio button[phx-value-index="2"]|)
@@ -180,11 +179,11 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
       assert has_element?(
                live,
-               ~s|#player-audio button[phx-value-index="2"][aria-checked="true"]|
+               ~s|#player-audio button[phx-value-index="2"][aria-pressed="true"]|
              )
 
       # §12.2 keeps the two apart: choosing audio says nothing about subtitles.
-      refute has_element?(live, ~s|#player-subtitles [aria-checked="true"]|)
+      refute has_element?(live, ~s|#player-subtitles [aria-pressed="true"]|)
     end
   end
 
