@@ -56,7 +56,21 @@ defmodule PluteusWeb.SurfaceLive do
      socket
      |> assign(:work, held!(id))
      |> assign(:asked, asked)
+     |> assign_new(:chosen, fn -> %{audio: nil, subtitle: nil} end)
+     |> assign_new(:rail_collapsed, fn -> asked == "play" end)
      |> showing(asked)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("choose-track", %{"kind" => kind, "index" => index}, socket) do
+    chosen =
+      Map.put(socket.assigns.chosen, String.to_existing_atom(kind), String.to_integer(index))
+
+    {:noreply, assign(socket, :chosen, chosen)}
+  end
+
+  def handle_event("rail-toggle", _params, socket) do
+    {:noreply, assign(socket, :rail_collapsed, not socket.assigns.rail_collapsed)}
   end
 
   # The four refusals, in the order the facts arrive. An identifier that is not one
@@ -122,6 +136,7 @@ defmodule PluteusWeb.SurfaceLive do
       socket={@socket}
       transport={@transport}
       carries_medium={@asked == "play"}
+      rail_collapsed={@rail_collapsed}
     >
       <div id="presented" class="flex h-full min-h-0 w-full flex-col">
         <Layouts.flash_group flash={@flash} />
@@ -132,6 +147,7 @@ defmodule PluteusWeb.SurfaceLive do
           name={@name}
           category={@category}
           playable={@playable}
+          chosen={@chosen}
         />
       </div>
     </Chrome.shell>
@@ -145,10 +161,17 @@ defmodule PluteusWeb.SurfaceLive do
   attr :name, :string, required: true
   attr :category, :string, required: true
   attr :playable, :any, required: true
+  attr :chosen, :map, required: true
 
   defp presented(%{asked: "play"} = assigns) do
     ~H"""
-    <Player.surface work={@work} name={@name} category={@category} playable={@playable} />
+    <Player.surface
+      work={@work}
+      name={@name}
+      category={@category}
+      playable={@playable}
+      chosen={@chosen}
+    />
     """
   end
 
