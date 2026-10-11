@@ -429,7 +429,7 @@ defmodule PluteusWeb.BrowseLive do
       "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "hover:bg-fill-subtle"
     ]}>
-      <a href={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
+      <.link navigate={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
         <.cover at={@cover} mark={@mark} />
         <span class="flex min-w-0 grow flex-col gap-0.5">
           <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
@@ -437,7 +437,7 @@ defmodule PluteusWeb.BrowseLive do
             {said(@credited, @mark, @members, @format)}
           </span>
         </span>
-      </a>
+      </.link>
 
       <button
         :if={@plays?}
