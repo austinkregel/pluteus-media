@@ -39,26 +39,75 @@ defmodule PluteusWeb.Surfaces.Player do
       assigns
       |> assign(:reserved, reserved(assigns.playable, assigns.category))
       |> assign(:medium, medium(assigns.playable))
+      |> assign(:extent, extent(assigns.playable))
+      |> assign(:steps, Surfaces.seek_granularity("millisecond"))
 
     ~H"""
-    <div class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6">
-      <header class="flex shrink-0 flex-wrap items-baseline gap-3">
-        <h1 class="text-title-lg font-medium text-on-surface-strong">{@name}</h1>
-        <span class="text-body-sm text-on-surface-muted">
-          {Surfaces.category_icon(@category).name}
-        </span>
-      </header>
+    <div class="flex w-full flex-1 flex-col">
+      <.heading name={@name} category={@category} />
 
-      <div class="flex flex-col gap-4 lg:flex-row">
-        <div class="flex min-w-0 flex-1 flex-col gap-3">
+      <div class="flex flex-1 flex-col lg:flex-row">
+        <div class="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:p-6">
           <.picture playable={@playable} reserved={@reserved} name={@name} />
-          <.chapters chapters={@medium.chapters} />
+
+          <.transport
+            playable={@playable}
+            extent={@extent}
+            chapters={@medium.chapters}
+            steps={@steps}
+          />
         </div>
 
         <.beside medium={@medium} />
       </div>
     </div>
     """
+  end
+
+  # The kind, the name, and a way back. "Back" is the browser's own history rather than
+  # a link to one surface: a person reached this from wherever they reached it from, and
+  # a link that guessed would take them somewhere they had not been.
+  attr :name, :string, required: true
+  attr :category, :string, required: true
+
+  defp heading(assigns) do
+    ~H"""
+    <header class={[
+      "flex shrink-0 flex-wrap items-center gap-4 px-4 py-4 sm:px-6",
+      "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle"
+    ]}>
+      <button
+        type="button"
+        onclick="history.back()"
+        class={[
+          "min-h-target-pointer shrink-0 rounded-md px-4",
+          "border-[length:var(--sys-border-width-component)] border-border-strong",
+          "text-body-md text-on-surface-strong hover:bg-fill-subtle-strong"
+        ]}
+      >
+        Back
+      </button>
+
+      <div class="flex min-w-0 flex-col">
+        <span class="flex items-center gap-2 text-body-sm text-on-surface-muted">
+          <.icon name={Surfaces.category_icon(@category).glyph} class={hue(@category)} />
+          {Surfaces.category_icon(@category).name}
+        </span>
+        <h1 class="truncate text-title-lg font-medium text-on-surface-strong">{@name}</h1>
+      </div>
+    </header>
+    """
+  end
+
+  defp hue(category) do
+    case Surfaces.category_icon(category).class do
+      "video" -> "text-class-video"
+      "audio" -> "text-class-audio"
+      "image" -> "text-class-image"
+      "text" -> "text-class-text"
+      "software" -> "text-class-software"
+      "package" -> "text-class-package"
+    end
   end
 
   attr :playable, :any, required: true
@@ -107,35 +156,178 @@ defmodule PluteusWeb.Surfaces.Player do
     """
   end
 
-  # §12.1 requires chapters of a player. A medium divided into none is not a medium
-  # whose divisions nobody looked for: ffprobe reads them where a container states them,
-  # so their absence is an answer and the band is simply not drawn.
+  # §12.3's controls, acting on the medium above them. The position slider sits outside
+  # the toolbar (A.9.4): a slider consumes the arrow keys a toolbar navigates with.
+  #
+  # Nothing here is wired to the medium yet, so every control is disabled and says why
+  # rather than sitting live and doing nothing (§17.3).
+  attr :playable, :any, required: true
+  attr :extent, :any, required: true
   attr :chapters, :list, required: true
+  attr :steps, :map, required: true
 
-  defp chapters(%{chapters: []} = assigns), do: ~H""
+  defp transport(%{playable: {:error, _refusal}} = assigns), do: ~H""
 
-  defp chapters(assigns) do
+  defp transport(assigns) do
     ~H"""
-    <section id="player-chapters" aria-labelledby="player-chapters-heading">
-      <h2 id="player-chapters-heading" class="text-title-sm font-medium text-on-surface-strong">
-        Chapters
-      </h2>
-      <ol class="mt-2 flex flex-col">
-        <li
-          :for={{chapter, number} <- Enum.with_index(@chapters, 1)}
+    <div id="player-transport" class="flex shrink-0 flex-col gap-3">
+      <.position extent={@extent} chapters={@chapters} />
+
+      <div class="flex flex-wrap items-center gap-2">
+        <div
+          id="player-controls"
+          role="toolbar"
+          aria-label="Transport"
+          aria-describedby="player-controls-why"
+          class="flex items-center gap-2"
+        >
+          <button
+            type="button"
+            disabled
+            aria-label={"Back #{seconds(@steps["small"])} seconds"}
+            class={control()}
+          >
+            <.icon name="back-10-mini" />
+          </button>
+
+          <button type="button" disabled aria-label="Play" class={accent()}>
+            <.icon name="hero-play-mini" />
+          </button>
+
+          <button
+            type="button"
+            disabled
+            aria-label={"Forward #{seconds(@steps["large"])} seconds"}
+            class={control()}
+          >
+            <.icon name="forward-30-mini" />
+          </button>
+        </div>
+
+        <button type="button" disabled aria-label="Mute" aria-pressed="false" class={control()}>
+          <.icon name="hero-speaker-wave-mini" />
+        </button>
+
+        <label for="player-volume" class="sr-only">Volume</label>
+        <input
+          type="range"
+          id="player-volume"
+          min="0"
+          max="100"
+          step="5"
+          value="100"
+          disabled
+          aria-valuetext="100 per cent"
+          class="w-24 accent-fill-solid"
+        />
+
+        <span class="grow"></span>
+
+        <span :if={@chapters != []} class="text-body-sm text-on-surface-muted">
+          {length(@chapters)} {if length(@chapters) == 1, do: "chapter", else: "chapters"}
+        </span>
+
+        <button
+          type="button"
+          disabled
           class={[
-            "flex items-baseline gap-3 px-2 py-2",
-            "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle"
+            "min-h-target-pointer shrink-0 rounded-md px-4",
+            "border-[length:var(--sys-border-width-component)] border-border-strong",
+            "text-body-md text-on-surface-muted disabled:opacity-100"
           ]}
         >
-          <span class="w-6 shrink-0 font-mono text-caption text-on-surface-muted">{number}</span>
-          <span class="grow truncate text-body-sm text-on-surface-strong">
-            {chapter[:title] || chapter["title"] || "Chapter #{number}"}
-          </span>
-        </li>
-      </ol>
-    </section>
+          Full screen
+        </button>
+      </div>
+
+      <p id="player-controls-why" class="text-body-sm text-on-surface-muted">
+        The medium carries the browser's own controls. These act on nothing yet.
+      </p>
+    </div>
     """
+  end
+
+  # §12.1 requires chapters of a player, and the slider is where they are. A medium
+  # divided into none is not one whose divisions nobody looked for: ffprobe reads them
+  # wherever a container states them, so their absence is an answer and no mark is drawn.
+  attr :extent, :any, required: true
+  attr :chapters, :list, required: true
+
+  defp position(assigns) do
+    ~H"""
+    <div class="flex items-center gap-3">
+      <span class="w-12 shrink-0 text-right font-mono text-caption text-on-surface-muted">
+        {clock(0)}
+      </span>
+
+      <div class="relative grow">
+        <label for="player-position" class="sr-only">Position</label>
+        <input
+          type="range"
+          id="player-position"
+          min="0"
+          max={@extent || 0}
+          value="0"
+          disabled
+          aria-valuetext={spoken(0, @extent)}
+          class="w-full accent-fill-solid"
+        />
+
+        <span
+          :for={at <- marks(@chapters, @extent)}
+          aria-hidden="true"
+          class="pointer-events-none absolute top-0 h-6 w-0.5 bg-border-strong"
+          style={"left: #{at}%"}
+        >
+        </span>
+      </div>
+
+      <span class="w-12 shrink-0 font-mono text-caption text-on-surface-muted">
+        {clock(@extent)}
+      </span>
+    </div>
+    """
+  end
+
+  # Where each chapter begins, as a share of the whole. Nothing is drawn without a
+  # measured extent: a mark placed against a length nobody recorded would be a position
+  # this deployment invented.
+  defp marks(_chapters, nil), do: []
+  defp marks(_chapters, 0), do: []
+
+  defp marks(chapters, extent) do
+    for %{"start_ms" => start} <- chapters,
+        start > 0,
+        start < extent,
+        do: Float.round(start / extent * 100, 3)
+  end
+
+  defp seconds(nil), do: 0
+  defp seconds(milliseconds), do: div(milliseconds, 1000)
+
+  defp clock(nil), do: "--:--"
+
+  defp clock(milliseconds) do
+    total = div(milliseconds, 1000)
+
+    "#{div(total, 60)}:#{String.pad_leading(to_string(rem(total, 60)), 2, "0")}"
+  end
+
+  defp spoken(position, nil), do: "#{clock(position)}, of a length not recorded"
+  defp spoken(position, extent), do: "#{clock(position)} of #{clock(extent)}"
+
+  defp control do
+    [
+      "min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center",
+      "rounded-md text-on-surface-muted disabled:opacity-100"
+    ]
+  end
+
+  defp accent do
+    [
+      "min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center",
+      "rounded-full bg-fill-subtle text-on-surface-muted disabled:opacity-100"
+    ]
   end
 
   # §12.2's three controls, each its own state. Drawn beside the picture at the width
@@ -229,6 +421,18 @@ defmodule PluteusWeb.Surfaces.Player do
   # Nothing to play is nothing to describe, and the refusal already says why.
   defp medium({:ok, playable}), do: Playback.medium(playable)
   defp medium({:error, _refusal}), do: %{audio: [], subtitle: [], chapters: []}
+
+  # The end of the region where the holding is carried by part of a larger medium, and
+  # of the whole otherwise. A single part states its own length to the client, so the
+  # sequence has none recorded and the slider says so rather than claiming a figure.
+  defp extent({:error, _refusal}), do: nil
+  defp extent({:ok, %{to_ms: to, from_ms: from}}) when is_integer(to), do: to - from
+
+  defp extent({:ok, %{parts: parts}}) do
+    durations = Enum.map(parts, & &1.duration_ms)
+
+    if Enum.any?(durations, &is_nil/1), do: nil, else: Enum.sum(durations)
+  end
 
   # A category §20 reserves nothing for leaves the box to the medium, which is the one
   # case §11.2 does not reach: there is no ratio to be wrong about.
