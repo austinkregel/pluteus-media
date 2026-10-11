@@ -31,10 +31,13 @@ defmodule Pluteus.Browse do
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Cover
   alias Pluteus.Catalog.Credit
+  alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Registry, as: IngestRegistry
   alias Pluteus.Repo
 
   @typedoc """
@@ -47,6 +50,7 @@ defmodule Pluteus.Browse do
           entries: [Ecto.UUID.t()],
           names: %{Ecto.UUID.t() => String.t()},
           categories: %{Ecto.UUID.t() => String.t()},
+          formats: %{Ecto.UUID.t() => String.t()},
           members: %{Ecto.UUID.t() => non_neg_integer()},
           credited: %{Ecto.UUID.t() => [String.t()]},
           covers: %{Ecto.UUID.t() => Ecto.UUID.t()},
@@ -84,6 +88,7 @@ defmodule Pluteus.Browse do
       entries: entries,
       names: named(entries, profile),
       categories: categorised(entries),
+      formats: formatted(entries),
       members: membered(entries),
       credited: credited(entries, profile),
       covers: Cover.for_works(entries),
@@ -190,6 +195,31 @@ defmodule Pluteus.Browse do
         select: {c.res_id, c.value}
     )
     |> Map.new()
+  end
+
+  # What a household calls the format of the bytes behind an entry, where every asset
+  # under it agrees on one. Two editions of one book resolve to one name and sit beside
+  # each other saying the same thing, and this is what tells them apart.
+  #
+  # Where an entry's assets disagree — a release of FLAC and MP3 — there is no one
+  # format to name and the row says nothing rather than naming the first one found.
+  defp formatted([]), do: %{}
+
+  defp formatted(entries) do
+    Repo.all(
+      from w in Expression,
+        join: e in Embodiment,
+        on: e.expression_id == w.id,
+        join: i in DigitalItem,
+        on: i.manifestation_id == e.manifestation_id,
+        join: a in Asset,
+        on: a.digital_item_id == i.id,
+        where: w.work_id in ^entries,
+        group_by: w.work_id,
+        having: count(a.format, :distinct) == 1,
+        select: {w.work_id, min(a.format)}
+    )
+    |> Map.new(fn {id, format} -> {id, IngestRegistry.format_name(format)} end)
   end
 
   # How many expressions an entry aggregates: a release's tracks.
