@@ -210,6 +210,17 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
       refute html =~ ~s|id="transport-live"|
     end
+
+    # Music is the other way about: the surface starts the queue and the chrome's
+    # transport carries it, which is what lets audio outlive moving to another surface.
+    test "a surface that starts the queue carries the player that outlives it",
+         %{conn: conn} do
+      song = named("A song", "music_recording")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{song}/play")
+
+      assert html =~ ~s|id="transport-live"|
+    end
   end
 
   # Placed and normalized, so there is a master to play from: the surface reads the
