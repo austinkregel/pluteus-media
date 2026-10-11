@@ -154,6 +154,63 @@ defmodule PluteusWeb.SurfaceLiveTest do
       assert html =~ "<video"
       assert html =~ "/content"
     end
+
+    # The medium carries no controls of its own: §12.3's are below it, and two sets
+    # over one medium leaves a person pressing whichever they reached first.
+    test "the medium carries no second set of controls", %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
+
+      refute html =~ ~s|<video id="player-medium" controls|
+      assert html =~ ~s|phx-hook="Player"|
+    end
+
+    test "choosing a track holds the choice, and holds the other apart from it",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{film}/play")
+
+      refute has_element?(live, ~s|#player-audio [role="radio"][aria-checked="true"]|)
+
+      live
+      |> element(~s|#player-audio button[phx-value-index="2"]|)
+      |> render_click()
+
+      assert has_element?(
+               live,
+               ~s|#player-audio button[phx-value-index="2"][aria-checked="true"]|
+             )
+
+      # §12.2 keeps the two apart: choosing audio says nothing about subtitles.
+      refute has_element?(live, ~s|#player-subtitles [aria-checked="true"]|)
+    end
+  end
+
+  describe "A surface that takes the width gives it back when asked" do
+    test "the rail opens collapsed on a player and reopens on a press",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{film}/play")
+
+      assert has_element?(live, ~s|button[phx-click="rail-toggle"][aria-expanded="false"]|)
+
+      live |> element(~s|button[phx-click="rail-toggle"]|) |> render_click()
+
+      assert has_element?(live, ~s|button[phx-click="rail-toggle"][aria-expanded="true"]|)
+    end
+
+    # The queue's player and the surface's medium would otherwise run at once.
+    test "a surface holding its own medium carries no queue player",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
+
+      refute html =~ ~s|id="transport-live"|
+    end
   end
 
   # Placed and normalized, so there is a master to play from: the surface reads the
