@@ -686,6 +686,23 @@ profile's.
 are not a res — a mode, the findings surface — have paths of their own; what is
 forbidden is a second path that resolves to a res that already has one.
 
+**A path subordinate to a res's own address is not a second address for it.**
+§12.1 gives each category a primary surface — a player, a reader, a viewer —
+and those are whole screens rather than a band of the page §8.4 specifies. They
+are addressed beneath the res: `/works/{uuid}/play`, not `/films/{uuid}`. What
+the prohibition forbids is a rival address, a second path at which the res
+itself is found; what it permits is a path under the one address the res
+already has, which §11.1's presentation assets and spec-07 §4.4's content
+already take.
+
+Three things keep the distinction honest. A subordinate path MUST NOT answer a
+representation — it renders a surface and nothing else, so spec-07 §4.1's
+contract stays wholly with the entity URI. The entity URI remains the permanent
+public address of spec-01 §9 and the sole carrier of a deep link, so a selector
+arrives there and §10.2 governs what happens next. And the surface a path names
+MUST be the one §12.1 gives that res's category: asking a film to be read is
+not found, rather than answered with something else.
+
 ### 10.2 What a link opens
 
 **[I]** A surface reached by a link carrying a selector MUST:
