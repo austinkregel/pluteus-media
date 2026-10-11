@@ -69,6 +69,36 @@ defmodule Pluteus.Surfaces.Registry do
   def presented_categories, do: presentations() |> Map.keys() |> Enum.sort()
 
   @doc """
+  Whether a holding of this category is played rather than read or looked at.
+
+  §12.1 gives each category one primary surface, and only three of them run a medium
+  against a clock: a transport with a queue, a transport with a chapter list, and a
+  player. A document is read and a photograph is looked at, so neither has a position to
+  be at and neither is offered a control that would claim otherwise.
+
+  Every surface the registry names has a clause here and there is no catch-all, so a
+  surface added to the table raises until someone says which of the two it is. The
+  alternative is a new surface silently joining the unplayable, which is the answer that
+  looks like nothing happened.
+  """
+  @spec plays?(String.t()) :: boolean()
+  def plays?(category) do
+    category |> category_presentation() |> Map.fetch!("primary_surface") |> played?()
+  end
+
+  defp played?("transport and queue"), do: true
+  defp played?("transport and chapter list"), do: true
+  defp played?("player"), do: true
+  defp played?("viewer in a justified grid"), do: false
+  defp played?("scan beside its transcript"), do: false
+  defp played?("reader"), do: false
+  defp played?("page reader"), do: false
+  defp played?("its entity page, listing its episodes"), do: false
+  defp played?("its entity page, listing its issues"), do: false
+  defp played?("its entity page, and no player"), do: false
+  defp played?("never its own surface"), do: false
+
+  @doc """
   How a category is identified on a surface: the glyph that says which it is, the broad
   class whose colour groups it, and the word a household uses for it.
 
