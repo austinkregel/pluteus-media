@@ -32,6 +32,14 @@ defmodule Pluteus.Storage.Mount do
   process that got there first, including this one.
 
   Nothing reads what the file holds. It is evidence of a mount and not a record.
+
+  ## The inbox does not acquire it
+
+  An inbox is walked for anything a household dropped there, and acquisition *moves*
+  what it takes. So the sentinel under the inbox is a file in the inbox, and the first
+  pass carried it into primary storage as a holding and removed it from where it stood —
+  after which nothing would start. `.pluteus` is in the ingest registry's ignored
+  directories for that reason, beside the operating systems' own.
   """
 
   alias Pluteus.Storage
