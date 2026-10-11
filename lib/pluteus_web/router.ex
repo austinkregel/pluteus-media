@@ -106,6 +106,17 @@ defmodule PluteusWeb.Router do
 
     live_session :interface, session: {PluteusWeb.Interface, :session, []} do
       live "/everything", BrowseLive, :everything
+
+      # §12.1's primary surfaces, addressed beneath the work whose category names them
+      # (§10.1). Under the work because a category is the work's. These answer no
+      # representation, so there is nothing to negotiate and they are `live` routes —
+      # which is also what lets the player survive moving between holdings.
+      #
+      # A segment here that no category is presented at would be a route to nothing, so
+      # the list is the registry's rather than this file's.
+      for surface <- PluteusWeb.Native.surfaces() do
+        live "/works/:id/#{surface}", SurfaceLive, :"#{surface}"
+      end
     end
   end
 
