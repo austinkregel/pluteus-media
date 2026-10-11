@@ -64,6 +64,7 @@ defmodule Pluteus.Playback do
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Repo
+  alias Pluteus.Surfaces.Registry, as: Surfaces
 
   @typedoc """
   One file of a holding. `duration_ms` is nil only where the holding is one file, since
@@ -268,9 +269,32 @@ defmodule Pluteus.Playback do
   category one unit, so a res whose position is measured in anything but milliseconds is
   a res with two units and not a place a queue can carry: it raises rather than starting
   silently at the beginning.
+
+  A res whose category is read or looked at rather than played is refused here and not
+  only in the surface that offered it. A document has a file and a media type, so every
+  step after this one succeeds: the queue saves, the holding becomes what the principal
+  is playing, and the only sign anything was wrong is a transport showing a book. The
+  rule belongs where it cannot be forgotten by a caller.
   """
-  @spec play(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) :: :ok
+  @spec play(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) ::
+          :ok | {:error, {:not_played, String.t()}}
   def play(principal_id, device_id, work_id, %Profile{} = profile) do
+    case Catalog.category_of(work_id, Place.category_scheme()) do
+      nil -> started(principal_id, device_id, work_id, profile)
+      category -> play_if_played(principal_id, device_id, work_id, profile, category)
+    end
+  end
+
+  # A holding nothing has categorized is started rather than refused: §5.2 makes an
+  # unrecorded category *not yet examined*, and refusing on a question nobody has
+  # answered would read as a statement that it cannot be played.
+  defp play_if_played(principal_id, device_id, work_id, profile, category) do
+    if Surfaces.plays?(category),
+      do: started(principal_id, device_id, work_id, profile),
+      else: {:error, {:not_played, category}}
+  end
+
+  defp started(principal_id, device_id, work_id, profile) do
     {entries, index} = queue_for(work_id, principal_id, profile)
     current = Enum.at(entries, index).res_id
 
