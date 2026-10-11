@@ -9,14 +9,22 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
   use PluteusWeb.ConnCase, async: true
 
+  import Pluteus.IngestFixtures
+
   alias Pluteus.Catalog
+  alias Pluteus.Ingest
+  alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
   alias Pluteus.Surfaces.Registry, as: Surfaces
 
+  @t0 ~U[2026-09-18 12:00:00.000000Z]
+
   setup %{conn: conn} do
-    %{conn: conn |> through_proxy(a_subject()) |> on_a_surface()}
+    _system = Principals.system!()
+
+    %{conn: conn |> through_proxy(a_subject()) |> on_a_surface(), inbox: inbox!()}
   end
 
   describe "§12.1, §10.1. A category is presented beneath the address its res has" do
@@ -109,6 +117,55 @@ defmodule PluteusWeb.SurfaceLiveTest do
       assert html =~ ~s|id="player-refusal"|
       assert html =~ "holds no file for it"
     end
+  end
+
+  describe "§12.2. The medium's own tracks, each choice its own state" do
+    test "the audio tracks a file carries are listed, by what the file states",
+         %{conn: conn, inbox: inbox} do
+      # Two audio tracks, one Russian and one English, which is what the fixture's
+      # container declares. What a person may choose between is a property of the
+      # bytes rather than of the work, so it is read from them.
+      film = a_film(inbox)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{film}/play")
+
+      assert has_element?(live, "#player-audio", "rus")
+      assert has_element?(live, "#player-audio", "eng")
+      assert has_element?(live, "#player-audio", "flac")
+      assert has_element?(live, "#player-audio", "aac")
+    end
+
+    test "a medium carrying no subtitles says so rather than offering none",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
+
+      assert html =~ "No subtitle track is held with this"
+    end
+
+    test "the picture is a video element pointed at the bytes",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
+
+      assert html =~ ~s|id="player-medium"|
+      assert html =~ "<video"
+      assert html =~ "/content"
+    end
+  end
+
+  # Placed and normalized, so there is a master to play from: the surface reads the
+  # tracks off the bytes, and bytes nothing has normalized are refused before it looks.
+  defp a_film(inbox) do
+    drop!(inbox, "#{unique_prefix()}/duck.mkv", media!(:film))
+
+    [id] = inbox |> acquire_settled!(@t0) |> acquired()
+    Place.place_due(inbox)
+    Normalize.normalize_due(fn _class -> nil end)
+
+    id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
   end
 
   defp named(name, category) do
