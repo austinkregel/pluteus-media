@@ -405,10 +405,12 @@ defmodule PluteusWeb.Chrome do
     """
   end
 
-  # Reaching another mode is an ordinary link: every surface is behind forward
-  # authentication and declares a distance, and a live navigation would skip both.
-  # Returning to the current mode is a patch — it stays in this LiveView, so it skips
-  # nothing, and it is how a narrowing is cleared without stopping what is playing.
+  # Every mode with an address is a route of the same live session, so reaching one is a
+  # live navigation: forward authentication and §4.4's declaration were both answered on
+  # the way in, and a page load here would stop what is playing.
+  #
+  # Returning to the current mode is a patch — it stays in this LiveView, which is how a
+  # narrowing is cleared without stopping anything either.
   defp mode(%{current: true} = assigns) do
     ~H"""
     <.link patch={@at} aria-current="page" class={mode_face(true, @collapsed)}>
@@ -420,10 +422,10 @@ defmodule PluteusWeb.Chrome do
 
   defp mode(assigns) do
     ~H"""
-    <a href={@at} class={mode_face(false, @collapsed)} title={@collapsed && @noun}>
+    <.link navigate={@at} class={mode_face(false, @collapsed)} title={@collapsed && @noun}>
       <.icon name={@glyph} />
       <span class={@collapsed && "sr-only"}>{@noun}</span>
-    </a>
+    </.link>
     """
   end
 
@@ -613,10 +615,10 @@ defmodule PluteusWeb.Chrome do
 
   defp tab(assigns) do
     ~H"""
-    <a href={@at} class={tab_face(false)}>
+    <.link navigate={@at} class={tab_face(false)}>
       <.icon name={@glyph} />
       <span>{@noun}</span>
-    </a>
+    </.link>
     """
   end
 
