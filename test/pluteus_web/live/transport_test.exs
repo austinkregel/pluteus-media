@@ -147,13 +147,16 @@ defmodule PluteusWeb.TransportTest do
       assert has_element?(live, ~s|a[data-phx-link="patch"][aria-label^="Remove the facet"]|)
     end
 
-    test "a row still loads the page, because one URI answers two representations",
-         %{conn: conn} do
+    # The entity URI still answers both representations, but the fork is a plug now, so
+    # the page it leaves unanswered is a route of this live session and reaching it is a
+    # navigation. A page load here is what used to stop the music.
+    test "opening a holding is a navigation, so it keeps playing", %{conn: conn} do
       a_release(conn)
 
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
 
-      refute has_element?(live, ~s|a[data-phx-link][href^="/works/"]|)
+      assert has_element?(live, ~s|a[data-phx-link="redirect"][href^="/works/"]|)
+      refute has_element?(live, ~s|a[href^="/works/"]:not([data-phx-link])|)
     end
   end
 
