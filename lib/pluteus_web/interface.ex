@@ -54,7 +54,8 @@ defmodule PluteusWeb.Interface do
       "assigner_id" => profile.assigner_id,
       "contexts" => Contexts.held_by(conn.assigns.principal),
       "device_id" => conn.assigns[:device_id],
-      "device_revoked" => conn.assigns[:device_revoked]
+      "device_revoked" => conn.assigns[:device_revoked],
+      "kind" => conn.assigns[:kind] && to_string(conn.assigns.kind)
     }
   end
 
