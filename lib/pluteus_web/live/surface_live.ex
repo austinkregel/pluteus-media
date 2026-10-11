@@ -18,6 +18,7 @@ defmodule PluteusWeb.SurfaceLive do
 
   use PluteusWeb, :surface
 
+  alias Pluteus.Catalog
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest
@@ -31,6 +32,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.GoneError
   alias PluteusWeb.Interface
   alias PluteusWeb.NotFoundError
+  alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Player
 
   @impl Phoenix.LiveView
@@ -57,6 +59,7 @@ defmodule PluteusWeb.SurfaceLive do
      |> assign(:work, held!(id))
      |> assign(:asked, asked)
      |> assign_new(:chosen, fn -> %{audio: nil, subtitle: nil} end)
+     |> assign_new(:current, fn -> 0 end)
      |> assign_new(:rail_collapsed, fn -> asked == "play" end)
      |> showing(asked)}
   end
@@ -67,6 +70,10 @@ defmodule PluteusWeb.SurfaceLive do
       Map.put(socket.assigns.chosen, String.to_existing_atom(kind), String.to_integer(index))
 
     {:noreply, assign(socket, :chosen, chosen)}
+  end
+
+  def handle_event("choose-entry", %{"index" => index}, socket) do
+    {:noreply, assign(socket, :current, String.to_integer(index))}
   end
 
   def handle_event("rail-toggle", _params, socket) do
@@ -99,19 +106,37 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp showing(socket, asked) do
     work = socket.assigns.work
-    category = Pluteus.Catalog.category_of(work.id, Place.category_scheme())
+    category = Catalog.category_of(work.id, Place.category_scheme())
+    surface = category && Surfaces.surface_of(category)
 
-    unless category && Surfaces.surface_of(category) == asked do
+    unless surface == asked do
       raise NotFoundError, message: "this is not presented at #{asked}"
     end
 
     socket
     |> assign(:category, category)
+    |> assign(:surface, Surfaces.category_presentation(category)["primary_surface"])
     |> assign(:name, named(work.id, socket.assigns.profile))
     |> assign(
       :playable,
       Playback.for_work(work.id, socket.assigns.principal_id, socket.assigns.profile)
     )
+    |> assign(:queue, queued(work.id, socket.assigns.principal_id, socket.assigns.profile))
+  end
+
+  # A release is its tracks, so what a transport plays through is the queue the work
+  # resolves to. A holding that is a member of nothing is a queue of one.
+  defp queued(work_id, principal_id, profile) do
+    {entries, _index} = Playback.queue_for(work_id, principal_id, profile)
+    names = entries |> Enum.map(& &1.res_id) |> Resolution.resolve_many(profile)
+
+    for %{res_id: id} <- entries do
+      %{
+        res_id: id,
+        name: names[id] && names[id].nomen_string,
+        playable: Playback.for_manifestation(id)
+      }
+    end
   end
 
   defp named(work_id, profile) do
@@ -142,11 +167,13 @@ defmodule PluteusWeb.SurfaceLive do
         <Layouts.flash_group flash={@flash} />
 
         <.presented
-          asked={@asked}
+          surface={@surface}
           work={@work}
           name={@name}
           category={@category}
           playable={@playable}
+          queue={@queue}
+          current={@current}
           chosen={@chosen}
         />
       </div>
@@ -154,16 +181,19 @@ defmodule PluteusWeb.SurfaceLive do
     """
   end
 
-  # One clause per surface the registry addresses, and no catch-all, so a segment the
-  # router carries and nothing renders fails here rather than drawing an empty page.
-  attr :asked, :string, required: true
+  # On the surface §12.1 names, not on the path it is addressed at: a path carries
+  # several surfaces, and an album and a film share one while sharing nothing else.
+  # No catch-all, so a surface the registry names and nothing renders fails here.
+  attr :surface, :string, required: true
   attr :work, :map, required: true
   attr :name, :string, required: true
   attr :category, :string, required: true
   attr :playable, :any, required: true
+  attr :queue, :list, required: true
+  attr :current, :integer, required: true
   attr :chosen, :map, required: true
 
-  defp presented(%{asked: "play"} = assigns) do
+  defp presented(%{surface: "player"} = assigns) do
     ~H"""
     <Player.surface
       work={@work}
@@ -175,32 +205,34 @@ defmodule PluteusWeb.SurfaceLive do
     """
   end
 
-  defp presented(%{asked: "read"} = assigns) do
+  defp presented(%{surface: "transport and queue"} = assigns) do
     ~H"""
-    <.unbuilt surface="reader" name={@name} />
+    <Music.surface name={@name} category={@category} queue={@queue} current={@current} />
     """
   end
 
-  defp presented(%{asked: "view"} = assigns) do
+  defp presented(%{surface: "transport and chapter list"} = assigns) do
     ~H"""
-    <.unbuilt surface="viewer" name={@name} />
+    <Music.surface name={@name} category={@category} queue={@queue} current={@current} />
     """
   end
 
-  # A surface the registry addresses and nothing draws yet. Said in words rather than
-  # left blank, because a blank page reads as a surface still loading.
-  attr :surface, :string, required: true
+  defp presented(%{surface: "reader"} = assigns), do: ~H|<.bare name={@name} />|
+
+  defp presented(%{surface: "scan beside its transcript"} = assigns),
+    do: ~H|<.bare name={@name} />|
+
+  defp presented(%{surface: "page reader"} = assigns), do: ~H|<.bare name={@name} />|
+
+  defp presented(%{surface: "viewer in a justified grid"} = assigns),
+    do: ~H|<.bare name={@name} />|
+
   attr :name, :string, required: true
 
-  defp unbuilt(assigns) do
+  defp bare(assigns) do
     ~H"""
     <div class="mx-auto max-w-measure px-4 py-10 sm:px-6">
       <h1 class="text-title-lg font-medium text-on-surface-strong">{@name}</h1>
-      <p class="mt-3 text-body-md text-on-surface-muted">
-        This is presented on a {@surface}, and the {@surface} is not built yet. The
-        holding is catalogued and its bytes are held; what is missing is the surface
-        that shows them.
-      </p>
     </div>
     """
   end
