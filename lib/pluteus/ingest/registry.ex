@@ -392,6 +392,23 @@ defmodule Pluteus.Ingest.Registry do
     do: Map.get(registry()["media_types"], format, "application/octet-stream")
 
   @doc """
+  What a household calls the format, for a surface telling two holdings of one name
+  apart.
+
+  Keyed through `media_type/1`, so the four PRONOM identifications of a PDF are one
+  word. A media type the registry holds no word for raises rather than reaching a person
+  as itself: a row saying `application/epub+zip` is the model's vocabulary on a surface,
+  which §8.5 forbids.
+  """
+  @spec format_name(String.t()) :: String.t()
+  def format_name(format) do
+    registry()
+    |> Map.fetch!("format_names")
+    |> Map.fetch!("of_media_type")
+    |> Map.fetch!(media_type(format))
+  end
+
+  @doc """
   The standard format a broad class is normalized into, or nil where the
   registry names none and a lossless acquisition is adopted as its own master.
   """
