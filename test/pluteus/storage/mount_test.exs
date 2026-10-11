@@ -6,6 +6,7 @@ defmodule Pluteus.Storage.MountTest do
 
   use ExUnit.Case, async: false
 
+  alias Pluteus.Ingest.Registry
   alias Pluteus.Storage.Mount
   alias Pluteus.Storage.NotMountedError
 
@@ -68,6 +69,20 @@ defmodule Pluteus.Storage.MountTest do
 
       assert File.dir?(empty)
       refute File.regular?(Path.join(empty, Mount.sentinel()))
+    end
+  end
+
+  describe "The inbox does not acquire its own sentinel" do
+    # Acquisition moves what it takes, so a sentinel the walk treated as content would be
+    # carried into primary storage and removed from the inbox — and nothing would start
+    # again. This bites once, in production, after the first pass.
+    test "the directory holding it is ignored by the walk" do
+      assert Registry.ignored?(Path.join(Mount.sentinel(), "_"))
+      assert Registry.ignored?(Mount.sentinel())
+    end
+
+    test "a file of the same name outside that directory is not ignored" do
+      refute Registry.ignored?("mount-check")
     end
   end
 
