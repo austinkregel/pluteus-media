@@ -40,7 +40,8 @@ defmodule Pluteus.BrowseTest do
     end
 
     test "the cost is stated, so a change to it has to be meant", %{principal: principal} do
-      # Twenty-five as measured: the entries, their names, what each of them is, how much
+      # Twenty-six as measured: the entries, their names, what each of them is and what
+      # it is held as, how much
       # it gathers, who it credits and the cover it wears, the query's total and the whole
       # catalogue's, the bytes it takes and when the first of it arrived, how many of it
       # nothing credits, a distribution per narrowable axis, this principal's own looking
