@@ -82,21 +82,49 @@ defmodule Pluteus.Surfaces.Registry do
   looks like nothing happened.
   """
   @spec plays?(String.t()) :: boolean()
-  def plays?(category) do
-    category |> category_presentation() |> Map.fetch!("primary_surface") |> played?()
+  def plays?(category), do: surface_of(category) == "play"
+
+  @doc """
+  The path segment beneath a res's own address at which its category is presented, or
+  nil where the category is presented by the entity page itself.
+
+  §10.1 admits a path subordinate to the address a res already has, and §12.1 says which
+  surface belongs to which category. Three segments carry the eight surfaces that are
+  not the entity page, because what a person does with a holding is play it, read it or
+  look at it — a transport with a queue and a transport with a chapter list differ in
+  what they draw beside the medium and not in that.
+
+  One clause per surface the registry names, and no catch-all: a surface added to that
+  table raises here until someone says where it is addressed.
+  """
+  @spec surface_of(String.t()) :: String.t() | nil
+  def surface_of(category) do
+    category |> category_presentation() |> Map.fetch!("primary_surface") |> addressed()
   end
 
-  defp played?("transport and queue"), do: true
-  defp played?("transport and chapter list"), do: true
-  defp played?("player"), do: true
-  defp played?("viewer in a justified grid"), do: false
-  defp played?("scan beside its transcript"), do: false
-  defp played?("reader"), do: false
-  defp played?("page reader"), do: false
-  defp played?("its entity page, listing its episodes"), do: false
-  defp played?("its entity page, listing its issues"), do: false
-  defp played?("its entity page, and no player"), do: false
-  defp played?("never its own surface"), do: false
+  @doc """
+  Every path segment a surface is addressed at, which is what the router builds from.
+  """
+  @spec surfaces() :: [String.t()]
+  def surfaces do
+    presented_categories()
+    |> Enum.map(&surface_of/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp addressed("transport and queue"), do: "play"
+  defp addressed("transport and chapter list"), do: "play"
+  defp addressed("player"), do: "play"
+  defp addressed("viewer in a justified grid"), do: "view"
+  defp addressed("scan beside its transcript"), do: "read"
+  defp addressed("reader"), do: "read"
+  defp addressed("page reader"), do: "read"
+  defp addressed("its entity page, listing its episodes"), do: nil
+  defp addressed("its entity page, listing its issues"), do: nil
+  defp addressed("its entity page, and no player"), do: nil
+  defp addressed("never its own surface"), do: nil
 
   @doc """
   How a category is identified on a surface: the glyph that says which it is, the broad
