@@ -14,6 +14,22 @@ defmodule PluteusWeb.NotFoundError do
   end
 end
 
+defmodule PluteusWeb.BadRequestError do
+  @moduledoc """
+  Raised where the request itself is malformed: a deep link whose selector names no type,
+  or names one invalid at the kind's level.
+
+  Refused before the res is looked up, so the answer is the same whatever the res's
+  state — which is what spec-01 §9 requires of a selector.
+  """
+  defexception [:message]
+
+  defimpl Plug.Exception do
+    def status(_exception), do: 400
+    def actions(_exception), do: []
+  end
+end
+
 defmodule PluteusWeb.GoneError do
   @moduledoc """
   Raised where a res was held and is not: recycled into the bin, or purged.
