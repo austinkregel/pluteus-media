@@ -23,7 +23,9 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Annotations
   alias Pluteus.Annotations.Derivation
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Addressing
+  alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
@@ -39,9 +41,12 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Representation.ComposedName
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Absence
+  alias PluteusWeb.BadRequestError
   alias PluteusWeb.Chrome
+  alias PluteusWeb.GoneError
   alias PluteusWeb.Interface
   alias PluteusWeb.Native
+  alias PluteusWeb.NotFoundError
 
   # §5.2's seven absences, each in words. A state with none raises rather than rendering
   # §8.4's band 5 is structure and band 6 is connections. §8.5 forbids the model's own
@@ -82,36 +87,106 @@ defmodule PluteusWeb.EntityLive do
 
   @impl Phoenix.LiveView
   def mount(_params, session, socket) do
-    %{"res_id" => res_id} = session
-
     principal_id = socket.assigns.principal_id
-    {:live, res} = Lifecycle.state(res_id)
-
     profile = %Profile{language: session["language"], assigner_id: session["assigner_id"]}
-    representation = Representation.of(res, profile)
-
-    extent = extent(res, session["unit"])
 
     {:ok,
      socket
-     |> assign(:annotations, annotations(res, profile))
-     |> assign(:action, action(res, principal_id, profile))
-     |> assign(:surface_at, surface_at(res))
-     |> assign(:res, res)
+     |> assign(:profile, profile)
+     |> assign(:kind, String.to_existing_atom(session["kind"]))
      |> assign(:principal_id, principal_id)
-     |> assign(:representation, representation)
-     |> assign(:noun, ComposedName.noun(res.kind))
-     |> assign(:addresses, addresses(representation, profile))
-     |> assign(:medium, medium(res))
-     |> assign(:address, session["address"])
-     |> assign(:placed?, is_nil(session["unit"]) or not is_nil(extent))
-     |> assign(:mark, mark(session["address"], extent))
-     |> assign(:whole, session["whole"])
      |> assign(:principal_name, principal_name(principal_id, profile))
      |> assign(:contexts, session["contexts"] || %{})
      |> assign(:findings, Ingest.open_finding_count())
      |> assign(:transport, Interface.transport(session))
      |> assign(:announcement, "")}
+  end
+
+  # The res is read here rather than at mount, because a live navigation from one holding
+  # to another keeps this process and only the parameters change.
+  #
+  # The refusals are §9.1's: a selector is read before the res is looked up, since one
+  # naming no type or invalid at the kind's level makes the request malformed whatever
+  # the res's state. The representation's own path answers these as problem documents,
+  # which is `PluteusWeb.Representation`'s half of the same address.
+  @impl Phoenix.LiveView
+  def handle_params(%{"id" => id} = params, _uri, socket) do
+    kind = socket.assigns.kind
+    profile = socket.assigns.profile
+
+    selector = selected!(kind, params)
+    res = held!(id, kind)
+    representation = Representation.of(res, profile)
+    address = selector && address(kind, res, selector)
+    unit = selector && unit(selector)
+    extent = extent(res, unit)
+
+    {:noreply,
+     socket
+     |> assign(:res, res)
+     |> assign(:representation, representation)
+     |> assign(:annotations, annotations(res, profile))
+     |> assign(:action, action(res, socket.assigns.principal_id, profile))
+     |> assign(:surface_at, surface_at(res))
+     |> assign(:noun, ComposedName.noun(res.kind))
+     |> assign(:addresses, addresses(representation, profile))
+     |> assign(:medium, medium(res))
+     |> assign(:address, address)
+     |> assign(:placed?, is_nil(unit) or not is_nil(extent))
+     |> assign(:mark, mark(address, extent))
+     |> assign(:whole, "/#{Native.paths()[kind]}/#{res.id}")}
+  end
+
+  defp selected!(kind, params) do
+    case DeepLink.read(kind, params) do
+      :none ->
+        nil
+
+      {:ok, selector} ->
+        selector
+
+      {:error, reason} ->
+        raise BadRequestError, message: "the deep link's selector is refused: #{inspect(reason)}"
+    end
+  end
+
+  defp held!(id, kind) do
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         {:live, %Res{kind: ^kind} = res} <- Lifecycle.state(uuid) do
+      res
+    else
+      :error ->
+        raise NotFoundError, message: "#{id} is not an identifier"
+
+      {:recycled, _res, recycling} ->
+        raise GoneError, message: "this is in the recycle bin until #{recycling.purge_after}"
+
+      {:purged, _res, _tombstone} ->
+        raise GoneError, message: "this was purged, and the identifier will not be reused"
+
+      _absent_or_another_kind ->
+        raise NotFoundError, message: "nothing of this kind is held at #{id}"
+    end
+  end
+
+  defp address(kind, res, selector) do
+    fields =
+      Map.new(Map.delete(selector, :selector_type), fn {key, value} -> {to_string(key), value} end)
+
+    Map.merge(fields, %{
+      "type" => to_string(selector.selector_type),
+      "link" => "/#{Native.paths()[kind]}/#{res.id}?#{DeepLink.query(selector)}"
+    })
+  end
+
+  # The unit the region is measured in, which the page needs to ask whether the res has
+  # an extent to place it against. A spatial, text-quote or track selector measures no
+  # distance into anything and has none.
+  defp unit(selector) do
+    case Address.unit(struct(Address, selector)) do
+      nil -> nil
+      unit -> to_string(unit)
+    end
   end
 
   # §14.1 wants the name a person recognises, and a principal's name is its person's,
