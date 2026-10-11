@@ -22,12 +22,14 @@ defmodule PluteusWeb.EntityLive do
 
   alias Pluteus.Annotations
   alias Pluteus.Annotations.Derivation
+  alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Catalog.Selection
   alias Pluteus.Ingest
+  alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Registry
@@ -35,6 +37,7 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
+  alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
   alias PluteusWeb.Interface
@@ -93,6 +96,7 @@ defmodule PluteusWeb.EntityLive do
      socket
      |> assign(:annotations, annotations(res, profile))
      |> assign(:action, action(res, principal_id, profile))
+     |> assign(:surface_at, surface_at(res))
      |> assign(:res, res)
      |> assign(:principal_id, principal_id)
      |> assign(:representation, representation)
@@ -166,6 +170,27 @@ defmodule PluteusWeb.EntityLive do
     do: Selection.for_principal(id, principal_id, profile)
 
   defp action(%Res{}, _principal_id, _profile), do: nil
+
+  # Where §12.1 presents this holding, as the path §10.1 puts that surface at. A work
+  # nothing has categorized is presented nowhere in particular, and one whose category
+  # is presented by this page itself — a podcast listing its episodes, a game this
+  # deployment does not run — has nowhere else to go.
+  defp surface_at(%Res{kind: :work, id: id}) do
+    case Catalog.category_of(id, Place.category_scheme()) do
+      nil -> nil
+      category -> Surfaces.surface_of(category)
+    end
+  end
+
+  defp surface_at(%Res{}), do: nil
+
+  # A clause per segment rather than one built from the string, because a verified route
+  # is checked against the router only where it is written out. No catch-all, and a test
+  # asserts these are exactly the segments the registry addresses, so a surface added
+  # there fails here rather than linking somewhere that answers nothing.
+  defp surface_path(id, "play"), do: ~p"/works/#{id}/play"
+  defp surface_path(id, "read"), do: ~p"/works/#{id}/read"
+  defp surface_path(id, "view"), do: ~p"/works/#{id}/view"
 
   # §8.4's band 7: what a person authored first and attributed, then what a tool derived,
   # labelled with the tool and version that produced it (spec-02 §4.1, §4.2). Only what
@@ -328,7 +353,21 @@ defmodule PluteusWeb.EntityLive do
           <h2 id="entity-action-heading" class="sr-only">What you can do with this</h2>
 
           <div class="flex flex-wrap items-center gap-3">
+            <.link
+              :if={@surface_at}
+              id="entity-primary-action"
+              href={surface_path(@res.id, @surface_at)}
+              class={[
+                "rounded-full px-4 min-h-target-pointer inline-flex items-center",
+                "text-body-md font-medium",
+                "bg-fill-solid text-on-fill hover:bg-fill-solid-strong"
+              ]}
+            >
+              {verb(@noun)}
+            </.link>
+
             <button
+              :if={!@surface_at}
               id="entity-primary-action"
               type="button"
               disabled
@@ -352,7 +391,11 @@ defmodule PluteusWeb.EntityLive do
             </a>
           </div>
 
-          <p id="entity-action-why" class="mt-2 text-body-sm text-on-surface-muted">
+          <p
+            :if={!@surface_at}
+            id="entity-action-why"
+            class="mt-2 text-body-sm text-on-surface-muted"
+          >
             {why(@action)}
           </p>
 
@@ -572,12 +615,13 @@ defmodule PluteusWeb.EntityLive do
   defp attribution(nomen), do: "by #{nomen.nomen_string}"
 
   # §17.3: a control for an affordance that does not exist is rendered disabled and carries a
-  # description saying why. Nothing here plays or reads a holding yet, so the action says what
-  # it would act on and that it cannot.
+  # description saying why. Said only where there is no surface to reach: a holding whose
+  # category §12.1 presents somewhere has a link instead, and a reason beside a working
+  # control would be a reason for nothing.
   defp why(%{digital_item: nil}),
     do: "The household describes this but holds no file of it, so there is nothing to open."
 
-  defp why(%{}), do: "A file is held. Nothing in this deployment opens one yet."
+  defp why(%{}), do: "Nothing has said what kind of thing this is, so nothing presents it."
 
   # §8.5 keeps the model's words out of a control's name, so the verb follows the noun band 1
   # said rather than the kind.
