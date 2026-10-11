@@ -58,6 +58,7 @@ defmodule Pluteus.Playback do
   alias Pluteus.Catalog.Selection
   alias Pluteus.Consumption
   alias Pluteus.Events
+  alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Place
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.Streams
@@ -502,6 +503,65 @@ defmodule Pluteus.Playback do
     Map.new(acquired, fn {asset_id, sequence} ->
       {sequence, bodies[asset_id] && Streams.duration_ms(bodies[asset_id])}
     end)
+  end
+
+  @typedoc """
+  A stream of the medium a person may choose between: an audio track, a subtitle track.
+  """
+  @type track :: %{
+          index: non_neg_integer(),
+          kind: String.t(),
+          codec: String.t(),
+          language: String.t() | nil,
+          channels: pos_integer() | nil,
+          channel_layout: String.t() | nil,
+          default?: boolean()
+        }
+
+  @doc """
+  What the medium itself offers: the tracks a person may choose between, and the
+  chapters it is divided into.
+
+  Read from the bytes' own record rather than from the catalog, because which audio
+  tracks a file carries is a property of that file and not of the work. A holding in
+  several parts answers for its first: a sequence whose parts offered different tracks
+  would be a sequence a selection could not hold across, and nothing produces one.
+
+  §12.2 keeps audio selection, subtitle selection and subtitle visibility apart, so
+  this reports the tracks and says nothing about what is chosen or shown.
+  """
+  @spec medium(playable()) :: %{
+          audio: [track()],
+          subtitle: [track()],
+          chapters: [map()]
+        }
+  def medium(%{parts: [%{asset_id: asset_id} | _rest]}) do
+    streams =
+      case Repo.get(Acquisition, asset_id) do
+        %Acquisition{streams: streams} when is_list(streams) -> streams
+        _no_record_of_the_bytes -> []
+      end
+
+    tracks = streams |> Enum.with_index() |> Enum.map(&track/1)
+    probe = [asset_id] |> Annotations.current_bodies("probe") |> Map.get(asset_id)
+
+    %{
+      audio: Enum.filter(tracks, &(&1.kind == "audio")),
+      subtitle: Enum.filter(tracks, &(&1.kind == "subtitle")),
+      chapters: Streams.chapters(probe)
+    }
+  end
+
+  defp track({stream, index}) do
+    %{
+      index: index,
+      kind: stream["kind"],
+      codec: stream["codec"],
+      language: stream["language"],
+      channels: stream["channels"],
+      channel_layout: stream["channel_layout"],
+      default?: "default" in (stream["disposition"] || [])
+    }
   end
 
   defp measured(_res_id, [only], durations) do
