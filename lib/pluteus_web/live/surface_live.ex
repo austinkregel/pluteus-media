@@ -121,6 +121,7 @@ defmodule PluteusWeb.SurfaceLive do
       announcement={@announcement}
       socket={@socket}
       transport={@transport}
+      carries_medium={@asked == "play"}
     >
       <div id="presented" class="flex h-full min-h-0 w-full flex-col">
         <Layouts.flash_group flash={@flash} />
