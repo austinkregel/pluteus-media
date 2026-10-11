@@ -17,9 +17,7 @@ defmodule PluteusWeb.EntityController do
   use PluteusWeb, :controller
 
   import Ecto.Query, only: [from: 2]
-  import Phoenix.LiveView.Controller, only: [live_render: 3]
 
-  alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.DeepLink
   alias Pluteus.Catalog.Res
   alias Pluteus.Lifecycle
@@ -27,11 +25,8 @@ defmodule PluteusWeb.EntityController do
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Repo
   alias Pluteus.Representation
-  alias PluteusWeb.Contexts
-  alias PluteusWeb.Interface
   alias PluteusWeb.Native
   alias PluteusWeb.Problem
-  alias PluteusWeb.Surface
 
   def index(conn, _params) do
     kind = conn.assigns.kind
@@ -115,9 +110,12 @@ defmodule PluteusWeb.EntityController do
 
   defp respond(conn, kind, state), do: respond(conn, kind, state, nil)
 
+  # A live res asked for as the interface is left to the route that renders it, which is
+  # what `PluteusWeb.Representation` is reading when it decides whether to halt. Every
+  # refusal below is answered here whatever was asked for, which is §10.1's one address.
   defp respond(conn, kind, {:live, %{kind: kind} = res}, nil) do
     if interface?(conn, kind),
-      do: interface(conn, res),
+      do: conn,
       else: json(conn, Representation.of(res, Native.profile(conn)))
   end
 
@@ -127,7 +125,7 @@ defmodule PluteusWeb.EntityController do
     address = address(kind, res, selector)
 
     if interface?(conn, kind),
-      do: interface(conn, res, selector),
+      do: conn,
       else: json(conn, Map.put(Representation.of(res, Native.profile(conn)), "address", address))
   end
 
@@ -169,41 +167,5 @@ defmodule PluteusWeb.EntityController do
       "type" => to_string(selector.selector_type),
       "link" => "/#{Native.paths()[kind]}/#{res.id}?#{DeepLink.query(selector)}"
     })
-  end
-
-  # The interface needs the document shell the rendered surfaces share, and the contexts
-  # spec-10 §14.5 makes the principal's own. The representation's path needs neither, so
-  # neither is fetched for it.
-  # §4.4: where the device has declared no surface it is undetermined, and the deployment
-  # asks before it renders.
-  defp interface(conn, res, selector \\ nil) do
-    if conn.assigns.distance,
-      do: render_interface(conn, res, selector),
-      else: Surface.ask(conn)
-  end
-
-  defp render_interface(conn, res, selector) do
-    session =
-      Map.merge(Interface.session(conn), %{
-        "res_id" => res.id,
-        "address" => selector && address(res.kind, res, selector),
-        "unit" => selector && unit(selector),
-        "whole" => "/#{Native.paths()[res.kind]}/#{res.id}"
-      })
-
-    conn
-    |> assign(:contexts, Contexts.held_by(conn.assigns.principal))
-    |> Interface.prepare()
-    |> live_render(PluteusWeb.EntityLive, session: session)
-  end
-
-  # The unit the region is measured in, which the shell needs to ask whether the res has
-  # an extent to place it against. A spatial, text-quote or track selector measures no
-  # distance into anything and has none.
-  defp unit(selector) do
-    case Address.unit(struct(Address, selector)) do
-      nil -> nil
-      unit -> to_string(unit)
-    end
   end
 end
