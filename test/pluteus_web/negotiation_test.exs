@@ -383,7 +383,7 @@ defmodule PluteusWeb.NegotiationTest do
       assert html =~ ~s(id="entity-primary-action")
       assert html =~ "disabled"
       assert html =~ ~s(aria-describedby="entity-action-why")
-      assert html =~ "holds no file of it"
+      assert html =~ "No file is held for this."
     end
 
     test "the count of alternatives is stated and reaches the list", %{conn: conn, work: work} do
