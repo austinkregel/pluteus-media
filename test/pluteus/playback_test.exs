@@ -239,7 +239,7 @@ defmodule Pluteus.PlaybackTest do
       assert {:error, {:holds_no_file, _id} = refusal} =
                Playback.for_work(work.id, principal.id, profile)
 
-      assert Playback.why(refusal) =~ "holds no file for it"
+      assert Playback.why(refusal) =~ "No file is held"
     end
 
     test "a holding whose bytes are not normalized yet says that instead",
@@ -251,7 +251,7 @@ defmodule Pluteus.PlaybackTest do
       assert {:error, {:not_normalized, _id} = refusal} =
                Playback.for_work(reading, principal.id, profile)
 
-      assert Playback.why(refusal) =~ "not been normalized"
+      assert Playback.why(refusal) =~ "not normalized"
     end
   end
 
