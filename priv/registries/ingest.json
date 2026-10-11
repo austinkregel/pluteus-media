@@ -23,6 +23,7 @@
       ".tmp"
     ],
     "directories": [
+      ".pluteus",
       "@eaDir",
       ".Trashes",
       ".Spotlight-V100",
@@ -547,6 +548,29 @@
     "fmt/1218": "application/x-subrip",
     "fmt/1454": "text/vtt"
   },
+  "format_names": {
+    "for": "What a household calls a format, keyed by the media type `media_types` derives rather than by PRONOM, so the four identifications of a PDF are one word. A surface shows this where it must tell two holdings of one name apart; the identification itself stays on the entity page.",
+    "of_media_type": {
+      "audio/flac": "FLAC",
+      "audio/mpeg": "MP3",
+      "audio/wav": "WAV",
+      "audio/mp4": "M4A",
+      "audio/ogg": "Ogg",
+      "video/mp4": "MP4",
+      "video/x-matroska": "Matroska",
+      "image/png": "PNG",
+      "image/jpeg": "JPEG",
+      "application/pdf": "PDF",
+      "application/epub+zip": "EPUB",
+      "text/plain": "plain text",
+      "application/x-cue": "a cue sheet",
+      "application/xml": "XML",
+      "application/x-subrip": "SubRip",
+      "text/vtt": "WebVTT",
+      "application/octet-stream": "a format nothing recognised"
+    }
+  },
+
   "standard_formats": {
     "audio": {
       "codec": "flac",
