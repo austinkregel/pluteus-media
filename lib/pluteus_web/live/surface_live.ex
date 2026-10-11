@@ -122,7 +122,7 @@ defmodule PluteusWeb.SurfaceLive do
       socket={@socket}
       transport={@transport}
     >
-      <div id="surface" class="flex h-full min-h-0 w-full flex-col">
+      <div id="presented" class="flex h-full min-h-0 w-full flex-col">
         <Layouts.flash_group flash={@flash} />
 
         <.presented
