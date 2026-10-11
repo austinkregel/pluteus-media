@@ -52,6 +52,15 @@ defmodule PluteusWeb.Native do
   def paths, do: @paths
 
   @doc """
+  The path segments §12.1's primary surfaces are addressed at, beneath a work.
+
+  Delegated so the router builds its routes from the registry that decides which
+  category is presented where, rather than from a list beside them that could drift.
+  """
+  @spec surfaces() :: [String.t()]
+  defdelegate surfaces(), to: Pluteus.Surfaces.Registry
+
+  @doc """
   The one kind that is served under no path.
 
   `res` is the identifier space itself and names no subtype, so there is no row it
