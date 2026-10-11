@@ -74,7 +74,23 @@ defmodule PluteusWeb.BrowseLiveTest do
       {:ok, _live, html} = live(conn, ~p"/everything?category=photograph")
 
       assert html =~ "of 3 holdings"
-      assert html =~ "oldest first"
+      assert html =~ "Narrowed by"
+    end
+
+    # §12.1 gives each category one primary surface, and only three of them run a medium
+    # against a clock. A document is read, so a control offering to start it is offering
+    # something that does not exist.
+    test "a row offers to play what is played, and nothing for what is read",
+         %{conn: conn} do
+      music = named("a song", "music_recording")
+      document = named("a letter", "document")
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=music_recording")
+      assert has_element?(live, ~s|button[phx-click="play"][phx-value-res="#{music}"]|)
+
+      {:ok, live, _html} = live(conn, ~p"/everything?category=document")
+      refute has_element?(live, ~s|button[phx-click="play"]|)
+      refute has_element?(live, ~s|button[phx-value-res="#{document}"]|)
     end
 
     test "an axis nothing narrows by is answered, not crashed into", %{conn: conn} do
