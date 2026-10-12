@@ -52,6 +52,22 @@ defmodule PluteusWeb.Native do
   def paths, do: @paths
 
   @doc """
+  The kind an entity URI's path segments name, or nil where they name no entity URI.
+
+  §9.1 fixes a kind by its path, so this is where a request's kind comes from — the
+  segment read against the table above, which answers with the kind's own atom. Nothing
+  reconstructs it from a string: an atom built from request data exists only if something
+  else has already built it, which makes the answer depend on what the virtual machine
+  happens to have loaded rather than on the vocabulary.
+  """
+  @spec kind_at([String.t()]) :: atom() | nil
+  def kind_at([path, _id]) do
+    Enum.find_value(@paths, fn {kind, segment} -> segment == path and kind end)
+  end
+
+  def kind_at(_not_an_entity_uri), do: nil
+
+  @doc """
   The path segments §12.1's primary surfaces are addressed at, beneath a work.
 
   Delegated so the router builds its routes from the registry that decides which
