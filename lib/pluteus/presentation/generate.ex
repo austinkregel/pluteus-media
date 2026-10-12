@@ -21,10 +21,13 @@ defmodule Pluteus.Presentation.Generate do
   autorotating would be a finding rather than a library of sideways thumbnails.
   """
 
+  alias Pluteus.Archive
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
   alias Pluteus.Ingest
+  alias Pluteus.Ingest.Container
   alias Pluteus.Ingest.Probe
+  alias Pluteus.Ingest.Registry, as: Formats
   alias Pluteus.Ingest.Streams
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Orientation
@@ -39,6 +42,11 @@ defmodule Pluteus.Presentation.Generate do
   # use for the whole machine.
   @threads ~w(-threads 2)
 
+  # A page of a comic at 600dpi is a few megabytes; past this the entry is not a page.
+  # Read into memory because what is done with it is to write it straight back out, and
+  # the archive reader's own ceiling is what refuses an entry that lied about its size.
+  @page_ceiling 64 * 1_024 * 1_024
+
   @doc """
   Generates one artefact, or records why it could not.
 
@@ -46,15 +54,15 @@ defmodule Pluteus.Presentation.Generate do
   the subject are all refusals rather than failures: nothing was asked for that could
   have been made.
   """
-  @spec run(Ecto.UUID.t(), String.t()) ::
+  @spec run(Ecto.UUID.t(), String.t(), non_neg_integer()) ::
           {:ok, Presentation.Asset.t()}
           | {:refused, atom()}
           | {:error, String.t(), map()}
-  def run(subject_id, profile) do
+  def run(subject_id, profile, ordinal \\ 0) do
     with {:ok, declared} <- declared(profile),
          true <- Presentation.applies?(declared, subject_id),
          %Asset{} = source <- Presentation.source_for(subject_id) do
-      generate(subject_id, declared, source)
+      generate(subject_id, declared, source, ordinal)
     else
       :error -> {:refused, :unknown_profile}
       false -> {:refused, :profile_does_not_apply}
@@ -68,60 +76,116 @@ defmodule Pluteus.Presentation.Generate do
   # name, so a registry that renames a profile does not need this to change. A waveform
   # states a point count or a rate, a key frame states where to take it, a sheet states
   # its tiling, and an image states only a width.
-  defp generate(subject_id, %{"points" => _} = declared, source),
+  defp generate(subject_id, %{"points" => _} = declared, source, _ordinal),
     do: waveform(subject_id, declared, source)
 
-  defp generate(subject_id, %{"points_per_second" => _} = declared, source),
+  defp generate(subject_id, %{"points_per_second" => _} = declared, source, _ordinal),
     do: waveform(subject_id, declared, source)
 
-  defp generate(subject_id, %{"tile_columns" => _} = declared, source),
+  defp generate(subject_id, %{"tile_columns" => _} = declared, source, _ordinal),
     do: trickplay(subject_id, declared, source)
 
-  defp generate(subject_id, %{"tile_size" => _} = declared, source),
+  defp generate(subject_id, %{"tile_size" => _} = declared, source, _ordinal),
     do: pyramid(subject_id, declared, source)
 
-  defp generate(subject_id, %{"proportion" => _} = declared, source),
+  defp generate(subject_id, %{"proportion" => _} = declared, source, _ordinal),
     do: key_frame(subject_id, declared, source)
 
-  defp generate(subject_id, %{"width" => _} = declared, source),
-    do: image(subject_id, declared, source)
+  # The one family a page may be asked for: a graded width of page *n*. The others are
+  # of the holding and have no page, so an ordinal reaches them and they ignore it.
+  defp generate(subject_id, %{"width" => _} = declared, source, ordinal),
+    do: image(subject_id, declared, source, ordinal)
 
-  defp generate(subject_id, %{"name" => "text-extracted"} = declared, source),
+  defp generate(subject_id, %{"name" => "text-extracted"} = declared, source, _ordinal),
     do: text(subject_id, declared, source, :extracted)
 
-  defp generate(subject_id, %{"name" => "text-word-positions"} = declared, source),
+  defp generate(subject_id, %{"name" => "text-word-positions"} = declared, source, _ordinal),
     do: text(subject_id, declared, source, :word_positions)
 
-  defp generate(subject_id, %{"name" => "text-position-list"} = declared, source),
+  defp generate(subject_id, %{"name" => "text-position-list"} = declared, source, _ordinal),
     do: text(subject_id, declared, source, :position_list)
 
-  defp generate(_subject_id, _declared, _source), do: {:refused, :no_generator}
+  defp generate(_subject_id, _declared, _source, _ordinal), do: {:refused, :no_generator}
 
-  defp image(subject_id, declared, %Asset{} = source) do
+  defp image(subject_id, declared, %Asset{} = source, ordinal) do
     profile = Map.fetch!(declared, "name")
     extension = extension(Map.fetch!(declared, "format"))
-    location = Presentation.location_for(subject_id, profile, 0, extension)
+    location = Presentation.location_for(subject_id, profile, ordinal, extension)
 
-    orientation =
-      source.location
-      |> Storage.leading(Orientation.head_bytes())
-      |> Orientation.of()
+    case shown(subject_id, source, ordinal) do
+      {:ok, from, scratch?} ->
+        made = made(subject_id, declared, source, location, from, ordinal)
+        if scratch?, do: Storage.delete(from)
+        made
 
-    with :ok <- encode(source.location, location, declared),
+      {:error, kind, detail} ->
+        failed(subject_id, profile, location, kind, detail)
+    end
+  end
+
+  defp made(subject_id, declared, source, location, from, ordinal) do
+    profile = Map.fetch!(declared, "name")
+    orientation = from |> Storage.leading(Orientation.head_bytes()) |> Orientation.of()
+
+    with :ok <- encode(from, location, declared),
          {:ok, measured} <- measure(location),
          {:ok, dimensions} <- dimensions_of(location),
-         :ok <- turned(source.location, dimensions, orientation) do
+         :ok <- turned(from, dimensions, orientation) do
       {width, height} = dimensions
 
       record(subject_id, declared, source, location, measured, %{
         width: width,
         height: height,
+        ordinal: ordinal,
         descriptor: descriptor(declared, orientation)
       })
     else
       {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
     end
   end
+
+  # Which bytes this profile is made from. A holding carried by one file is that file,
+  # whole; §12.1's page reader asks for page *n* of a container of pages, and then the
+  # bytes are an entry of it. The ordinal is the page, which is also what identifies the
+  # artefact (§11.6), so one archive yields one image profile per page rather than one.
+  defp shown(subject_id, %Asset{format: format} = source, ordinal) do
+    case {Formats.archive_format(format), ordinal} do
+      {nil, 0} -> {:ok, source.location, false}
+      {nil, page} -> {:error, "holding_has_no_pages", %{page: page}}
+      {_archive, page} -> page(subject_id, source, page)
+    end
+  end
+
+  # The entry is put where a derivative goes, used, and removed: it is a step in making
+  # one rather than an artefact anybody asks for, and `presentation/` is the prefix
+  # `Pluteus.Ingest.find_stray_bytes/1` does not walk.
+  defp page(subject_id, source, ordinal) do
+    case Container.read(source.location) do
+      {:ok, %{content: content}} ->
+        taken(subject_id, source, Enum.at(content, ordinal), ordinal, length(content))
+
+      {:error, refusal} ->
+        {:error, "archive_unreadable", %{refusal: inspect(refusal)}}
+    end
+  end
+
+  defp taken(_subject_id, _source, nil, ordinal, pages),
+    do: {:error, "page_not_held", %{page: ordinal, pages: pages}}
+
+  defp taken(subject_id, source, entry, ordinal, _pages) do
+    case Archive.read(source.location, entry, @page_ceiling) do
+      {:ok, bytes} ->
+        at = Presentation.location_for(subject_id, "page", ordinal, extension_of(entry))
+        Storage.put(at, bytes)
+
+        {:ok, at, true}
+
+      {:error, refusal} ->
+        {:error, "page_unreadable", %{entry: entry, refusal: inspect(refusal)}}
+    end
+  end
+
+  defp extension_of(entry), do: entry |> Path.extname() |> String.trim_leading(".")
 
   # §11.2. Past §20's threshold a graded profile either throws away what the scan was
   # made for or sends the whole thing to look at one corner, so the pyramid is built
@@ -401,7 +465,7 @@ defmodule Pluteus.Presentation.Generate do
     Presentation.record(%{
       subject_id: subject_id,
       profile: Map.fetch!(declared, "name"),
-      ordinal: 0,
+      ordinal: Map.get(own, :ordinal, 0),
       location: location,
       media_type: media_type(declared),
       size: measured.size,
