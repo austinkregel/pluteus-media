@@ -59,6 +59,11 @@ defmodule Pluteus.Ingest.Acquisition do
     field :companion_kind, :string
     field :container_tags, :map
 
+    # What §6.3's evidence decided the holding is, read while the file was still in the
+    # inbox beside the documents that say so. A file nothing decides is not taken, so a
+    # placed acquisition always carries one.
+    field :category, :string
+
     belongs_to :digital_item, DigitalItem
 
     # What placement read from the stored bytes just before writing the holding.
@@ -92,7 +97,22 @@ defmodule Pluteus.Ingest.Acquisition do
     |> check_constraint(:state, name: :measured_once_stored)
   end
 
-  def identified_changeset(acquisition, identified) do
+  @doc """
+  What reading the bytes established about them, as examination answers it.
+  """
+  @spec read_fields() :: [atom()]
+  def read_fields,
+    do: ~w(format probe streams essence media_class companion_kind container_tags)a
+
+  @doc """
+  What reading the bytes established, before the deployment has taken them.
+
+  A file the category of which nothing states is left where it lies (spec-04 §6.3), and
+  what was read from it is kept so that looking again costs the evidence around it rather
+  than the bytes: what a document beside it says can change between one pass and the next,
+  and what the bytes are cannot.
+  """
+  def examined_changeset(acquisition, identified) do
     acquisition
     |> cast(identified, [
       :format,
@@ -103,7 +123,22 @@ defmodule Pluteus.Ingest.Acquisition do
       :companion_kind,
       :container_tags
     ])
-    |> validate_required([:format, :essence, :media_class, :container_tags])
+    |> validate_required([:format, :essence, :media_class])
+  end
+
+  def identified_changeset(acquisition, identified) do
+    acquisition
+    |> cast(identified, [
+      :format,
+      :probe,
+      :streams,
+      :essence,
+      :media_class,
+      :companion_kind,
+      :container_tags,
+      :category
+    ])
+    |> validate_required([:format, :essence, :media_class, :container_tags, :category])
     |> put_change(:state, :identified)
     |> check_constraint(:state, name: :identified_before_placed)
     |> check_constraint(:media_class, name: :a_companion_names_its_kind)
