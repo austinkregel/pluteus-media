@@ -10,9 +10,15 @@ defmodule PluteusWeb.EntityLiveTest do
 
   use PluteusWeb.ConnCase, async: true
 
+  import Pluteus.IngestFixtures
+
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Res
+  alias Pluteus.Ingest
+  alias Pluteus.Ingest.Normalize
   alias Pluteus.MusicFixtures
+  alias Pluteus.Repo
   alias PluteusWeb.Native
 
   setup %{conn: conn} do
@@ -21,6 +27,7 @@ defmodule PluteusWeb.EntityLiveTest do
     %{
       conn: conn |> through_proxy(a_subject()) |> on_a_surface(),
       library: library,
+      inbox: inbox!(),
       album: work_of(library.albums["01 So What.flac"])
     }
   end
@@ -93,6 +100,51 @@ defmodule PluteusWeb.EntityLiveTest do
     end
   end
 
+  describe "§8.4. A work that gathers others lists what it gathers" do
+    test "a series lists its episodes in the order its manifestation arranges them",
+         %{conn: conn, inbox: inbox} do
+      series = a_series(inbox, ["101 - Pilot.mkv", "102 - Square Peg.mkv"])
+
+      body = conn |> as_a_person(~p"/works/#{series}") |> html_response(200)
+
+      assert body =~ ~s|id="entity-members"|
+      assert body =~ "Episodes"
+      assert body =~ "2 episodes held, in arrangement order"
+      assert body =~ "101 - Pilot"
+      assert body =~ "102 - Square Peg"
+    end
+
+    # §5.2 makes *not held* a state of a res the catalog records, and the gap in a run of
+    # episodes is the thing a person is looking for.
+    test "an episode the catalog records and the household does not hold is drawn as not held",
+         %{conn: conn, inbox: inbox} do
+      series = a_series(inbox, ["101 - Pilot.mkv"])
+      absent = recorded_not_held(series, 102, "Square Peg")
+
+      body = conn |> as_a_person(~p"/works/#{series}") |> html_response(200)
+
+      assert body =~ "1 episode held, in arrangement order"
+      assert body =~ ~s|id="member-#{absent}"|
+      assert body =~ "Not held"
+      assert body =~ "Square Peg"
+    end
+
+    test "a holding that gathers nothing carries no such band", %{conn: conn, library: library} do
+      track = work_of(library.songs["01 So What.flac"])
+
+      body = conn |> as_a_person(~p"/works/#{track}") |> html_response(200)
+
+      refute body =~ ~s|id="entity-members"|
+    end
+
+    test "a release lists the tracks it was released as", %{conn: conn, album: album} do
+      body = conn |> as_a_person(~p"/works/#{album}") |> html_response(200)
+
+      assert body =~ ~s|id="entity-members"|
+      assert body =~ "Tracks"
+    end
+  end
+
   describe "§10.1. Every res the model admits has an address" do
     test "every kind that names a subtype is served under a path" do
       # The tripwire. A kind added to the model and not to the table is not a missing
@@ -124,6 +176,57 @@ defmodule PluteusWeb.EntityLiveTest do
 
       assert json_response(answered, 200)["kind"] == "asset"
     end
+  end
+
+  # Episodes placed from the directory a household filed them under, which is what makes
+  # the series: nothing in a rip states the show it belongs to.
+  defp a_series(inbox, file_names) do
+    prefix = unique_prefix()
+
+    files =
+      for name <- file_names,
+          into: %{},
+          do: {"#{prefix}/TV/Pinwheel/Season 01/#{name}", media!(:film)}
+
+    [episode | _rest] = ingest!(inbox, files)
+
+    [%{inspiration_id: series}] = Catalog.inspirations_of(work_of(manifestation_of(episode)))
+
+    series
+  end
+
+  # What spec-05's matching will record and nothing yet does: a member of the series the
+  # catalog knows about and the household holds no file for.
+  defp recorded_not_held(series, position, name) do
+    {:ok, %{manifestation: manifestation}} =
+      Catalog.create_work(%{nomen_string: name, provenance: :automatic})
+
+    {:ok, _part} =
+      Catalog.add_manifestation_part(gathering(series), manifestation.id, position)
+
+    manifestation.id
+  end
+
+  defp gathering(work_id) do
+    [expression | _rest] = Catalog.expressions_of(work_id)
+    [manifestation | _more] = Catalog.manifestations_of(expression.id)
+
+    manifestation.id
+  end
+
+  defp manifestation_of(acquisition) do
+    Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
+  end
+
+  defp ingest!(inbox, files) do
+    for {path, bytes} <- files, do: drop!(inbox, path, bytes)
+
+    ids = inbox |> acquire_settled!() |> acquired()
+
+    place_all!(inbox)
+    Normalize.normalize_due()
+
+    ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.sort_by(& &1.inbox_path)
   end
 
   defp as_a_person(conn, path) do
