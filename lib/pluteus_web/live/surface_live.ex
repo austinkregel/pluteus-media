@@ -36,9 +36,9 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.GoneError
   alias PluteusWeb.Interface
   alias PluteusWeb.NotFoundError
+  alias PluteusWeb.Settings
   alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Player
-  alias PluteusWeb.Settings
   alias PluteusWeb.Surfaces.Reader
   alias PluteusWeb.Surfaces.Viewer
   alias PluteusWeb.TransportLive
