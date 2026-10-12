@@ -35,6 +35,7 @@ defmodule Pluteus.Browse do
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Registry, as: IngestRegistry
@@ -59,6 +60,7 @@ defmodule Pluteus.Browse do
           credited: %{Ecto.UUID.t() => [String.t()]},
           covers: %{Ecto.UUID.t() => Ecto.UUID.t()},
           labels: %{String.t() => String.t()},
+          agents: %{Ecto.UUID.t() => atom()},
           total: non_neg_integer(),
           catalogue: non_neg_integer(),
           bytes: non_neg_integer(),
@@ -93,6 +95,7 @@ defmodule Pluteus.Browse do
 
     %{
       labels: labelled(facets, profile),
+      agents: kinded(facets),
       query: query,
       entries: entries,
       names: named(entries, profile),
@@ -160,6 +163,21 @@ defmodule Pluteus.Browse do
         for {id, nomen} <- Resolution.resolve_many(ids, profile),
             into: %{},
             do: {id, nomen.nomen_string}
+
+      _nothing_identified ->
+        %{}
+    end
+  end
+
+  # Which of spec-01 §3.1's three agent kinds each credited agent is, which is what its
+  # address is built from: an artist, a person and a collective agent are three paths.
+  # Only where the axis offers somebody, so a surface that credits nobody pays nothing.
+  defp kinded(facets) do
+    case facets["person"] do
+      {:available, [_one | _more] = values} ->
+        ids = Enum.map(values, &elem(&1, 0))
+
+        Map.new(Repo.all(from r in Res, where: r.id in ^ids, select: {r.id, r.kind}))
 
       _nothing_identified ->
         %{}
