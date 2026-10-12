@@ -17,6 +17,7 @@ defmodule PluteusWeb.Members do
 
   use PluteusWeb, :html
 
+  alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Surfaces.Medium
 
   attr :members, :list, required: true
@@ -82,7 +83,7 @@ defmodule PluteusWeb.Members do
     ~H"""
     <.link
       id={"member-#{@member.manifestation_id}"}
-      navigate={~p"/works/#{@member.work_id}"}
+      navigate={path(@member)}
       class={[
         "flex min-h-target-touch items-center gap-4 rounded-md px-3 py-2",
         "hover:bg-fill-subtle-strong",
@@ -116,6 +117,28 @@ defmodule PluteusWeb.Members do
     </.link>
     """
   end
+
+  @doc """
+  Where a row goes: the surface §12.1 presents that kind of holding on, and the holding's
+  own page where its category is presented by a page rather than by a surface.
+
+  A clause per segment and no catch-all, as `PluteusWeb.EntityLive` has, because a route
+  is verified against the router only where it is written out.
+  """
+  @spec path(map()) :: String.t()
+  def path(%{work_id: id, category: category}) when is_binary(id) and is_binary(category) do
+    case Surfaces.surface_of(category) do
+      nil -> ~p"/works/#{id}"
+      segment -> surface_path(id, segment)
+    end
+  end
+
+  def path(%{work_id: id}) when is_binary(id), do: ~p"/works/#{id}"
+  def path(%{manifestation_id: id}), do: ~p"/manifestations/#{id}"
+
+  defp surface_path(id, "play"), do: ~p"/works/#{id}/play"
+  defp surface_path(id, "read"), do: ~p"/works/#{id}/read"
+  defp surface_path(id, "view"), do: ~p"/works/#{id}/view"
 
   attr :position, :any, required: true
 
