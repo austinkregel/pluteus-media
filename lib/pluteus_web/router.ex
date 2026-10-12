@@ -130,7 +130,12 @@ defmodule PluteusWeb.Router do
     scope "/", PluteusWeb do
       pipe_through :interface
 
-      live "/everything", BrowseLive, :everything
+      # §9.2's modes. One LiveView for all of them, because a mode differs in what it
+      # selects rather than in what it is, and the segment is the registry's name for it
+      # so a mode gaining a surface is a route and a selection.
+      for {mode, at} <- PluteusWeb.Chrome.addressed() do
+        live at, BrowseLive, :"#{mode}"
+      end
 
       # §12.1's primary surfaces, addressed beneath the work whose category names them
       # (§10.1). Under the work because a category is the work's.
