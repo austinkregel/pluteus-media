@@ -272,15 +272,33 @@ defmodule Pluteus.Browse.Entries do
   The same selection holding only the works no category row names a kind for.
 
   A kind is what the first band groups by and the only axis whose vocabulary is closed,
-  so a holding without one is in the total and in no kind's figure. Counted through the
-  same subquery the band reads, because a count of what the band leaves out has to be
-  taken against what the band actually took.
+  so a holding without one is in the total and in no kind's figure. What the band leaves
+  out has to be counted against what the band actually took, so this reads the same
+  relation `with_category/1` joins on.
+
+  It asks whether a row exists rather than which row is authoritative, and the two are
+  the same question here: `effective_categories/0` picks one row *per res that has any*,
+  so its inner join drops a work exactly where no row of the scheme names it, and which
+  provenance would have won is a question about works this does not count.
   """
   @spec without_category(Ecto.Query.t()) :: Ecto.Query.t()
   def without_category(query) do
-    kinded = from w in with_category(base()), select: w.id
+    from [work: w] in query, where: not exists(records_a_kind())
+  end
 
-    from [work: w] in query, where: w.id not in subquery(kinded)
+  @doc """
+  Whether a kind is recorded for the work the enclosing query names as `:work`.
+
+  The existence form of what `with_category/1` joins on, for a caller that is counting
+  rather than narrowing — so a figure about the works without a kind is taken against the
+  relation the kinds band reads, in one pass over the works already in hand.
+  """
+  @spec records_a_kind() :: Ecto.Query.t()
+  def records_a_kind do
+    from c in Category,
+      where: c.res_id == parent_as(:work).id,
+      where: c.scheme == ^Place.category_scheme(),
+      select: 1
   end
 
   @doc """
@@ -358,20 +376,16 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
-  The entries of a selection nothing credits.
+  The works the people band reaches: every entry some credit names.
 
-  Reached through `creditors/0` rather than through a predicate of its own, so a holding
-  this counts is exactly a holding the people band left out. That function already drops
-  a credit carrying no work, which is what makes the exclusion sound: `work_id` is
+  What makes a count of the rest sound. Read through `creditors/0` rather than from
+  `credits` directly, so a holding excluded by this is exactly a holding that band left
+  out — and because that function already drops a credit carrying no work. `work_id` is
   nullable since a credit may name an expression, and one null inside `NOT IN` makes the
-  whole predicate null and the band would silently report none.
+  whole predicate null, so taken from the column a band would silently report none.
   """
-  @spec uncredited(Ecto.Query.t()) :: Ecto.Query.t()
-  def uncredited(query) do
-    credited = from c in subquery(creditors()), select: c.res_id
-
-    from [work: w] in query, where: w.id not in subquery(credited)
-  end
+  @spec credited_works() :: Ecto.Query.t()
+  def credited_works, do: from(c in subquery(creditors()), select: c.res_id)
 
   @doc """
   The axes this release can narrow on. The rest are named and inert.
@@ -379,20 +393,71 @@ defmodule Pluteus.Browse.Entries do
   @spec narrowable_axes() :: [String.t()]
   defdelegate narrowable_axes(), to: Query
 
+  @live "live"
+
   @doc """
-  Each value of an axis with how many of a selection carry it.
+  Each axis's values with how many of its own selection carry them.
 
   Counted over distinct works, because an axis a work carries twice — two manifestations
   issued in one decade — is one holding to a person looking at the number.
+
+  **Every axis reads one derivation of the mode's selection.** An axis's counts are taken
+  over the selection with that axis's own narrowing lifted, so the three differ in what
+  narrows them and agree in what they narrow *from* — and what they narrow from is the
+  expensive half, since deciding which works the catalog currently holds reads the recycle
+  bin, the aggregating relation, the part relation and the companion kinds. Asked per axis
+  that work is done once per axis, and the cost a surface pays for naming a third facet is
+  a third derivation of a set that did not change between them.
+
+  So the selection is a common table expression the branches read, materialized rather
+  than left to the planner: with it stated once, deriving it once is a property of the
+  query rather than a choice something downstream could make differently. What a render
+  costs then follows from how many facets a surface *has* rather than from how many it
+  offers values on.
   """
-  @spec distribution(String.t(), Ecto.Query.t()) :: %{String.t() => non_neg_integer()}
-  def distribution(axis, selection) do
-    selection
-    |> join(:inner, [work: w], v in subquery(values_of(axis)), as: :value, on: v.res_id == w.id)
-    |> group_by([value: v], v.value)
-    |> select([work: w, value: v], {v.value, count(w.id, :distinct)})
+  @spec distributions([String.t()], Query.t()) :: %{String.t() => %{String.t() => integer()}}
+  def distributions([], _browse), do: %{}
+
+  def distributions(axes, %Query{} = browse) do
+    live = from w in selected(browse), select: %{id: w.id}
+    [first | rest] = Enum.map(axes, &distribution_of(&1, browse))
+
+    rest
+    |> Enum.reduce(first, fn branch, union -> union_all(union, ^branch) end)
+    |> with_cte(@live, as: ^live, materialized: true)
     |> Repo.all()
-    |> Map.new()
+    |> Enum.group_by(& &1.axis, &{&1.value, &1.count})
+    |> Map.new(fn {axis, counted} -> {axis, Map.new(counted)} end)
+  end
+
+  # The axis is carried in the row because a union answers in one shape and the branches
+  # count different things: without it the caller would have to tell a category's values
+  # from a decade's by recognising them, which is a guess about the vocabularies.
+  defp distribution_of(axis, browse) do
+    from l in subquery(narrowed(axis, browse)),
+      join: v in subquery(values_of(axis)),
+      on: v.res_id == l.id,
+      group_by: v.value,
+      select: %{axis: type(^axis, :string), value: v.value, count: count(l.id, :distinct)}
+  end
+
+  # The selection an axis's own counts are taken over: the query with that axis lifted,
+  # less what it already holds. Read from the selection the branches share rather than
+  # derived again, which is the whole point of the expression above.
+  defp narrowed(axis, browse) do
+    selection = narrow(from(l in @live, as: :work), Query.without(browse, axis))
+
+    case Query.on(browse, axis) do
+      [] ->
+        from [work: w] in selection, select: %{id: w.id}
+
+      [_one | _more] ->
+        held = from [work: w] in narrow(from(l in @live, as: :work), browse), select: w.id
+
+        from [work: w] in selection,
+          where: w.id not in subquery(held),
+          select: %{id: w.id}
+    end
   end
 
   defp values_of("category"), do: effective_categories()
