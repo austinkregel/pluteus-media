@@ -40,11 +40,12 @@ defmodule PluteusWeb.Chrome do
   # rather than linking somewhere that would answer nothing.
   @modes [
     {"continue", "Continue", "hero-play-mini", "what you have not finished", nil},
-    {"recent", "Recently added", "hero-plus-mini", "what arrived most recently", nil},
+    {"recently_added", "Recently added", "hero-plus-mini", "what arrived most recently",
+     "/recently-added"},
     {"people", "People", "hero-user-mini", "who made or appears in what you hold", nil},
     {"places", "Places", "hero-map-pin-mini", "where a holding was made", nil},
     {"time", "Time", "hero-clock-mini", "when a holding was made", nil},
-    {"sets", "Sets", "hero-rectangle-stack-mini", "the groupings a holding belongs to", nil},
+    {"sets", "Sets", "hero-rectangle-stack-mini", "the groupings a holding belongs to", "/sets"},
     {"everything", "Everything", "hero-squares-2x2-mini", "the whole catalogue", "/everything"}
   ]
 
@@ -52,7 +53,7 @@ defmodule PluteusWeb.Chrome do
   # not here. Seven do not fit, so what this holds is every mode that has a surface plus
   # the ones a household reaches for most; a test asserts the first half, so a mode
   # gaining a surface cannot quietly become unreachable at phone width.
-  @tabs ~w(continue people everything time)
+  @tabs ~w(continue recently_added sets everything)
 
   @doc """
   §9.2's seven modes, each with the glyph and the noun it is named by, and its address
@@ -63,6 +64,15 @@ defmodule PluteusWeb.Chrome do
   """
   @spec modes() :: [{String.t(), String.t(), String.t(), String.t(), String.t() | nil}]
   def modes, do: @modes
+
+  @doc """
+  Every mode that has a surface, with the address it answers at.
+
+  What the router builds its routes from, so a mode reachable in the rail and nowhere
+  else cannot exist: the link and the route are the same statement.
+  """
+  @spec addressed() :: [{String.t(), String.t()}]
+  def addressed, do: for({mode, _noun, _glyph, _what, at} <- @modes, at != nil, do: {mode, at})
 
   @doc """
   The modes the tab bar carries below the rail's breakpoint, in the order it carries them.
