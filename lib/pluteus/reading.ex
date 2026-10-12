@@ -26,8 +26,8 @@ defmodule Pluteus.Reading do
   alias Pluteus.Annotations.Annotation
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
-  alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Asset, as: Bytes
+  alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
