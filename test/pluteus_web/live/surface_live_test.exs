@@ -12,10 +12,10 @@ defmodule PluteusWeb.SurfaceLiveTest do
   import Pluteus.IngestFixtures
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
-  alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Lifecycle
   alias Pluteus.Presentation.Generate
   alias Pluteus.Principals
