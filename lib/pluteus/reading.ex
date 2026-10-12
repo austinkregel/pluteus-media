@@ -26,10 +26,16 @@ defmodule Pluteus.Reading do
   alias Pluteus.Annotations.Annotation
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
+  alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Asset, as: Bytes
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
+  alias Pluteus.Catalog.Nomen
+  alias Pluteus.Catalog.Profile
+  alias Pluteus.Catalog.Refinements
+  alias Pluteus.Catalog.Resolution
+  alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Finding
   alias Pluteus.Ingest.Registry, as: Formats
@@ -90,6 +96,46 @@ defmodule Pluteus.Reading do
         select: {e.manifestation_id, min(a.format)}
     )
     |> Enum.map(fn {id, format} -> %{id: id, format: Formats.format_name(format)} end)
+  end
+
+  @doc """
+  Who a publication credits, in the order the catalog holds them.
+  """
+  @spec credited(Ecto.UUID.t(), Profile.t()) :: [String.t()]
+  def credited(work_id, %Profile{} = profile) do
+    agents =
+      Repo.all(
+        from c in WorkCreator,
+          where: c.work_id == ^work_id,
+          order_by: c.agent_id,
+          select: c.agent_id
+      )
+
+    names = Resolution.resolve_many(agents, profile)
+
+    for agent <- agents, nomen = names[agent], do: nomen.nomen_string
+  end
+
+  @doc """
+  When the copy being read was issued, as its own container stated it.
+
+  Read from the copy rather than from the work, because a date is a property of an
+  edition: a reissue and a first printing are one work and two dates, and the one to
+  state beside a reading is the one being read.
+  """
+  @spec stated(Ecto.UUID.t()) :: String.t() | nil
+  def stated(manifestation_id) do
+    refinement = Refinements.name!("time-of-publication-or-manufacture")
+
+    Repo.one(
+      from a in Association,
+        join: n in Nomen,
+        on: n.res_id == a.object_id and is_nil(n.assigner_id),
+        where: a.subject_id == ^manifestation_id and a.refinement == ^refinement,
+        order_by: n.id,
+        limit: 1,
+        select: n.nomen_string
+    )
   end
 
   @doc """
