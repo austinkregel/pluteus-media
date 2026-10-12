@@ -1,5 +1,5 @@
 {
-  "description": "The preferences a principal holds, and what each may be set to. spec-10 §20 forbids a code path supplying a value a registry omits, so a key's domain and its default are here and nowhere else.",
+  "description": "The preferences a principal holds, and what each may be set to. spec-10 §20 forbids a code path supplying a value a registry omits, so a key's domain and its default are here and nowhere else. A `number` domain carries the step it moves by as well as its bounds: a bound and a default do not say how finely a person may move between them, and a control choosing its own increment would be a set of settable values the registry never stated. Each is the coarsest increment whose effect is visible, so every position a control offers is a setting a person can tell from its neighbours.",
   "keys": {
     "theme": {
       "requires": "[ANNEX-A] A.1.6, A.10.1",
@@ -28,7 +28,7 @@
     "text_size": {
       "requires": "spec-10 §14.5",
       "description": "§14.5 names a text size among the five. A proportion of the root size rather than a step, because A.1.3 has a rem honour the browser font size a person has already set and a step would discard it. 100 leaves that setting alone.",
-      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 200 },
+      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 200, "step": 10 },
       "default": "100"
     },
     "described_audio": {
@@ -67,7 +67,7 @@
     "caption_size": {
       "requires": "spec-10 §17.4, §14.5",
       "description": "A proportion of the caption's own base, which ranges further than body text because a caption is read at whatever distance the picture is watched from.",
-      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 300 },
+      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 300, "step": 10 },
       "default": "100"
     },
     "caption_ground": {
@@ -111,31 +111,31 @@
     "reading_size": {
       "requires": "[ANNEX-A] A.3.6",
       "description": "A proportion of long-form text's own base. A.3.6 requires the size be settable and bounds it nowhere, so the bound is this deployment's: the range a caption takes, because long-form text is magnified further than the interface around it — A.3.6's own warning that hyphenation \"harms magnified reading\" assumes as much.",
-      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 300 },
+      "domain": { "kind": "number", "unit": "percent", "minimum": 100, "maximum": 300, "step": 10 },
       "default": "100"
     },
     "reading_line_height": {
       "requires": "[ANNEX-A] A.3.6",
       "description": "The leading of long-form text, as a multiple of its own size. A.3.6 gives 1.55 for `sys.type.body.md`, which is the default. The floor is 1.15, the tightest line height the annex states anywhere (`sys.type.display.*`); the ceiling is this deployment's.",
-      "domain": { "kind": "number", "unit": "ratio", "minimum": 1.15, "maximum": 2 },
+      "domain": { "kind": "number", "unit": "ratio", "minimum": 1.15, "maximum": 2, "step": 0.05 },
       "default": "1.55"
     },
     "reading_measure": {
       "requires": "[ANNEX-A] A.3.6",
       "description": "How far a line of long-form text runs, counted in characters of the face it is set in. A.3.6 asks for a short measure and states no figure, so the range and the default are this deployment's.",
-      "domain": { "kind": "number", "unit": "characters", "minimum": 45, "maximum": 90 },
+      "domain": { "kind": "number", "unit": "characters", "minimum": 45, "maximum": 90, "step": 1 },
       "default": "66"
     },
     "reading_letter_spacing": {
       "requires": "[ANNEX-A] A.3.6",
       "description": "Added to the face's own letter spacing. A.3.6 asks for generous spacing and states no figure; 0 is the face's own spacing, which is where it starts, and the ceiling is this deployment's.",
-      "domain": { "kind": "number", "unit": "em", "minimum": 0, "maximum": 0.2 },
+      "domain": { "kind": "number", "unit": "em", "minimum": 0, "maximum": 0.2, "step": 0.01 },
       "default": "0"
     },
     "reading_word_spacing": {
       "requires": "[ANNEX-A] A.3.6",
       "description": "Added to the face's own word spacing. 0 is the face's own spacing, and the ceiling is this deployment's.",
-      "domain": { "kind": "number", "unit": "em", "minimum": 0, "maximum": 0.5 },
+      "domain": { "kind": "number", "unit": "em", "minimum": 0, "maximum": 0.5, "step": 0.02 },
       "default": "0"
     },
     "reading_alignment": {
