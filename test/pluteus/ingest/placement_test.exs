@@ -54,7 +54,7 @@ defmodule Pluteus.Ingest.PlacementTest do
   describe "placement announces the holding to the household ([spec-01] §11.2)" do
     test "a placed holding is a platform event of the System principal's",
          %{inbox: inbox, system: system} do
-      [acquisition] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [acquisition] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       digital_item_id = Repo.get!(Acquisition, acquisition.id).digital_item_id
 
       assert [%{type: "placed", res_id: res_id, recorded_by: by}] =
@@ -67,7 +67,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
   describe "1. Once placed, a file is an asset with the acquisition's identifier and name" do
     test "the asset takes the identifier and the name it arrived under", %{inbox: inbox} do
-      [acquisition] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [acquisition] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
       asset = Repo.get!(Asset, acquisition.id)
       assert asset.location == acquisition.location
@@ -77,7 +77,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
     test "the asset is verified at the interval configured for its broad class",
          %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
       configured =
         :pluteus
@@ -147,14 +147,14 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
-  describe "the category without evidence is the broad class's (§6.3)" do
-    test "each class takes its default", %{inbox: inbox} do
+  describe "the category is decided from evidence and from nothing else (§6.3)" do
+    test "every statement about a holding is one a person could point at", %{inbox: inbox} do
       placed =
         ingest!(inbox, %{
           "KoB/01.flac" => media!(:flac, tags: album("Kind of Blue", 1)),
-          "holiday/IMG_0001.png" => media!(:png),
-          "home/birthday.mkv" => media!(:ffv1),
-          "letters/note.txt" => "a note\n"
+          "photos/holiday/IMG_0001.png" => media!(:png),
+          "home video/birthday.mkv" => media!(:ffv1),
+          "scans/letters/note.txt" => "a note\n"
         })
 
       categories =
@@ -163,15 +163,62 @@ defmodule Pluteus.Ingest.PlacementTest do
           &{&1.inbox_path, Catalog.category_of(work_of(&1), Place.category_scheme())}
         )
 
+      # The album the file states it is a track of, the directories a household filed
+      # two of them under, and the class of the fourth, which means one kind of thing.
       assert categories == %{
                "KoB/01.flac" => "music_recording",
-               "holiday/IMG_0001.png" => "photograph",
-               "home/birthday.mkv" => "home_video",
-               "letters/note.txt" => "document"
+               "photos/holiday/IMG_0001.png" => "photograph",
+               "home video/birthday.mkv" => "home_video",
+               "scans/letters/note.txt" => "document"
              }
 
       track = Enum.find(placed, &(&1.inbox_path == "KoB/01.flac"))
       assert Catalog.category_of(work_of_release(track), Place.category_scheme()) == "album"
+    end
+
+    # The three classes that mean several things decide nothing. A birthday, a film and
+    # an episode are one class and three categories, and the bytes do not say which.
+    test "a class that means several things decides nothing" do
+      assert Registry.category_from_class(:video) == nil
+      assert Registry.category_from_class(:audio) == nil
+      assert Registry.category_from_class(:image) == nil
+
+      assert Registry.category_from_class(:software) == "video_game"
+      assert Registry.category_from_class(:package) == "comic_issue"
+      assert Registry.category_from_class(:text) == "document"
+    end
+
+    # §4.3 takes a file only where the deployment can say what it is, so a holding that
+    # reaches placement always carries one.
+    test "a file nothing states anything about is not taken", %{inbox: inbox} do
+      drop!(inbox, "a day out/clip.mkv", media!(:ffv1))
+
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      assert [%{stage: :examine, kind: "category_undecided", permanent: false}] =
+               Ingest.findings_for_acquisition(id)
+
+      assert %Acquisition{state: :recorded, category: nil, inbox_released_at: nil} =
+               Ingest.get_acquisition!(id)
+
+      assert File.exists?(Path.join(inbox, "a day out/clip.mkv"))
+    end
+
+    # The finding is answered by a person, not by the deployment: a document put beside
+    # the file, or a move into a directory that says what it is, and the next pass reads
+    # it. Nothing about the bytes is read again.
+    test "a document put beside it afterwards is what takes it", %{inbox: inbox} do
+      drop!(inbox, "a day out/clip.mkv", media!(:ffv1))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+
+      drop!(inbox, "a day out/clip.xml", episode_document("Pinwheel", "01", "02", "Clip"))
+      acquire_settled!(inbox, @t0)
+      place_all!(inbox)
+
+      assert %Acquisition{state: :placed, category: "television_episode"} =
+               Ingest.get_acquisition!(id)
+
+      refute File.exists?(Path.join(inbox, "a day out/clip.mkv"))
     end
   end
 
@@ -213,9 +260,9 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "a rule decides only for the broad classes it names", %{inbox: inbox} do
       # An audiobook is audio. A still image whose genre tag reads Audiobook is a
       # photograph, because the class the bytes decided rules the tag out.
-      placed = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      placed = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
-      assert categories(placed) == %{"holiday/IMG_0001.png" => "photograph"}
+      assert categories(placed) == %{"photos/holiday/IMG_0001.png" => "photograph"}
       refute Registry.category_from_tags(:image, %{"genre" => "audiobook"})
       assert Registry.category_from_tags(:audio, %{"genre" => "audiobook"}) == "audiobook"
     end
@@ -298,16 +345,20 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     # §4.6 already tells a media manager's document from a release's notes by its root.
+    # The notes state nothing, so nothing does: the file is not taken, and it stays where
+    # the household put it until something says what it is.
     test "a root the registry does not name states nothing", %{inbox: inbox} do
       prefix = unique_prefix()
 
-      placed =
-        ingest!(inbox, %{
-          "#{prefix}/birthday.mkv" => media!(:film),
-          "#{prefix}/birthday.nfo" => "Released by SOMEGROUP\nNot markup at all\n"
-        })
+      drop!(inbox, "#{prefix}/birthday.mkv", media!(:film))
+      drop!(inbox, "#{prefix}/birthday.nfo", "Released by SOMEGROUP\nNot markup at all\n")
 
-      assert categories(placed)["#{prefix}/birthday.mkv"] == "home_video"
+      [video, _notes] = inbox |> acquire_settled!(@t0) |> acquired() |> Enum.sort()
+
+      assert [%{stage: :examine, kind: "category_undecided"}] =
+               Ingest.findings_for_acquisition(video)
+
+      assert File.exists?(Path.join(inbox, "#{prefix}/birthday.mkv"))
     end
 
     # The nearer statement about a thing is the one to believe.
@@ -379,16 +430,24 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "a file the match file does not name is not spoken for", %{inbox: inbox} do
       prefix = unique_prefix()
 
-      placed =
-        ingest!(inbox, %{
-          "#{prefix}/Season 11/1101 - Named.mkv" => media!(:film),
-          "#{prefix}/Season 11/1102 - Unnamed.mkv" => media!(:film),
-          "#{prefix}/.plexmatch" =>
-            match_file("King of the Hill", [{"11", "01", "Season 11/1101 - Named.mkv"}])
-        })
+      drop!(inbox, "#{prefix}/Season 11/1101 - Named.mkv", media!(:film))
+      drop!(inbox, "#{prefix}/Season 11/1102 - Unnamed.mkv", media!(:film))
 
-      assert categories(placed)["#{prefix}/Season 11/1101 - Named.mkv"] == "television_episode"
-      assert categories(placed)["#{prefix}/Season 11/1102 - Unnamed.mkv"] == "home_video"
+      drop!(
+        inbox,
+        "#{prefix}/.plexmatch",
+        match_file("King of the Hill", [{"11", "01", "Season 11/1101 - Named.mkv"}])
+      )
+
+      acquire_settled!(inbox, @t0)
+      place_all!(inbox)
+
+      assert [%{category: "television_episode", state: :placed}] =
+               Ingest.acquisitions_from("#{prefix}/Season 11/1101 - Named.mkv")
+
+      # Nothing says what the other one is, so the deployment does not take it.
+      assert [%{category: nil, state: :recorded}] =
+               Ingest.acquisitions_from("#{prefix}/Season 11/1102 - Unnamed.mkv")
     end
 
     # A serial is ordered where it says it is, and a line stating a season and no episode
@@ -431,24 +490,27 @@ defmodule Pluteus.Ingest.PlacementTest do
 
     test "the segment is matched whole and case-folded, never as a substring",
          %{inbox: inbox} do
-      placed =
-        ingest!(inbox, %{
-          "tv/Pinwheel/101 - Pilot.mkv" => media!(:film),
-          "TV Rips/Pinwheel/101 - Pilot.mkv" => media!(:film)
-        })
+      drop!(inbox, "tv/Pinwheel/101 - Pilot.mkv", media!(:film))
+      drop!(inbox, "TV Rips/Pinwheel/101 - Pilot.mkv", media!(:film))
+      acquire_settled!(inbox, @t0)
+      place_all!(inbox)
 
-      assert categories(placed) == %{
-               "tv/Pinwheel/101 - Pilot.mkv" => "television_episode",
-               "TV Rips/Pinwheel/101 - Pilot.mkv" => "home_video"
-             }
+      assert [%{category: "television_episode"}] =
+               Ingest.acquisitions_from("tv/Pinwheel/101 - Pilot.mkv")
+
+      # A substring match would make every directory whose name begins with TV a
+      # television directory. Nothing else states anything about it, so it is not taken.
+      assert [%{category: nil, state: :recorded}] =
+               Ingest.acquisitions_from("TV Rips/Pinwheel/101 - Pilot.mkv")
     end
 
     test "a rule decides only for the broad classes it names", %{inbox: inbox} do
-      # A still sitting beside the episodes is an image. A rule that read the directory
-      # alone would make it an episode of the series.
-      placed = ingest!(inbox, %{"TV/Pinwheel/the cast.png" => media!(:png)})
+      # A still sitting beside the episodes is not an episode. The rule names the classes
+      # it decides for, and a rule that read the directory alone would make it one.
+      drop!(inbox, "TV/Pinwheel/the cast.png", media!(:png))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
 
-      assert categories(placed) == %{"TV/Pinwheel/the cast.png" => "photograph"}
+      assert %Acquisition{media_class: :image, category: nil} = Ingest.get_acquisition!(id)
     end
 
     test "what a file states about itself outranks where it was filed", %{inbox: inbox} do
@@ -459,7 +521,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     test "a path naming nothing the registry holds states nothing" do
-      assert Registry.path_evidence("holiday/IMG_0001.jpg", :image) == nil
+      assert Registry.path_evidence("a day out/IMG_0001.jpg", :image) == nil
       assert Registry.path_evidence("TV/Pinwheel/101 - Pilot.mkv", :audio) == nil
 
       assert %{category: "television_episode", serial_name: "Pinwheel"} =
@@ -493,7 +555,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     test "a video filed under no series is placed on its own", %{inbox: inbox} do
-      prefix = unique_prefix()
+      prefix = filed("home video")
 
       [video] = ingest!(inbox, %{"#{prefix}/birthday.mkv" => media!(:film)})
 
@@ -516,14 +578,14 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     test "a moving holding carries one too", %{inbox: inbox} do
-      [film] = ingest!(inbox, %{"home/birthday.mkv" => media!(:ffv1)})
+      [film] = ingest!(inbox, %{"home video/birthday.mkv" => media!(:ffv1)})
 
       assert Addressing.get_extent(manifestation_of(film), :millisecond).magnitude > 0
     end
 
     test "a still holding carries none: there is no length to be part way through",
          %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
       assert Addressing.get_extent(manifestation_of(photo), :millisecond) == nil
     end
@@ -562,13 +624,13 @@ defmodule Pluteus.Ingest.PlacementTest do
   describe "5. A file dropped again after its holding was recycled is a new acquisition" do
     test "bringing back something deleted acquires it", %{inbox: inbox, actor: actor} do
       bytes = media!(:png)
-      [first] = ingest!(inbox, %{"holiday/IMG_0001.png" => bytes})
+      [first] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => bytes})
       {:ok, _} = Lifecycle.recycle(first.digital_item_id, actor.id)
 
-      drop!(inbox, "holiday/IMG_0001.png", bytes)
+      drop!(inbox, "photos/holiday/IMG_0001.png", bytes)
 
       assert [_again] = inbox |> acquire_settled!(DateTime.add(@t0, 3_600)) |> acquired()
-      assert [_, _] = Ingest.acquisitions_from("holiday/IMG_0001.png")
+      assert [_, _] = Ingest.acquisitions_from("photos/holiday/IMG_0001.png")
     end
   end
 
@@ -577,8 +639,8 @@ defmodule Pluteus.Ingest.PlacementTest do
          %{inbox: inbox, actor: actor} do
       [first, second] =
         ingest!(inbox, %{
-          "letters/1943-04-12.png" => media!(:png),
-          "letters/1943-04-12 rescan.png" => media!(:jpeg)
+          "scans/letters/1943-04-12.png" => media!(:png),
+          "scans/letters/1943-04-12 rescan.png" => media!(:jpeg)
         })
 
       location = Repo.get!(Asset, second.id).location
@@ -1143,7 +1205,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "a moving image's shape reaches its expression and its work", %{inbox: inbox} do
       # The ratio is the one the presentation layer reserves a box with, so a shape recorded
       # on an expression and a shape a surface draws to are the same number.
-      [film] = ingest!(inbox, %{"#{unique_prefix()}/birthday.mkv" => media!(:ffv1)})
+      [film] = ingest!(inbox, %{"#{filed("home video")}/birthday.mkv" => media!(:ffv1)})
       manifestation = manifestation_of(film)
       %{^manifestation => geometry} = Geometry.for_res([manifestation])
 
@@ -1159,7 +1221,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     test "a photograph's turn is read from its own bytes", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"#{unique_prefix()}/IMG_0001.jpg" => oriented_jpeg(6)})
+      [photo] = ingest!(inbox, %{"#{filed("photos")}/IMG_0001.jpg" => oriented_jpeg(6)})
 
       assert Repo.get!(Work, work_of(photo)).representative_attributes == %{"orientation" => 6}
     end
@@ -1360,15 +1422,16 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "a subtitle carrying marks the film does not describes the film", %{inbox: inbox} do
       placed =
         ingest!(inbox, %{
-          "Tarkovsky/Stalker.1979.mkv" => media!(:film),
-          "Tarkovsky/Stalker.1979.Extras.mkv" => media!(:film, audio: [{"rus", "flac", nil}]),
-          "Tarkovsky/Stalker.1979.Extras.en.forced.srt" =>
+          "movies/Tarkovsky/Stalker.1979.mkv" => media!(:film),
+          "movies/Tarkovsky/Stalker.1979.Extras.mkv" =>
+            media!(:film, audio: [{"rus", "flac", nil}]),
+          "movies/Tarkovsky/Stalker.1979.Extras.en.forced.srt" =>
             "1\n00:00:01,000 --> 00:00:02,000\nWhat do you want?\n\n" <>
               "2\n00:00:03,000 --> 00:00:04,000\nTo be left alone.\n\n"
         })
 
       subtitle = Enum.find(placed, &(&1.companion_kind == "subtitles"))
-      stalker = Enum.find(placed, &(&1.inbox_path == "Tarkovsky/Stalker.1979.Extras.mkv"))
+      stalker = Enum.find(placed, &(&1.inbox_path == "movies/Tarkovsky/Stalker.1979.Extras.mkv"))
 
       assert subtitle.media_class == :companion
       assert Catalog.category_of(work_of(subtitle), Place.category_scheme()) == "subtitles"
@@ -1383,9 +1446,9 @@ defmodule Pluteus.Ingest.PlacementTest do
          %{inbox: inbox} do
       placed =
         ingest!(inbox, %{
-          "Kurosawa/Ran.mkv" => media!(:film),
-          "Kurosawa/Rashomon.mkv" => media!(:film, audio: [{"jpn", "flac", nil}]),
-          "Kurosawa/Random subtitles.en.srt" =>
+          "movies/Kurosawa/Ran.mkv" => media!(:film),
+          "movies/Kurosawa/Rashomon.mkv" => media!(:film, audio: [{"jpn", "flac", nil}]),
+          "movies/Kurosawa/Random subtitles.en.srt" =>
             "1\n00:00:01,000 --> 00:00:02,000\nFor some other film.\n\n"
         })
 
@@ -1435,7 +1498,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
   describe "11. Placement writes a holding in one transaction; no asset without its digital item" do
     test "bytes changed after identification leave nothing written", %{inbox: inbox} do
-      drop!(inbox, "holiday/IMG_0001.png", media!(:png))
+      drop!(inbox, "photos/holiday/IMG_0001.png", media!(:png))
       [id] = inbox |> acquire_settled!(@t0) |> acquired()
       acquisition = Ingest.get_acquisition!(id)
       :ok = Storage.put(acquisition.location, StorageFixtures.png("not what was identified"))
@@ -1452,8 +1515,8 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
 
     test "one holding that crashes is a finding, and the pass places the rest", %{inbox: inbox} do
-      drop!(inbox, "holiday/IMG_0001.png", media!(:png))
-      drop!(inbox, "holiday/IMG_0002.jpg", media!(:jpeg))
+      drop!(inbox, "photos/holiday/IMG_0001.png", media!(:png))
+      drop!(inbox, "photos/holiday/IMG_0002.jpg", media!(:jpeg))
       [broken_id, sound_id] = inbox |> acquire_settled!(@t0) |> acquired() |> Enum.sort()
       broken = Ingest.get_acquisition!(broken_id)
       :ok = Storage.put(broken.location, StorageFixtures.png("not what was identified"))
@@ -1469,7 +1532,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
     test "every placed asset realizes a digital item carrying a manifestation", %{inbox: inbox} do
       placed =
-        ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png), "notes.txt" => "a note\n"})
+        ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png), "notes.txt" => "a note\n"})
 
       for acquisition <- placed do
         asset = Repo.get!(Asset, acquisition.id)
@@ -1482,7 +1545,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
   describe "12. Names and categories are automatic; a correction outranks them and survives" do
     test "placement's names and category are automatic", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       work = work_of(photo)
 
       assert [%Nomen{provenance: :automatic, nomen_string: "IMG_0001"}] = Catalog.nomens_for(work)
@@ -1974,7 +2037,7 @@ defmodule Pluteus.Ingest.PlacementTest do
           audio: [{"rus", "flac", nil}, {"eng", "aac", nil}, {"eng", "aac", "comment"}]
         )
 
-      [film] = ingest!(inbox, %{"Stalker.mkv" => bytes})
+      [film] = ingest!(inbox, %{"movies/Stalker.mkv" => bytes})
       manifestation = manifestation_of(film)
       expressions = Catalog.expressions_in(manifestation)
 
@@ -1996,7 +2059,7 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "a downmix of one language is not a second expression", %{inbox: inbox} do
       bytes = media!(:film, audio: [{"rus", "flac", nil}, {"rus", "aac", nil}])
 
-      [film] = ingest!(inbox, %{"Stalker.mkv" => bytes})
+      [film] = ingest!(inbox, %{"movies/Stalker.mkv" => bytes})
 
       assert [%Expression{}] = Catalog.expressions_in(manifestation_of(film))
     end
@@ -2004,7 +2067,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
   describe "19. Every content stream has a track address that survives normalization" do
     test "each content stream is addressed on the container", %{inbox: inbox} do
-      [film] = ingest!(inbox, %{"Stalker.mkv" => media!(:film)})
+      [film] = ingest!(inbox, %{"movies/Stalker.mkv" => media!(:film)})
 
       tracks =
         film
@@ -2042,8 +2105,8 @@ defmodule Pluteus.Ingest.PlacementTest do
     test "the rescan's own work and expression are recycled", %{inbox: inbox, actor: actor} do
       [first, rescan] =
         ingest!(inbox, %{
-          "letters/1943-04-12.png" => media!(:png),
-          "letters/1943-04-12 rescan.png" => media!(:jpeg)
+          "scans/letters/1943-04-12.png" => media!(:png),
+          "scans/letters/1943-04-12 rescan.png" => media!(:jpeg)
         })
 
       stray_work = work_of(rescan)
@@ -2063,7 +2126,7 @@ defmodule Pluteus.Ingest.PlacementTest do
       ingest!(inbox, %{
         "Kind of Blue/cover.jpg" => media!(:jpeg),
         "Kind of Blue/01 So What.flac" => media!(:flac, tags: album("Kind of Blue", 1)),
-        "Stalker.mkv" => media!(:film)
+        "movies/Stalker.mkv" => media!(:film)
       })
 
       writers =
@@ -2080,7 +2143,7 @@ defmodule Pluteus.Ingest.PlacementTest do
 
   describe "placement is idempotent (§6.9)" do
     test "a second pass places nothing and writes nothing", %{inbox: inbox} do
-      ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       writes = Repo.aggregate("catalog_writes", :count)
 
       assert Place.place_due(inbox) == []
@@ -2102,6 +2165,11 @@ defmodule Pluteus.Ingest.PlacementTest do
     place_all!(inbox)
     ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.sort_by(& &1.inbox_path)
   end
+
+  # §6.3 reads the inbox path as evidence, so a fixture says what it is making the way a
+  # household does: by filing it somewhere that says so. A recording needs no directory,
+  # because a tagged file states the album it is a track of and that says it is one.
+  defp filed(word), do: "#{word}/#{unique_prefix()}"
 
   defp album(name, track \\ nil, opts \\ []) do
     %{"album" => name, "album_artist" => "Miles Davis"}
@@ -2162,7 +2230,8 @@ defmodule Pluteus.Ingest.PlacementTest do
       essence: :lossy,
       media_class: :companion,
       companion_kind: "cover_art",
-      container_tags: %{}
+      container_tags: %{},
+      category: "cover_art"
     }
   end
 end
