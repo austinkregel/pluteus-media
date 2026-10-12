@@ -7,9 +7,9 @@ defmodule Pluteus.Preferences.Registry do
   its default are read from here rather than written anywhere in code. A key the file
   does not carry raises.
 
-  Three domains are expressible. `one_of` names its values; `number` bounds a quantity
-  and names its unit; `language_range` admits one language range, or the value it
-  reserves for narrowing nothing. Every value is stored and answered as text, because
+  Three domains are expressible. `one_of` names its values; `number` bounds a quantity,
+  names its unit and states the step it moves by; `language_range` admits one language
+  range, or the value it reserves for narrowing nothing. Every value is stored and answered as text, because
   one column holds them all and a quantity's unit is the registry's to state rather than
   the column's to imply.
 
@@ -43,6 +43,16 @@ defmodule Pluteus.Preferences.Registry do
   """
   @spec defaults() :: %{String.t() => String.t()}
   def defaults, do: Map.new(keys(), &{&1, default(&1)})
+
+  @doc """
+  How finely a quantity may be moved between its bounds.
+
+  A key whose domain states none raises, which is every key that is not a quantity: a
+  control offering positions a domain did not state would be settling how many settings
+  there are.
+  """
+  @spec step(String.t()) :: number()
+  def step(key), do: key |> domain() |> Map.fetch!("step")
 
   @doc """
   The value a key's domain reserves to mean that it narrows nothing.
