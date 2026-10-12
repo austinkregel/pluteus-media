@@ -75,6 +75,25 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonttools python3-brotli \
     && rm -rf /var/lib/apt/lists/*
 
+# [spec-10] §17.7's four obligations are broken by the live document and by nothing else,
+# and that section says why they need a browser: they are "invisible to automated checks
+# and to sighted people using a pointer". A dead render is an automated check. So focus
+# after a patch, a live region's second announcement, and whether a collection moves as
+# its images arrive are answerable here and nowhere else.
+#
+# chromium-driver is the W3C WebDriver server, which speaks HTTP and JSON — so driving it
+# needs no dependency beyond `:inets` and Jason, which the application already has. Both
+# come from Debian at one version, which is what keeps the browser and the driver that
+# speaks to it from disagreeing.
+#
+# fonts-liberation is the fallback chain's end. The interface's own faces are vendored and
+# served by the application (A.3.5), so this is what renders a name in a script the subset
+# does not cover rather than leaving it blank.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       chromium chromium-driver fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mix local.hex --force && mix local.rebar --force
 
 WORKDIR /app
