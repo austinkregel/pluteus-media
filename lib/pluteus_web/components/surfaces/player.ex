@@ -16,6 +16,7 @@ defmodule PluteusWeb.Surfaces.Player do
 
   alias Pluteus.Playback
   alias Pluteus.Presentation.Geometry
+  alias PluteusWeb.Settings
   alias PluteusWeb.Surfaces.Medium
 
   attr :work, :map, required: true
@@ -23,6 +24,7 @@ defmodule PluteusWeb.Surfaces.Player do
   attr :category, :string, required: true
   attr :playable, :any, required: true
   attr :chosen, :map, required: true
+  attr :preferences, :map, required: true
 
   def surface(assigns) do
     assigns =
@@ -47,7 +49,7 @@ defmodule PluteusWeb.Surfaces.Player do
           />
         </div>
 
-        <.beside streams={@streams} chosen={@chosen} />
+        <.beside streams={@streams} chosen={@chosen} preferences={@preferences} />
       </div>
     </div>
     """
@@ -100,8 +102,11 @@ defmodule PluteusWeb.Surfaces.Player do
 
   attr :streams, :map, required: true
   attr :chosen, :map, required: true
+  attr :preferences, :map, required: true
 
   defp beside(assigns) do
+    assigns = assign(assigns, :captions, Settings.keys(:captions))
+
     ~H"""
     <aside
       id="player-tracks"
@@ -112,6 +117,24 @@ defmodule PluteusWeb.Surfaces.Player do
         "bg-surface-raised"
       ]}
     >
+      <%!-- §12.2's three states, kept apart: whether subtitles are shown at all is not
+            which one is chosen, and neither is which audio is playing. Turning them off
+            is a setting of this principal's that outlives the holding, which is why it
+            is held where §14.5 holds the rest of them. --%>
+      <section id="player-shown" aria-labelledby="player-shown-heading">
+        <h2
+          id="player-shown-heading"
+          class="mb-2 text-caption uppercase tracking-wide text-on-surface-muted"
+        >
+          Subtitles are shown
+        </h2>
+        <Settings.control
+          key="subtitle_visibility"
+          value={@preferences["subtitle_visibility"]}
+          prefix="subtitle_"
+        />
+      </section>
+
       <.choice
         id="player-subtitles"
         kind="subtitle"
@@ -127,6 +150,26 @@ defmodule PluteusWeb.Surfaces.Player do
         tracks={@streams.audio}
         chosen={@chosen.audio}
       />
+
+      <%!-- §17.4: a caption's presentation is adjustable and persisted per principal. It
+            names no property of it, so these four are the ones this deployment draws and
+            §20 is where their values live. --%>
+      <section id="player-captions" aria-labelledby="player-captions-heading">
+        <h2
+          id="player-captions-heading"
+          class="mb-2 text-caption uppercase tracking-wide text-on-surface-muted"
+        >
+          Caption appearance
+        </h2>
+        <div class="flex flex-col gap-4">
+          <Settings.control
+            :for={key <- @captions}
+            key={key}
+            value={@preferences[key]}
+            prefix="caption_"
+          />
+        </div>
+      </section>
     </aside>
     """
   end
