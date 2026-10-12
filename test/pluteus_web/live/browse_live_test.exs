@@ -15,6 +15,7 @@ defmodule PluteusWeb.BrowseLiveTest do
   alias Pluteus.Dedup
   alias Pluteus.Ingest.Place
   alias Pluteus.Principals
+  alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Chrome
 
   setup %{conn: conn} do
@@ -310,6 +311,14 @@ defmodule PluteusWeb.BrowseLiveTest do
       assert html =~ "This deployment serves no surface for it."
     end
 
+    # The chrome names a mode and the surface parses that name against §20's own list, so
+    # a name only one of them knows is a link that refuses itself when pressed.
+    test "every mode the chrome names is one the registry holds" do
+      named = for {slug, _n, _g, _w, _at} <- Chrome.modes(), do: slug
+
+      assert Enum.sort(named) == Enum.sort(Surfaces.browse_modes())
+    end
+
     test "every mode with an address is reachable at phone width too", %{conn: conn} do
       # §9.2: nothing is reachable in the rail and not in the tab bar. Four tabs fit
       # across a phone and there are seven modes, so this is what stops a mode gaining a
@@ -323,6 +332,31 @@ defmodule PluteusWeb.BrowseLiveTest do
       end
 
       assert {:ok, _live, _html} = live(conn, ~p"/everything")
+    end
+
+    # §9.2 makes a mode a way of looking rather than a filter, so Sets shows what gathers
+    # others and nothing else — and the count beside it has to be of that, because a
+    # count taken against the whole catalogue would promise holdings Sets does not show.
+    test "Sets holds what gathers others, and says so", %{conn: conn} do
+      release = a_release()
+      letter = named("A letter", "document")
+
+      {:ok, _live, html} = live(conn, ~p"/sets")
+
+      assert html =~ ~s|href="/works/#{release}"|
+      refute html =~ ~s|href="/works/#{letter}"|
+      assert html =~ "of 1 holding"
+    end
+
+    test "Recently added puts what arrived last first", %{conn: conn} do
+      _first = named("An early letter", "document")
+      _second = named("A later letter", "document")
+
+      {:ok, _live, html} = live(conn, ~p"/recently-added")
+
+      assert html =~ "Recently added"
+      assert html =~ "An early letter"
+      assert html =~ "A later letter"
     end
   end
 
@@ -362,6 +396,21 @@ defmodule PluteusWeb.BrowseLiveTest do
 
   # A nil category is what ingest leaves behind for a commentary stream: a work of its
   # own embodied in the film's manifestation, which nothing categorizes.
+  # A release is a work whose expression gathers another's, which is the relation §9.2's
+  # Sets mode is a way of looking at. The track it gathers is not an entry of its own,
+  # which is what makes the mode's selection assertable from one pair.
+  defp a_release do
+    release = named("A release", "album")
+    track = named("A track", "music_recording")
+
+    [gathering | _rest] = Catalog.expressions_of(release)
+    [gathered | _more] = Catalog.expressions_of(track)
+
+    {:ok, _} = Catalog.aggregate(gathering.id, gathered.id)
+
+    release
+  end
+
   defp named(name, category) do
     {:ok, %{work: work}} =
       Catalog.create_work(%{nomen_string: name, provenance: :automatic})
