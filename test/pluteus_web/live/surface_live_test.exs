@@ -289,6 +289,19 @@ defmodule PluteusWeb.SurfaceLiveTest do
       assert html =~ "aspect-ratio: 1.5"
     end
 
+    # A still image is a container with no duration — ffprobe's format block has no such
+    # field for a JPEG — and a photograph is not zero milliseconds long. The surface
+    # asks what is playable before it knows the category, so a reading with no length
+    # has to be an answer rather than a raise.
+    test "a photograph whose bytes were read has no length, and still renders",
+         %{conn: conn, inbox: inbox} do
+      photo = a_photograph(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      assert html =~ ~s|id="viewer-image"|
+    end
+
     test "a photograph is not offered a transport", %{conn: conn} do
       photo = named("A photograph", "photograph")
 
@@ -444,6 +457,20 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
     [id] = inbox |> acquire_settled!(@t0) |> acquired()
     Place.place_due(inbox)
+    Normalize.normalize_due(fn _class -> nil end)
+
+    id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
+  end
+
+  # Placed, probed and normalized, so the surface meets a holding whose reading states no
+  # duration. Normalized because playback refuses bytes nothing has adopted a master for
+  # before it ever asks how long they are, which is what made an earlier version of this
+  # test pass against the defect it was written for.
+  defp a_photograph(inbox) do
+    drop!(inbox, "#{unique_prefix()}/IMG_0001.png", media!(:png))
+
+    [id] = inbox |> acquire_settled!(@t0) |> acquired()
+    place_all!(inbox)
     Normalize.normalize_due(fn _class -> nil end)
 
     id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
