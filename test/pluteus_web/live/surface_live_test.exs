@@ -170,6 +170,36 @@ defmodule PluteusWeb.SurfaceLiveTest do
       assert html =~ ~s|phx-hook="Player"|
     end
 
+    # The canvas's own note on this board: a pill reading "Direct play — no transcode"
+    # asserts an outcome nothing has established. What this deployment can state is what
+    # it handed over, which is the stored bytes under the media type it served them as.
+    test "the surface states what it served, not what will happen",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{film}/play")
+
+      assert html =~ ~s|id="player-delivery"|
+      assert html =~ "Served as held"
+      assert html =~ "Matroska"
+    end
+
+    # Whether the bytes play is the browser's answer, so it is the browser that reports
+    # it and the surface that words it: §8.5 keeps a media error code off a surface.
+    test "a browser that will not play it says so on the surface",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{film}/play")
+
+      refute html =~ ~s|id="player-stopped"|
+
+      render_hook(live, "medium-refused", %{"code" => 4, "said" => "unsupported codec"})
+
+      assert render(live) =~ "This browser does not play what this is held as."
+      assert render(live) =~ "unsupported codec"
+    end
+
     # §12.2 and spec-01 §8.6 keep three things apart: which audio plays, which subtitle
     # track is chosen, and whether subtitles are shown at all. The third outlives the
     # holding, so it is the principal's and not this page's.
