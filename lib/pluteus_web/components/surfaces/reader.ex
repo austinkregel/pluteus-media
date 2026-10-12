@@ -2,11 +2,15 @@ defmodule PluteusWeb.Surfaces.Reader do
   @moduledoc """
   The reader: the surface a document and an ebook are read on ([spec-10] §12.1).
 
-  Three columns. What the publication is held as and what it divides into, the text
-  itself at A.3.6's settings, and what people have marked in it. §12.3's position is
-  counted in pages, which is the unit §20 holds this medium's seek granularity in, and
-  the share of the whole is stated beside it because a page number says nothing about
-  how much of a book is left.
+  Three columns. What the publication is, what it divides into and what it is held as;
+  the text itself at A.3.6's settings; and what people have marked in it. §12.3's
+  position is counted in pages, which is the unit §20 holds this medium's seek
+  granularity in, and the share of the whole is stated beside it because a page number
+  says nothing about how much of a book is left.
+
+  The name sits at the head of the column rather than in a band over the whole surface:
+  a reading is the one surface whose width is the medium's, and a band would take a line
+  of it from every column to say what one column already says.
 
   A copy is chosen by naming it, not by addressing it: the surface is the work's, and
   §10.1 gives the manifestation no second address to read it at. So the choice is a
@@ -25,6 +29,8 @@ defmodule PluteusWeb.Surfaces.Reader do
   attr :work, :map, required: true
   attr :name, :string, required: true
   attr :category, :string, required: true
+  attr :credited, :list, required: true
+  attr :stated, :any, required: true
   attr :reading, :any, required: true
   attr :division, :integer, required: true
   attr :held_as, :list, required: true
@@ -34,25 +40,34 @@ defmodule PluteusWeb.Surfaces.Reader do
 
   def surface(assigns) do
     ~H"""
-    <div class="flex min-h-0 w-full flex-1 flex-col">
-      <Medium.band name={@name} category={@category} />
+    <div class="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
+      <.aside
+        work={@work}
+        name={@name}
+        category={@category}
+        credited={@credited}
+        stated={@stated}
+        reading={@reading}
+        division={@division}
+        held_as={@held_as}
+      />
 
-      <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <.aside work={@work} reading={@reading} division={@division} held_as={@held_as} />
-
-        <div class="flex min-w-0 flex-1 flex-col">
-          <Settings.preferences held={@preferences} principal_name={@principal_name} />
-          <.text reading={@reading} division={@division} preferences={@preferences} />
-          <.position reading={@reading} division={@division} />
-        </div>
-
-        <.marked marks={@marks} />
+      <div class="flex min-w-0 flex-1 flex-col">
+        <Settings.preferences held={@preferences} principal_name={@principal_name} />
+        <.text reading={@reading} division={@division} preferences={@preferences} />
+        <.position reading={@reading} division={@division} />
       </div>
+
+      <.marked marks={@marks} />
     </div>
     """
   end
 
   attr :work, :map, required: true
+  attr :name, :string, required: true
+  attr :category, :string, required: true
+  attr :credited, :list, required: true
+  attr :stated, :any, required: true
   attr :reading, :any, required: true
   attr :division, :integer, required: true
   attr :held_as, :list, required: true
@@ -60,13 +75,29 @@ defmodule PluteusWeb.Surfaces.Reader do
   defp aside(assigns) do
     ~H"""
     <aside class={[
-      "flex shrink-0 flex-col lg:w-64 lg:overflow-y-auto",
+      "flex shrink-0 flex-col lg:w-64 lg:min-h-0",
       "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "lg:border-b-0 lg:border-r-[length:var(--sys-border-width-hairline)]",
       "bg-surface-raised"
     ]}>
-      <section class="flex flex-col gap-2 px-4 py-4">
-        <h2 class="text-title-md font-medium text-on-surface-strong">Held as</h2>
+      <section class={[
+        "flex shrink-0 flex-col gap-2 px-4 py-4",
+        "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle"
+      ]}>
+        <Medium.kind category={@category} />
+        <h1 class="text-title-sm font-medium text-on-surface-strong">{@name}</h1>
+        <span :if={@credited != [] or @stated} class="text-body-sm text-on-surface-muted">
+          {said(@credited, @stated)}
+        </span>
+      </section>
+
+      <.divisions :if={pages(@reading) > 1} reading={@reading} division={@division} />
+
+      <section class={[
+        "flex shrink-0 flex-col gap-1 px-4 py-4 lg:mt-auto",
+        "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle"
+      ]}>
+        <h2 class="pb-1 text-title-md font-medium text-on-surface-strong">Held as</h2>
 
         <.link
           :for={copy <- @held_as}
@@ -78,24 +109,26 @@ defmodule PluteusWeb.Surfaces.Reader do
           <span :if={copy.reading?} class="shrink-0 text-caption">reading</span>
         </.link>
       </section>
-
-      <.divisions :if={pages(@reading) > 1} reading={@reading} division={@division} />
     </aside>
     """
   end
+
+  # Who it credits and when it was issued, in one line under the name. Each part is
+  # there where the catalog holds it: a publication nobody is credited on says the year
+  # alone rather than an empty space before it.
+  defp said(credited, nil), do: Enum.join(credited, ", ")
+  defp said([], stated), do: stated
+  defp said(credited, stated), do: "#{Enum.join(credited, ", ")} · #{stated}"
 
   attr :reading, :any, required: true
   attr :division, :integer, required: true
 
   defp divisions(assigns) do
     ~H"""
-    <section class={[
-      "flex min-h-0 flex-col gap-1 px-4 py-4",
-      "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle"
-    ]}>
+    <section class="flex min-h-0 flex-col gap-1 px-4 py-4">
       <h2 class="pb-1 text-title-md font-medium text-on-surface-strong">Contents</h2>
 
-      <div class="flex max-h-64 flex-col gap-1 overflow-y-auto lg:max-h-none">
+      <div class="flex max-h-64 flex-col gap-1 overflow-y-auto lg:max-h-full">
         <button
           :for={{_text, at} <- Enum.with_index(pages_of(@reading))}
           type="button"
@@ -240,7 +273,6 @@ defmodule PluteusWeb.Surfaces.Reader do
       </article>
 
       <p
-        :if={@marks != []}
         class={[
           "mt-auto rounded-md px-4 py-3 text-caption text-on-surface-muted",
           "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
