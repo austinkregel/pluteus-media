@@ -49,10 +49,11 @@ defmodule PluteusWeb.PresentationController do
 
     with :ok <- no_dimensions(params),
          {:ok, declared} <- known_profile(profile),
+         {:ok, ordinal} <- page(params),
          {:ok, uuid} <- identifier(id),
          {:live, %Res{kind: ^kind}} <- Lifecycle.state(uuid),
          true <- Presentation.applies?(declared, uuid) do
-      answer(conn, uuid, declared)
+      answer(conn, uuid, declared, ordinal)
     else
       {:refused, detail} ->
         Problem.send(
@@ -117,12 +118,33 @@ defmodule PluteusWeb.PresentationController do
     end
   end
 
+  # §12.1's page reader asks for page *n* of a container of pages, and a page is part of
+  # what identifies the artefact rather than a dimension of it: §11.1's prohibition is on
+  # asking for a size, and this asks which of the holding's pages. A path segment rather
+  # than a parameter, because the three columns that identify an artefact are the
+  # subject, the profile and the ordinal, and this is the third of them.
+  defp page(%{"page" => page}) do
+    case Integer.parse(page) do
+      {ordinal, ""} when ordinal >= 0 ->
+        {:ok, ordinal}
+
+      _not_a_page ->
+        {:refused,
+         %{
+           detail: "#{page} is not a page: a page is a whole number from zero",
+           profiles: Registry.profile_names()
+         }}
+    end
+  end
+
+  defp page(_whole_holding), do: {:ok, 0}
+
   # Present, absent with a source, absent without one. Nothing else is a state a
   # client can be in here, because a row exists exactly where the bytes do.
-  defp answer(conn, subject_id, declared) do
+  defp answer(conn, subject_id, declared, ordinal) do
     profile = Map.fetch!(declared, "name")
 
-    case Presentation.get(subject_id, profile) do
+    case Presentation.get(subject_id, profile, ordinal) do
       %Asset{} = held ->
         {:ok, served} = Presentation.serve(held)
 
@@ -134,14 +156,14 @@ defmodule PluteusWeb.PresentationController do
         )
 
       nil ->
-        awaited(conn, subject_id, profile)
+        awaited(conn, subject_id, profile, ordinal)
     end
   end
 
   # 202 queues the work and says so; the job's uniqueness is what keeps a page of
   # tiles asking at once from encoding the same artefact many times. 204 queues
   # nothing, because there is nothing to generate from.
-  defp awaited(conn, subject_id, profile) do
+  defp awaited(conn, subject_id, profile, ordinal) do
     conn = put_resp_header(conn, "presentation-profile", profile)
 
     case Presentation.source_for(subject_id) do
@@ -149,7 +171,7 @@ defmodule PluteusWeb.PresentationController do
         send_resp(conn, 204, "")
 
       _source ->
-        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, profile)
+        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, profile, ordinal)
         send_resp(conn, 202, "")
     end
   end
