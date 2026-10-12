@@ -22,6 +22,7 @@ defmodule Pluteus.Presentation.Text do
   in exactly that sense.
   """
 
+  alias Pluteus.Publication
   alias Pluteus.Storage
 
   @doc """
@@ -34,6 +35,7 @@ defmodule Pluteus.Presentation.Text do
       {:pdf, path} -> some_text(from_pdf(path))
       {:ocr, path} -> some_text(from_ocr(path))
       {:plain, path} -> some_text(from_plain(path))
+      {:publication, held} -> some_text(from_publication(held))
       :none -> {:error, "text_not_extractable", %{class: class}}
     end
   end
@@ -52,10 +54,23 @@ defmodule Pluteus.Presentation.Text do
           {:ok, %{words: [map()], source: String.t()}} | {:error, String.t(), map()}
   def word_positions(location, class) do
     case reader(location, class) do
-      {:pdf, path} -> pdf_words(path)
-      {:ocr, path} -> ocr_words(path)
-      {:plain, _path} -> {:error, "text_has_no_layout", %{reason: "plain text has no page"}}
-      :none -> {:error, "text_not_extractable", %{class: class}}
+      {:pdf, path} ->
+        pdf_words(path)
+
+      {:ocr, path} ->
+        ocr_words(path)
+
+      {:plain, _path} ->
+        {:error, "text_has_no_layout", %{reason: "plain text has no page"}}
+
+      # Where the words sit is the reader's answer rather than the publication's: the
+      # text reflows to whatever it is read on, which is what §11.5's position list
+      # exists for.
+      {:publication, _held} ->
+        {:error, "text_has_no_layout", %{reason: "a reflowable publication has no page"}}
+
+      :none ->
+        {:error, "text_not_extractable", %{class: class}}
     end
   end
 
@@ -72,23 +87,37 @@ defmodule Pluteus.Presentation.Text do
     case reader(location, class) do
       {:pdf, path} -> pdf_positions(path)
       {:plain, path} -> plain_positions(path)
+      {:publication, held} -> publication_positions(held)
       {:ocr, _path} -> {:error, "text_has_no_pagination", %{reason: "a scan is one page"}}
       :none -> {:error, "text_not_extractable", %{class: class}}
     end
   end
 
   # PRONOM's PDF identifiers are what placement recorded, but the reader is chosen from
-  # the broad class and the format together: a document may be a PDF or plain text, and
-  # an image's text is in its pixels whatever encoded them.
+  # the broad class and the format together: a document may be a PDF, a publication of
+  # several documents or plain text, and an image's text is in its pixels whatever
+  # encoded them.
   defp reader(location, class) do
     path = Storage.path(location)
 
     cond do
-      not File.exists?(path) -> :none
-      pdf?(path) -> {:pdf, path}
-      class == :image -> {:ocr, path}
-      class in [:text, :companion] -> {:plain, path}
-      true -> :none
+      not File.exists?(path) ->
+        :none
+
+      pdf?(path) ->
+        {:pdf, path}
+
+      class == :image ->
+        {:ocr, path}
+
+      class in [:text, :companion] and Publication.publication?(location) ->
+        {:publication, location}
+
+      class in [:text, :companion] ->
+        {:plain, path}
+
+      true ->
+        :none
     end
   end
 
@@ -110,6 +139,21 @@ defmodule Pluteus.Presentation.Text do
     case run("tesseract", [path, "-", "--psm", "3"]) do
       {:ok, text} -> {:ok, %{text: normalise(text), source: "tesseract"}}
       error -> error
+    end
+  end
+
+  # The publication's own documents, kept apart by the page break a reader divides on, so
+  # a publication divided into chapters by whoever made it is read in those chapters.
+  defp from_publication(held) do
+    case Publication.divisions(held) do
+      {:ok, divisions} ->
+        {:ok, %{text: divisions |> Enum.join("\f") |> normalise(), source: "epub"}}
+
+      {:error, {:no_entry, entry}} ->
+        {:error, "publication_entry_missing", %{entry: entry}}
+
+      {:error, {:unreadable, entry, refusal}} ->
+        {:error, "publication_unreadable", %{entry: entry, refusal: inspect(refusal)}}
     end
   end
 
@@ -240,6 +284,14 @@ defmodule Pluteus.Presentation.Text do
   defp plain_positions(path) do
     with {:ok, %{text: text}} <- from_plain(path) do
       {:ok, index([text], "file")}
+    end
+  end
+
+  defp publication_positions(held) do
+    with {:ok, divisions} <- Publication.divisions(held) do
+      {:ok, index(Enum.map(divisions, &normalise/1), "epub")}
+    else
+      {:error, _refusal} -> from_publication(held)
     end
   end
 
