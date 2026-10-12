@@ -453,8 +453,8 @@ defmodule PluteusWeb.Chrome do
 
   defp findings_link(assigns) do
     ~H"""
-    <a
-      href={~p"/findings"}
+    <.link
+      navigate={~p"/findings"}
       title={@collapsed && "#{@findings} #{findings_said(@findings)}"}
       class={[
         "min-h-target-touch flex items-center rounded-md",
@@ -465,7 +465,7 @@ defmodule PluteusWeb.Chrome do
     >
       <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
       <span class={@collapsed && "sr-only"}>{@findings} {findings_said(@findings)}</span>
-    </a>
+    </.link>
     """
   end
 
@@ -490,13 +490,13 @@ defmodule PluteusWeb.Chrome do
       <span class="truncate text-body-sm font-medium text-on-surface-strong">
         {@principal_name || "a principal with no person of its own"}
       </span>
-      <a
-        href={~p"/findings"}
+      <.link
+        navigate={~p"/findings"}
         class="ml-auto min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
       >
         <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
         <span class="sr-only">{@findings} {findings_said(@findings)}</span>
-      </a>
+      </.link>
       <.contexts contexts={@contexts} at="top-bar" />
     </div>
     """
