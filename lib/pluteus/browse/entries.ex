@@ -47,6 +47,7 @@ defmodule Pluteus.Browse.Entries do
   import Ecto.Query
 
   alias Pluteus.Browse.Query
+  alias Pluteus.Catalog
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Category
@@ -59,6 +60,7 @@ defmodule Pluteus.Browse.Entries do
   alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
+  alias Pluteus.Events
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Place
   alias Pluteus.Ingest.Registry
@@ -116,14 +118,47 @@ defmodule Pluteus.Browse.Entries do
   does not show.
   """
   @spec selected(Query.t()) :: Ecto.Query.t()
-  def selected(%Query{mode: mode}), do: mode |> selects() |> then(& &1.(base()))
+  def selected(%Query{} = browse), do: selects(browse.mode, browse)
 
   # A clause per mode and no catch-all, so a mode the registry names and nothing selects
   # fails here rather than answering with the whole catalogue under its name.
-  defp selects("everything"), do: & &1
-  defp selects("recently_added"), do: & &1
-  defp selects("time"), do: & &1
-  defp selects("sets"), do: &from(w in &1, where: exists(aggregates()))
+  defp selects("everything", _browse), do: base()
+  defp selects("recently_added", _browse), do: base()
+  defp selects("time", _browse), do: base()
+  defp selects("sets", _browse), do: from(w in base(), where: exists(aggregates()))
+
+  # §13.4's continue list, and §14.3's rule about it: one principal's, never composed
+  # with another's. The positions are resolved first because §13.3 decides which of a
+  # res's reports stands, and that is an ordering no query expresses; what is left is a
+  # set of works, which both the rows and every count are then taken over.
+  #
+  # A query carrying no principal raises rather than answering, because the one thing
+  # this mode must never do is show a surface composed from somebody else's reading.
+  defp selects("continue", %Query{principal_id: nil}) do
+    raise ArgumentError, "Continue is one principal's own, and this query names none"
+  end
+
+  defp selects("continue", %Query{principal_id: principal_id}) do
+    from w in base(), where: w.id in ^resumed(principal_id)
+  end
+
+  @doc """
+  The works a principal has somewhere to return to in, most recently left off first.
+
+  A position is reported against whatever a session was playing — a track, a copy — and
+  what a surface lists is holdings, so each is resolved to the work that presents it.
+  Two positions in one release are one entry, kept where the later of them put it.
+  """
+  @spec resumed(Ecto.UUID.t()) :: [Ecto.UUID.t()]
+  def resumed(principal_id) do
+    positions = Events.resumable(principal_id)
+    of_work = positions |> Enum.map(& &1.res_id) |> Catalog.works_of_many()
+
+    positions
+    |> Enum.map(&of_work[&1.res_id])
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
 
   @doc """
   How many works a query holds.
@@ -137,6 +172,21 @@ defmodule Pluteus.Browse.Entries do
   The identifiers a query holds, in the order its mode puts them in, bounded.
   """
   @spec ids(Query.t(), pos_integer()) :: [Ecto.UUID.t()]
+  def ids(%Query{mode: "continue"} = browse, limit) do
+    # The order is §13.3's answer about each res, which no query expresses: what is in
+    # the database is every report, and which of them stands is decided by playing,
+    # recency and sequence together.
+    left_off = browse.principal_id |> resumed() |> Enum.with_index() |> Map.new()
+
+    browse
+    |> selected()
+    |> narrow(browse)
+    |> select([work: w], w.id)
+    |> Repo.all()
+    |> Enum.sort_by(&Map.fetch!(left_off, &1))
+    |> Enum.take(limit)
+  end
+
   def ids(%Query{} = browse, limit) do
     browse
     |> selected()
