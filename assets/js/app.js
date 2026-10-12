@@ -113,10 +113,17 @@ const Waveform = {
 }
 
 // Said the way the bar says it, so the client's drawing and the server's rendering agree.
+// Hours where there are hours, as PluteusWeb.Surfaces.Medium.clock/1 says them: the two
+// drawings are of one position and have to read alike.
 const clock = (milliseconds) => {
   const total = Math.floor(milliseconds / 1000)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor(total / 60) % 60
+  const seconds = String(total % 60).padStart(2, "0")
 
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`
+  if (hours === 0) return `${minutes}:${seconds}`
+
+  return `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`
 }
 
 // §12.3's controls for a surface holding its own medium. On the transport rather than
