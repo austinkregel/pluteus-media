@@ -15,8 +15,13 @@ defmodule PluteusWeb.SurfaceLiveTest do
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
+  alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Lifecycle
+  alias Pluteus.Presentation.Generate
   alias Pluteus.Principals
+  alias Pluteus.Reading
+  alias Pluteus.Repo
+  alias Pluteus.Storage
   alias Pluteus.Surfaces.Registry, as: Surfaces
 
   @t0 ~U[2026-09-18 12:00:00.000000Z]
@@ -221,6 +226,108 @@ defmodule PluteusWeb.SurfaceLiveTest do
     end
   end
 
+  describe "§12.1, §11.5. A publication is read a division at a time" do
+    test "the text is shown divided as the publication divides it",
+         %{conn: conn, inbox: inbox} do
+      book = a_book(inbox)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{book}/read")
+
+      assert html =~ "Dear Ada and Thomas"
+      refute html =~ "Write when you can"
+      assert html =~ "Page 1 of 2"
+
+      live |> element(~s|#reader-position button[phx-value-to="1"]|) |> render_click()
+
+      assert render(live) =~ "Write when you can"
+      assert has_element?(live, "#reader-position", "Page 2 of 2")
+    end
+
+    # A position past the end is the end. A person pressing the last page twice, or a
+    # slider arriving at a figure from a copy with more pages in it, has not asked for
+    # a page the publication does not have.
+    test "a position outside the publication is clamped to it", %{conn: conn, inbox: inbox} do
+      book = a_book(inbox)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{book}/read")
+
+      live |> element("#reader-at") |> render_change(%{"to" => "40"})
+
+      assert has_element?(live, "#reader-position", "Page 2 of 2")
+    end
+
+    test "the copy being read is named, and so is every other copy",
+         %{conn: conn, inbox: inbox} do
+      book = a_book(inbox)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{book}/read")
+
+      assert html =~ "Held as"
+      assert html =~ "PDF"
+    end
+
+    # The copy is named by a parameter of the surface rather than by an address of its
+    # own, so one the household does not hold is the same answer as a work it does not
+    # hold: not found.
+    test "a copy nobody holds is not found", %{conn: conn, inbox: inbox} do
+      book = a_book(inbox)
+
+      assert_raise PluteusWeb.NotFoundError, ~r/no copy of this is held/, fn ->
+        live(conn, ~p"/works/#{book}/read?held=#{Ecto.UUID.generate()}")
+      end
+    end
+
+    # §11.6 answers an artefact nobody has made and one there is nothing to make alike,
+    # and §5.2 is where they differ. A holding with no bytes is the second.
+    test "a holding with no bytes states the absence of its text in words",
+         %{conn: conn} do
+      letter = named("A letter", "document")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{letter}/read")
+
+      assert html =~ ~s|id="reader-absence"|
+      assert html =~ "not held"
+      refute html =~ ~s|id="reader-position"|
+    end
+  end
+
+  describe "A.3.6, §14.5. How a person is read to is theirs alone" do
+    test "a setting pressed is kept, and nobody else is set by it",
+         %{conn: conn, inbox: inbox} do
+      book = a_book(inbox)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{book}/read")
+
+      assert html =~ "font-family: var(--font-serif);"
+
+      live
+      |> element(~s|#reading-preferences button[phx-value-key="reading_face"]|, "Sans")
+      |> render_click()
+
+      assert render(live) =~ "font-family: var(--font-sans);"
+
+      # A second member on the same holding is read to as they asked, which is what
+      # §14.5 means by a preference not being visible to another.
+      another = build_conn() |> through_proxy(a_subject("marie")) |> on_a_surface()
+
+      {:ok, _live, theirs} = live(another, ~p"/works/#{book}/read")
+
+      assert theirs =~ "font-family: var(--font-serif);"
+    end
+
+    test "every property the registry carries is offered", %{conn: conn, inbox: inbox} do
+      book = a_book(inbox)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{book}/read")
+
+      for key <- PluteusWeb.Surfaces.Reading.keys() do
+        assert has_element?(live, ~s|#reading-preferences [phx-value-key="#{key}"]|) or
+                 has_element?(live, ~s|#reading-#{key}|),
+               "#{key} is a reading preference and nothing offers it"
+      end
+    end
+  end
+
   describe "A surface that takes the width gives it back when asked" do
     test "the rail opens collapsed on a player and reopens on a press",
          %{conn: conn, inbox: inbox} do
@@ -267,6 +374,44 @@ defmodule PluteusWeb.SurfaceLiveTest do
     Normalize.normalize_due(fn _class -> nil end)
 
     id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
+  end
+
+  # Two pages of a publication, which is what makes a division a division: the text is
+  # read out of the file and the form feed between the pages is the file's own.
+  defp a_book(inbox) do
+    drop!(inbox, "#{unique_prefix()}/letters.pdf", two_pages())
+
+    [id] = inbox |> acquire_settled!(@t0) |> acquired()
+    place_all!(inbox)
+    Normalize.normalize_due(fn _class -> nil end)
+
+    acquisition = Ingest.get_acquisition!(id)
+    manifestation = Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
+    {:ok, made} = Generate.run(manifestation, Reading.profile())
+    on_exit(fn -> Storage.delete(made.location) end)
+
+    Catalog.work_of(acquisition.digital_item_id)
+  end
+
+  defp two_pages do
+    """
+    %PDF-1.4
+    1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+    2 0 obj<</Type/Pages/Kids[3 0 R 6 0 R]/Count 2>>endobj
+    3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj
+    4 0 obj<</Length 60>>stream
+    BT /F1 12 Tf 20 50 Td (Dear Ada and Thomas) Tj ET
+    endstream
+    endobj
+    5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
+    6 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 7 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj
+    7 0 obj<</Length 60>>stream
+    BT /F1 12 Tf 20 50 Td (Write when you can) Tj ET
+    endstream
+    endobj
+    trailer<</Root 1 0 R>>
+    %%EOF
+    """
   end
 
   defp named(name, category) do
