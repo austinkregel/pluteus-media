@@ -14,9 +14,11 @@ defmodule PluteusWeb.FindingsLive do
 
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Design.Glyphs
   alias Pluteus.Ingest
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
+  alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
   alias PluteusWeb.Interface
 
@@ -31,7 +33,25 @@ defmodule PluteusWeb.FindingsLive do
      |> assign(:contexts, session["contexts"] || %{})
      |> assign(:transport, Interface.transport(session))
      |> assign(:announcement, "")
+     |> assign(:states, vocabulary())
      |> gathered()}
+  end
+
+  # §5.2's states with A.8.8's marker for each, assembled here because A.9.5 admits no
+  # glyph name built in a template: a name assembled at render time is invisible to the
+  # stylesheet's build and yields an element with no rule at all.
+  #
+  # *Held* leads, because the other seven are each a way of not being it.
+  defp vocabulary do
+    markers =
+      Map.new(Glyphs.markers(), fn {state, _contour, _field, _mark} ->
+        {String.replace(state, "-", "_"), "state-#{state}-mini"}
+      end)
+
+    [{"held", nil, "the value is there"}] ++
+      for state <- Absence.states() do
+        {String.replace(state, "_", " "), Map.fetch!(markers, state), Absence.words(state)}
+      end
   end
 
   @impl Phoenix.LiveView
@@ -107,8 +127,49 @@ defmodule PluteusWeb.FindingsLive do
             <.group group={group} />
           </li>
         </ul>
+
+        <.vocabulary states={@states} />
       </div>
     </Chrome.shell>
+    """
+  end
+
+  # §5.2's eight states, with A.8.8's marker for each of the seven that has one. It is
+  # here because this is the surface a person comes to when something is not as they
+  # expected, and the difference between *nobody looked* and *a tool tried and could
+  # not* is the difference between waiting and acting.
+  #
+  # *Held* carries no marker, which A.8.8 makes an invariant rather than a convention: a
+  # reader cannot tell it from a state nobody computed, so the one that stands for
+  # nobody having looked has a mark of its own.
+  attr :states, :list, required: true
+
+  defp vocabulary(assigns) do
+    ~H"""
+    <section id="findings-vocabulary" aria-labelledby="vocabulary-heading" class="mt-10">
+      <h2 id="vocabulary-heading" class="mb-1 text-title-md font-medium text-on-surface-strong">
+        What a surface can say about a value
+      </h2>
+      <p class="mb-3 text-body-sm text-on-surface-muted">
+        Eight states, and no surface may render two of them alike.
+      </p>
+
+      <dl class="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        <div :for={{state, glyph, words} <- @states} class="flex items-center gap-3 py-1">
+          <dt class="flex w-40 shrink-0 items-center gap-2">
+            <.icon :if={glyph} name={glyph} class="shrink-0 text-on-surface-muted" />
+            <span
+              :if={!glyph}
+              aria-hidden="true"
+              class="size-5 shrink-0 rounded-full bg-fill-subtle"
+            >
+            </span>
+            <span class="truncate text-body-sm text-on-surface-strong">{state}</span>
+          </dt>
+          <dd class="text-body-sm text-on-surface-muted">{words}</dd>
+        </div>
+      </dl>
+    </section>
     """
   end
 
