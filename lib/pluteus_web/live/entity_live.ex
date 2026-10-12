@@ -97,7 +97,6 @@ defmodule PluteusWeb.EntityLive do
     {:ok,
      socket
      |> assign(:profile, profile)
-     |> assign(:kind, String.to_existing_atom(session["kind"]))
      |> assign(:principal_id, principal_id)
      |> assign(:principal_name, principal_name(principal_id, profile))
      |> assign(:contexts, session["contexts"] || %{})
@@ -113,9 +112,15 @@ defmodule PluteusWeb.EntityLive do
   # naming no type or invalid at the kind's level makes the request malformed whatever
   # the res's state. The representation's own path answers these as problem documents,
   # which is `PluteusWeb.Representation`'s half of the same address.
+  #
+  # The kind is read from the address rather than carried in the session, because §9.1
+  # fixes it by the path and this is what runs when the path changes. A live session's
+  # session is built once, by the request that established the socket, so a person
+  # arriving here from a mode would be answered for whatever that page was — which for a
+  # mode is no kind at all.
   @impl Phoenix.LiveView
-  def handle_params(%{"id" => id} = params, _uri, socket) do
-    kind = socket.assigns.kind
+  def handle_params(%{"id" => id} = params, uri, socket) do
+    kind = kind!(uri)
     profile = socket.assigns.profile
 
     selector = selected!(kind, params)
@@ -143,7 +148,17 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:address, address)
      |> assign(:placed?, is_nil(unit) or not is_nil(extent))
      |> assign(:mark, mark(address, extent))
+     |> assign(:kind, kind)
      |> assign(:whole, "/#{Native.paths()[kind]}/#{res.id}")}
+  end
+
+  # A route reaching this view was built from the same table, so a path it cannot name is
+  # a route that does not exist rather than a request to refuse.
+  defp kind!(uri) do
+    segments = uri |> URI.parse() |> Map.fetch!(:path) |> String.split("/", trim: true)
+
+    Native.kind_at(segments) ||
+      raise NotFoundError, message: "nothing of any kind is addressed at #{uri}"
   end
 
   # spec-01 §3.1's three agent kinds, which are the three a credit may name.
@@ -251,12 +266,11 @@ defmodule PluteusWeb.EntityLive do
   # The unit the region is measured in, which the page needs to ask whether the res has
   # an extent to place it against. A spatial, text-quote or track selector measures no
   # distance into anything and has none.
-  defp unit(selector) do
-    case Address.unit(struct(Address, selector)) do
-      nil -> nil
-      unit -> to_string(unit)
-    end
-  end
+  # Kept as the unit `Pluteus.Catalog.Address` names, rather than said as a string and
+  # read back as one: an atom rebuilt from a string is only there if something else has
+  # already built it, so the round trip would make a unit the model names depend on what
+  # the virtual machine has loaded.
+  defp unit(selector), do: Address.unit(struct(Address, selector))
 
   # §14.1 wants the name a person recognises, and a principal's name is its person's,
   # resolved like any other res's at the boundary. A principal with no person of its own
@@ -426,7 +440,7 @@ defmodule PluteusWeb.EntityLive do
   # rather than supplied here.
   defp extent(_res, nil), do: nil
 
-  defp extent(res, unit), do: Addressing.get_extent(res.id, String.to_existing_atom(unit))
+  defp extent(res, unit), do: Addressing.get_extent(res.id, unit)
 
   # Each related res is linked at the URI spec-01 §9 gives it, under the name a person
   # knows it by. Both in a bounded number of queries for the page rather than one per
