@@ -187,6 +187,12 @@ defmodule PluteusWeb.Router do
       get "/#{path}/:id/presentation/:profile", PresentationController, :show,
         assigns: %{kind: kind}
 
+      # §12.1's page reader asks for one page of a container of pages. The page is the
+      # ordinal that identifies the artefact rather than a parameter of the request, so
+      # it is a segment: one address per page, as §10.1 gives one address per res.
+      get "/#{path}/:id/presentation/:profile/:page", PresentationController, :show,
+        assigns: %{kind: kind}
+
       # §11.2's tiled pyramid, under the IIIF Image API grammar. The grammar's own
       # segments are the route, so a viewer that already speaks it needs to know
       # nothing about this deployment but the identifier.
