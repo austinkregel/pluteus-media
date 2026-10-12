@@ -722,10 +722,10 @@ defmodule PluteusWeb.BrowseLive do
 
   defp door(assigns) do
     ~H"""
-    <a href={@at} class={door_face()}>
+    <.link navigate={@at} class={door_face()}>
       <span class="grow text-body-md text-on-surface-strong">{@label}</span>
       <span :if={@count} class="font-mono text-caption text-on-surface-strong">{@count}</span>
-    </a>
+    </.link>
     """
   end
 
