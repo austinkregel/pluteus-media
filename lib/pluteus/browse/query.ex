@@ -29,15 +29,26 @@ defmodule Pluteus.Browse.Query do
   What is refused is a value inside an axis whose vocabulary is closed. A mode or a
   category outside the registry names something no deployment could hold, and answering
   it with an unnarrowed surface would state a narrowing that did not happen.
+
+  **Whose query it is, is part of it.** §14.3 makes Continue the requesting principal's
+  own resume list and forbids composing a surface from more than one principal's
+  consumption, so the principal is carried here rather than passed beside it: what a
+  mode selects and what every facet count is computed against are then the same
+  statement, and a count that quietly answered for the household could not arise. It is
+  not a parameter — no request names it and no address carries it.
   """
 
   alias Pluteus.Ingest.Registry
   alias Pluteus.Surfaces.Registry, as: Surfaces
 
   @enforce_keys [:mode]
-  defstruct mode: nil, facets: %{}
+  defstruct mode: nil, facets: %{}, principal_id: nil
 
-  @type t :: %__MODULE__{mode: String.t(), facets: %{String.t() => [String.t()]}}
+  @type t :: %__MODULE__{
+          mode: String.t(),
+          facets: %{String.t() => [String.t()]},
+          principal_id: Ecto.UUID.t() | nil
+        }
 
   @typedoc """
   Why a request named no query this release can answer.
