@@ -187,6 +187,40 @@ defmodule PluteusWeb.SurfaceLiveTest do
     end
   end
 
+  describe "§12.1, §11.2. A photograph is looked at, and its box is reserved" do
+    test "the viewer asks for the picture at the manifestation's own address",
+         %{conn: conn} do
+      photo = named("A photograph", "photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      refute html =~ ~s|id="player-medium"|
+      assert html =~ ~s|id="viewer-image"|
+      assert html =~ "/presentation/image-2048"
+      assert html =~ "/presentation/image-160 160w"
+    end
+
+    # §20's assumed ratio for the category, since nothing has probed these bytes. A box
+    # that collapsed to nothing and grew would move what a person was reaching for.
+    test "a holding nothing has probed still reserves the category's ratio",
+         %{conn: conn} do
+      photo = named("A photograph", "photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      assert html =~ "aspect-ratio: 1.5"
+    end
+
+    test "a photograph is not offered a transport", %{conn: conn} do
+      photo = named("A photograph", "photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      refute html =~ ~s|id="player-transport"|
+      assert html =~ ~s|id="transport-live"|
+    end
+  end
+
   describe "A surface that takes the width gives it back when asked" do
     test "the rail opens collapsed on a player and reopens on a press",
          %{conn: conn, inbox: inbox} do
