@@ -118,7 +118,23 @@ defmodule Pluteus.BrowseTest do
 
       assert map_size(surface.facets) == 5
       assert [_looking, _unverified, _undated, _unkinded, _undecided] = surface.unfinished
-      assert surface.query == query
+      assert surface.query == %{query | principal_id: principal.id}
+    end
+
+    # §14.3 makes a mode selecting on consumption one principal's own, and the surface is
+    # what every count is taken against, so whose it is travels with the query rather
+    # than beside it.
+    test "the surface names whose query it is", %{principal: principal} do
+      {:ok, query} = Query.parse("continue", %{})
+
+      assert Browse.surface(query, principal.id, %Profile{}).query.principal_id ==
+               principal.id
+    end
+
+    test "a continue surface that names no principal refuses rather than answering" do
+      {:ok, query} = Query.parse("continue", %{})
+
+      assert_raise ArgumentError, ~r/names none/, fn -> Browse.Entries.selected(query) end
     end
   end
 
