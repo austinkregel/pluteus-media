@@ -20,16 +20,19 @@ defmodule PluteusWeb.SurfaceLive do
 
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
+  alias Pluteus.Catalog.Cover
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
+  alias Pluteus.Listening
   alias Pluteus.Paging
   alias Pluteus.Playback
   alias Pluteus.Preferences
   alias Pluteus.Presentation
   alias Pluteus.Presentation.Asset
+  alias Pluteus.Presentation.Geometry
   alias Pluteus.Presentation.Registry
   alias Pluteus.Principals
   alias Pluteus.Principals.Principal
@@ -43,6 +46,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.Native
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Settings
+  alias PluteusWeb.Surfaces.Listening, as: Listen
   alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Pages
   alias PluteusWeb.Surfaces.Player
@@ -122,6 +126,31 @@ defmodule PluteusWeb.SurfaceLive do
 
       {:error, :current_outside_queue} ->
         {:noreply, put_flash(socket, :error, "That is no longer an entry of the queue.")}
+    end
+  end
+
+  def handle_event("chapter", _params, %{assigns: %{device_id: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, unenrolled())}
+  end
+
+  # Pressing a chapter is asking to be taken there, so the reading is started and the
+  # player is sent to where the chapter begins. The queue is filled first, because the
+  # position is a position in what the player is carrying and a player carrying nothing
+  # has nowhere to be taken to.
+  def handle_event("chapter", %{"index" => index}, socket) do
+    %{principal_id: principal, device_id: device, profile: profile, work: work} = socket.assigns
+    chapter = Enum.at(socket.assigns.chapters, String.to_integer(index))
+
+    with :ok <- Playback.play(principal, device, work.id, profile),
+         :ok <- TransportLive.announce(principal),
+         :ok <- TransportLive.seek(principal, chapter.start_ms) do
+      {:noreply, assign(socket, :playing, playing(principal, profile))}
+    else
+      {:error, {:not_played, _category}} ->
+        {:noreply, put_flash(socket, :error, "This is not something that plays.")}
+
+      {:error, :no_queue} ->
+        {:noreply, put_flash(socket, :error, "Nothing is held under this.")}
     end
   end
 
@@ -241,6 +270,7 @@ defmodule PluteusWeb.SurfaceLive do
     |> assign_new(:page, fn -> 0 end)
     |> assign(:pages, paged(surface, borne(work.id)))
     |> opened()
+    |> listening()
     |> assign(:facts, facts(surface, work, socket.assigns.profile))
     |> assign_new(:rail_collapsed, fn -> narrow?(surface) end)
   end
@@ -367,6 +397,35 @@ defmodule PluteusWeb.SurfaceLive do
     |> assign(:reserved, nil)
     |> assign_new(:looking, fn -> false end)
   end
+
+  # What the chapter list needs and no other surface pays for: how the container says the
+  # reading is divided, who it credits in which role, and the cover it is known by.
+  #
+  # §11.2's box is the cover's: a reading has no shape of its own and the figure §20 names
+  # for the category is the shape its cover is expected in.
+  defp listening(%{assigns: %{surface: "transport and chapter list"}} = socket) do
+    %{work: work, profile: profile, borne: borne, category: category} = socket.assigns
+    cover = borne && Cover.for_manifestation(borne, work.id)
+
+    socket
+    |> assign(:chapters, chaptered(borne, profile))
+    |> assign(:credited, Listening.credited(work.id, profile))
+    |> assign(:cover, cover)
+    |> assign(:reserved, Geometry.reserve(measured(cover), category))
+  end
+
+  defp listening(socket) do
+    socket
+    |> assign(:chapters, [])
+    |> assign(:credited, [])
+    |> assign(:cover, nil)
+  end
+
+  defp chaptered(nil, _profile), do: []
+  defp chaptered(borne, profile), do: Listening.chapters(borne, profile)
+
+  defp measured(nil), do: nil
+  defp measured(res_id), do: Geometry.for_res([res_id])[res_id]
 
   # One look pending at a time, so turning several pages while the first is still being
   # made does not leave a look in flight for each of them. A page a tool tried and could
@@ -509,6 +568,9 @@ defmodule PluteusWeb.SurfaceLive do
           pages={@pages}
           shown={@shown}
           reserved={@reserved}
+          chapters={@chapters}
+          credited={@credited}
+          cover={@cover}
         />
       </div>
     </Chrome.shell>
@@ -536,6 +598,9 @@ defmodule PluteusWeb.SurfaceLive do
   attr :pages, :any, required: true
   attr :shown, :any, required: true
   attr :reserved, :any, required: true
+  attr :chapters, :list, required: true
+  attr :credited, :list, required: true
+  attr :cover, :any, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -560,7 +625,16 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp presented(%{surface: "transport and chapter list"} = assigns) do
     ~H"""
-    <Music.surface name={@name} category={@category} queue={@queue} playing={@playing} />
+    <Listen.surface
+      name={@name}
+      category={@category}
+      playable={@playable}
+      chapters={@chapters}
+      credited={@credited}
+      cover={@cover}
+      reserved={@reserved}
+      playing={@playing == @work.id or @playing in Enum.map(@queue, & &1.res_id)}
+    />
     """
   end
 
