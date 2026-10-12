@@ -258,15 +258,25 @@ defmodule PluteusWeb.Surfaces.Medium do
 
   @doc """
   A length said the way the client says it, so the two drawings agree.
+
+  Hours where there are hours: a reading of three hours said in minutes alone is a
+  figure nobody reads as a time.
   """
   @spec clock(non_neg_integer() | nil) :: String.t()
   def clock(nil), do: "--:--"
 
   def clock(milliseconds) do
     total = div(milliseconds, 1000)
+    minutes = rem(div(total, 60), 60)
+    seconds = rem(total, 60)
 
-    "#{div(total, 60)}:#{String.pad_leading(to_string(rem(total, 60)), 2, "0")}"
+    case div(total, 3600) do
+      0 -> "#{minutes}:#{pad(seconds)}"
+      hours -> "#{hours}:#{pad(minutes)}:#{pad(seconds)}"
+    end
   end
+
+  defp pad(figure), do: figure |> to_string() |> String.pad_leading(2, "0")
 
   defp seconds(nil), do: 0
   defp seconds(milliseconds), do: div(milliseconds, 1000)
