@@ -136,19 +136,38 @@ Acquisition proceeds in this order:
 1. Mint the identifier, derive the location from it (§4.5), and write the
    acquisition record with the inbox path and the location, before any byte
    moves. At most one acquisition in progress holds a given inbox path.
-2. Place the bytes at the location. Within one filesystem this is a rename.
+2. Identify the bytes where they lie, in the inbox (§5), and decide the
+   category from the evidence around them (§6.3).
+3. Place the bytes at the location. Within one filesystem this is a rename.
    Across filesystems it is a copy, digested and compared with the source.
-3. Measure and identify the bytes where they now lie (§5).
-4. Where the bytes were copied, remove the inbox file.
+4. Measure the bytes at the location, and record what step 2 read.
+5. Where the bytes were copied, remove the inbox file.
+
+**A file is taken only where the deployment can say what it is.** Where
+identification fails, or where no evidence decides a category, the bytes are not
+moved: the file stays at the inbox path the household put it at, the record says
+it was examined, and a finding states what could not be decided. The finding is
+not permanent. What answers it is a person — a document placed beside the file, a
+move into a directory that says what it is — and the next pass reads that.
+
+The reason the file stays is that the inbox is where a person can act on it. Bytes
+under primary storage are addressed by an identifier and arranged for the
+deployment's own use; a file there that the catalog cannot describe is reachable
+only through a surface built for the purpose. A file in the inbox is reachable
+with the tools the household already uses on files.
+
+What identification read is kept on the record, so a later pass re-reads the
+evidence around the file and not the file: the bytes cannot have changed, the
+record is of that same settled file, and what a person puts beside it can.
 
 Because the record precedes the move, every interruption leaves a state the
 next pass recognizes:
 
 | Found | Meaning | Next pass |
 | --- | --- | --- |
-| Record, inbox file, nothing at the location | interrupted before the move | moves the file |
-| Record, inbox file, bytes at the location | interrupted during or after a copy | compares digests: where identical it continues from identification; otherwise it discards the bytes at the location and copies again |
-| Record, bytes at the location, no inbox file | moved, or copied and removed; not yet identified | identifies the bytes |
+| Record, inbox file, nothing at the location | not yet taken, or nothing yet decides what it is | examines it, and moves it where something does |
+| Record, inbox file, bytes at the location | interrupted during or after a copy | compares digests: where identical it continues from recording; otherwise it discards the bytes at the location and copies again |
+| Record, bytes at the location, no inbox file | moved, or copied and removed; not yet recorded | identifies the bytes and records what it reads |
 | Record, no inbox file, nothing at the location | the file left the inbox by other means before it was moved | records a finding against the record |
 | Bytes under primary storage whose identifier has no record | cannot arise from this order | records a finding, and deletes nothing |
 
@@ -202,8 +221,9 @@ file's first bytes, so an XML file whose root the registry does not name is no
 companion but a document in its own right.
 
 A companion is acquired as a holding of its own, whose category is its companion
-kind — cover art, lyrics, subtitles, cue sheet, description, metadata — and
-never its broad class's default (§6.3). It is not an asset of the media it
+kind — cover art, lyrics, subtitles, cue sheet, description, metadata — which is
+what §6.3 decides for it and the one category that needs no evidence beyond the
+file itself. It is not an asset of the media it
 describes. A digital item's assets are copies of one content (spec-01 §5.5),
 and a cover image made an Acquired asset of a track would become the original
 the track's normalized master depends on (spec-03 §3.3).
@@ -392,23 +412,35 @@ category, whether placement wrote it or a member did.
 ### 6.3 Category
 
 Placement records a category on the work, drawn from the category registry
-(spec-01 §17), with automatic provenance. It is decided from evidence — embedded
-tags, a companion `.nfo`, the inbox path — and, where evidence decides nothing,
-from the broad class:
+(spec-01 §17), with automatic provenance. It is decided from evidence, and from
+nothing else. The evidence, nearest first:
 
-| Broad class | Category without evidence |
-| --- | --- |
-| companion | its companion kind (§4.6) |
-| audio | music recording |
-| video | home video |
-| image | photograph |
-| text | document |
-| package | comic issue |
-| software | video game |
+| Evidence | What it is | Example |
+| --- | --- | --- |
+| The container's own tags | the holding speaking about itself | a genre of Audiobook; an album and a track number, which say the file is a track of a release |
+| A document beside it | a record somebody kept about it | an `.nfo` whose root element says what it describes; a match file that names the files it is about by path |
+| The inbox path | where the household filed it | a segment matched whole and case-folded against the registry |
+| The format | what the bytes are an instance of | an EPUB is a book; a cartridge dump is a game |
+| The broad class | what the bytes are made of, **only where the class means one kind of thing** | software is a game; a package is an archive of pages; text, once an ebook's format is told from it, is a document |
 
-A member's correction outranks it (§6.2). Normalization's standard format is
-looked up by the broad class, which the bytes decide and which does not change
-when the category is corrected.
+The nearer statement wins: a recording tagged as a podcast sitting under the
+television directory is still a podcast.
+
+A companion is decided by what it is: §4.6 establishes a companion's kind from the
+file, and the kind is its category.
+
+**Where none of them decides, nothing is.** There is no default by broad class.
+Video covers a film, an episode of a series and a video of a birthday; audio
+covers a recording, a reading and an episode of a podcast; image covers a
+photograph and a scan. The bytes cannot say which, and a deployment that wrote one
+of them down anyway would be recording a guess with the same provenance as a
+determination — leaving nothing, not the catalog, not a surface, not a member
+looking at it, able to tell the two apart. A file nothing decides is not taken
+(§4.3); it stays in the inbox until something says what it is.
+
+A member's correction outranks whatever evidence decided (§6.2). Normalization's
+standard format is looked up by the broad class, which the bytes decide and which
+does not change when the category is corrected.
 
 ### 6.4 Music
 
