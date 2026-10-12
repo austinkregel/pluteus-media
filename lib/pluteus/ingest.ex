@@ -189,6 +189,21 @@ defmodule Pluteus.Ingest do
   def open_finding_count,
     do: Repo.aggregate(from(f in Finding, where: is_nil(f.cleared_at)), :count)
 
+  @doc """
+  Every uncleared finding recorded against one input.
+
+  What a surface reads to tell a derivative nobody has made yet from one a tool tried
+  to make and could not: §11.6 answers both absences alike, and §5.2 keeps them apart.
+  """
+  @spec open_findings_for_input(Ecto.UUID.t()) :: [Finding.t()]
+  def open_findings_for_input(input_id) do
+    Repo.all(
+      from f in Finding,
+        where: f.input_id == ^input_id and is_nil(f.cleared_at),
+        order_by: f.recorded_at
+    )
+  end
+
   @spec findings_for_acquisition(Ecto.UUID.t()) :: [Finding.t()]
   def findings_for_acquisition(acquisition_id) do
     Repo.all(
