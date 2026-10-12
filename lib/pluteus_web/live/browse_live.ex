@@ -139,19 +139,26 @@ defmodule PluteusWeb.BrowseLive do
       <div id="browse" class="mx-auto w-full px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
 
-        <.doors :if={@surface && not narrowed?(@surface)} surface={@surface} />
-        <.rows :if={@surface && narrowed?(@surface)} surface={@surface} />
+        <.doors :if={@surface && gateway?(@surface)} surface={@surface} />
+        <.spine :if={@surface && spine?(@surface)} surface={@surface} />
+        <.rows :if={@surface && listed?(@surface)} surface={@surface} />
       </div>
     </Chrome.shell>
     """
   end
 
-  # The doors are the gateway's own. Everything is the whole catalogue, which is too much
-  # to list, so it opens on the ways in; a mode that has already selected something opens
-  # on what it selected, because the selection is what a person went there for.
-  defp narrowed?(surface) do
-    surface.query.mode != "everything" or Query.narrowed?(surface.query)
-  end
+  # Three ways a mode opens, and a mode opens exactly one of them.
+  #
+  # The doors are the gateway's own: Everything is the whole catalogue, too much to list,
+  # so it opens on the ways in. Time is a spine over when things were made, which §9.2
+  # makes the mode rather than a band inside one. Everything else opens on what it
+  # selected, because the selection is what a person went there for — and so does any
+  # mode a person has narrowed, since then they have said what they are after.
+  defp gateway?(surface), do: surface.query.mode == "everything" and not narrowed?(surface)
+  defp spine?(surface), do: surface.query.mode == "time" and not narrowed?(surface)
+  defp listed?(surface), do: not gateway?(surface) and not spine?(surface)
+
+  defp narrowed?(surface), do: Query.narrowed?(surface.query)
 
   # The unnarrowed phase: the facet values are the content, and every tile is a door.
   attr :surface, :map, required: true
@@ -211,9 +218,32 @@ defmodule PluteusWeb.BrowseLive do
     Enum.find_value(doors, 0, &(&1.bucket == "no_date_recorded" && &1.count))
   end
 
+  # §9.2's Time: the spine is the mode rather than a band inside another one, so a decade
+  # leads further into Time rather than out of it.
+  attr :surface, :map, required: true
+
+  defp spine(assigns) do
+    ~H"""
+    <header class="mb-8">
+      <h1 class="text-title-lg font-medium text-on-surface-strong">{showing(@surface)}</h1>
+      <p class="mt-1 text-body-sm text-on-surface-muted">
+        <span class="text-on-surface-strong">{@surface.total}</span>
+        of {@surface.catalogue} {holdings(@surface.catalogue)}
+      </p>
+    </header>
+
+    <.decades
+      facet={@surface.facets["decade"]}
+      undated={undated(@surface.unfinished)}
+      at={~p"/time"}
+    />
+    """
+  end
+
   # Oldest first, because a decade spine read in any other order is not a spine.
   attr :facet, :any, required: true
   attr :undated, :integer, default: 0
+  attr :at, :string, default: "/everything"
 
   defp decades(%{facet: {:available, []}} = assigns) do
     ~H"""
@@ -241,7 +271,7 @@ defmodule PluteusWeb.BrowseLive do
       </h2>
       <ul class="mt-3 flex items-end gap-2">
         <li :for={{value, count} <- @values} class="flex min-w-0 grow basis-0 flex-col">
-          <.link patch={~p"/everything?#{[decade: value]}"} class="group flex flex-col gap-2">
+          <.link patch={"#{@at}?#{URI.encode_query(decade: value)}"} class="group flex flex-col gap-2">
             <span class="flex h-24 items-end" aria-hidden="true">
               <span
                 class={[
