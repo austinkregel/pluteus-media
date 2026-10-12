@@ -37,7 +37,6 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.SerialKey
-  alias Pluteus.Ingest.Sidecar
   alias Pluteus.Ingest.Streams
   alias Pluteus.Ingest.TimeSpanKey
   alias Pluteus.Lifecycle
@@ -104,17 +103,22 @@ defmodule Pluteus.Ingest.Place do
 
   @doc """
   Whether nothing in an inbox directory is still arriving: no file there waits
-  to be acquired, and no acquisition from it waits to be identified. A file
-  whose identification failed is not waiting; it is a finding.
+  to be acquired, and no acquisition from it waits to be identified.
+
+  A file the deployment looked at and could not say the category of is not waiting; it is
+  a finding, and it stays in the inbox until a person answers it (§6.3). One such file
+  must not stop everything beside it from being placed, which is why it is excluded here
+  and not merely skipped.
   """
   @spec directory_settled?(Path.t(), String.t()) :: boolean()
   def directory_settled?(inbox, directory) do
     pending_identification =
       from a in Acquisition,
         left_join: f in Finding,
-        on: f.acquisition_id == a.id and f.stage == :identify and is_nil(f.cleared_at),
+        on:
+          f.acquisition_id == a.id and f.stage in [:identify, :examine] and is_nil(f.cleared_at),
         where: a.inbox_directory == ^directory,
-        where: a.state == :recorded or (a.state == :stored and is_nil(f.id))
+        where: a.state in [:recorded, :stored] and is_nil(f.id)
 
     not Repo.exists?(pending_identification) and not waiting_in_inbox?(inbox, directory)
   end
@@ -130,7 +134,18 @@ defmodule Pluteus.Ingest.Place do
     relative = if directory == ".", do: name, else: Path.join(directory, name)
 
     match?({:ok, %File.Stat{type: :regular}}, File.lstat(Path.join(inbox, relative))) and
-      not Registry.ignored?(relative)
+      not Registry.ignored?(relative) and not answered?(relative)
+  end
+
+  # A file still in the inbox because nothing says what it is has been looked at already.
+  # It waits for a person, not for the deployment.
+  defp answered?(relative) do
+    Repo.exists?(
+      from a in Acquisition,
+        join: f in Finding,
+        on: f.acquisition_id == a.id and f.stage == :examine and is_nil(f.cleared_at),
+        where: a.inbox_path == ^relative
+    )
   end
 
   @doc """
@@ -1038,7 +1053,7 @@ defmodule Pluteus.Ingest.Place do
       Catalog.categorize(
         work.id,
         @category_scheme,
-        Registry.default_category(:release, nil),
+        Registry.release_category(),
         :automatic
       )
 
@@ -1111,7 +1126,7 @@ defmodule Pluteus.Ingest.Place do
       Catalog.categorize(
         work.id,
         @category_scheme,
-        Registry.default_category(:audio, nil),
+        Registry.track_category(),
         :automatic
       )
 
@@ -1336,25 +1351,14 @@ defmodule Pluteus.Ingest.Place do
     {:ok, _} = Catalog.categorize(work_id, @category_scheme, category_of(acquisition), :automatic)
   end
 
-  # What §6.3 decides, without recording it. The serial an issue belongs to follows from
-  # its category, and that has to be known before the issue's work is written.
-  defp category_of(%Acquisition{} = acquisition),
-    do: evidence(acquisition) || class_default(acquisition)
-
-  # A companion's category is its kind (§4.6), which the name already established,
-  # so there is nothing for a tag to decide.
-  defp evidence(%Acquisition{media_class: :companion}), do: nil
-
-  # Three statements, nearest first. A file's own container speaks about itself; a
-  # document a media manager wrote beside it is a record somebody kept about it; and where
-  # a household filed it is the coarsest of the three. A recording tagged as a podcast
-  # sitting under the television directory is still a podcast.
-  defp evidence(%Acquisition{} = acquisition) do
-    Registry.category_from_tags(acquisition.media_class, Streams.tags(acquisition.probe)) ||
-      Registry.category_from_tags(acquisition.media_class, acquisition.container_tags) ||
-      beside(acquisition).category ||
-      filed_as(acquisition)[:category]
-  end
+  # What §6.3 decided while the file was still in the inbox, where the documents beside it
+  # are. Nothing is decided again here: the evidence is a directory this file has left, and
+  # a category decided twice from two readings of different things is two categories.
+  #
+  # A holding with no category never reaches placement — §4.3 does not take a file the
+  # deployment cannot say what it is — so there is nothing to fall back to and nothing
+  # here guesses.
+  defp category_of(%Acquisition{category: category}) when is_binary(category), do: category
 
   defp filed_as(%Acquisition{} = acquisition),
     do: Registry.path_evidence(acquisition.inbox_path, acquisition.media_class) || %{}
@@ -1362,25 +1366,12 @@ defmodule Pluteus.Ingest.Place do
   # The tags a holding carries, from whichever reader answered them: a container with
   # streams states them in its own header, a container of files states them in a document
   # the registry names inside it (§6.9 criterion 35), and a media manager states them in a
-  # document beside it (§6.3). §6.3 weighs them alike, so nothing downstream asks which it
-  # was; what decides between them where they disagree is nearness, and the file's own
-  # container is nearest.
-  defp embedded_tags(%Acquisition{} = acquisition) do
-    beside(acquisition).fields
-    |> Map.merge(acquisition.container_tags)
-    |> Map.merge(Streams.tags(acquisition.probe))
-  end
-
-  # A companion is not a thing a document beside it describes: a release's notes would
-  # otherwise take their category from the album document next to them.
-  defp beside(%Acquisition{} = acquisition) do
-    if Sidecar.subject?(acquisition),
-      do: Sidecar.evidence(acquisition),
-      else: %{category: nil, fields: %{}}
-  end
-
-  defp class_default(%Acquisition{} = acquisition),
-    do: Registry.default_category(acquisition.media_class, acquisition.companion_kind)
+  # document beside it (§6.3), which examination read and recorded while the file was
+  # still next to it. §6.3 weighs them alike, so nothing here asks which it was; what
+  # decides between them where they disagree is nearness, and the file's own container is
+  # nearest.
+  defp embedded_tags(%Acquisition{} = acquisition),
+    do: Map.merge(acquisition.container_tags, Streams.tags(acquisition.probe))
 
   defp title(acquisition) do
     Streams.first(embedded_tags(acquisition), ["title"]) ||
