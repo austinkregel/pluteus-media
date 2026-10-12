@@ -31,6 +31,7 @@ defmodule Pluteus.Ingest.Normalize do
   alias Pluteus.Ingest.Registry
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.RecycledRes
+  alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.PlatformEvents
   alias Pluteus.Principals
   alias Pluteus.Repo
@@ -56,21 +57,68 @@ defmodule Pluteus.Ingest.Normalize do
         where: not is_nil(f.digital_item_id),
         select: f.digital_item_id
 
-    from(a in Acquisition,
-      where: a.state == :placed,
-      where: a.digital_item_id not in subquery(blocked),
-      order_by: a.id
-    )
+    blocked
+    |> considered()
     |> Repo.all()
-    |> Enum.filter(&live?(&1.id))
-    |> Enum.map(&{&1, standard_format.(&1.media_class)})
-    |> Enum.filter(fn {acquisition, standard} -> due?(acquisition, standard) end)
-    |> Enum.map(fn {acquisition, standard} ->
+    |> Enum.map(fn held -> {held, standard_format.(held.acquisition.media_class)} end)
+    |> Enum.filter(fn {held, standard} -> due?(held, standard) end)
+    |> Enum.map(fn {%{acquisition: acquisition}, standard} ->
       {acquisition.digital_item_id,
        Ingest.isolated(:normalize, %{digital_item_id: acquisition.digital_item_id}, fn ->
          normalize(acquisition, standard)
        end)}
     end)
+  end
+
+  # Every placed holding this pass could have something to do about, with the two facts
+  # that decide whether it does: its own essence, and the format of the master already
+  # standing for its part.
+  #
+  # Both are asked of the selection rather than of each holding in turn. A pass that asks
+  # per holding costs queries in proportion to what the household has already finished
+  # normalizing, which is everything — so the stage spent most of a minute, every minute,
+  # establishing that there was nothing to do.
+  #
+  # Whether the format is the standard one stays outside the query, because the standard
+  # is the registry's answer for a broad class and not a column. What this narrows to is
+  # the holdings whose answer could differ.
+  defp considered(blocked) do
+    from a in Acquisition,
+      left_join: original in Asset,
+      on: original.id == a.id,
+      left_join: master in subquery(masters()),
+      on:
+        master.digital_item_id == a.digital_item_id and
+          fragment("? IS NOT DISTINCT FROM ?", master.part_sequence, original.part_sequence),
+      where: a.state == :placed,
+      where: a.digital_item_id not in subquery(blocked),
+      # Live, which for an asset is the three things `Pluteus.Lifecycle.state/1` reads: a
+      # res that is there, carrying no tombstone and in nobody's recycling. An asset row
+      # references its res, so holding one is the first of the three.
+      where: a.id not in subquery(from(b in RecycledRes, select: b.res_id)),
+      where: a.id not in subquery(from(t in Tombstone, select: t.res_id)),
+      order_by: a.id,
+      select: %{
+        acquisition: a,
+        asset_id: original.id,
+        essence: original.essence,
+        master_format: master.format
+      }
+  end
+
+  # The live asset holding the Normalized role, per holding and per part. The same set
+  # `master_of/2` answers from, taken for the selection at once.
+  defp masters do
+    from asset in Asset,
+      join: role in AssetRole,
+      on: role.asset_id == asset.id and role.role_class == :normalized,
+      where: asset.id not in subquery(from(b in RecycledRes, select: b.res_id)),
+      distinct: true,
+      select: %{
+        digital_item_id: asset.digital_item_id,
+        part_sequence: asset.part_sequence,
+        format: asset.format
+      }
   end
 
   @doc """
@@ -120,21 +168,23 @@ defmodule Pluteus.Ingest.Normalize do
       distinct: true
   end
 
+  # A placed holding whose asset is gone is a broken invariant rather than a holding with
+  # nothing to do, so it raises here as reading the asset by identifier always did.
+  defp due?(%{asset_id: nil, acquisition: acquisition}, _standard) do
+    raise "the placed acquisition #{acquisition.id} holds no asset"
+  end
+
   # Due is asked of a part and not of a holding. Asked of the holding, the second file of
   # a reading in several parts is judged against the first file's master, found to need no
   # standard format it does not already have, and left with no master of its own — so
   # nothing can be played or served from it.
-  defp due?(acquisition, standard) do
-    original = Repo.get!(Asset, acquisition.id)
+  defp due?(%{master_format: nil}, _standard), do: true
+  defp due?(_held, nil), do: false
 
-    case master_of(acquisition.digital_item_id, original.part_sequence) do
-      nil ->
-        true
+  defp due?(%{essence: :lossless, master_format: format}, standard),
+    do: format != standard["format"]
 
-      master ->
-        original.essence == :lossless and standard != nil and master.format != standard["format"]
-    end
-  end
+  defp due?(_held, _standard), do: false
 
   defp re_encodes?(%Asset{essence: :lossless, format: format}, %{"format" => standard}),
     do: format != standard
@@ -307,6 +357,4 @@ defmodule Pluteus.Ingest.Normalize do
     {output, 0} = System.cmd("ffmpeg", args)
     String.trim(output)
   end
-
-  defp live?(asset_id), do: match?({:live, _}, Lifecycle.state(asset_id))
 end
