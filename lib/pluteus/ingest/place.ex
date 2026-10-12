@@ -506,16 +506,20 @@ defmodule Pluteus.Ingest.Place do
     end
   end
 
+  # The serial is named by the container where the container names one, and by the path
+  # where it does not: a rip states nothing about the show it is an episode of, and the
+  # directory it was filed under is the household saying so.
   defp serial_place(acquisition, rule) do
     tags = embedded_tags(acquisition)
+    filed = filed_as(acquisition)
 
-    case Streams.first(tags, rule.named_by) do
+    case Streams.first(tags, rule.named_by) || filed[:serial_name] do
       nil ->
         nil
 
       name ->
         serial = serial_for(rule, name)
-        position = Streams.number(tags, rule.numbered_by)
+        position = Streams.number(tags, rule.numbered_by) || filed[:position]
 
         if taken?(serial.serial_manifestation_id, position) do
           {:taken, %{serial_manifestation_id: serial.serial_manifestation_id, position: position}}
@@ -1115,7 +1119,17 @@ defmodule Pluteus.Ingest.Place do
 
   # --- Containers (§6.5) --------------------------------------------------------------
 
+  # The series an episode belongs to is resolved before its work exists, for the reason
+  # §6.9 gives for an issue: an episode whose number the series already holds has to be a
+  # finding rather than a refused write part way through placing it.
   defp place_container(acquisition) do
+    case serial_place(acquisition) do
+      {:taken, detail} -> {:finding, "position_taken", detail}
+      within -> place_container(acquisition, within)
+    end
+  end
+
+  defp place_container(acquisition, within) do
     name = title(acquisition)
     content = Enum.filter(acquisition.streams, & &1["content"])
     {commentary, main} = Enum.split_with(content, &("comment" in &1["disposition"]))
@@ -1131,6 +1145,7 @@ defmodule Pluteus.Ingest.Place do
       Catalog.create_work(automatic(expression_name(name, List.first(languages))))
 
     categorize(work.id, acquisition)
+    position_within(within, work.id, manifestation.id)
 
     parallel =
       for language <- Enum.drop(languages, 1) do
@@ -1295,10 +1310,11 @@ defmodule Pluteus.Ingest.Place do
   # --- Common -----------------------------------------------------------------------
 
   # §6.3 decides the category from evidence, and from the broad class only where
-  # evidence decides nothing. The evidence read here is the file's own embedded
-  # tags, which is what distinguishes an audiobook from a music recording: both
-  # are one audio file of a text or a performance, and the bytes alone cannot say
-  # which.
+  # evidence decides nothing. Two kinds of evidence are read: the file's own embedded
+  # tags, which is what distinguishes an audiobook from a music recording — both are one
+  # audio file of a text or a performance, and the bytes alone cannot say which — and
+  # where the household filed it, which is what distinguishes an episode of a series from
+  # a video of a birthday.
   defp categorize(work_id, acquisition) do
     {:ok, _} = Catalog.categorize(work_id, @category_scheme, category_of(acquisition), :automatic)
   end
@@ -1312,12 +1328,15 @@ defmodule Pluteus.Ingest.Place do
   # so there is nothing for a tag to decide.
   defp evidence(%Acquisition{media_class: :companion}), do: nil
 
+  # A file's statement about itself outranks where somebody filed it: a recording tagged
+  # as a podcast sitting under the television directory is still a podcast.
   defp evidence(%Acquisition{} = acquisition) do
-    Registry.category_from_tags(
-      acquisition.media_class,
-      embedded_tags(acquisition)
-    )
+    Registry.category_from_tags(acquisition.media_class, embedded_tags(acquisition)) ||
+      filed_as(acquisition)[:category]
   end
+
+  defp filed_as(%Acquisition{} = acquisition),
+    do: Registry.path_evidence(acquisition.inbox_path, acquisition.media_class) || %{}
 
   # The tags a holding carries, from whichever reader answered them: a container with
   # streams states them in its own header, and a container of files states them in a
