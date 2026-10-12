@@ -12,6 +12,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
   import Pluteus.IngestFixtures
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
@@ -26,6 +27,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
   alias Pluteus.Repo
   alias Pluteus.Storage
   alias Pluteus.Surfaces.Registry, as: Surfaces
+  alias PluteusWeb.Surfaces.Listening, as: Listen
 
   @t0 ~U[2026-09-18 12:00:00.000000Z]
 
@@ -405,6 +407,75 @@ defmodule PluteusWeb.SurfaceLiveTest do
     end
   end
 
+  describe "§12.1. A reading is presented with the chapters its container states" do
+    test "the chapters are listed in reading order, as the container named them",
+         %{conn: conn, inbox: inbox} do
+      book =
+        a_reading(inbox,
+          chapters: [{"The Shadow", {0, 3_000}}, {"The Loosing", {3_000, 6_000}}]
+        )
+
+      {:ok, live, html} = live(conn, ~p"/works/#{book}/play")
+
+      assert html =~ "2 chapters"
+      assert has_element?(live, ~s|#listening-chapters button[phx-value-index="0"]|, "The Shadow")
+
+      assert has_element?(
+               live,
+               ~s|#listening-chapters button[phx-value-index="1"]|,
+               "The Loosing"
+             )
+    end
+
+    # Placement records what the container declared and nothing else, so a reading that
+    # declares none has none — and the parts a reading in several files is carried by are
+    # where the bytes are, not divisions anybody made.
+    test "a reading whose container states no chapters says so", %{conn: conn, inbox: inbox} do
+      book = a_reading(inbox, chapters: nil)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{book}/play")
+
+      assert html =~ ~s|id="listening-chapters-absent"|
+      assert html =~ "Nothing in this states where its chapters are."
+      refute html =~ ~s|id="listening-chapters"|
+    end
+
+    # Pressing a chapter is asking to be taken there, which the player does by being told
+    # where to be rather than by a report of having reached it: §13.2's thresholds would
+    # discard a position at the beginning of the first chapter.
+    test "pressing a chapter starts the reading and takes the player there",
+         %{conn: conn, inbox: inbox} do
+      book =
+        a_reading(inbox,
+          chapters: [{"The Shadow", {0, 3_000}}, {"The Loosing", {3_000, 6_000}}]
+        )
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{book}/play")
+
+      live |> element(~s|#listening-chapters button[phx-value-index="1"]|) |> render_click()
+
+      assert live |> find_live_child("transport-live") |> render() =~ ~s|data-position="3000"|
+    end
+
+    test "who the reading credits is said in the role each is credited in",
+         %{conn: conn, inbox: inbox} do
+      book = a_reading(inbox, chapters: nil)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{book}/play")
+
+      assert html =~ "Written by Ursula K. Le Guin"
+      assert html =~ "Read by Rob Inglis"
+    end
+
+    # §8.5 keeps the model's own vocabulary off a surface, and a role with no words for it
+    # would reach a person as the column's value.
+    test "every role a credit may be in is said in words" do
+      for role <- Credit.roles() do
+        assert is_binary(Listen.in_role(role)), "#{role} is a credit role nothing says"
+      end
+    end
+  end
+
   describe "§12.1, §12.3. A container of pages is read one page at a time" do
     test "the position runs over the pages placement counted, not the pages made",
          %{conn: conn, inbox: inbox} do
@@ -677,6 +748,29 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
   defp a_moving_picture(inbox) do
     drop!(inbox, "#{unique_prefix()}/birthday.mkv", media!(:ffv1, duration: 11))
+
+    [id] = inbox |> acquire_settled!(@t0) |> acquired()
+    place_all!(inbox)
+    Normalize.normalize_due(fn _class -> nil end)
+
+    id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
+  end
+
+  # A reading placed and normalized, named and credited the way a published one arrives:
+  # the author in `artist`, the narrator in `narratedby`, and the chapters the container
+  # declares.
+  defp a_reading(inbox, opts) do
+    drop!(
+      inbox,
+      "#{unique_prefix()}/earthsea.m4b",
+      # The narrator in `composer`, which is where an MP4 tagger writes one: the muxer
+      # carries no field called after the act, and the registry names it among the tags a
+      # narrator arrives in.
+      reading(
+        chapters: opts[:chapters],
+        tags: %{"artist" => "Ursula K. Le Guin", "composer" => "Rob Inglis"}
+      )
+    )
 
     [id] = inbox |> acquire_settled!(@t0) |> acquired()
     place_all!(inbox)
