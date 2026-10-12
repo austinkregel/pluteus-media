@@ -228,7 +228,9 @@ defmodule PluteusWeb.SurfaceLive do
       | copy: copy,
         held_as: Enum.map(copies, &Map.put(&1, :reading?, reading?(&1, copy))),
         reading: read(copy),
-        marks: marked(copy, socket.assigns.profile)
+        marks: marked(copy, socket.assigns.profile),
+        credited: Reading.credited(socket.assigns.work.id, socket.assigns.profile),
+        stated: copy && Reading.stated(copy.id)
     })
     |> awaited()
   end
@@ -244,6 +246,8 @@ defmodule PluteusWeb.SurfaceLive do
       held_as: [],
       reading: {:absent, "not_held"},
       marks: [],
+      credited: [],
+      stated: nil,
       division: 0,
       preferences: Preferences.held_by(socket.assigns.principal_id)
     }
@@ -439,6 +443,8 @@ defmodule PluteusWeb.SurfaceLive do
       work={@work}
       name={@name}
       category={@category}
+      credited={@reader.credited}
+      stated={@reader.stated}
       reading={@reader.reading}
       division={@reader.division}
       held_as={@reader.held_as}
