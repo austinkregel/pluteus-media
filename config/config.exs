@@ -37,6 +37,15 @@ config :pluteus, Oban,
   # Finished jobs are kept a week for inspection, then pruned. Nothing is known
   # only to a job: a failure a person must act on is a finding.
   pruner: [max_age: {7, :days}],
+  # A node that stops while a job is running leaves that job executing for ever, and the
+  # schedule below inserts at most one of each worker at a time — so one interrupted job
+  # stops its whole stage, silently and permanently. Every restart of this deployment has
+  # been leaving them: acquisition stopped dead for an hour after one, and analysis had
+  # jobs stranded for three weeks.
+  #
+  # Half an hour, which is longer than any stage here takes on one item — the longest is
+  # re-encoding a film — so a job this rescues is one nothing is working on.
+  lifeline: [rescue_after: {30, :minutes}],
   cron: [
     crontab: [
       # spec-04 §3: each stage is scheduled work finding its own due items.
