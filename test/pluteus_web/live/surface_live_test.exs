@@ -170,6 +170,49 @@ defmodule PluteusWeb.SurfaceLiveTest do
       assert html =~ ~s|phx-hook="Player"|
     end
 
+    # §12.2 and spec-01 §8.6 keep three things apart: which audio plays, which subtitle
+    # track is chosen, and whether subtitles are shown at all. The third outlives the
+    # holding, so it is the principal's and not this page's.
+    test "whether subtitles are shown is a third state, and it is kept",
+         %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{film}/play")
+
+      assert html =~ ~s|id="player-shown"|
+      assert has_element?(live, ~s|[phx-value-key="subtitle_visibility"][aria-pressed="true"]|)
+
+      live
+      |> element(~s|button[phx-value-key="subtitle_visibility"]|, "Foreign audio")
+      |> render_click()
+
+      assert has_element?(
+               live,
+               ~s|button[phx-value-value="foreign_audio"][aria-pressed="true"]|
+             )
+
+      # Choosing it says nothing about which track is chosen, which §12.2 forbids
+      # collapsing into one setting.
+      refute has_element?(live, ~s|#player-subtitles [aria-pressed="true"]|)
+    end
+
+    # §17.4 requires a caption's presentation be adjustable and persisted per principal,
+    # and names no property of it; these four are what this deployment draws and §20 is
+    # where their values live.
+    test "a caption is drawn as this principal asked", %{conn: conn, inbox: inbox} do
+      film = a_film(inbox)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{film}/play")
+
+      assert html =~ ~s|id="player-captions"|
+
+      for key <- PluteusWeb.Settings.keys(:captions) do
+        assert has_element?(live, ~s|[phx-value-key="#{key}"]|) or
+                 has_element?(live, ~s|#preference-#{key}|),
+               "#{key} is a caption setting and nothing offers it"
+      end
+    end
+
     test "choosing a track holds the choice, and holds the other apart from it",
          %{conn: conn, inbox: inbox} do
       film = a_film(inbox)
@@ -322,7 +365,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
       for key <- PluteusWeb.Surfaces.Reading.keys() do
         assert has_element?(live, ~s|#reading-preferences [phx-value-key="#{key}"]|) or
-                 has_element?(live, ~s|#reading-#{key}|),
+                 has_element?(live, ~s|#preference-#{key}|),
                "#{key} is a reading preference and nothing offers it"
       end
     end
