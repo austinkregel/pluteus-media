@@ -14,6 +14,7 @@ defmodule PluteusWeb.BrowseLiveTest do
   alias Pluteus.Catalog
   alias Pluteus.Dedup
   alias Pluteus.Ingest.Place
+  alias Pluteus.MusicFixtures
   alias Pluteus.Principals
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Chrome
@@ -346,6 +347,19 @@ defmodule PluteusWeb.BrowseLiveTest do
       assert html =~ ~s|href="/works/#{release}"|
       refute html =~ ~s|href="/works/#{letter}"|
       assert html =~ "of 1 holding"
+    end
+
+    # §9.2 makes People the agents a household's holdings credit, and an agent is a res:
+    # pressing one opens the page that is about them rather than a list narrowed by them.
+    test "People lists the agents, each at its own address", %{conn: conn} do
+      # A credit is written by placement and nowhere else, so this is a placed release
+      # rather than rows assembled here: what the mode lists is what ingest recorded.
+      MusicFixtures.library!()
+
+      {:ok, _live, html} = live(conn, ~p"/people")
+
+      assert html =~ "Miles Davis"
+      assert html =~ ~s|href="/artists/|
     end
 
     test "Recently added puts what arrived last first", %{conn: conn} do
