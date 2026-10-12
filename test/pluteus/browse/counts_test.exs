@@ -46,7 +46,7 @@ defmodule Pluteus.Browse.CountsTest do
     test "selecting a value already selected changes nothing, and the count says so" do
       {:ok, query} = Query.parse("everything", %{"category" => "photograph"})
 
-      {:available, counts} = Counts.for_query(query)["category"]
+      {:available, counts} = facets_for(query)["category"]
 
       assert {"photograph", count} = Enum.find(counts, &(elem(&1, 0) == "photograph"))
       assert count == Entries.count(query)
@@ -151,7 +151,7 @@ defmodule Pluteus.Browse.CountsTest do
     test "every axis the registry names is answered for" do
       {:ok, query} = Query.parse("everything", %{})
 
-      answered = Counts.for_query(query)
+      answered = facets_for(query)
 
       for axis <- Surfaces.facets() do
         assert Map.has_key?(answered, axis), "the #{axis} facet was not named at all"
@@ -161,7 +161,7 @@ defmodule Pluteus.Browse.CountsTest do
     test "an axis whose relation is not read yet is inert and says why" do
       {:ok, query} = Query.parse("everything", %{})
 
-      answered = Counts.for_query(query)
+      answered = facets_for(query)
 
       for axis <- Surfaces.facets() -- Entries.narrowable_axes() do
         assert {:inert, reason} = answered[axis]
@@ -169,14 +169,24 @@ defmodule Pluteus.Browse.CountsTest do
       end
     end
 
-    test "the place facet says it is the gazetteer it wants, not that nothing is held" do
-      # Reporting an empty facet would say the household holds nothing made anywhere.
+    test "an inert axis says the holdings do not state it, not that nothing is held" do
+      # Reporting an empty facet would say the household holds nothing made anywhere,
+      # which is a different and false claim. So the reason's subject is the holdings.
       {:ok, query} = Query.parse("everything", %{})
 
-      assert {:inert, reason} = Counts.for_query(query)["place"]
-      assert reason =~ "gazetteer"
+      for axis <- Surfaces.facets() -- Entries.narrowable_axes() do
+        assert {:inert, reason} = facets_for(query)[axis]
+
+        assert reason =~ "None of these",
+               "the #{axis} facet gives #{inspect(reason)}, whose subject is not the holdings"
+      end
     end
   end
+
+  # Every axis answered for, against how many the query holds as it stands. That figure
+  # is taken here rather than read back from the answer, so each count is checked against
+  # a total this test derived for itself.
+  defp facets_for(query), do: Counts.for_query(query, Entries.count(query))
 
   # The whole of criterion 23: for every value offered, select it and confirm the
   # surface holds exactly what the count advertised.
@@ -184,7 +194,7 @@ defmodule Pluteus.Browse.CountsTest do
 
   defp assert_counts_hold(axis, params) do
     {:ok, query} = Query.parse("everything", params)
-    {:available, counts} = Counts.for_query(query)[axis]
+    {:available, counts} = facets_for(query)[axis]
 
     assert counts != [], "no value was offered, so this asserts nothing"
 
@@ -199,7 +209,7 @@ defmodule Pluteus.Browse.CountsTest do
   defp facet(axis, params) do
     {:ok, query} = Query.parse("everything", params)
 
-    Counts.for_query(query)[axis]
+    facets_for(query)[axis]
   end
 
   defp credited(work_id, name) do
@@ -212,7 +222,7 @@ defmodule Pluteus.Browse.CountsTest do
 
   defp decades(params) do
     {:ok, query} = Query.parse("everything", params)
-    {:available, counts} = Counts.for_query(query)["decade"]
+    {:available, counts} = facets_for(query)["decade"]
 
     Map.new(counts)
   end
@@ -232,7 +242,7 @@ defmodule Pluteus.Browse.CountsTest do
 
   defp counts_for(params) do
     {:ok, query} = Query.parse("everything", params)
-    {:available, counts} = Counts.for_query(query)["category"]
+    {:available, counts} = facets_for(query)["category"]
 
     Map.new(counts)
   end
