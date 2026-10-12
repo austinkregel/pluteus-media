@@ -24,9 +24,14 @@ defmodule Pluteus.Formats do
   Returns an error, and never a guess, where the bytes cannot be read.
   """
   @spec identify(String.t()) :: {:ok, String.t()} | {:error, term()}
-  def identify(location) do
-    path = Storage.path(location)
+  def identify(location), do: location |> Storage.path() |> identify_file()
 
+  @doc """
+  Identifies a file that is not at a location, which is how a file still in the inbox is
+  read: it is not the deployment's yet and has no location until it is.
+  """
+  @spec identify_file(Path.t()) :: {:ok, String.t()} | {:error, term()}
+  def identify_file(path) do
     # Siegfried writes its report to standard output and its complaints to standard
     # error, and the two are kept apart: merged, a complaint about the file lands in
     # front of the JSON and the parse raises instead of the report being read. What a

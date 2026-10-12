@@ -44,8 +44,14 @@ defmodule Pluteus.Storage do
   than all of it. A shorter file answers with what it has.
   """
   @spec leading(String.t(), pos_integer()) :: binary()
-  def leading(location, count) do
-    file = path(location)
+  def leading(location, count), do: location |> path() |> leading_file(count)
+
+  @doc """
+  The first bytes of a file that is not at a location, which is how a file still in the
+  inbox is read: it is not the deployment's yet and has no location until it is.
+  """
+  @spec leading_file(Path.t(), pos_integer()) :: binary()
+  def leading_file(file, count) do
     device = File.open!(file, [:read, :binary])
 
     try do
