@@ -224,7 +224,23 @@ defmodule Pluteus.IngestFixtures do
   def place_all!(inbox) do
     outcomes = Place.place_due(inbox)
 
-    case Repo.all(from a in Acquisition, where: a.state != :placed) do
+    # A file the deployment looked at and could not say the category of was never taken
+    # (spec-04 §6.3): it is still in the inbox, waiting for a person rather than for a
+    # stage, and its finding says so. That is an outcome a test may mean, so it is not a
+    # holding left behind.
+    examined =
+      from f in Ingest.Finding,
+        where: f.stage == :examine and is_nil(f.cleared_at),
+        select: f.acquisition_id
+
+    left =
+      Repo.all(
+        from a in Acquisition,
+          where: a.state != :placed,
+          where: a.id not in subquery(examined)
+      )
+
+    case left do
       [] -> outcomes
       left -> raise "ingest left #{length(left)} acquisition(s) unplaced:\n" <> account(left)
     end
@@ -311,10 +327,11 @@ defmodule Pluteus.IngestFixtures do
         []
       end
 
-    tone(opts) ++ art ++ tags(opts[:tags] || %{})
+    tone(opts) ++ art ++ tags(stated(opts))
   end
 
-  defp args(:mp3, opts, _dir), do: tone(opts) ++ ["-c:a", "libmp3lame"]
+  defp args(:mp3, opts, _dir),
+    do: tone(opts) ++ ["-c:a", "libmp3lame"] ++ tags(stated(opts))
 
   # A 1 kHz tone in 120 ms bursts once a second for 5.3 seconds. Gating blocks
   # that overlap by 75% measure it about 1 LU quieter than blocks that do not,
@@ -374,6 +391,16 @@ defmodule Pluteus.IngestFixtures do
   # every pixel of it is encoded, decoded and then tiled by whatever uses it.
   defp args(:large_still, _opts, _dir),
     do: ["-f", "lavfi", "-i", "testsrc=size=4100x4000", "-frames:v", "1"]
+
+  # A released recording says which album it is a track of, and saying so is what says it
+  # is one (spec-04 §6.3). A fixture standing in for a music file carries it, as a tagged
+  # file in a household does; `untagged: true` is for a test about a file that says
+  # nothing about itself, which the deployment then does not take.
+  defp stated(opts) do
+    given = Map.new(opts[:tags] || %{})
+
+    if opts[:untagged], do: given, else: Map.merge(%{"album" => "A release"}, given)
+  end
 
   defp tone(opts) do
     frequency = Keyword.get(opts, :frequency, 440)

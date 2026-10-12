@@ -72,7 +72,9 @@ defmodule Pluteus.MusicFixtures do
       "#{album}/cover.png" => cover,
       "#{album}/01 So What.lrc" => @lyrics,
       "#{album}/about.nfo" => "Recorded at Columbia 30th Street Studio.\n",
-      "#{loose}/untitled.wav" => media!(:wav)
+      # Filed where a household files music, which is what says what it is: a PCM capture
+      # carries no tags of its own and nothing else states anything about it (§6.3).
+      "music/#{loose}/untitled.wav" => media!(:wav)
     }
 
     for {path, bytes} <- files, do: drop!(inbox, path, bytes)
