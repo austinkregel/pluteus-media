@@ -29,6 +29,7 @@ defmodule Pluteus.Serials do
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Events
   alias Pluteus.Ingest.Place
+  alias Pluteus.Ingest.Registry, as: Formats
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Presentation
@@ -57,14 +58,27 @@ defmodule Pluteus.Serials do
   @doc """
   The members of a serial work, in the order its manifestation arranges them.
 
-  An empty list for a work that gathers nothing, which is every work but a serial.
+  An empty list for a work that is not a serial. Every whole arranges something on its
+  manifestation and only a serial arranges its members there: a release arranges the
+  media it was pressed on, and a medium is not a track — a list of them would report
+  every disc of a set as a thing the household does not hold.
   """
   @spec members(Ecto.UUID.t(), Ecto.UUID.t(), Profile.t()) :: [member()]
   def members(work_id, principal_id, %Profile{} = profile) do
-    case gathering(work_id) do
-      nil -> []
-      manifestation -> gathered(manifestation, principal_id, profile)
+    with true <- serial?(work_id),
+         manifestation when is_binary(manifestation) <- gathering(work_id) do
+      gathered(manifestation, principal_id, profile)
+    else
+      _not_a_serial_or_nothing_embodies_it -> []
     end
+  end
+
+  @doc """
+  Whether a work is a serial: one that gathers issues of itself (spec-01 §5.4).
+  """
+  @spec serial?(Ecto.UUID.t()) :: boolean()
+  def serial?(work_id) do
+    Catalog.category_of(work_id, Place.category_scheme()) in Formats.serial_categories()
   end
 
   @doc """
