@@ -154,6 +154,11 @@ const Player = {
     this.medium.addEventListener("pause", () => this.drawn())
     this.medium.addEventListener("volumechange", () => this.drawn())
 
+    // Whether the bytes play is the browser's answer and nothing else can establish it,
+    // so the one that says they do not is told to the server rather than left in a
+    // console: §16.1 puts a failure on the surface it happened on.
+    this.medium.addEventListener("error", () => this.refused())
+
     this.measured()
     this.drawn()
   },
@@ -235,6 +240,19 @@ const Player = {
     this.mute.setAttribute("aria-label", this.medium.muted ? "Unmute" : "Mute")
     this.volume.value = Math.round((this.medium.muted ? 0 : this.medium.volume) * 100)
     this.volume.setAttribute("aria-valuetext", `${this.volume.value} per cent`)
+  },
+
+  // What the element itself says went wrong, which is the only account there is of it.
+  // The codes are the media element's own and mean nothing to a person, so the server
+  // words them; the message the browser supplies is sent with it because it is often the
+  // only thing naming the codec.
+  refused() {
+    const error = this.medium.error
+
+    this.pushEvent("medium-refused", {
+      code: error ? error.code : null,
+      said: error && error.message ? error.message : ""
+    })
   }
 }
 
