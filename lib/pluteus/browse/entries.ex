@@ -294,6 +294,20 @@ defmodule Pluteus.Browse.Entries do
   """
   @spec decades() :: Ecto.Query.t()
   def decades do
+    from d in subquery(dates()),
+      distinct: true,
+      select: %{res_id: d.res_id, value: fragment("substr(?, 1, 3) || '0s'", d.value)}
+  end
+
+  @doc """
+  Every date each work's containers stated, as they stated it.
+
+  A work carries as many as its manifestations were issued in, so this is a set. What a
+  surface shows beside a name is the earliest of them, which is the caller's to take:
+  the relation is what is recorded and the choice of one is a presentation.
+  """
+  @spec dates() :: Ecto.Query.t()
+  def dates do
     refinement = Refinements.name!("time-of-publication-or-manufacture")
 
     from m in subquery(answers_for()),
@@ -302,7 +316,7 @@ defmodule Pluteus.Browse.Entries do
       join: n in Nomen,
       on: n.res_id == a.object_id and is_nil(n.assigner_id),
       distinct: true,
-      select: %{res_id: m.work_id, value: fragment("substr(?, 1, 3) || '0s'", n.nomen_string)}
+      select: %{res_id: m.work_id, value: n.nomen_string}
   end
 
   # The manifestations a work answers for: its own, and those of the expressions it
