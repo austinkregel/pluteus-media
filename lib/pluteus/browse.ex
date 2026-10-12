@@ -127,7 +127,7 @@ defmodule Pluteus.Browse do
 
   defp uncredited(query) do
     Repo.aggregate(
-      from(w in Entries.uncredited(Entries.narrow(Entries.base(), query)), select: w.id),
+      from(w in Entries.uncredited(Entries.narrow(Entries.selected(query), query)), select: w.id),
       :count
     )
   end
