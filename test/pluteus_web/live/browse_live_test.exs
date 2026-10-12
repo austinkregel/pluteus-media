@@ -104,6 +104,30 @@ defmodule PluteusWeb.BrowseLiveTest do
       refute html =~ ~s|href="/works/#{photo}"|
     end
 
+    # §12.1 calls it a justified grid: a tile takes the width its own shape asks for, so
+    # a row fills the page and everything in it stands the same height. The shape is
+    # §20's figure for the category where nothing has measured the bytes (criterion 28).
+    test "a tile is as wide as the shape its box reserves", %{conn: conn} do
+      for _each <- 1..3, do: named("A photograph", "photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=photograph")
+
+      assert html =~ "flex: 1.5 0 0%"
+      assert html =~ "aspect-ratio: 1.5"
+    end
+
+    # A surface headed with the mode's name while the rail says Photographs makes a
+    # person read the chips to learn what they are looking at.
+    test "the surface is headed by what it is showing", %{conn: conn} do
+      named("A photograph", "photograph")
+      named("A letter", "document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=photograph,document")
+
+      assert html =~ "Documents and Photographs"
+      refute html =~ ">Everything</h1>"
+    end
+
     test "a kind that is read keeps its rows", %{conn: conn} do
       letter = named("A letter", "document")
 
