@@ -27,6 +27,7 @@ defmodule PluteusWeb.BrowseLive do
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest
   alias Pluteus.Playback
+  alias Pluteus.Presentation.Geometry
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
   alias Pluteus.Surfaces.Registry, as: Surfaces
@@ -294,7 +295,9 @@ defmodule PluteusWeb.BrowseLive do
       </p>
     </header>
 
-    <ol :if={@surface.entries != []} class="flex flex-col">
+    <.grid :if={@surface.entries != [] and gridded?(@surface)} surface={@surface} />
+
+    <ol :if={@surface.entries != [] and not gridded?(@surface)} class="flex flex-col">
       <li :for={id <- @surface.entries}>
         <.row
           res={id}
@@ -403,6 +406,82 @@ defmodule PluteusWeb.BrowseLive do
 
   defp share(_count, 0), do: 0
   defp share(count, most), do: round(count / most * 100)
+
+  # §12.1 puts a photograph on a grid rather than in a list, and §12.2 keeps a cover out
+  # of one: the photograph is the picture, so a tile asks the holding itself. Where every
+  # entry on the surface belongs to a grid, the rows become one — a day a household
+  # browses is photographs and home video together, told apart by glyph and class colour
+  # rather than by being on two surfaces.
+  defp gridded?(surface) do
+    surface.entries != [] and
+      Enum.all?(surface.entries, fn id ->
+        category = surface.categories[id]
+
+        category != nil and
+          Surfaces.category_presentation(category)["primary_surface"] ==
+            "viewer in a justified grid"
+      end)
+  end
+
+  attr :surface, :map, required: true
+
+  defp grid(assigns) do
+    ~H"""
+    <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <li :for={id <- @surface.entries}>
+        <.tile
+          at={~p"/works/#{id}/view"}
+          name={Map.fetch!(@surface.names, id)}
+          mark={mark(@surface.categories[id])}
+          borne={@surface.borne[id]}
+          reserved={reserved(@surface, id)}
+        />
+      </li>
+    </ul>
+    """
+  end
+
+  # §11.2's reserved box, so a row does not reflow as its images arrive. The residual
+  # tile of a row decides the row, so it carries a ratio too.
+  defp reserved(surface, id) do
+    Geometry.reserve(surface.geometry[surface.borne[id]], surface.categories[id])
+  end
+
+  attr :at, :string, required: true
+  attr :name, :string, required: true
+  attr :mark, :any, required: true
+  attr :borne, :string, default: nil
+  attr :reserved, :any, default: nil
+
+  defp tile(assigns) do
+    ~H"""
+    <.link navigate={@at} class="group flex flex-col gap-2">
+      <span
+        class={[
+          "flex items-center justify-center overflow-hidden rounded-md",
+          "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+          "bg-surface-raised group-hover:border-border-strong"
+        ]}
+        style={@reserved && "aspect-ratio: #{@reserved}"}
+      >
+        <img
+          :if={@borne}
+          src={~p"/manifestations/#{@borne}/presentation/image-640"}
+          alt=""
+          loading="lazy"
+          class="size-full object-cover"
+          onerror="this.remove()"
+        />
+        <.icon :if={!@borne} name={glyph(@mark)} class={ink(@mark)} />
+      </span>
+
+      <span class="flex items-center gap-2">
+        <.icon name={glyph(@mark)} class={["shrink-0", ink(@mark)]} />
+        <span class="truncate text-body-sm text-on-surface-strong">{@name}</span>
+      </span>
+    </.link>
+    """
+  end
 
   # The play control is a button beside the link, not inside it: a control within a link
   # is reliably reachable by neither keyboard path. It is there only where the category's
