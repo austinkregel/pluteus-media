@@ -288,7 +288,7 @@ defmodule PluteusWeb.BrowseLive do
   defp rows(assigns) do
     ~H"""
     <header class="mb-8">
-      <h1 class="text-title-lg font-medium text-on-surface-strong">Everything</h1>
+      <h1 class="text-title-lg font-medium text-on-surface-strong">{showing(@surface)}</h1>
       <p class="mt-1 text-body-sm text-on-surface-muted">
         <span class="text-on-surface-strong">{@surface.total}</span>
         of {@surface.catalogue} {holdings(@surface.catalogue)}
@@ -330,6 +330,29 @@ defmodule PluteusWeb.BrowseLive do
 
   defp holdings(1), do: "holding"
   defp holdings(_many), do: "holdings"
+
+  # What the surface is showing, in the household's own words for it. The kinds it has
+  # been narrowed to, where it has been: a page headed with the mode's name while the
+  # rail says Photographs makes a person read the chips to know what they are looking at.
+  # Other axes stay in the rail, because a decade is a narrowing of a kind rather than a
+  # thing with a name of its own.
+  defp showing(surface) do
+    case Map.get(surface.query.facets, "category", []) do
+      [] -> mode_noun(surface.query.mode)
+      kinds -> kinds |> Enum.map(&Surfaces.category_icon(&1).name) |> Enum.sort() |> in_words()
+    end
+  end
+
+  defp mode_noun(mode) do
+    {_slug, noun, _glyph, _what, _at} = Enum.find(Chrome.modes(), &(elem(&1, 0) == mode))
+
+    noun
+  end
+
+  defp in_words([one]), do: one
+
+  defp in_words(several),
+    do: Enum.join(Enum.drop(several, -1), ", ") <> " and " <> List.last(several)
 
   # The kinds band: every category the catalogue holds, with what selecting it would
   # leave. Ordered by count descending, which the header states.
@@ -423,23 +446,66 @@ defmodule PluteusWeb.BrowseLive do
       end)
   end
 
+  # §12.1's justified grid: a tile is as wide as its own shape, so a row fills the width
+  # and everything in it is one height. The shapes are §11.2's reserved boxes, which is
+  # what settles a row's height before any image arrives (criterion 28).
+  #
+  # A row is full once the shapes in it are this wide against their height — about three
+  # photographs, which is what the board draws and what keeps a tile big enough to make
+  # out on a laptop.
+  @row 3.6
+
   attr :surface, :map, required: true
 
   defp grid(assigns) do
+    assigns = assign(assigns, :full, @row)
+
     ~H"""
-    <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <li :for={id <- @surface.entries}>
-        <.tile
-          at={~p"/works/#{id}/view"}
-          name={Map.fetch!(@surface.names, id)}
-          mark={mark(@surface.categories[id])}
-          borne={@surface.borne[id]}
-          reserved={reserved(@surface, id)}
-        />
+    <ul class="flex flex-col gap-3">
+      <li :for={{row, filled} <- justified(@surface)} class="flex flex-wrap gap-3">
+        <div
+          :for={{id, shape} <- row}
+          style={"flex: #{shape} 0 0%"}
+          class="min-w-40"
+        >
+          <.tile
+            at={~p"/works/#{id}/view"}
+            name={Map.fetch!(@surface.names, id)}
+            mark={mark(@surface.categories[id])}
+            borne={@surface.borne[id]}
+            reserved={shape}
+          />
+        </div>
+
+        <%!-- What a row short of a full one would otherwise stretch into. Without it the
+              last row's two tiles take the width three took above them and stand half a
+              page tall, which says they matter more than the rest. --%>
+        <div :if={filled < @full} aria-hidden="true" style={"flex: #{@full - filled} 0 0%"}></div>
       </li>
     </ul>
     """
   end
+
+  defp justified(surface) do
+    surface.entries
+    |> Enum.map(fn id -> {id, shape(surface, id)} end)
+    |> Enum.chunk_while(
+      {[], 0.0},
+      fn {_id, shape} = tile, {row, filled} ->
+        if filled + shape >= @row,
+          do: {:cont, {Enum.reverse([tile | row]), filled + shape}, {[], 0.0}},
+          else: {:cont, {[tile | row], filled + shape}}
+      end,
+      fn
+        {[], _none} -> {:cont, {[], 0.0}}
+        {row, filled} -> {:cont, {Enum.reverse(row), filled}, {[], 0.0}}
+      end
+    )
+  end
+
+  # A holding whose shape nothing has recorded and whose category §20 gives no figure for
+  # still has to take a width, and a square is the one shape that favours no orientation.
+  defp shape(surface, id), do: reserved(surface, id) || 1.0
 
   # §11.2's reserved box, so a row does not reflow as its images arrive. The residual
   # tile of a row decides the row, so it carries a ratio too.
