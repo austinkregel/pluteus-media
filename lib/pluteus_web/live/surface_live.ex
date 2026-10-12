@@ -19,11 +19,13 @@ defmodule PluteusWeb.SurfaceLive do
   use PluteusWeb, :surface
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
+  alias Pluteus.Paging
   alias Pluteus.Playback
   alias Pluteus.Preferences
   alias Pluteus.Presentation
@@ -42,6 +44,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Settings
   alias PluteusWeb.Surfaces.Music
+  alias PluteusWeb.Surfaces.Pages
   alias PluteusWeb.Surfaces.Player
   alias PluteusWeb.Surfaces.Reader
   alias PluteusWeb.Surfaces.Viewer
@@ -166,16 +169,28 @@ defmodule PluteusWeb.SurfaceLive do
     {:noreply, reading(socket, socket.assigns.reader.copy.id)}
   end
 
+  def handle_info(:page_again, socket) do
+    {:noreply, socket |> assign(:looking, false) |> opened()}
+  end
+
   # Clamped on the way in, so a copy of two pages is never open at the three hundredth
-  # and a position pressed twice at the end stays at the end.
-  defp at(socket, division) do
-    at = division |> max(0) |> min(pages(socket.assigns.reader.reading) - 1)
+  # and a position pressed twice at the end stays at the end. A clause per surface that
+  # turns pages and no catch-all, so a third of them fails here rather than moving
+  # whichever of the two happens to be assigned.
+  defp at(%{assigns: %{surface: "reader"}} = socket, division) do
+    at = division |> max(0) |> min(divisions(socket.assigns.reader.reading) - 1)
 
     update(socket, :reader, &%{&1 | division: at})
   end
 
-  defp pages({:read, %{divisions: divisions}}), do: length(divisions)
-  defp pages({:absent, _state}), do: 1
+  defp at(%{assigns: %{surface: "page reader"}} = socket, page) do
+    socket
+    |> assign(:page, page |> max(0) |> min((socket.assigns.pages || 1) - 1))
+    |> opened()
+  end
+
+  defp divisions({:read, %{divisions: divisions}}), do: length(divisions)
+  defp divisions({:absent, _state}), do: 1
 
   # The four refusals, in the order the facts arrive. An identifier that is not one
   # names nothing; a work that is not held names nothing; one that was held and is not
@@ -223,6 +238,9 @@ defmodule PluteusWeb.SurfaceLive do
     |> assign(:playing, playing(socket.assigns.principal_id, socket.assigns.profile))
     |> assign(:borne, borne(work.id))
     |> assign(:trickplay, trickplay(surface, borne(work.id)))
+    |> assign_new(:page, fn -> 0 end)
+    |> assign(:pages, paged(surface, borne(work.id)))
+    |> opened()
     |> assign(:facts, facts(surface, work, socket.assigns.profile))
     |> assign_new(:rail_collapsed, fn -> narrow?(surface) end)
   end
@@ -322,6 +340,59 @@ defmodule PluteusWeb.SurfaceLive do
   defp narrow?("viewer in a justified grid"), do: true
   defp narrow?("transport and queue"), do: false
   defp narrow?("transport and chapter list"), do: false
+
+  # §11.1's graded widths of the page being read, and §11.2's box.
+  #
+  # A page is asked for by being asked for: the widths that are not there are queued and
+  # the surface looks again, so a page arrives without anybody reloading. The page after
+  # this one is asked for as well, so turning to it finds it already made.
+  defp opened(%{assigns: %{surface: "page reader", pages: pages, borne: borne}} = socket)
+       when is_integer(pages) and is_binary(borne) do
+    page = socket.assigns.page
+    shown = Paging.open(borne, page)
+
+    Paging.ask(borne, page)
+    if page + 1 < pages, do: Paging.ask(borne, page + 1)
+
+    socket
+    |> assign_new(:looking, fn -> false end)
+    |> assign(:shown, shown)
+    |> assign(:reserved, Paging.reserve(shown, socket.assigns.category))
+    |> looking(shown)
+  end
+
+  defp opened(socket) do
+    socket
+    |> assign(:shown, {:absent, "not_held"})
+    |> assign(:reserved, nil)
+    |> assign_new(:looking, fn -> false end)
+  end
+
+  # One look pending at a time, so turning several pages while the first is still being
+  # made does not leave a look in flight for each of them. A page a tool tried and could
+  # not make ends the looking, because nothing about it will change on another look.
+  defp looking(socket, {:absent, "not_yet_examined"}) do
+    if connected?(socket) and not socket.assigns.looking do
+      Process.send_after(self(), :page_again, 2_000)
+      assign(socket, :looking, true)
+    else
+      socket
+    end
+  end
+
+  defp looking(socket, _made_or_absent_for_good), do: assign(socket, :looking, false)
+
+  # How many pages there are to turn, which placement counted from the archive's own
+  # entries (spec-01 §8.4). Nil where nothing counted them: §12.3's position is against
+  # the whole, so a holding with no figure has nowhere to be in it.
+  defp paged("page reader", borne) when is_binary(borne) do
+    case Addressing.get_extent(borne, :page) do
+      nil -> nil
+      %{magnitude: pages} -> pages
+    end
+  end
+
+  defp paged(_another_surface, _borne), do: nil
 
   # §11.3's trickplay: the frames a person scrubbing is shown, as one sprite with the
   # figures needed to find a frame in it. Asked for where it is not held yet, so the
@@ -434,6 +505,10 @@ defmodule PluteusWeb.SurfaceLive do
           preferences={@preferences}
           refusal={@refusal}
           trickplay={@trickplay}
+          page={@page}
+          pages={@pages}
+          shown={@shown}
+          reserved={@reserved}
         />
       </div>
     </Chrome.shell>
@@ -457,6 +532,10 @@ defmodule PluteusWeb.SurfaceLive do
   attr :preferences, :map, required: true
   attr :refusal, :any, required: true
   attr :trickplay, :any, required: true
+  attr :page, :integer, required: true
+  attr :pages, :any, required: true
+  attr :shown, :any, required: true
+  attr :reserved, :any, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -505,7 +584,19 @@ defmodule PluteusWeb.SurfaceLive do
   defp presented(%{surface: "scan beside its transcript"} = assigns),
     do: ~H|<.bare name={@name} />|
 
-  defp presented(%{surface: "page reader"} = assigns), do: ~H|<.bare name={@name} />|
+  defp presented(%{surface: "page reader"} = assigns) do
+    ~H"""
+    <Pages.surface
+      name={@name}
+      category={@category}
+      borne={@borne}
+      page={@page}
+      pages={@pages}
+      shown={@shown}
+      reserved={@reserved}
+    />
+    """
+  end
 
   defp presented(%{surface: "viewer in a justified grid"} = assigns) do
     ~H"""
