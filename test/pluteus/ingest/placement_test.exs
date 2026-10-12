@@ -321,6 +321,29 @@ defmodule Pluteus.Ingest.PlacementTest do
       assert [%{position: 4001}] = Catalog.parts_of(serial_manifestation(episode))
     end
 
+    # The household's own films carry one of these, written by the same tool that writes
+    # an episode's: `<details>` with a title, a genre and an overview, and nothing saying
+    # it belongs to a series. Read as an episode's, every film in the house becomes one.
+    test "a root written for more than one kind of thing decides by what it carries",
+         %{inbox: inbox} do
+      film = """
+      <details>
+        <id>161</id>
+        <title>Aladdin</title>
+        <genre>Animation / Family / Adventure</genre>
+        <overview>Princess Jasmine grows tired of being forced to remain in the palace.</overview>
+      </details>
+      """
+
+      placed =
+        ingest!(inbox, %{
+          "movies/Aladdin (1992)/Aladdin.1992.mkv" => media!(:film),
+          "movies/Aladdin (1992)/Aladdin.1992.xml" => film
+        })
+
+      assert categories(placed)["movies/Aladdin (1992)/Aladdin.1992.mkv"] == "film"
+    end
+
     test "a document about what the holding belongs to does not say what it is",
          %{inbox: inbox} do
       # An album document dates the release. A track beside it is a music recording, and
