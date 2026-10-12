@@ -382,6 +382,7 @@ defmodule PluteusWeb.EntityLive do
       {id,
        %{
          at: "/#{Map.fetch!(paths, kind)}/#{id}",
+         page?: Native.negotiates?(kind),
          name: named(resolved[id], composed[id], profile)
        }}
     end)
@@ -431,7 +432,7 @@ defmodule PluteusWeb.EntityLive do
             <.link
               :if={@surface_at}
               id="entity-primary-action"
-              href={surface_path(@res.id, @surface_at)}
+              navigate={surface_path(@res.id, @surface_at)}
               class={[
                 "rounded-full px-4 min-h-target-pointer inline-flex items-center",
                 "text-body-md font-medium",
@@ -542,9 +543,13 @@ defmodule PluteusWeb.EntityLive do
             This link points at {said_region(@address)}, which cannot be shown: how much of this
             there is has never been recorded, so the region cannot be placed within it.
           </p>
-          <a id="entity-whole" href={@whole} class="mt-3 inline-block underline text-body-sm">
+          <.link
+            id="entity-whole"
+            navigate={@whole}
+            class="mt-3 inline-block underline text-body-sm"
+          >
             Leave the region and see the whole
-          </a>
+          </.link>
         </section>
 
         <section :if={facts(@representation) != []} aria-labelledby="entity-facts" class="mb-10">
@@ -645,11 +650,29 @@ defmodule PluteusWeb.EntityLive do
     ~H"""
     <ul class="flex flex-col gap-1">
       <li :for={id <- Enum.map(@ids, &identifier/1)}>
-        <a id={"entity-link-#{id}"} href={Map.fetch!(@addresses, id).at} class="underline">
-          {Map.fetch!(@addresses, id).name}
-        </a>
+        <.related id={id} address={Map.fetch!(@addresses, id)} />
       </li>
     </ul>
+    """
+  end
+
+  # A kind §9.1 names has a page in this live session, so reaching it keeps what is
+  # playing. A kind that answers only the representation has no route here to navigate
+  # to, and asking for one would leave a person on a page that never arrived.
+  attr :id, :string, required: true
+  attr :address, :map, required: true
+
+  defp related(%{address: %{page?: true}} = assigns) do
+    ~H"""
+    <.link id={"entity-link-#{@id}"} navigate={@address.at} class="underline">
+      {@address.name}
+    </.link>
+    """
+  end
+
+  defp related(assigns) do
+    ~H"""
+    <a id={"entity-link-#{@id}"} href={@address.at} class="underline">{@address.name}</a>
     """
   end
 
