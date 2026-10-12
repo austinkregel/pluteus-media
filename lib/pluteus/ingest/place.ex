@@ -666,7 +666,7 @@ defmodule Pluteus.Ingest.Place do
   #
   # The asset takes the acquisition's identifier (§6.1), so the acquisition's own
   # identifier is the asset's.
-  defp record_probe(%Acquisition{probe: nil}), do: :ok
+  defp record_probe(%Acquisition{probe: nil}), do: :states_none
 
   defp record_probe(acquisition) do
     {:ok, derivation} =
@@ -686,7 +686,7 @@ defmodule Pluteus.Ingest.Place do
         derivation_id: derivation.id
       })
 
-    :ok
+    :recorded
   end
 
   # spec-01 §8.4. How much of the holding there is, in the unit its medium is
@@ -750,6 +750,25 @@ defmodule Pluteus.Ingest.Place do
           relate(manifestation, time_span_for(date))
 
           :recorded
+      end
+    end)
+  end
+
+  @doc """
+  Records a placed holding's probe against the asset whose bytes it read, for one placed
+  before that is where it went.
+
+  §6.1 makes the probe's input the asset, which is what a surface asks about: a reading
+  recorded against the manifestation is a true reading that nothing looks at, so a
+  holding placed before this reserves §20's assumed shape for its category rather than
+  its own. One already recorded is left as it is, so this can be run after any ingest.
+  """
+  @spec record_probe!(Acquisition.t()) :: :recorded | :recorded_already | :states_none
+  def record_probe!(%Acquisition{state: :placed} = acquisition) do
+    Actor.as(Principals.system!().id, fn ->
+      case Annotations.current_derivation("ffprobe", acquisition.id) do
+        nil -> record_probe(acquisition)
+        _already -> :recorded_already
       end
     end)
   end
