@@ -31,6 +31,11 @@ services:
     # serves on Phoenix's default 4000 internally.
     ports:
       - "4100:4000"
+    # Chromium's renderer puts its shared buffers in /dev/shm, and Docker gives a
+    # container 64MB of it, which a page of any size exhausts — the tab dies rather than
+    # reporting a limit. The alternative flag writes those buffers to disk instead, which
+    # is slower and makes the cause look like something about the page.
+    shm_size: 1gb
     volumes:
       - .:/app
       # deps and _build are named volumes rather than bind mounts: artifacts
