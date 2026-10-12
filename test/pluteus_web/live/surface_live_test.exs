@@ -685,7 +685,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
   # Placed and normalized, so there is a master to play from: the surface reads the
   # tracks off the bytes, and bytes nothing has normalized are refused before it looks.
   defp a_film(inbox) do
-    drop!(inbox, "#{unique_prefix()}/duck.mkv", media!(:film))
+    drop!(inbox, "home video/#{unique_prefix()}/duck.mkv", media!(:film))
 
     [id] = inbox |> acquire_settled!(@t0) |> acquired()
     Place.place_due(inbox)
@@ -699,7 +699,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
   # before it ever asks how long they are, which is what made an earlier version of this
   # test pass against the defect it was written for.
   defp a_photograph(inbox) do
-    drop!(inbox, "#{unique_prefix()}/IMG_0001.png", media!(:png))
+    drop!(inbox, "photos/#{unique_prefix()}/IMG_0001.png", media!(:png))
 
     [id] = inbox |> acquire_settled!(@t0) |> acquired()
     place_all!(inbox)
@@ -747,7 +747,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
   end
 
   defp a_moving_picture(inbox) do
-    drop!(inbox, "#{unique_prefix()}/birthday.mkv", media!(:ffv1, duration: 11))
+    drop!(inbox, "home video/#{unique_prefix()}/birthday.mkv", media!(:ffv1, duration: 11))
 
     [id] = inbox |> acquire_settled!(@t0) |> acquired()
     place_all!(inbox)

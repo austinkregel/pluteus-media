@@ -12,6 +12,7 @@ defmodule Pluteus.Presentation.RegistryTest do
 
   alias Pluteus.Ingest.Registry, as: Ingest
   alias Pluteus.Presentation.Registry
+  alias Pluteus.Surfaces.Registry, as: Surfaces
 
   test "a profile name identifies one profile across every family" do
     names = Registry.profile_names()
@@ -93,11 +94,11 @@ defmodule Pluteus.Presentation.RegistryTest do
 
   describe "a surface reserves a box before it fetches an image" do
     test "every category placement can write has an assumed aspect ratio" do
-      classes = ~w(audio video image text)a
-
-      for class <- classes do
-        category = Ingest.default_category(class, nil)
-        assert is_float(Registry.assumed_aspect_ratio(category))
+      # Every category, not every class: a class decides a category only where it means
+      # one kind of thing, and a surface reserves a box for whatever placement recorded.
+      for category <- Ingest.recordable_categories(), Surfaces.surface_of(category) != nil do
+        assert is_float(Registry.assumed_aspect_ratio(category)),
+               "#{category} is presented somewhere and has no assumed aspect ratio"
       end
     end
 

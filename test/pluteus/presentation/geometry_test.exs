@@ -40,7 +40,7 @@ defmodule Pluteus.Presentation.GeometryTest do
 
   describe "28. A visual res's geometry is available in the batched call" do
     test "a still image answers the pixels the probe read", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       manifestation = manifestation_of(photo)
 
       found = Geometry.for_res([manifestation])
@@ -51,7 +51,7 @@ defmodule Pluteus.Presentation.GeometryTest do
     end
 
     test "a moving image answers its frame, not its duration", %{inbox: inbox} do
-      [film] = ingest!(inbox, %{"home/birthday.mkv" => media!(:ffv1)})
+      [film] = ingest!(inbox, %{"home video/birthday.mkv" => media!(:ffv1)})
 
       assert %{width: 64, height: 48} =
                Geometry.for_res([manifestation_of(film)])
@@ -76,9 +76,9 @@ defmodule Pluteus.Presentation.GeometryTest do
     test "a page of res costs one batched call, not one per tile", %{inbox: inbox} do
       placed =
         ingest!(inbox, %{
-          "a/one.png" => media!(:png),
-          "b/two.png" => media!(:jpeg),
-          "c/three.mkv" => media!(:ffv1)
+          "photos/a/one.png" => media!(:png),
+          "photos/b/two.png" => media!(:jpeg),
+          "home video/c/three.mkv" => media!(:ffv1)
         })
 
       subjects = Enum.map(placed, &manifestation_of/1)
@@ -93,7 +93,7 @@ defmodule Pluteus.Presentation.GeometryTest do
 
     test "the geometry reaches the representation that resolves the name",
          %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       manifestation = Repo.get!(Catalog.Res, manifestation_of(photo))
 
       [representation] = Representation.of_many([manifestation], %Profile{})
@@ -124,14 +124,14 @@ defmodule Pluteus.Presentation.GeometryTest do
     # than its own. Recording it again is what puts it where a surface looks, and it has
     # to be safe to run over a catalogue that is already right.
     test "a holding already read is not read again", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
       assert Place.record_probe!(photo) == :recorded_already
       assert %{width: 64} = Geometry.for_res([manifestation_of(photo)])[manifestation_of(photo)]
     end
 
     test "a holding whose bytes nothing probed is left alone", %{inbox: inbox} do
-      [note] = ingest!(inbox, %{"letters/note.txt" => "Dear Ada"})
+      [note] = ingest!(inbox, %{"scans/letters/note.txt" => "Dear Ada"})
 
       assert Place.record_probe!(note) == :states_none
     end
@@ -169,7 +169,7 @@ defmodule Pluteus.Presentation.GeometryTest do
 
   describe "28. …and a rendered collection does not shift as images arrive" do
     test "the representation carries the ratio to reserve", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       res = Repo.get!(Catalog.Res, manifestation_of(photo))
 
       [representation] = Representation.of_many([res], %Profile{})

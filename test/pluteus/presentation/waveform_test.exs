@@ -66,9 +66,16 @@ defmodule Pluteus.Presentation.WaveformTest do
 
     test "a longer recording yields the same count and a similar size", %{inbox: inbox} do
       short =
-        made!(a_recording(inbox, duration: 2, name: "a/short.flac"), "waveform-overview-1000")
+        made!(
+          a_recording(inbox, duration: 2, name: "music/a/short.flac"),
+          "waveform-overview-1000"
+        )
 
-      long = made!(a_recording(inbox, duration: 8, name: "b/long.flac"), "waveform-overview-1000")
+      long =
+        made!(
+          a_recording(inbox, duration: 8, name: "music/b/long.flac"),
+          "waveform-overview-1000"
+        )
 
       assert length(peaks_of(short)) == length(peaks_of(long))
 
@@ -175,7 +182,7 @@ defmodule Pluteus.Presentation.WaveformTest do
     test "a burst is not averaged away", %{inbox: inbox} do
       # `bursts` is a tone in 120 ms bursts once a second. Averaging would flatten the
       # bursts towards the silence between them; taking peaks keeps them.
-      [track] = ingest!(inbox, %{"a/bursts.flac" => media!(:bursts)})
+      [track] = ingest!(inbox, %{"music/a/bursts.flac" => media!(:bursts)})
       made = made!(manifestation_of(track), "waveform-overview-1000")
 
       peaks = peaks_of(made)

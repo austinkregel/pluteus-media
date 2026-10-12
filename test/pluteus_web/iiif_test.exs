@@ -55,7 +55,7 @@ defmodule PluteusWeb.IiifTest do
 
   # Past §20's sixteen-megapixel threshold, so the pyramid is what §11.2 asks for.
   defp a_large_scan(inbox) do
-    [scan] = ingest!(inbox, %{"letters/scan.png" => media!(:large_still)})
+    [scan] = ingest!(inbox, %{"scans/letters/scan.png" => media!(:large_still)})
     manifestation_of(scan)
   end
 
@@ -78,7 +78,7 @@ defmodule PluteusWeb.IiifTest do
     end
 
     test "a small image is not, because a profile set is simpler there", %{inbox: inbox} do
-      [small] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [small] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
       assert Generate.run(manifestation_of(small), "image-tiled") ==
                {:refused, :below_the_tiling_threshold}

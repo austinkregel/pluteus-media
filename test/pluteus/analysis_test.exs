@@ -106,7 +106,7 @@ defmodule Pluteus.AnalysisTest do
 
     test "gated loudness of bursts agrees with ffmpeg's EBU R128 meter", %{inbox: inbox} do
       bursts = media!(:bursts)
-      [tone] = ingest!(inbox, %{"bursts.flac" => bursts})
+      [tone] = ingest!(inbox, %{"music/bursts.flac" => bursts})
       [input] = Analysis.inputs()
       master = Normalize.master_of(tone.digital_item_id)
 
@@ -130,7 +130,7 @@ defmodule Pluteus.AnalysisTest do
     end
 
     test "a container is analysed per audio stream, never as a whole", %{inbox: inbox} do
-      [film] = ingest!(inbox, %{"Stalker.mkv" => media!(:film)})
+      [film] = ingest!(inbox, %{"movies/Stalker.mkv" => media!(:film)})
       addresses = film |> manifestation_of() |> Catalog.addresses_of()
 
       inputs = Analysis.inputs()
@@ -173,8 +173,8 @@ defmodule Pluteus.AnalysisTest do
 
     test "a stream is found by what it is in a master that orders streams otherwise",
          %{inbox: inbox} do
-      [film] = ingest!(inbox, %{"Stalker.mkv" => media!(:film)})
-      remuxed = StorageFixtures.stored!("remuxed.mkv", media!(:film_remuxed))
+      [film] = ingest!(inbox, %{"movies/Stalker.mkv" => media!(:film)})
+      remuxed = StorageFixtures.stored!("movies/remuxed.mkv", media!(:film_remuxed))
       master = %Asset{location: remuxed}
 
       commentary =

@@ -43,7 +43,7 @@ defmodule Pluteus.Presentation.GenerateTest do
   defp manifestation_of(acquisition),
     do: Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
 
-  defp generated!(inbox, bytes, profile, name \\ "holiday/IMG_0001.jpg") do
+  defp generated!(inbox, bytes, profile, name \\ "photos/holiday/IMG_0001.jpg") do
     [photo] = ingest!(inbox, %{name => bytes})
     subject = manifestation_of(photo)
 
@@ -77,7 +77,7 @@ defmodule Pluteus.Presentation.GenerateTest do
     end
 
     test "it names the master it came from, and that master's digest", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.jpg" => media!(:jpeg)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.jpg" => media!(:jpeg)})
       subject = manifestation_of(photo)
       master = Normalize.master_of(photo.digital_item_id)
 
@@ -143,7 +143,7 @@ defmodule Pluteus.Presentation.GenerateTest do
     # A holding carried by one file is that file, whole. Asking for its fourth page is
     # asking for something it does not have rather than for the file again.
     test "a holding that is not a container has no second page", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.jpg" => media!(:jpeg)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.jpg" => media!(:jpeg)})
 
       assert {:error, "holding_has_no_pages", %{page: 3}} =
                Generate.run(manifestation_of(photo), "image-640", 3)
@@ -177,7 +177,12 @@ defmodule Pluteus.Presentation.GenerateTest do
     test "every turning value exchanges the dimensions", %{inbox: inbox} do
       for orientation <- [5, 6, 7, 8] do
         {_subject, made} =
-          generated!(inbox, oriented_jpeg(orientation), "image-160", "t#{orientation}/img.jpg")
+          generated!(
+            inbox,
+            oriented_jpeg(orientation),
+            "image-160",
+            "photos/t#{orientation}/img.jpg"
+          )
 
         assert {made.width, made.height} == {48, 64},
                "orientation #{orientation} was not applied"
@@ -187,7 +192,12 @@ defmodule Pluteus.Presentation.GenerateTest do
     test "a mirror leaves the dimensions and still applies", %{inbox: inbox} do
       for orientation <- [1, 2, 3, 4] do
         {_subject, made} =
-          generated!(inbox, oriented_jpeg(orientation), "image-160", "m#{orientation}/img.jpg")
+          generated!(
+            inbox,
+            oriented_jpeg(orientation),
+            "image-160",
+            "photos/m#{orientation}/img.jpg"
+          )
 
         assert {made.width, made.height} == {64, 48},
                "orientation #{orientation} changed the shape"
@@ -224,14 +234,14 @@ defmodule Pluteus.Presentation.GenerateTest do
 
   describe "nothing is made where nothing was asked for" do
     test "a profile outside the registry is refused", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.jpg" => media!(:jpeg)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.jpg" => media!(:jpeg)})
 
       assert Generate.run(manifestation_of(photo), "image-999") ==
                {:refused, :unknown_profile}
     end
 
     test "a profile that does not apply to the subject is refused", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.jpg" => media!(:jpeg)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.jpg" => media!(:jpeg)})
 
       assert Generate.run(manifestation_of(photo), "waveform-overview-1000") ==
                {:refused, :profile_does_not_apply}
@@ -249,10 +259,10 @@ defmodule Pluteus.Presentation.GenerateTest do
     test "every profile the registry names has a generator", %{inbox: inbox} do
       placed =
         ingest!(inbox, %{
-          "holiday/IMG_0001.png" => media!(:png),
+          "photos/holiday/IMG_0001.png" => media!(:png),
           "KoB/01.flac" => media!(:flac, duration: 2),
-          "home/party.mkv" => media!(:ffv1, duration: 45),
-          "letters/note.txt" => "a note\n"
+          "home video/party.mkv" => media!(:ffv1, duration: 45),
+          "scans/letters/note.txt" => "a note\n"
         })
 
       subjects = Map.new(placed, &{&1.media_class, manifestation_of(&1)})
@@ -316,7 +326,7 @@ defmodule Pluteus.Presentation.GenerateTest do
       # This is the fact the generator rests on, asserted directly so that an encoder
       # which stopped autorotating fails here and names why, rather than filling a
       # library with sideways thumbnails.
-      [photo] = ingest!(inbox, %{"holiday/turned.jpg" => oriented_jpeg(6)})
+      [photo] = ingest!(inbox, %{"photos/holiday/turned.jpg" => oriented_jpeg(6)})
       master = Normalize.master_of(photo.digital_item_id)
 
       {:ok, probe} = Probe.probe(master.location)

@@ -64,7 +64,7 @@ defmodule PluteusWeb.PresentationTest do
   end
 
   defp a_photograph(inbox) do
-    [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+    [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
     {photo, manifestation_of(photo)}
   end
 
@@ -260,7 +260,7 @@ defmodule PluteusWeb.PresentationTest do
          %{conn: conn, inbox: inbox} do
       # §12.1 presents a photograph on a viewer and §10.1 addresses that beneath the res,
       # so the action is a link rather than a control carrying a reason it cannot act.
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
       work = work_of(photo)
 
       html = interface(conn, "/works/#{work}")
@@ -273,7 +273,7 @@ defmodule PluteusWeb.PresentationTest do
          %{conn: conn, inbox: inbox} do
       # §17.3 from the other side, and the two reasons must not be confused: one is about
       # the catalog holding no file, the other about nothing having said what the file is.
-      [photo] = ingest!(inbox, %{"holiday/IMG_0002.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0002.png" => media!(:png)})
       work = work_of(photo)
 
       {_count, _} = Repo.delete_all(from c in Category, where: c.res_id == ^work)

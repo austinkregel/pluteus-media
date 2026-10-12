@@ -46,7 +46,7 @@ defmodule Pluteus.Presentation.TextTest do
     made
   end
 
-  defp a_letter(inbox, name \\ "letters/1943-04-12.pdf") do
+  defp a_letter(inbox, name \\ "scans/letters/1943-04-12.pdf") do
     [letter] = ingest!(inbox, %{name => pdf_with_words()})
     manifestation_of(letter)
   end
@@ -80,7 +80,7 @@ defmodule Pluteus.Presentation.TextTest do
     end
 
     test "plain text is its own extraction", %{inbox: inbox} do
-      [note] = ingest!(inbox, %{"letters/note.txt" => "Dear Ada\r\nand Thomas\r\n"})
+      [note] = ingest!(inbox, %{"scans/letters/note.txt" => "Dear Ada\r\nand Thomas\r\n"})
 
       made = made!(manifestation_of(note), "text-extracted")
 
@@ -91,7 +91,7 @@ defmodule Pluteus.Presentation.TextTest do
     end
 
     test "a scan's text is guessed from its pixels, and says so", %{inbox: inbox} do
-      [scan] = ingest!(inbox, %{"letters/scan.png" => words_on_paper()})
+      [scan] = ingest!(inbox, %{"scans/letters/scan.png" => words_on_paper()})
 
       made = made!(manifestation_of(scan), "text-extracted")
 
@@ -146,7 +146,7 @@ defmodule Pluteus.Presentation.TextTest do
     end
 
     test "a scan's words are read by OCR, with a confidence", %{inbox: inbox} do
-      [scan] = ingest!(inbox, %{"letters/scan.png" => words_on_paper()})
+      [scan] = ingest!(inbox, %{"scans/letters/scan.png" => words_on_paper()})
 
       made = made!(manifestation_of(scan), "text-word-positions")
 
@@ -158,7 +158,7 @@ defmodule Pluteus.Presentation.TextTest do
     end
 
     test "plain text has no page, so it has no layout", %{inbox: inbox} do
-      [note] = ingest!(inbox, %{"letters/note.txt" => "Dear Ada\n"})
+      [note] = ingest!(inbox, %{"scans/letters/note.txt" => "Dear Ada\n"})
 
       assert {:error, "text_has_no_layout", _detail} =
                Generate.run(manifestation_of(note), "text-word-positions")
@@ -177,7 +177,7 @@ defmodule Pluteus.Presentation.TextTest do
     end
 
     test "the offsets are exhaustive, so every position falls between two", %{inbox: inbox} do
-      [note] = ingest!(inbox, %{"letters/note.txt" => "Dear Ada and Thomas\n"})
+      [note] = ingest!(inbox, %{"scans/letters/note.txt" => "Dear Ada and Thomas\n"})
 
       made = made!(manifestation_of(note), "text-position-list")
       index = Jason.decode!(Storage.read(made.location))
@@ -193,7 +193,7 @@ defmodule Pluteus.Presentation.TextTest do
 
     test "a scan is not a publication, so the profile does not apply to one",
          %{inbox: inbox} do
-      [scan] = ingest!(inbox, %{"letters/scan.png" => words_on_paper()})
+      [scan] = ingest!(inbox, %{"scans/letters/scan.png" => words_on_paper()})
 
       # The registry settles this before any reader runs: a position list is an index
       # over a publication, and one image is not one.
@@ -216,7 +216,7 @@ defmodule Pluteus.Presentation.TextTest do
     end
 
     test "text that is not UTF-8 is refused rather than mangled", %{inbox: inbox} do
-      [note] = ingest!(inbox, %{"letters/note.txt" => "a note\n"})
+      [note] = ingest!(inbox, %{"scans/letters/note.txt" => "a note\n"})
       location = Normalize.master_of(Repo.get!(DigitalItem, note.digital_item_id).id).location
 
       assert {:ok, _read} = Text.extracted(location, :text)

@@ -48,7 +48,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
     do: Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
 
   defp a_film(inbox, opts \\ []) do
-    name = Keyword.get(opts, :name, "home/birthday.mkv")
+    name = Keyword.get(opts, :name, "home video/birthday.mkv")
     duration = Keyword.get(opts, :duration, 1)
 
     [film] = ingest!(inbox, %{name => media!(:ffv1, duration: duration)})
@@ -84,7 +84,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
     end
 
     test "a still image has no key frame, because it is not moving", %{inbox: inbox} do
-      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+      [photo] = ingest!(inbox, %{"photos/holiday/IMG_0001.png" => media!(:png)})
 
       assert Generate.run(manifestation_of(photo), "keyframe") ==
                {:refused, :profile_does_not_apply}
@@ -93,7 +93,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
 
   describe "a trickplay sheet is frames at a fixed interval, tiled" do
     test "the sheet is one image and states its tiling", %{inbox: inbox} do
-      made = made!(a_film(inbox, duration: 45, name: "home/party.mkv"), "trickplay-320")
+      made = made!(a_film(inbox, duration: 45, name: "home video/party.mkv"), "trickplay-320")
 
       declared = Registry.trickplay()
 
@@ -105,7 +105,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
     end
 
     test "the index says how many frames the sheet actually holds", %{inbox: inbox} do
-      made = made!(a_film(inbox, duration: 45, name: "home/party.mkv"), "trickplay-320")
+      made = made!(a_film(inbox, duration: 45, name: "home video/party.mkv"), "trickplay-320")
 
       # A client goes from a time to a tile with the interval and the frame count; a
       # count it had to infer from the image's size would be a guess. Forty-five
@@ -135,7 +135,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
     test "the chapters a container declares are read from the probe", %{inbox: inbox} do
       [film] =
         ingest!(inbox, %{
-          "home/holiday.mkv" =>
+          "home video/holiday.mkv" =>
             media!(:ffv1,
               duration: 12,
               chapters: [{"Arrival", {0, 4_000}}, {"The Beach", {4_000, 12_000}}]
@@ -155,7 +155,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
     end
 
     test "a container declaring none has none", %{inbox: inbox} do
-      [film] = ingest!(inbox, %{"home/birthday.mkv" => media!(:ffv1)})
+      [film] = ingest!(inbox, %{"home video/birthday.mkv" => media!(:ffv1)})
 
       assert Streams.chapters(film.probe) == []
     end
@@ -192,7 +192,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
 
   describe "§11.6's at-ingest set is generated once a holding has a master" do
     test "normalizing a photograph queues the registry's profiles", %{inbox: inbox} do
-      drop!(inbox, Path.join(unique_prefix(), "holiday/IMG_0001.png"), media!(:png))
+      drop!(inbox, Path.join(unique_prefix(), "photos/holiday/IMG_0001.png"), media!(:png))
       inbox |> acquire_settled!(@t0) |> acquired()
       Place.place_due(inbox)
 
@@ -207,7 +207,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
 
     test "the ones that do not apply cancel themselves, and the rest are made",
          %{inbox: inbox} do
-      path = Path.join(unique_prefix(), "holiday/IMG_0001.png")
+      path = Path.join(unique_prefix(), "photos/holiday/IMG_0001.png")
 
       drop!(inbox, path, media!(:png))
       inbox |> acquire_settled!(@t0) |> acquired()
