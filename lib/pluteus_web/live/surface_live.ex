@@ -25,7 +25,10 @@ defmodule PluteusWeb.SurfaceLive do
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Playback
+  alias Pluteus.Preferences
+  alias Pluteus.Principals
   alias Pluteus.Principals.Principal
+  alias Pluteus.Reading
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Surfaces.Registry, as: Surfaces
@@ -35,6 +38,8 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Player
+  alias PluteusWeb.Surfaces.Reader
+  alias PluteusWeb.Surfaces.Reading, as: Settings
   alias PluteusWeb.Surfaces.Viewer
   alias PluteusWeb.TransportLive
 
@@ -54,7 +59,7 @@ defmodule PluteusWeb.SurfaceLive do
   end
 
   @impl Phoenix.LiveView
-  def handle_params(%{"id" => id}, _uri, socket) do
+  def handle_params(%{"id" => id} = params, _uri, socket) do
     asked = Atom.to_string(socket.assigns.live_action)
 
     {:noreply,
@@ -62,7 +67,8 @@ defmodule PluteusWeb.SurfaceLive do
      |> assign(:work, held!(id))
      |> assign(:asked, asked)
      |> assign_new(:chosen, fn -> %{audio: nil, subtitle: nil} end)
-     |> showing(asked)}
+     |> showing(asked)
+     |> reading(params["held"])}
   end
 
   defp unenrolled do
@@ -114,6 +120,48 @@ defmodule PluteusWeb.SurfaceLive do
     {:noreply, assign(socket, :rail_collapsed, not socket.assigns.rail_collapsed)}
   end
 
+  def handle_event("page", %{"to" => to}, socket) do
+    {:noreply, at(socket, String.to_integer(to))}
+  end
+
+  def handle_event("page-to", %{"to" => to}, socket) do
+    {:noreply, at(socket, String.to_integer(to))}
+  end
+
+  # A.3.6's settings are the principal's own (§14.5), so one is written as soon as it is
+  # pressed and read back from the store rather than held in this socket: a second
+  # surface open on the same reading is set the same way.
+  def handle_event("read-as", %{"key" => key, "value" => value}, socket) do
+    unless key in Settings.keys() do
+      raise "#{key} is not a reading preference"
+    end
+
+    {:ok, _written} = Preferences.set(socket.assigns.principal_id, key, value)
+    held = Preferences.held_by(socket.assigns.principal_id)
+
+    {:noreply, update(socket, :reader, &%{&1 | preferences: held})}
+  end
+
+  # The text is made from the bytes on demand, so a reading opened before anything had
+  # read it arrives while the job is still running. The surface asks again rather than
+  # leaving a person to reload: a reading that fails records a finding, which is a state
+  # of its own and ends the asking.
+  @impl Phoenix.LiveView
+  def handle_info(:read_again, socket) do
+    {:noreply, reading(socket, socket.assigns.reader.copy.id)}
+  end
+
+  # Clamped on the way in, so a copy of two pages is never open at the three hundredth
+  # and a position pressed twice at the end stays at the end.
+  defp at(socket, division) do
+    at = division |> max(0) |> min(pages(socket.assigns.reader.reading) - 1)
+
+    update(socket, :reader, &%{&1 | division: at})
+  end
+
+  defp pages({:read, %{divisions: divisions}}), do: length(divisions)
+  defp pages({:absent, _state}), do: 1
+
   # The four refusals, in the order the facts arrive. An identifier that is not one
   # names nothing; a work that is not held names nothing; one that was held and is not
   # stays refused rather than becoming someone else's; and a category presented
@@ -161,6 +209,89 @@ defmodule PluteusWeb.SurfaceLive do
     |> assign(:borne, borne(work.id))
     |> assign(:facts, facts(surface, work, socket.assigns.profile))
     |> assign_new(:rail_collapsed, fn -> narrow?(surface) end)
+  end
+
+  # What the reader needs and no other surface pays for: which copy is being read, its
+  # text, what people have marked in it, and how this principal has asked to be read to.
+  #
+  # The copy is named by the surface's own parameter rather than by an address of its
+  # own, so a copy named and not held is not found — the same answer as a work nobody
+  # holds, since both name something the household does not have.
+  defp reading(%{assigns: %{surface: "reader"}} = socket, named) do
+    copies = Reading.copies(socket.assigns.work.id)
+    copy = copy!(copies, named)
+    open = socket.assigns[:reader] || opened(socket)
+
+    socket
+    |> assign(:reader, %{
+      open
+      | copy: copy,
+        held_as: Enum.map(copies, &Map.put(&1, :reading?, reading?(&1, copy))),
+        reading: read(copy),
+        marks: marked(copy, socket.assigns.profile)
+    })
+    |> awaited()
+  end
+
+  defp reading(socket, _named), do: assign(socket, :reader, nil)
+
+  # What a reading carries across a patch: where in it a person is, and how they have
+  # asked to be read to. Moving to another copy keeps both, because a person who has set
+  # the measure has set it for reading and not for one file.
+  defp opened(socket) do
+    %{
+      copy: nil,
+      held_as: [],
+      reading: {:absent, "not_held"},
+      marks: [],
+      division: 0,
+      preferences: Preferences.held_by(socket.assigns.principal_id)
+    }
+  end
+
+  defp copy!([], _named), do: nil
+  defp copy!([first | _rest], nil), do: first
+
+  defp copy!(copies, named) do
+    Enum.find(copies, fn copy -> copy.id == named end) ||
+      raise NotFoundError, message: "no copy of this is held at #{named}"
+  end
+
+  defp reading?(_copy, nil), do: false
+  defp reading?(copy, reading), do: copy.id == reading.id
+
+  defp read(nil), do: {:absent, "not_held"}
+  defp read(copy), do: Reading.read(copy.id)
+
+  defp marked(nil, _profile), do: []
+
+  defp marked(copy, profile) do
+    marks = Reading.marks(copy.id)
+    people = Principals.people(Enum.map(marks, & &1.principal_id))
+    names = people |> Map.values() |> Resolution.resolve_many(profile)
+
+    for mark <- marks do
+      person = people[mark.principal_id]
+
+      Map.put(mark, :by, person && names[person] && names[person].nomen_string)
+    end
+  end
+
+  # Nothing has read the text out of these bytes yet, so this asks for it and comes back
+  # to look. The division is clamped on arrival, since a copy of two pages cannot be open
+  # at the three hundredth.
+  defp awaited(socket) do
+    socket = at(socket, socket.assigns.reader.division)
+
+    case socket.assigns.reader.reading do
+      {:absent, "not_yet_examined"} ->
+        :queued = Reading.ask(socket.assigns.reader.copy.id)
+        if connected?(socket), do: Process.send_after(self(), :read_again, 2_000)
+        socket
+
+      _read_or_absent_for_good ->
+        socket
+    end
   end
 
   # Width belongs to the medium on a surface that shows one, which is every surface here
@@ -254,6 +385,8 @@ defmodule PluteusWeb.SurfaceLive do
           chosen={@chosen}
           borne={@borne}
           facts={@facts}
+          reader={@reader}
+          principal_name={@principal_name}
         />
       </div>
     </Chrome.shell>
@@ -273,6 +406,8 @@ defmodule PluteusWeb.SurfaceLive do
   attr :chosen, :map, required: true
   attr :borne, :any, required: true
   attr :facts, :list, required: true
+  attr :reader, :any, required: true
+  attr :principal_name, :any, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -298,7 +433,21 @@ defmodule PluteusWeb.SurfaceLive do
     """
   end
 
-  defp presented(%{surface: "reader"} = assigns), do: ~H|<.bare name={@name} />|
+  defp presented(%{surface: "reader"} = assigns) do
+    ~H"""
+    <Reader.surface
+      work={@work}
+      name={@name}
+      category={@category}
+      reading={@reader.reading}
+      division={@reader.division}
+      held_as={@reader.held_as}
+      marks={@reader.marks}
+      preferences={@reader.preferences}
+      principal_name={@principal_name}
+    />
+    """
+  end
 
   defp presented(%{surface: "scan beside its transcript"} = assigns),
     do: ~H|<.bare name={@name} />|
