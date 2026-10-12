@@ -227,6 +227,196 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "the category from a document beside the holding (§6.3)" do
+    # The shape Sonarr writes beside an episode, which is the only thing that says what
+    # the file is: the container states no title, no show and no number.
+    defp episode_document(series, season, episode, name) do
+      """
+      <details>
+        <id>90</id>
+        <title>#{series} - #{season}x#{episode} - #{name}</title>
+        <series_name>#{series}</series_name>
+        <episode_name>#{name}</episode_name>
+        <season_number>#{season}</season_number>
+        <episode_number>#{episode}</episode_number>
+        <firstaired>2022-07-05</firstaired>
+      </details>
+      """
+    end
+
+    test "a document naming the file decides what the file is", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      placed =
+        ingest!(inbox, %{
+          "#{prefix}/Overlord - S04E01.mkv" => media!(:film),
+          "#{prefix}/Overlord - S04E01.xml" =>
+            episode_document("Overlord", "04", "01", "Sorcerer")
+        })
+
+      assert categories(placed)["#{prefix}/Overlord - S04E01.mkv"] == "television_episode"
+    end
+
+    test "the episode is placed within the series the document names", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      [episode, _document] =
+        ingest!(inbox, %{
+          "#{prefix}/Overlord - S04E01.mkv" => media!(:film),
+          "#{prefix}/Overlord - S04E01.xml" =>
+            episode_document("Overlord", "04", "01", "Sorcerer")
+        })
+
+      assert names(series_of(episode)) == ["Overlord"]
+
+      # The document states both figures, so the season is the stride and the episode
+      # sits within it.
+      assert [%{position: 4001}] = Catalog.parts_of(serial_manifestation(episode))
+    end
+
+    test "a document about what the holding belongs to does not say what it is",
+         %{inbox: inbox} do
+      # An album document dates the release. A track beside it is a music recording, and
+      # a document that decided the holding's category would make every track an album.
+      prefix = unique_prefix()
+
+      album = """
+      <album>
+        <title>In Keeping Secrets of Silent Earth: 3</title>
+        <releasedate>03/30/2003</releasedate>
+        <label>Equal Vision Records</label>
+      </album>
+      """
+
+      placed =
+        ingest!(inbox, %{
+          "#{prefix}/01.flac" => media!(:flac, tags: album("In Keeping Secrets", 1)),
+          "#{prefix}/album.nfo" => album
+        })
+
+      assert categories(placed)["#{prefix}/01.flac"] == "music_recording"
+    end
+
+    # §4.6 already tells a media manager's document from a release's notes by its root.
+    test "a root the registry does not name states nothing", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      placed =
+        ingest!(inbox, %{
+          "#{prefix}/birthday.mkv" => media!(:film),
+          "#{prefix}/birthday.nfo" => "Released by SOMEGROUP\nNot markup at all\n"
+        })
+
+      assert categories(placed)["#{prefix}/birthday.mkv"] == "home_video"
+    end
+
+    # The nearer statement about a thing is the one to believe.
+    test "what a file says about itself outranks a document beside it", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      placed =
+        ingest!(inbox, %{
+          "#{prefix}/talk.flac" => media!(:flac, tags: %{"genre" => "Audiobook"}),
+          "#{prefix}/talk.xml" => episode_document("Ologies", "01", "02", "Talk")
+        })
+
+      assert categories(placed)["#{prefix}/talk.flac"] == "audiobook"
+    end
+  end
+
+  describe "a match file names a show and says which episode each file is (§6.3)" do
+    # The shape Plex writes at the top of a show: the show's own fields, then one line
+    # per file naming it by path relative to the match file's own directory.
+    defp match_file(show, episodes) do
+      lines =
+        for {season, episode, path} <- episodes,
+            do: "Episode: S#{season}E#{episode}: #{path}"
+
+      Enum.join(["Title: #{show}", "Year: 1997", "TvdbId: 73903" | lines], "\n") <> "\n"
+    end
+
+    defp only_media(placed), do: Enum.find(placed, &(&1.media_class != :companion))
+
+    test "a file the match file names is an episode of the show it names", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      episode =
+        ingest!(inbox, %{
+          "#{prefix}/Season 11/1101 - The Peggy Horror Picture Show.mkv" => media!(:film),
+          "#{prefix}/.plexmatch" =>
+            match_file("King of the Hill", [
+              {"11", "01", "Season 11/1101 - The Peggy Horror Picture Show.mkv"}
+            ])
+        })
+        |> only_media()
+
+      assert Catalog.category_of(work_of(episode), Place.category_scheme()) ==
+               "television_episode"
+
+      assert names(series_of(episode)) == ["King of the Hill"]
+    end
+
+    # The season and the episode are both stated, and the arrangement is one integer, so
+    # the season is the stride the registry names and the episode sits within it.
+    test "the season and the episode together are where it sits", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      episode =
+        ingest!(inbox, %{
+          "#{prefix}/Season 11/1101 - The Peggy Horror Picture Show.mkv" => media!(:film),
+          "#{prefix}/.plexmatch" =>
+            match_file("King of the Hill", [
+              {"11", "01", "Season 11/1101 - The Peggy Horror Picture Show.mkv"}
+            ])
+        })
+        |> only_media()
+
+      assert [%{position: 11_001}] = Catalog.parts_of(serial_manifestation(episode))
+    end
+
+    # A match file is the only document that reaches past its own directory, and it does
+    # so only for a file it names.
+    test "a file the match file does not name is not spoken for", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      placed =
+        ingest!(inbox, %{
+          "#{prefix}/Season 11/1101 - Named.mkv" => media!(:film),
+          "#{prefix}/Season 11/1102 - Unnamed.mkv" => media!(:film),
+          "#{prefix}/.plexmatch" =>
+            match_file("King of the Hill", [{"11", "01", "Season 11/1101 - Named.mkv"}])
+        })
+
+      assert categories(placed)["#{prefix}/Season 11/1101 - Named.mkv"] == "television_episode"
+      assert categories(placed)["#{prefix}/Season 11/1102 - Unnamed.mkv"] == "home_video"
+    end
+
+    # A serial is ordered where it says it is, and a line stating a season and no episode
+    # states only the season.
+    test "a line stating no episode leaves the file unnumbered", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      episode =
+        ingest!(inbox, %{
+          "#{prefix}/Specials/Clementine Part 1.mkv" => media!(:film),
+          "#{prefix}/.plexmatch" =>
+            "Title: Overlord\nEpisode: S01: Specials/Clementine Part 1.mkv\n"
+        })
+        |> only_media()
+
+      assert [%{position: nil}] = Catalog.parts_of(serial_manifestation(episode))
+    end
+
+    test "a path numbers nothing, so a file name beginning with digits is not a position",
+         %{inbox: inbox} do
+      # Within one show, episodes a match file numbers by season and episode would
+      # otherwise sort against episodes numbered from their file names.
+      episode = an_episode(inbox, "Pinwheel", "Season 01/101 - Pilot.mkv")
+
+      assert [%{position: nil}] = Catalog.parts_of(serial_manifestation(episode))
+    end
+  end
+
   describe "the category from where a household filed a holding (§6.3)" do
     test "a video filed under television is an episode and not a home video",
          %{inbox: inbox} do
@@ -272,7 +462,7 @@ defmodule Pluteus.Ingest.PlacementTest do
       assert Registry.path_evidence("holiday/IMG_0001.jpg", :image) == nil
       assert Registry.path_evidence("TV/Pinwheel/101 - Pilot.mkv", :audio) == nil
 
-      assert %{category: "television_episode", serial_name: "Pinwheel", position: 101} =
+      assert %{category: "television_episode", serial_name: "Pinwheel"} =
                Registry.path_evidence("TV/Pinwheel/Season 01/101 - Pilot.mkv", :video)
     end
   end
@@ -292,7 +482,6 @@ defmodule Pluteus.Ingest.PlacementTest do
 
       assert Catalog.category_of(series, Place.category_scheme()) == "television_series"
       assert names(series) == ["Pinwheel"]
-      assert [%{position: 101}] = Catalog.parts_of(serial_manifestation(episode))
     end
 
     test "two episodes of one show find one series", %{inbox: inbox} do
@@ -300,27 +489,7 @@ defmodule Pluteus.Ingest.PlacementTest do
       second = an_episode(inbox, "Pinwheel", "Season 01/102 - Square Peg.mkv")
 
       assert series_of(first) == series_of(second)
-      assert [%{position: 101}, %{position: 102}] = Catalog.parts_of(serial_manifestation(first))
-    end
-
-    # A serial is ordered where it says it is, and an episode whose name begins with no
-    # number is a part of the show all the same.
-    test "an episode the name does not number joins the series unnumbered", %{inbox: inbox} do
-      episode = an_episode(inbox, "Overlord", "Specials/[Group] Overlord - S01SP01.mkv")
-
-      assert [%{position: nil}] = Catalog.parts_of(serial_manifestation(episode))
-    end
-
-    test "an episode whose number the series holds is a finding", %{inbox: inbox} do
-      an_episode(inbox, "Pinwheel", "Season 01/101 - Pilot.mkv")
-
-      prefix = unique_prefix()
-      drop!(inbox, "#{prefix}/TV/Pinwheel/Season 01/101 - Pilot.mkv", media!(:film))
-      [id] = inbox |> acquire_settled!(@t0) |> acquired()
-      Place.place_due(inbox)
-
-      assert [%{kind: "position_taken", detail: %{"position" => 101}}] =
-               Ingest.findings_for_acquisition(id)
+      assert [%{position: nil}, %{position: nil}] = Catalog.parts_of(serial_manifestation(first))
     end
 
     test "a video filed under no series is placed on its own", %{inbox: inbox} do
