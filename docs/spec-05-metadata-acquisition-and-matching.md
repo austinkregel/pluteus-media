@@ -653,9 +653,14 @@ computed from and not against the manifestation (§4.2).
 ### 8.3 Categories, credits and agents
 
 **Categories.** Written with automatic provenance, as spec-04 §6.2 requires of
-placement's. Matching MAY replace a category placement derived from its broad
-class default (spec-04 §6.3), because both are automatic and the later evidence
-is better. It MUST NOT replace a member's.
+placement's. Matching MAY replace a category placement decided automatically,
+because both are automatic and a source that identified the release knows more
+than a tag, a directory or a format does. It MUST NOT replace a member's.
+
+Placement decides a category from evidence and from nothing else (spec-04 §6.3),
+so there is no category standing in for one nobody stated: a holding the catalog
+records always carries a category something said, and what matching improves on is
+a reading of weaker evidence rather than a filled-in blank.
 
 **Credits.** spec-04 §6.4 places a credit for each value of a track's artist
 tags, and names an artist for each. Matching MAY add an identifier to a credit's
@@ -1233,8 +1238,8 @@ following.
     never with a null assigner; resolution prefers a household name over it with
     no additional rule.
 16. Matching does not remove a credit placement wrote.
-17. Matching replaces a category placement derived from its broad-class default
-    and does not replace one a member set.
+17. Matching replaces a category placement decided automatically and does not
+    replace one a member set.
 18. An equation matching performed recycles rather than purges, is restorable at
     its original identifiers within spec-01 §14.1's window, and is visible on the
     findings surface.
