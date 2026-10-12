@@ -125,6 +125,7 @@ defmodule Pluteus.Browse.Entries do
   defp selects("everything", _browse), do: base()
   defp selects("recently_added", _browse), do: base()
   defp selects("time", _browse), do: base()
+  defp selects("people", _browse), do: base()
   defp selects("sets", _browse), do: from(w in base(), where: exists(aggregates()))
 
   # §13.4's continue list, and §14.3's rule about it: one principal's, never composed
