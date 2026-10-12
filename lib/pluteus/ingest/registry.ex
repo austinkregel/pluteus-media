@@ -358,10 +358,9 @@ defmodule Pluteus.Ingest.Registry do
       end)
 
     evidence = Enum.flat_map(registry()["category_evidence"], &Map.values(&1["values"]))
-    serials = for {_issue, rule} <- registry()["serials"]["of_category"], do: rule["category"]
     filed = for {_segment, rule} <- of_segment(), do: rule["category"]
 
-    (defaults ++ evidence ++ serials ++ filed) |> Enum.uniq() |> Enum.sort()
+    (defaults ++ evidence ++ serial_categories() ++ filed) |> Enum.uniq() |> Enum.sort()
   end
 
   @doc """
@@ -446,6 +445,18 @@ defmodule Pluteus.Ingest.Registry do
       %{"category" => serial, "named_by" => named_by, "numbered_by" => numbered_by} ->
         %{category: serial, named_by: named_by, numbered_by: numbered_by}
     end
+  end
+
+  @doc """
+  Every category that is a serial work rather than an issue of one (spec-01 §5.4).
+
+  A serial arranges its issues on its own manifestation, so the parts of that
+  manifestation are the serial's members. Every other whole arranges something else:
+  a release arranges the media it was pressed on, and those are not its tracks.
+  """
+  @spec serial_categories() :: [String.t()]
+  def serial_categories do
+    for {_issue, rule} <- registry()["serials"]["of_category"], do: rule["category"]
   end
 
   @doc """
