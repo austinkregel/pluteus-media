@@ -22,6 +22,8 @@ defmodule PluteusWeb.EntityLive do
 
   alias Pluteus.Annotations
   alias Pluteus.Annotations.Derivation
+  alias Pluteus.Browse
+  alias Pluteus.Browse.Query
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Address
   alias Pluteus.Catalog.Addressing
@@ -131,11 +133,33 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:noun, ComposedName.noun(res.kind))
      |> assign(:addresses, addresses(representation, profile))
      |> assign(:medium, medium(res))
+     |> assign(:credits, credits(res, socket.assigns.principal_id, profile))
      |> assign(:address, address)
      |> assign(:placed?, is_nil(unit) or not is_nil(extent))
      |> assign(:mark, mark(address, extent))
      |> assign(:whole, "/#{Native.paths()[kind]}/#{res.id}")}
   end
+
+  # spec-01 §3.1's three agent kinds, which are the three a credit may name.
+  @agents [:artist, :person, :collective_agent]
+
+  # As many as stand in a band before the rest become a link to the whole of them, which
+  # is what §9.4 licenses a bound for: everything left out is reachable by the same query
+  # on the surface that lists holdings.
+  @shown 12
+
+  # §8.4's band 5 for an agent: what it is credited on, as the holdings a browse surface
+  # would list rather than as every res a credit names. A release's tracks each credit
+  # the artist, so a page listing them all would say the album twelve times and bury the
+  # eleven other releases; the browse selection already answers which of them a household
+  # is shown, and this is that selection narrowed to one agent.
+  defp credits(%Res{kind: kind} = res, principal_id, profile) when kind in @agents do
+    {:ok, query} = Query.parse("everything", %{"person" => res.id})
+
+    Browse.surface(query, principal_id, profile, @shown)
+  end
+
+  defp credits(_another_kind, _principal_id, _profile), do: nil
 
   defp selected!(kind, params) do
     case DeepLink.read(kind, params) do
@@ -566,11 +590,13 @@ defmodule PluteusWeb.EntityLive do
           </dl>
         </section>
 
+        <.credited :if={@credits} res={@res} surface={@credits} />
+
         <.band
           :for={{band, heading} <- [{5, "Structure"}, {6, "Connections"}]}
           id={"entity-band-#{band}"}
           heading={heading}
-          rows={in_band(@representation, band)}
+          rows={in_band(@representation, band, @credits)}
           addresses={@addresses}
         />
 
@@ -611,6 +637,77 @@ defmodule PluteusWeb.EntityLive do
     """
   end
 
+  # What an agent is credited on, as the holdings themselves: the cover where one is
+  # held, the name, and when it was issued. A bound of twelve, with everything beyond it
+  # at the same query on the surface that lists holdings — which is the lateral movement
+  # §9.4 requires of anything a band leaves out.
+  attr :res, :map, required: true
+  attr :surface, :map, required: true
+
+  defp credited(assigns) do
+    ~H"""
+    <section id="entity-credits" aria-labelledby="entity-credits-heading" class="mb-10">
+      <div class="mb-3 flex flex-wrap items-baseline gap-3">
+        <h2 id="entity-credits-heading" class="text-title-md font-medium text-on-surface-strong">
+          Credited on
+        </h2>
+        <span class="text-body-sm text-on-surface-muted">
+          {@surface.total} {holdings(@surface.total)}
+        </span>
+        <span class="grow"></span>
+        <.link
+          :if={@surface.total > length(@surface.entries)}
+          navigate={~p"/everything?#{[person: @res.id]}"}
+          class="text-body-sm text-on-surface-strong underline"
+        >
+          All {@surface.total}
+        </.link>
+      </div>
+
+      <p :if={@surface.entries == []} class="text-body-md text-on-surface-muted">
+        Nothing this is credited on is held.
+      </p>
+
+      <ul :if={@surface.entries != []} class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+        <li :for={id <- @surface.entries}>
+          <.link navigate={~p"/works/#{id}"} class="group flex flex-col gap-2">
+            <span class={[
+              "flex aspect-square items-center justify-center overflow-hidden rounded-md",
+              "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+              "bg-surface-raised group-hover:border-border-strong"
+            ]}>
+              <img
+                :if={@surface.covers[id]}
+                src={~p"/manifestations/#{@surface.covers[id]}/presentation/image-320"}
+                alt=""
+                loading="lazy"
+                class="size-full object-cover"
+                onerror="this.remove()"
+              />
+              <span
+                :if={!@surface.covers[id]}
+                class="px-2 text-center text-caption text-on-surface-muted"
+              >
+                No cover is held for this.
+              </span>
+            </span>
+
+            <span class="text-body-sm text-on-surface-strong">
+              {Map.fetch!(@surface.names, id)}
+            </span>
+            <span :if={@surface.dates[id]} class="text-caption text-on-surface-muted">
+              {@surface.dates[id]}
+            </span>
+          </.link>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
+  defp holdings(1), do: "holding"
+  defp holdings(_many), do: "holdings"
+
   attr :id, :string, required: true
   attr :heading, :string, required: true
   attr :rows, :list, required: true
@@ -639,6 +736,7 @@ defmodule PluteusWeb.EntityLive do
 
   attr :ids, :list, required: true
   attr :addresses, :map, required: true
+  attr :shown, :integer, default: @shown
 
   # A related res is said by the name a person knows it by, and linked at its own URI.
   # spec-07 §4.1 names it by identifier on the wire, which is the contract; §3.3 holds
@@ -647,10 +745,19 @@ defmodule PluteusWeb.EntityLive do
   #
   # The element's identity stays the identifier, which §17.7 needs stable across a patch.
   defp links(assigns) do
+    assigns = assign(assigns, :all, length(assigns.ids))
+
     ~H"""
     <ul class="flex flex-col gap-1">
-      <li :for={id <- Enum.map(@ids, &identifier/1)}>
+      <li :for={id <- @ids |> Enum.take(@shown) |> Enum.map(&identifier/1)}>
         <.related id={id} address={Map.fetch!(@addresses, id)} />
+      </li>
+
+      <%!-- §9.4 bounds an index this long provided nothing in it is reachable only here,
+            and nothing is: every one of these is listed on the page of whatever presents
+            it — a track on its release, a part on its whole. --%>
+      <li :if={@all > @shown} class="text-body-sm text-on-surface-muted">
+        and {@all - @shown} more
       </li>
     </ul>
     """
@@ -789,10 +896,14 @@ defmodule PluteusWeb.EntityLive do
     representation |> Map.fetch!("own") |> Enum.sort_by(&elem(&1, 0))
   end
 
-  defp in_band(representation, band) do
+  # A relation the page has already drawn is not listed again as identifiers: an agent's
+  # credits are the band above, under the names and covers of the holdings they are on.
+  defp in_band(representation, band, credits) do
     placed = relations()
+    drawn = if credits, do: ["credited_as"], else: []
 
     for {relation, field} <- Map.fetch!(representation, "related"),
+        relation not in drawn,
         {^band, label} <- [Map.fetch!(placed, relation)] do
       {label, field}
     end
