@@ -55,6 +55,7 @@
     "ebook": "textual",
     "comic_issue": "graphic_narrative",
     "comic_series": "graphic_narrative",
+    "television_series": "moving_image",
     "photograph": "still_image",
     "scan": "still_image",
     "video_game": "software",
