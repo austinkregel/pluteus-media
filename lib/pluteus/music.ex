@@ -407,7 +407,15 @@ defmodule Pluteus.Music do
 
   defp duration_s({start_ms, end_ms}, _probe), do: div(end_ms - start_ms, 1000)
   defp duration_s(nil, nil), do: nil
-  defp duration_s(nil, probe), do: div(Streams.duration_ms(probe), 1000)
+
+  # A container that states no duration leaves the length unknown, which §5.2 reports as
+  # an absence rather than as nothing playing for no time.
+  defp duration_s(nil, probe) do
+    case Streams.duration_ms(probe) do
+      nil -> nil
+      milliseconds -> div(milliseconds, 1000)
+    end
+  end
 
   # --- What a song's probe says ----------------------------------------------
 
