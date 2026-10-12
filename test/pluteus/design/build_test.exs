@@ -110,10 +110,37 @@ defmodule Pluteus.Design.BuildTest do
                "#{modifier}/#{context} overrides tokens but emits no scope"
       end
 
-      for default <- ~w(dark normal near comfortable full) do
-        refute css =~ ~s("#{default}"] {),
-               "#{default} is a default and needs no scope of its own"
+      # A default is what the root already carries, so the modifier naming it would
+      # reassign nothing. Stated per modifier rather than by the context's name alone,
+      # since the same name is meaningful on a region the root's theme has to be
+      # overridden inside of.
+      for {modifier, default} <- [
+            {"theme", "dark"},
+            {"contrast", "normal"},
+            {"distance", "near"},
+            {"density", "comfortable"},
+            {"motion", "full"}
+          ] do
+        refute css =~ ~s(data-#{modifier}="#{default}"] {),
+               "#{default} is #{modifier}'s default and needs no scope of its own"
       end
+    end
+
+    test "long-form text takes its own theme, in both directions", %{css: css} do
+      # A.3.6 makes the theme a person reads in a choice of its own, which the root's
+      # own context cannot express: a light pane on a dark interface and a dark pane on
+      # a light one are both asked for, and the second needs the authored theme restated
+      # because the root has moved it.
+      assert css =~ ~s(:root [data-reading-theme="light"] {)
+      assert css =~ ~s(:root [data-reading-theme="dark"] {)
+
+      # A theme moves the primitives, so a region restating the roles would resolve them
+      # against whichever ramp the root is carrying and read as the theme it was set
+      # against. The authored block states the primitives at their authored values.
+      authored = scope(css, ~s(:root [data-reading-theme="dark"]))
+
+      assert authored =~ "--color-grey-01: #101113;"
+      refute authored =~ "--sys-color-surface-base:"
     end
 
     test "a context with a media feature also applies before any script runs", %{css: css} do
