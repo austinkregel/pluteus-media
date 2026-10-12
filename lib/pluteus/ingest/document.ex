@@ -3,52 +3,22 @@ defmodule Pluteus.Ingest.Document do
   Reads a metadata document's fields as embedded tags (spec-04 §5, §6.3).
 
   The document comes from the inbox, so it is hostile input and spec-04 §11 governs it.
-  Three properties hold of the reading:
+  `Pluteus.Xml` holds what that means for any document from outside; what this adds is
+  that **no tree is built**. A flat map of the root's own fields is all §6.3 reads, so a
+  document declaring a million elements costs a million events and no records.
 
-    * nothing the document names is opened, and a document that names anything outside
-      itself is refused rather than read. An external entity or an external DTD is a file,
-      or a host, of the document's choosing, and the declaration is what says so: a
-      document that reaches for `/etc/passwd` and comes back with nothing has still
-      reached, and the person is told which document did it.
-    * an entity is not expanded into more than it is. Nested entity definitions multiply,
-      so a few hundred bytes can declare gigabytes of text.
-    * no tree is built. A flat map of the root's own fields is all §6.3 reads, so a
-      document declaring a million elements costs a million events and no records.
-
-  `external_entities` and `entity_recurse_limit` are stated in the options although
-  xmerl 2.1.8 already defaults to them, so that the second property is the deployment's
-  and not the library version's.
-
-  Three bounds hold together, and each is needed. The caller's byte ceiling bounds the
-  document, and with it the expansion: twenty thousand references to a fifty-byte entity
-  is a million characters from sixty kilobytes, which no limit on nesting refuses.
-  `@recurse_limit` bounds the nesting, which is the multiplication. And the parse runs
-  under a deadline, because a declaration can be refused quickly or slowly and the stage
-  must not wait on which.
   There is no schema and no field vocabulary. A field is whatever the document's root
   carries, named as the document names it, and §6.3 decides what any of it means. A
   document whose root carries structure rather than a value contributes nothing, since a
   tag is a value.
   """
 
-  # One entity naming another is a document a person could write, and no metadata format
-  # this registry names uses even that. Nesting beyond this is multiplication, and xmerl
-  # refuses it at this depth while the expansion is still small enough to refuse quickly.
-  @recurse_limit 2
-
-  # Long enough for the largest document the byte ceiling admits, which expands in a
-  # fraction of a second, and short enough that the stage is never held.
-  @deadline 5_000
+  alias Pluteus.Xml
 
   @typedoc """
-  Why a document could not be read: it named a resource outside itself, naming which, or
-  it would not parse. A parser's complaint is recorded rather than interpreted, because
-  what is wrong with a hostile document is not a vocabulary this deployment can close.
+  Why a document could not be read.
   """
-  @type refusal ::
-          {:names_outside_itself, [String.t()]}
-          | {:unparseable, String.t()}
-          | {:timed_out, pos_integer()}
+  @type refusal :: Xml.refusal()
 
   @doc """
   The fields a document's root carries, keyed as `Pluteus.Ingest.Streams.tags/1` keys a
@@ -60,42 +30,11 @@ defmodule Pluteus.Ingest.Document do
   """
   @spec fields(binary()) :: {:ok, %{optional(String.t()) => String.t()}} | {:error, refusal()}
   def fields(bytes) when is_binary(bytes) do
-    task = Task.async(fn -> parse(bytes) end)
-
-    case Task.yield(task, @deadline) || Task.shutdown(task, :brutal_kill) do
-      {:ok, answer} -> answer
-      nil -> {:error, {:timed_out, @deadline}}
+    case Xml.read(bytes, &accumulate/3, %{depth: 0, field: nil, text: [], fields: %{}}) do
+      {:ok, %{fields: fields}} -> {:ok, fields}
+      {:error, _refusal} = refused -> refused
     end
   end
-
-  defp parse(bytes) do
-    options = [
-      {:event_fun, &accumulate/3},
-      {:event_state, %{depth: 0, field: nil, text: [], fields: %{}, outside: []}},
-      {:external_entities, :none},
-      {:entity_recurse_limit, @recurse_limit}
-    ]
-
-    case :xmerl_sax_parser.stream(bytes, options) do
-      {:ok, %{outside: [_named | _more] = named}, _trailing} ->
-        {:error, {:names_outside_itself, Enum.reverse(named)}}
-
-      {:ok, %{fields: fields}, _trailing} ->
-        {:ok, fields}
-
-      refused ->
-        {:error, {:unparseable, refused |> inspect() |> String.slice(0, 500)}}
-    end
-  end
-
-  # A declared external entity, and a doctype naming a system identifier, each name
-  # something the document does not contain. Neither is resolved, and the identifier is
-  # kept so that the refusal says what the document went looking for.
-  defp accumulate({:externalEntityDecl, _name, _public, system}, _location, state),
-    do: %{state | outside: [to_string(system) | state.outside]}
-
-  defp accumulate({:startDTD, _name, _public, system}, _location, state) when system != [],
-    do: %{state | outside: [to_string(system) | state.outside]}
 
   # The root is depth 1 and its own children are depth 2, which are the fields. Anything
   # deeper is structure the root holds rather than a value it states, and opening one
