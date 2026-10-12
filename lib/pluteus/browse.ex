@@ -82,6 +82,10 @@ defmodule Pluteus.Browse do
   """
   @spec surface(Query.t(), Ecto.UUID.t(), Profile.t(), pos_integer()) :: surface()
   def surface(%Query{} = query, principal_id, %Profile{} = profile, limit \\ 60) do
+    # §14.3 makes a mode selecting on consumption the requesting principal's own, so the
+    # query carries whose it is before anything is selected or counted against it.
+    query = %{query | principal_id: principal_id}
+
     entries = Entries.ids(query, limit)
     facets = Counts.for_query(query)
     borne = borne(entries)
