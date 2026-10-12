@@ -45,9 +45,15 @@ defmodule Pluteus.Ingest.Normalize do
   """
   @spec normalize_due((atom() -> map() | nil)) :: [{Ecto.UUID.t(), atom()}]
   def normalize_due(standard_format \\ &Registry.standard_format/1) do
+    # A finding that names no digital item blocks nothing, because it is not about one:
+    # a derivative that could not be made is recorded against the subject it was for.
+    # The guard is load-bearing rather than tidy — one NULL inside `NOT IN` makes the
+    # predicate NULL for every row, so a single such finding would stop this stage for
+    # the whole household and report nothing at all.
     blocked =
       from f in Finding,
         where: f.stage == :normalize and is_nil(f.cleared_at),
+        where: not is_nil(f.digital_item_id),
         select: f.digital_item_id
 
     from(a in Acquisition,
