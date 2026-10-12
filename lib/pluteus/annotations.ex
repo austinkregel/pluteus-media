@@ -133,6 +133,23 @@ defmodule Pluteus.Annotations do
   end
 
   @doc """
+  Every authored annotation on any of many targets, oldest first.
+
+  A surface showing what people have marked in one holding asks about every region of
+  it at once: a query per region would make the panel cost what the reading is long.
+  """
+  @spec authored_on_many([Ecto.UUID.t()]) :: [Annotation.t()]
+  def authored_on_many([]), do: []
+
+  def authored_on_many(target_ids) do
+    Repo.all(
+      from a in Annotation,
+        where: a.target_id in ^target_ids and not is_nil(a.principal_id),
+        order_by: [asc: a.inserted_at, asc: a.id]
+    )
+  end
+
+  @doc """
   The current derived body of one type on each of many targets, keyed by
   target. A target with none is absent.
   """
