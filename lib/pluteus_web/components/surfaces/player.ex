@@ -27,6 +27,7 @@ defmodule PluteusWeb.Surfaces.Player do
   attr :chosen, :map, required: true
   attr :preferences, :map, required: true
   attr :refusal, :any, default: nil
+  attr :trickplay, :any, default: nil
 
   def surface(assigns) do
     assigns =
@@ -48,6 +49,7 @@ defmodule PluteusWeb.Surfaces.Player do
             medium="player-medium"
             extent={@extent}
             marks={Medium.marks(@streams.chapters, @extent)}
+            trickplay={@trickplay}
           />
 
           <.delivery :if={match?({:ok, _ready}, @playable)} playable={@playable} />
