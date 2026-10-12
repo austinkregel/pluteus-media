@@ -75,7 +75,7 @@ defmodule PluteusWeb.EntityLiveTest do
       # Every track credits the artist too, and the release presents them, so the band
       # holds the release alone: three credits, one holding.
       assert body =~ "1 holding"
-      assert length(tracks(library)) > 1
+      assert match?([_one, _two | _more], tracks(library))
     end
 
     test "a release that holds a cover is drawn with it", %{conn: conn, album: album} do
