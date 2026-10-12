@@ -62,6 +62,37 @@ defmodule PluteusWeb.EntityLiveTest do
     end
   end
 
+  describe "§8.4. An agent's page is what it is credited on" do
+    test "the band holds the release and not its tracks",
+         %{conn: conn, album: album, library: library} do
+      artist = credited_on(conn, album)
+
+      body = conn |> as_a_person(~p"/artists/#{artist}") |> html_response(200)
+
+      assert body =~ ~s|id="entity-credits"|
+      assert body =~ ~s|href="/works/#{album}"|
+
+      # Every track credits the artist too, and the release presents them, so the band
+      # holds the release alone: three credits, one holding.
+      assert body =~ "1 holding"
+      assert length(tracks(library)) > 1
+    end
+
+    test "a release that holds a cover is drawn with it", %{conn: conn, album: album} do
+      artist = credited_on(conn, album)
+
+      body = conn |> as_a_person(~p"/artists/#{artist}") |> html_response(200)
+
+      assert body =~ "/presentation/image-320"
+    end
+
+    test "a holding is not an agent, and carries no such band", %{conn: conn, album: album} do
+      body = conn |> as_a_person(~p"/works/#{album}") |> html_response(200)
+
+      refute body =~ ~s|id="entity-credits"|
+    end
+  end
+
   describe "§10.1. Every res the model admits has an address" do
     test "every kind that names a subtype is served under a path" do
       # The tripwire. A kind added to the model and not to the table is not a missing
@@ -104,6 +135,18 @@ defmodule PluteusWeb.EntityLiveTest do
 
     expression.work_id
   end
+
+  # Read off the release's own page, which is where a person reaches an artist from:
+  # whoever it links to under `/artists` is who it credits.
+  defp credited_on(conn, work_id) do
+    body = conn |> as_a_person(~p"/works/#{work_id}") |> html_response(200)
+
+    [_whole, artist] = Regex.run(~r|/artists/([0-9a-f-]{36})|, body)
+
+    artist
+  end
+
+  defp tracks(library), do: for({_name, held} <- library.songs, do: work_of(held))
 
   defp item_of(manifestation_id) do
     [item | _rest] = Catalog.digital_items_of(manifestation_id)
