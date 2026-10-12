@@ -150,11 +150,14 @@ defmodule PluteusWeb.EntityLiveTest do
       refute body =~ ~s|id="entity-members"|
     end
 
-    test "a release lists the tracks it was released as", %{conn: conn, album: album} do
+    # A release arranges the media it was pressed on, not its tracks, so a band built
+    # from that arrangement would report every disc of a set as a thing nobody holds.
+    # What a release gathers is drawn on the surface §12.1 gives it.
+    test "a release carries no such band, because what it arranges is not its tracks",
+         %{conn: conn, album: album} do
       body = conn |> as_a_person(~p"/works/#{album}") |> html_response(200)
 
-      assert body =~ ~s|id="entity-members"|
-      assert body =~ "Tracks"
+      refute body =~ ~s|id="entity-members"|
     end
   end
 
