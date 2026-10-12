@@ -230,6 +230,13 @@
           "cover profiles"
         ]
       },
+      "television_series": {
+        "primary_surface": "its entity page, listing its episodes",
+        "selectors": [],
+        "requires": [
+          "cover profiles"
+        ]
+      },
       "video_game": {
         "primary_surface": "its entity page, and no player",
         "selectors": [],
@@ -280,6 +287,7 @@
       "podcast": { "glyph": "hero-rectangle-stack", "class": "audio", "name": "Podcasts" },
       "film": { "glyph": "hero-film", "class": "video", "name": "Films" },
       "television_episode": { "glyph": "hero-tv", "class": "video", "name": "Television" },
+      "television_series": { "glyph": "hero-rectangle-stack", "class": "video", "name": "Series", "members": "episodes" },
       "home_video": { "glyph": "hero-video-camera", "class": "video", "name": "Home video" },
       "photograph": { "glyph": "hero-photo", "class": "image", "name": "Photographs" },
       "scan": { "glyph": "scan", "class": "image", "name": "Scans" },
