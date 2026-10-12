@@ -109,6 +109,10 @@ defmodule PluteusWeb.Surfaces.Reading do
   quantity's domain is a range and buttons over one would be a handful of values the
   registry never named. The slider carries its own value in words, since a number on a
   track says nothing about what it is a number of.
+
+  Closed until it is asked for. These are set rarely and read from constantly, and a
+  panel of nine controls standing over the text takes the room the text is for; a
+  disclosure keeps every one of them one press away without spending the page on them.
   """
   attr :held, :map, required: true
   attr :principal_name, :any, required: true
@@ -117,23 +121,28 @@ defmodule PluteusWeb.Surfaces.Reading do
     assigns = assign(assigns, :keys, keys())
 
     ~H"""
-    <section
+    <details
       id="reading-preferences"
       class={[
-        "flex shrink-0 flex-col gap-4 px-4 py-4 sm:px-6",
+        "shrink-0",
         "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle"
       ]}
     >
-      <div class="flex flex-wrap items-baseline gap-4">
-        <h2 class="text-title-md font-medium text-on-surface-strong">Reading preferences</h2>
+      <summary class={[
+        "min-h-target-touch flex cursor-pointer items-center gap-3 px-4 sm:px-6",
+        "text-body-md text-on-surface-muted hover:bg-fill-subtle-strong",
+        "list-none [&::-webkit-details-marker]:hidden"
+      ]}>
+        <.icon name="hero-bars-3-mini" />
+        <span>Reading preferences</span>
         <span class="grow"></span>
-        <span class="text-caption text-on-surface-muted">{kept_for(@principal_name)}</span>
-      </div>
+        <span class="text-caption">{kept_for(@principal_name)}</span>
+      </summary>
 
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
         <.control :for={key <- @keys} key={key} value={@held[key]} />
       </div>
-    </section>
+    </details>
     """
   end
 
