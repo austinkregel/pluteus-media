@@ -37,6 +37,7 @@ defmodule Pluteus.Ingest.Place do
   alias Pluteus.Ingest.Registry
   alias Pluteus.Ingest.ReleaseKey
   alias Pluteus.Ingest.SerialKey
+  alias Pluteus.Ingest.Sidecar
   alias Pluteus.Ingest.Streams
   alias Pluteus.Ingest.TimeSpanKey
   alias Pluteus.Lifecycle
@@ -519,13 +520,29 @@ defmodule Pluteus.Ingest.Place do
 
       name ->
         serial = serial_for(rule, name)
-        position = Streams.number(tags, rule.numbered_by) || filed[:position]
+        position = arranged(rule, tags)
 
         if taken?(serial.serial_manifestation_id, position) do
           {:taken, %{serial_manifestation_id: serial.serial_manifestation_id, position: position}}
         else
           Map.put(serial, :position, position)
         end
+    end
+  end
+
+  # Where an issue sits in its serial, as the one integer spec-01 §12.1 arranges by.
+  #
+  # A serial numbered within seasons states two figures and is arranged by one, so the
+  # season is the registry's stride and the episode is within it. Both have to be stated:
+  # a bare number is not a season and an episode, and composing one from a figure nobody
+  # said was a pair would order a series by something it never said.
+  defp arranged(rule, tags) do
+    within = Streams.number(tags, rule.numbered_by)
+
+    case {Streams.number(tags, rule.seasoned_by), within} do
+      {nil, _only_a_number} -> within
+      {_season, nil} -> nil
+      {season, episode} -> season * rule.episodes_per_season + episode
     end
   end
 
@@ -1328,10 +1345,14 @@ defmodule Pluteus.Ingest.Place do
   # so there is nothing for a tag to decide.
   defp evidence(%Acquisition{media_class: :companion}), do: nil
 
-  # A file's statement about itself outranks where somebody filed it: a recording tagged
-  # as a podcast sitting under the television directory is still a podcast.
+  # Three statements, nearest first. A file's own container speaks about itself; a
+  # document a media manager wrote beside it is a record somebody kept about it; and where
+  # a household filed it is the coarsest of the three. A recording tagged as a podcast
+  # sitting under the television directory is still a podcast.
   defp evidence(%Acquisition{} = acquisition) do
-    Registry.category_from_tags(acquisition.media_class, embedded_tags(acquisition)) ||
+    Registry.category_from_tags(acquisition.media_class, Streams.tags(acquisition.probe)) ||
+      Registry.category_from_tags(acquisition.media_class, acquisition.container_tags) ||
+      beside(acquisition).category ||
       filed_as(acquisition)[:category]
   end
 
@@ -1339,11 +1360,24 @@ defmodule Pluteus.Ingest.Place do
     do: Registry.path_evidence(acquisition.inbox_path, acquisition.media_class) || %{}
 
   # The tags a holding carries, from whichever reader answered them: a container with
-  # streams states them in its own header, and a container of files states them in a
-  # document the registry names inside it (§6.9 criterion 35). §6.3 weighs the two alike,
-  # so nothing downstream asks which it was.
-  defp embedded_tags(%Acquisition{} = acquisition),
-    do: Map.merge(Streams.tags(acquisition.probe), acquisition.container_tags)
+  # streams states them in its own header, a container of files states them in a document
+  # the registry names inside it (§6.9 criterion 35), and a media manager states them in a
+  # document beside it (§6.3). §6.3 weighs them alike, so nothing downstream asks which it
+  # was; what decides between them where they disagree is nearness, and the file's own
+  # container is nearest.
+  defp embedded_tags(%Acquisition{} = acquisition) do
+    beside(acquisition).fields
+    |> Map.merge(acquisition.container_tags)
+    |> Map.merge(Streams.tags(acquisition.probe))
+  end
+
+  # A companion is not a thing a document beside it describes: a release's notes would
+  # otherwise take their category from the album document next to them.
+  defp beside(%Acquisition{} = acquisition) do
+    if Sidecar.subject?(acquisition),
+      do: Sidecar.evidence(acquisition),
+      else: %{category: nil, fields: %{}}
+  end
 
   defp class_default(%Acquisition{} = acquisition),
     do: Registry.default_category(acquisition.media_class, acquisition.companion_kind)
