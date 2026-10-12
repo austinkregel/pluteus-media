@@ -17,6 +17,7 @@ defmodule Pluteus.Ingest do
 
   alias Pluteus.Catalog.Asset
   alias Pluteus.Ingest.Acquisition
+  alias Pluteus.Ingest.Category
   alias Pluteus.Ingest.Finding
   alias Pluteus.Ingest.Identify
   alias Pluteus.Ingest.Registry
@@ -316,14 +317,27 @@ defmodule Pluteus.Ingest do
       not settled?(relative, stat, now, settle) ->
         :unsettled
 
+      # A file the deployment has looked at and not taken keeps the record it was looked
+      # at under, and this pass has already recovered it. Acquiring it again would be a
+      # second record of one file in the inbox, which the index refuses.
+      in_progress?(relative) ->
+        :in_progress
+
       already_acquired?(relative, source) ->
         :ok = File.rm(source)
         Repo.delete_all(from s in Sighting, where: s.inbox_path == ^relative)
         :already_acquired
 
       true ->
-        acquire_new(source, relative, stat)
+        acquire_new(inbox, source, relative, stat)
     end
+  end
+
+  defp in_progress?(relative) do
+    Repo.exists?(
+      from a in Acquisition,
+        where: a.inbox_path == ^relative and is_nil(a.inbox_released_at)
+    )
   end
 
   defp settled?(relative, stat, now, settle) do
@@ -369,7 +383,7 @@ defmodule Pluteus.Ingest do
 
   defp holding_live?(%Acquisition{}), do: true
 
-  defp acquire_new(source, relative, stat) do
+  defp acquire_new(inbox, source, relative, stat) do
     id = UUIDv7.generate()
 
     acquisition =
@@ -389,9 +403,89 @@ defmodule Pluteus.Ingest do
 
     {:acquired,
      isolated(:acquire, %{acquisition_id: acquisition.id}, fn ->
-       place_bytes(acquisition, source, stat)
+       examine(inbox, acquisition, source, stat)
      end)
      |> tag_crash(acquisition.id)}
+  end
+
+  # §4.3 and §6.3. The deployment takes a file only when it can say what it is, so what it
+  # is is decided where the file lies: in the inbox, beside the documents that say so, and
+  # before anything is moved anywhere.
+  #
+  # A file nothing says the category of stays where the household put it. There it can be
+  # dealt with the way a person deals with files — a document put beside it, a move into a
+  # directory that says what it is — and the next pass takes it. Taking it first and
+  # guessing would put it where only this deployment can find it, under a category nobody
+  # chose and nothing can tell from one that was.
+  defp examine(inbox, acquisition, source, stat, take \\ &place_bytes/4) do
+    case read_bytes(acquisition, source) do
+      {:ok, identified} ->
+        decide(inbox, acquisition, source, stat, identified, take)
+
+      {:error, {kind, detail}} ->
+        undecided(acquisition, kind, detail)
+    end
+  end
+
+  # What a previous pass read, where there was one. The file is settled and this is the
+  # record of that same file, so what the bytes are is what that pass said; what is looked
+  # at again is the evidence around them, which is what a person changes.
+  defp read_bytes(%Acquisition{format: format} = acquisition, _source) when is_binary(format),
+    do: {:ok, Map.take(acquisition, Acquisition.read_fields())}
+
+  defp read_bytes(acquisition, source) do
+    with {:ok, identified} <- Identify.identify(acquisition, source) do
+      acquisition |> Acquisition.examined_changeset(identified) |> Repo.update!()
+
+      {:ok, identified}
+    end
+  end
+
+  defp decide(inbox, acquisition, source, stat, identified, take) do
+    case Category.decide(identified, inbox, acquisition.inbox_path) do
+      %{category: nil} ->
+        undecided(acquisition, "category_undecided", %{
+          format: identified.format,
+          media_class: to_string(identified.media_class)
+        })
+
+      decided ->
+        take.(acquisition, source, stat, Map.merge(identified, decided))
+    end
+  end
+
+  # The bytes were taken and the crash came before anything was recorded about them. The
+  # file is gone from the inbox, so the documents that were beside it may be gone too:
+  # what can be decided is decided, and what cannot is a finding against bytes the
+  # deployment now holds and cannot say the category of. Nothing retries it, because
+  # nothing about it will change on its own.
+  defp taken_already(acquisition, inbox) do
+    stored = acquisition |> release() |> measure()
+
+    with {:ok, identified} <- Identify.identify(stored),
+         %{category: category} = decided when not is_nil(category) <-
+           Category.decide(identified, inbox, stored.inbox_path) do
+      recorded(stored, Map.merge(identified, decided))
+    else
+      {:error, {kind, detail}} -> undecided(stored, kind, detail)
+      %{category: nil} -> undecided(stored, "category_undecided", %{})
+    end
+  end
+
+  # Nothing says what the file is, so the deployment does not take it: it stays where the
+  # household put it and the finding says why. The finding is not permanent — a document
+  # put beside the file, or a move into a directory that says what it is, is what answers
+  # it, and the next pass reads that.
+  defp undecided(acquisition, kind, detail) do
+    record_finding(%{
+      stage: :examine,
+      kind: kind,
+      permanent: false,
+      detail: detail,
+      acquisition_id: acquisition.id
+    })
+
+    {acquisition.id, :undecided}
   end
 
   defp tag_crash({:crashed, message}, id), do: {id, {:crashed, message}}
@@ -400,28 +494,28 @@ defmodule Pluteus.Ingest do
   # A file with another hard link is copied: renaming it would leave the bytes
   # reachable, and changeable, through the other link. A rename across file
   # systems is a copy too.
-  defp place_bytes(acquisition, source, %File.Stat{links: links}) when links > 1,
-    do: copy_bytes(acquisition, source)
+  defp place_bytes(acquisition, source, %File.Stat{links: links}, examined) when links > 1,
+    do: copy_bytes(acquisition, source, examined)
 
-  defp place_bytes(acquisition, source, _stat) do
+  defp place_bytes(acquisition, source, _stat, examined) do
     case Storage.rename_in(source, acquisition.location) do
       :ok ->
-        acquisition |> release() |> measure() |> identify_and_report()
+        acquisition |> release() |> measure() |> recorded(examined)
 
       {:error, :exdev} ->
-        copy_bytes(acquisition, source)
+        copy_bytes(acquisition, source, examined)
     end
   end
 
-  defp copy_bytes(acquisition, source) do
+  defp copy_bytes(acquisition, source, examined) do
     :ok = Storage.copy_in(source, acquisition.location)
-    finish_copy(acquisition, source)
+    finish_copy(acquisition, source, examined)
   end
 
   # The copy is compared with its source before the source is removed. A copy
   # that differs is a surprise and raises; the record stays in progress and the
   # next pass copies again.
-  defp finish_copy(acquisition, source) do
+  defp finish_copy(acquisition, source, examined) do
     {:ok, at_source} = Storage.digest_file(source, :sha256)
     {:ok, copied} = Storage.digest(acquisition.location, :sha256)
 
@@ -430,11 +524,22 @@ defmodule Pluteus.Ingest do
     end
 
     stored = measure(acquisition)
-    outcome = identify_and_report(stored)
+    outcome = recorded(stored, examined)
     :ok = File.rm(source)
     release(Repo.get!(Acquisition, stored.id))
     outcome
   end
+
+  # What examination read, written once the bytes are the deployment's. The file is gone
+  # from the inbox by now, so nothing here reads it again: identification and the category
+  # were both decided while it was still there.
+  defp recorded(%Acquisition{state: :stored} = acquisition, examined) do
+    acquisition |> Acquisition.identified_changeset(examined) |> Repo.update!()
+
+    {acquisition.id, :identified}
+  end
+
+  defp recorded(acquisition, _examined), do: {acquisition.id, acquisition.state}
 
   defp release(acquisition) do
     acquisition
@@ -448,11 +553,6 @@ defmodule Pluteus.Ingest do
   end
 
   defp measure(acquisition), do: acquisition
-
-  defp identify_and_report(%Acquisition{state: :stored} = acquisition),
-    do: {acquisition.id, identify(acquisition)}
-
-  defp identify_and_report(acquisition), do: {acquisition.id, acquisition.state}
 
   defp identify(acquisition) do
     isolated(:identify, %{acquisition_id: acquisition.id}, fn -> identify_now(acquisition) end)
@@ -508,13 +608,13 @@ defmodule Pluteus.Ingest do
     outcome =
       case {at_source, at_location} do
         {true, false} ->
-          place_bytes(acquisition, source, File.stat!(source))
+          examine(inbox, acquisition, source, File.stat!(source))
 
         {true, true} ->
-          resume_copy(acquisition, source)
+          examine(inbox, acquisition, source, File.stat!(source), &resume_copy/4)
 
         {false, true} ->
-          acquisition |> release() |> measure() |> identify_and_report()
+          taken_already(acquisition, inbox)
 
         {false, false} ->
           vanished(acquisition, now)
@@ -526,15 +626,15 @@ defmodule Pluteus.Ingest do
     end
   end
 
-  defp resume_copy(acquisition, source) do
+  defp resume_copy(acquisition, source, _stat, examined) do
     {:ok, at_source} = Storage.digest_file(source, :sha256)
     {:ok, copied} = Storage.digest(acquisition.location, :sha256)
 
     if at_source == copied do
-      finish_copy(acquisition, source)
+      finish_copy(acquisition, source, examined)
     else
       :ok = Storage.delete(acquisition.location)
-      copy_bytes(acquisition, source)
+      copy_bytes(acquisition, source, examined)
     end
   end
 
