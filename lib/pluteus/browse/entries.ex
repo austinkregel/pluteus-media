@@ -51,6 +51,7 @@ defmodule Pluteus.Browse.Entries do
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.Category
   alias Pluteus.Catalog.Credit
+  alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.ManifestationPart
@@ -58,6 +59,7 @@ defmodule Pluteus.Browse.Entries do
   alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Work
+  alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Place
   alias Pluteus.Ingest.Registry
   alias Pluteus.Lifecycle.RecycledRes
@@ -105,24 +107,82 @@ defmodule Pluteus.Browse.Entries do
   end
 
   @doc """
+  What a mode selects of the catalogue, before any facet narrows it.
+
+  §9.2 makes a mode a way of looking rather than a filter the chips carry, so this is
+  what every count on the surface is computed against as well: a facet value promising
+  what selecting it would leave has to mean what it says under the mode a person is in,
+  and a count taken against the whole catalogue under Sets would promise holdings Sets
+  does not show.
+  """
+  @spec selected(Query.t()) :: Ecto.Query.t()
+  def selected(%Query{mode: mode}), do: mode |> selects() |> then(& &1.(base()))
+
+  # A clause per mode and no catch-all, so a mode the registry names and nothing selects
+  # fails here rather than answering with the whole catalogue under its name.
+  defp selects("everything"), do: & &1
+  defp selects("recently_added"), do: & &1
+  defp selects("time"), do: & &1
+  defp selects("sets"), do: &from(w in &1, where: exists(aggregates()))
+
+  @doc """
   How many works a query holds.
   """
   @spec count(Query.t()) :: non_neg_integer()
   def count(%Query{} = browse) do
-    Repo.aggregate(from(w in narrow(base(), browse), select: w.id), :count)
+    Repo.aggregate(from(w in narrow(selected(browse), browse), select: w.id), :count)
   end
 
   @doc """
-  The identifiers a query holds, in a stable order, bounded.
+  The identifiers a query holds, in the order its mode puts them in, bounded.
   """
   @spec ids(Query.t(), pos_integer()) :: [Ecto.UUID.t()]
   def ids(%Query{} = browse, limit) do
-    base()
+    browse
+    |> selected()
     |> narrow(browse)
-    |> order_by([work: w], w.id)
+    |> ordered(browse.mode)
     |> limit(^limit)
     |> select([work: w], w.id)
     |> Repo.all()
+  end
+
+  # Recently added is the one mode whose order is its whole point: what arrived most
+  # recently, by when the file was released into the inbox rather than by when the
+  # catalogue got round to placing it. Everywhere else the order is the identifier,
+  # which for a UUIDv7 is the order the household acquired things in and is stable
+  # under paging.
+  defp ordered(query, "recently_added") do
+    from w in query,
+      left_join: arrived in subquery(arrivals()),
+      on: arrived.work_id == w.id,
+      order_by: [desc_nulls_last: arrived.at, desc: w.id]
+  end
+
+  defp ordered(query, _mode), do: order_by(query, [work: w], w.id)
+
+  # When each work's files arrived. A release read from twelve files arrived when the
+  # last of them did, because that is when the household had it.
+  defp arrivals do
+    from x in Expression,
+      join: e in Embodiment,
+      on: e.expression_id == x.id,
+      join: d in DigitalItem,
+      on: d.manifestation_id == e.manifestation_id,
+      join: a in Acquisition,
+      on: a.digital_item_id == d.id,
+      group_by: x.work_id,
+      select: %{work_id: x.work_id, at: max(a.inbox_released_at)}
+  end
+
+  # A work that gathers others: a release against its tracks. The aggregating side of
+  # LRM-R25, which is the relation §9.2's Sets mode is a way of looking at.
+  defp aggregates do
+    from x in Expression,
+      join: a in Aggregation,
+      on: a.aggregating_expression_id == x.id,
+      where: parent_as(:work).id == x.work_id,
+      select: 1
   end
 
   @doc """
