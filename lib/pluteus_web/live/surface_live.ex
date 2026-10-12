@@ -38,8 +38,8 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Player
+  alias PluteusWeb.Settings
   alias PluteusWeb.Surfaces.Reader
-  alias PluteusWeb.Surfaces.Reading, as: Settings
   alias PluteusWeb.Surfaces.Viewer
   alias PluteusWeb.TransportLive
 
@@ -55,6 +55,7 @@ defmodule PluteusWeb.SurfaceLive do
      |> assign(:findings, Ingest.open_finding_count())
      |> assign(:announcement, "")
      |> assign(:device_id, session["device_id"])
+     |> assign(:preferences, Preferences.held_by(socket.assigns.principal_id))
      |> assign(:transport, Interface.transport(session))}
   end
 
@@ -128,18 +129,19 @@ defmodule PluteusWeb.SurfaceLive do
     {:noreply, at(socket, String.to_integer(to))}
   end
 
-  # A.3.6's settings are the principal's own (§14.5), so one is written as soon as it is
-  # pressed and read back from the store rather than held in this socket: a second
-  # surface open on the same reading is set the same way.
-  def handle_event("read-as", %{"key" => key, "value" => value}, socket) do
-    unless key in Settings.keys() do
-      raise "#{key} is not a reading preference"
+  # A setting is the principal's own (§14.5), so one is written as soon as it is pressed
+  # and read back from the store rather than held in this socket: a second surface open
+  # on the same holding is set the same way. One handler for every surface, because what
+  # a control carries is the key, and a key no surface offers is a bug rather than a
+  # refusal to report.
+  def handle_event("prefer", %{"key" => key, "value" => value}, socket) do
+    unless key in Settings.settable() do
+      raise "#{key} is not a setting any surface offers"
     end
 
     {:ok, _written} = Preferences.set(socket.assigns.principal_id, key, value)
-    held = Preferences.held_by(socket.assigns.principal_id)
 
-    {:noreply, update(socket, :reader, &%{&1 | preferences: held})}
+    {:noreply, assign(socket, :preferences, Preferences.held_by(socket.assigns.principal_id))}
   end
 
   # The text is made from the bytes on demand, so a reading opened before anything had
@@ -220,7 +222,7 @@ defmodule PluteusWeb.SurfaceLive do
   defp reading(%{assigns: %{surface: "reader"}} = socket, named) do
     copies = Reading.copies(socket.assigns.work.id)
     copy = copy!(copies, named)
-    open = socket.assigns[:reader] || opened(socket)
+    open = socket.assigns[:reader] || opened()
 
     socket
     |> assign(:reader, %{
@@ -237,10 +239,10 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp reading(socket, _named), do: assign(socket, :reader, nil)
 
-  # What a reading carries across a patch: where in it a person is, and how they have
-  # asked to be read to. Moving to another copy keeps both, because a person who has set
-  # the measure has set it for reading and not for one file.
-  defp opened(socket) do
+  # What a reading carries across a patch: where in it a person is. Moving to another
+  # copy keeps it, since a person who was ten pages in is ten pages into the book rather
+  # than into one file of it.
+  defp opened do
     %{
       copy: nil,
       held_as: [],
@@ -248,8 +250,7 @@ defmodule PluteusWeb.SurfaceLive do
       marks: [],
       credited: [],
       stated: nil,
-      division: 0,
-      preferences: Preferences.held_by(socket.assigns.principal_id)
+      division: 0
     }
   end
 
@@ -390,6 +391,7 @@ defmodule PluteusWeb.SurfaceLive do
           borne={@borne}
           facts={@facts}
           reader={@reader}
+          preferences={@preferences}
         />
       </div>
     </Chrome.shell>
@@ -410,6 +412,7 @@ defmodule PluteusWeb.SurfaceLive do
   attr :borne, :any, required: true
   attr :facts, :list, required: true
   attr :reader, :any, required: true
+  attr :preferences, :map, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -419,6 +422,7 @@ defmodule PluteusWeb.SurfaceLive do
       category={@category}
       playable={@playable}
       chosen={@chosen}
+      preferences={@preferences}
     />
     """
   end
@@ -447,7 +451,7 @@ defmodule PluteusWeb.SurfaceLive do
       division={@reader.division}
       held_as={@reader.held_as}
       marks={@reader.marks}
-      preferences={@reader.preferences}
+      preferences={@preferences}
     />
     """
   end
