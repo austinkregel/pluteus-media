@@ -28,6 +28,7 @@ defmodule Pluteus.Serials do
   alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Events
+  alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle.RecycledRes
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.Presentation
@@ -41,6 +42,7 @@ defmodule Pluteus.Serials do
   @type member :: %{
           work_id: Ecto.UUID.t() | nil,
           manifestation_id: Ecto.UUID.t(),
+          category: String.t() | nil,
           position: pos_integer() | nil,
           name: String.t(),
           named?: boolean(),
@@ -84,6 +86,7 @@ defmodule Pluteus.Serials do
 
     works = Catalog.works_of_many(ids)
     names = named(ids, works, profile)
+    categories = categories(works)
     held = held(ids)
     issued = issued(ids)
     extents = extents(ids)
@@ -97,6 +100,7 @@ defmodule Pluteus.Serials do
       %{
         work_id: works[id],
         manifestation_id: id,
+        category: categories[works[id]],
         position: part.position,
         name: Map.fetch!(names, id).said,
         named?: Map.fetch!(names, id).named?,
@@ -109,6 +113,36 @@ defmodule Pluteus.Serials do
       }
     end
   end
+
+  # What each member is, so a surface listing them can send a person where that kind of
+  # holding is presented. One query for the whole list, since a category is recorded on
+  # the work and every member has one.
+  defp categories(works) do
+    ids = works |> Map.values() |> Enum.uniq()
+    scheme = Place.category_scheme()
+
+    for {work_id, categories} <- Catalog.categories_of_many(ids),
+        effective = effective(categories, scheme),
+        into: %{} do
+      {work_id, effective}
+    end
+  end
+
+  # A member's correction over an automatic assignment over a seeded one (§7.5), which is
+  # what `Catalog.category_of/2` answers for one res: taking whichever row came back first
+  # would say a corrected holding is still what placement guessed.
+  defp effective(categories, scheme) do
+    categories
+    |> Enum.filter(&(&1.scheme == scheme))
+    |> Enum.min_by(&rank/1, fn -> nil end)
+    |> value()
+  end
+
+  defp rank(category),
+    do: Enum.find_index(Nomen.provenance_rank(), &(&1 == category.provenance))
+
+  defp value(nil), do: nil
+  defp value(category), do: category.value
 
   # A member is named by its own work where it has one, since that is what a person
   # follows, and by §6.3's composed name where resolution answers none. Which of the two
