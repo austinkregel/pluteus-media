@@ -265,9 +265,12 @@ defmodule Pluteus.Ingest.RegistryTest do
       assert Registry.standard_format(:package) == nil
     end
 
-    test "a package and a software holding each have a category without evidence" do
-      assert Registry.default_category(:package, nil) == "comic_issue"
-      assert Registry.default_category(:software, nil) == "video_game"
+    # Both classes mean one kind of thing: software is produced by a cartridge dump or a
+    # disc image and nothing else, and a package by an archive every entry of which is a
+    # page a reader could open, which identification corroborated before taking the class.
+    test "a package and a software holding are each what their class means" do
+      assert Registry.category_from_class(:package) == "comic_issue"
+      assert Registry.category_from_class(:software) == "video_game"
     end
   end
 end

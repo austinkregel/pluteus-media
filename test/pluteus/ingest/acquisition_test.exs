@@ -392,30 +392,33 @@ defmodule Pluteus.Ingest.AcquisitionTest do
   end
 
   describe "26. Acquisition and identification failures are recorded against the record" do
+    # §4.3 takes a file only where the deployment can say what it is, and bytes nothing
+    # can decode are bytes nothing can say that about. The file stays where it was put,
+    # under a record of having been looked at, and the finding is what a person answers.
     test "bytes nothing can decode are a finding, not a guess", %{inbox: inbox} do
       drop!(inbox, "so-what.mp3", undecodable(600))
 
       [id] = inbox |> acquire_settled!(@t0) |> acquired()
 
-      assert %Acquisition{state: :stored} = Ingest.get_acquisition!(id)
+      assert %Acquisition{state: :recorded, inbox_released_at: nil} = Ingest.get_acquisition!(id)
+      assert File.exists?(Path.join(inbox, "so-what.mp3"))
 
-      assert [%{stage: :identify, kind: "undecodable", permanent: true}] =
+      assert [%{stage: :examine, kind: "undecodable", permanent: false}] =
                Ingest.findings_for_acquisition(id)
     end
 
-    test "a failed identification is not due again until a person clears it",
-         %{inbox: inbox, actor: actor} do
+    # A pass looks at the file again, because what a person puts beside it is what answers
+    # the finding. Nothing of the bytes is read twice, and nothing is taken until one of
+    # those readings decides.
+    test "a file the deployment could not read is looked at again, and still not taken",
+         %{inbox: inbox} do
       drop!(inbox, "so-what.mp3", undecodable(600))
       [id] = inbox |> acquire_settled!(@t0) |> acquired()
-      [finding] = Ingest.findings_for_acquisition(id)
 
-      refute Enum.any?(Ingest.identify_due(), fn {due, _} -> due == id end)
+      acquire_settled!(inbox, @t0)
 
-      {:ok, _} = Ingest.clear_finding(finding.id, actor.id)
-
-      assert {id, :finding} in Ingest.identify_due()
-      assert [%{cleared_by: cleared_by}, %{cleared_at: nil}] = Ingest.findings_for_acquisition(id)
-      assert cleared_by == actor.id
+      assert %Acquisition{state: :recorded} = Ingest.get_acquisition!(id)
+      assert [_one] = Ingest.acquisitions_from("so-what.mp3")
     end
   end
 

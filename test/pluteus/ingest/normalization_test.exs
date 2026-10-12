@@ -45,7 +45,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
 
     test "a lossless acquisition is re-encoded, and the copy decodes to the original",
          %{inbox: inbox} do
-      [track] = ingest!(inbox, %{"a.wav" => media!(:wav)})
+      [track] = ingest!(inbox, %{"music/a.wav" => media!(:wav)})
 
       assert [{_, :re_encoded}] = Normalize.normalize_due(standard(@flac))
 
@@ -68,7 +68,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
     end
 
     test "a class with no standard format adopts its lossless acquisition", %{inbox: inbox} do
-      [still] = ingest!(inbox, %{"a.png" => media!(:png)})
+      [still] = ingest!(inbox, %{"photos/a.png" => media!(:png)})
 
       assert [{_, :adopted}] = Normalize.normalize_due(fn _class -> nil end)
       assert Normalize.master_of(still.digital_item_id).id == still.id
@@ -96,7 +96,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
     end
 
     test "a changed standard recycles a previous copy", %{inbox: inbox} do
-      [track] = ingest!(inbox, %{"a.wav" => media!(:wav)})
+      [track] = ingest!(inbox, %{"music/a.wav" => media!(:wav)})
       Normalize.normalize_due(standard(@flac))
       copy = Normalize.master_of(track.digital_item_id)
       cleanup(copy.id)
@@ -109,7 +109,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
     end
 
     test "restoring a replaced master from the bin is refused", %{inbox: inbox} do
-      [track] = ingest!(inbox, %{"a.wav" => media!(:wav)})
+      [track] = ingest!(inbox, %{"music/a.wav" => media!(:wav)})
       Normalize.normalize_due(standard(@flac))
       copy = Normalize.master_of(track.digital_item_id)
       cleanup(copy.id)
@@ -155,7 +155,7 @@ defmodule Pluteus.Ingest.NormalizationTest do
     test "a holding gaining a master is a platform event", %{inbox: inbox} do
       # spec-01 §11.2's platform class, recorded by the System principal because
       # normalization is the deployment's own work (spec-04 §3).
-      [track] = ingest!(inbox, %{"a.wav" => media!(:wav)})
+      [track] = ingest!(inbox, %{"music/a.wav" => media!(:wav)})
 
       assert [{_, :re_encoded}] = Normalize.normalize_due(standard(@flac))
 
@@ -324,8 +324,8 @@ defmodule Pluteus.Ingest.NormalizationTest do
     test "recycling the cover leaves the track's normalized master", %{inbox: inbox, actor: actor} do
       placed =
         ingest!(inbox, %{
-          "KoB/cover.jpg" => media!(:jpeg),
-          "KoB/01.wav" => media!(:wav)
+          "music/KoB/cover.jpg" => media!(:jpeg),
+          "music/KoB/01.wav" => media!(:wav)
         })
 
       Normalize.normalize_due(standard(@flac))
