@@ -23,6 +23,50 @@ defmodule PluteusWeb.BrowseLiveTest do
     %{conn: conn |> through_proxy(a_subject()) |> on_a_surface()}
   end
 
+  describe "§12.3. Reaching a holding does not tear down what is playing" do
+    # The player is a sticky child of the chrome, which survives a live navigation and
+    # nothing else. So a row leading to a holding by a page load would stop the music, and
+    # whether it does is a property of the link rather than of anything observable on the
+    # page it lands on — which is why it is asserted on the link.
+    test "a row reaches its holding by live navigation", %{conn: conn} do
+      work = holding("document")
+
+      {:ok, live, _html} = live(conn, ~p"/everything?#{[category: "document"]}")
+
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live |> element(~s{a[href="/works/#{work}"]}) |> render_click()
+
+      assert to == "/works/#{work}"
+    end
+
+    # Following it here is a fresh request rather than the socket message a browser sends,
+    # because the harness re-establishes the connection — so what this covers is that the
+    # row leads somewhere that renders, not the navigation a person makes. The session a
+    # navigation actually mounts from is asserted in `PluteusWeb.EntityLiveTest`.
+    test "a holding reached that way answers for its own kind", %{conn: conn} do
+      work = holding("document")
+
+      {:ok, live, _html} = live(conn, ~p"/everything?#{[category: "document"]}")
+
+      assert {:ok, _page, html} =
+               live
+               |> element(~s{a[href="/works/#{work}"]})
+               |> render_click()
+               |> follow_redirect(Plug.Conn.put_req_header(conn, "accept", "text/html"))
+
+      assert html =~ "a document"
+    end
+
+    test "every mode in the rail is reached the same way", %{conn: conn} do
+      {:ok, live, _html} = live(conn, ~p"/everything")
+
+      for {mode, at} <- Chrome.addressed(), mode != "everything" do
+        assert live |> element(~s{a[href="#{at}"]}) |> has_element?(),
+               "the #{mode} mode is not linked at #{at}"
+      end
+    end
+  end
+
   describe "§9.2. The gateway renders what the catalogue holds" do
     test "every kind the catalogue holds is a door carrying its count", %{conn: conn} do
       for _each <- 1..3, do: holding("photograph")
