@@ -93,6 +93,25 @@ defmodule PluteusWeb.BrowseLiveTest do
       refute has_element?(live, ~s|button[phx-value-res="#{document}"]|)
     end
 
+    # §12.1 puts a photograph on a grid rather than in a list, and the tile leads to the
+    # viewer rather than to the entity page, since the picture is what was pressed.
+    test "narrowing to a photograph renders a grid of tiles", %{conn: conn} do
+      photo = named("A photograph", "photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=photograph")
+
+      assert html =~ ~s|href="/works/#{photo}/view"|
+      refute html =~ ~s|href="/works/#{photo}"|
+    end
+
+    test "a kind that is read keeps its rows", %{conn: conn} do
+      letter = named("A letter", "document")
+
+      {:ok, _live, html} = live(conn, ~p"/everything?category=document")
+
+      assert html =~ ~s|href="/works/#{letter}"|
+    end
+
     test "an axis nothing narrows by is answered, not crashed into", %{conn: conn} do
       # A surface that raised here would take the page down, and the client recovers
       # from that by reloading onto the same address.
