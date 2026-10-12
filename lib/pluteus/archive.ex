@@ -55,8 +55,15 @@ defmodule Pluteus.Archive do
   alongside its pages, and counting it would make a 200-page comic 201 pages long.
   """
   @spec entries(String.t()) :: {:ok, [String.t()]} | {:error, refusal()}
-  def entries(location) do
-    case bounded(["-tf", Storage.path(location)], @listing_ceiling) do
+  def entries(location), do: location |> Storage.path() |> entries_file()
+
+  @doc """
+  The same, of an archive read where it lies rather than at a location: a file still in
+  the inbox is not the deployment's yet and has none.
+  """
+  @spec entries_file(Path.t()) :: {:ok, [String.t()]} | {:error, refusal()}
+  def entries_file(path) do
+    case bounded(["-tf", path], @listing_ceiling) do
       {:ok, output} -> named(output)
       {:error, _refusal} = refusal -> refusal
     end
@@ -82,9 +89,13 @@ defmodule Pluteus.Archive do
   since half a document is not a document.
   """
   @spec read(String.t(), String.t(), pos_integer()) :: {:ok, binary()} | {:error, refusal()}
-  def read(location, entry, limit) do
-    bounded(["-xOf", Storage.path(location), entry], limit)
-  end
+  def read(location, entry, limit), do: read_file(Storage.path(location), entry, limit)
+
+  @doc """
+  The same, of an archive read where it lies rather than at a location.
+  """
+  @spec read_file(Path.t(), String.t(), pos_integer()) :: {:ok, binary()} | {:error, refusal()}
+  def read_file(path, entry, limit), do: bounded(["-xOf", path, entry], limit)
 
   @doc """
   The most entries an archive may hold and still be read.
