@@ -137,6 +137,7 @@ const Player = {
     this.pauseGlyph = this.el.querySelector("[data-glyph=pause]")
     this.volume = this.el.querySelector("#player-volume")
     this.mute = this.el.querySelector("[data-act=mute]")
+    this.frames = this.el.querySelector("#player-trickplay")
 
     // Until this runs the controls reach nothing, and one that is available and does
     // nothing is a lie (§17.3).
@@ -146,6 +147,9 @@ const Player = {
 
     this.el.addEventListener("click", (event) => this.pressed(event))
     this.position.addEventListener("input", () => this.scrub())
+    this.position.addEventListener("change", () => this.hidden())
+    this.position.addEventListener("blur", () => this.hidden())
+    this.position.addEventListener("pointerleave", () => this.hidden())
     this.volume.addEventListener("input", () => this.louder())
 
     this.medium.addEventListener("loadedmetadata", () => this.measured())
@@ -199,6 +203,48 @@ const Player = {
 
   scrub() {
     this.seek(Number(this.position.value) / 1000)
+    this.shown(Number(this.position.value))
+  },
+
+  // §11.3's frames, as a window onto the sprite: the position decides which frame, and
+  // the frame's place in the sprite decides where the window looks. Nothing is drawn
+  // past the last frame the sprite holds, because a frame that is not there would be
+  // whatever the tiling left in that corner.
+  shown(milliseconds) {
+    if (!this.frames) return
+
+    const data = this.frames.dataset
+    const width = Number(data.frameWidth)
+    const height = Number(data.frameHeight)
+    const columns = Number(data.columns)
+    const at = Math.floor(milliseconds / Number(data.interval))
+
+    if (at >= Number(data.frames)) return this.hidden()
+
+    // A sprite's frames are the medium's own, so the thumbnail is as wide as it is tall
+    // in the same proportion; this is the width it is drawn at.
+    const scale = 160 / width
+    const column = at % columns
+    const row = Math.floor(at / columns)
+
+    this.frames.style.width = `${Math.round(width * scale)}px`
+    this.frames.style.height = `${Math.round(height * scale)}px`
+    this.frames.style.backgroundImage = `url(${data.at})`
+    this.frames.style.backgroundSize = `${columns * width * scale}px auto`
+    this.frames.style.backgroundPosition =
+      `-${Math.round(column * width * scale)}px -${Math.round(row * height * scale)}px`
+
+    // Over the thumb, kept inside the track at either end so the frame never hangs off
+    // the surface.
+    const along = (Number(this.position.value) - Number(this.position.min)) /
+      Math.max(Number(this.position.max) - Number(this.position.min), 1)
+
+    this.frames.style.left = `calc(${(along * 100).toFixed(2)}% - ${Math.round(width * scale / 2)}px)`
+    this.frames.hidden = false
+  },
+
+  hidden() {
+    if (this.frames) this.frames.hidden = true
   },
 
   louder() {
