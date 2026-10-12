@@ -99,6 +99,71 @@ defmodule Pluteus.Presentation.GenerateTest do
     end
   end
 
+  describe "§12.1. A container of pages yields one image per page" do
+    test "the page asked for is the page made", %{inbox: inbox} do
+      [comic] =
+        ingest!(inbox, %{
+          "comics/Excitebike 001.cbz" =>
+            cbz([
+              {"001.png", comic_page(1)},
+              {"002.png", comic_page(2)},
+              {"003.png", comic_page(3)}
+            ])
+        })
+
+      subject = manifestation_of(comic)
+
+      {:ok, second} = Generate.run(subject, "image-640", 1)
+      on_exit(fn -> Storage.delete(second.location) end)
+
+      assert second.ordinal == 1
+      assert second.width > 0
+
+      # The key is the subject, the profile and the page, so one archive yields an
+      # artefact per page rather than one that is whichever page was asked for first.
+      {:ok, third} = Generate.run(subject, "image-640", 2)
+      on_exit(fn -> Storage.delete(third.location) end)
+
+      assert third.location != second.location
+      assert Presentation.get(subject, "image-640", 2).location == third.location
+      assert Presentation.get(subject, "image-640", 1).location == second.location
+    end
+
+    test "a page the archive does not hold is not made", %{inbox: inbox} do
+      [comic] =
+        ingest!(inbox, %{"comics/Excitebike 002.cbz" => cbz([{"001.png", comic_page(1)}])})
+
+      assert {:error, "page_not_held", detail} =
+               Generate.run(manifestation_of(comic), "image-640", 7)
+
+      assert detail.page == 7
+      assert detail.pages == 1
+    end
+
+    # A holding carried by one file is that file, whole. Asking for its fourth page is
+    # asking for something it does not have rather than for the file again.
+    test "a holding that is not a container has no second page", %{inbox: inbox} do
+      [photo] = ingest!(inbox, %{"holiday/IMG_0001.jpg" => media!(:jpeg)})
+
+      assert {:error, "holding_has_no_pages", %{page: 3}} =
+               Generate.run(manifestation_of(photo), "image-640", 3)
+    end
+
+    # The entry is extracted to make the derivative and is not an artefact of its own:
+    # what stays is the image profile, and the page it was taken from goes.
+    test "the page it was taken from does not stay", %{inbox: inbox} do
+      [comic] =
+        ingest!(inbox, %{"comics/Excitebike 003.cbz" => cbz([{"001.png", comic_page(1)}])})
+
+      subject = manifestation_of(comic)
+
+      {:ok, made} = Generate.run(subject, "image-640", 0)
+      on_exit(fn -> Storage.delete(made.location) end)
+
+      refute Storage.exists?(Presentation.location_for(subject, "page", 0, "png"))
+    end
+  end
+
   describe "29. Every derivative has its orientation applied" do
     test "an image stating a quarter turn comes out turned", %{inbox: inbox} do
       # Orientation 6 is a 90 degree clockwise rotation, so a 64x48 source becomes
