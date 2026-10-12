@@ -698,7 +698,7 @@
       "application/xml": "XML",
       "application/x-subrip": "SubRip",
       "text/vtt": "WebVTT",
-      "application/octet-stream": "a format nothing recognised"
+      "application/octet-stream": "an unknown format"
     }
   },
 
