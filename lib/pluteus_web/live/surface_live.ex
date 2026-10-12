@@ -390,7 +390,6 @@ defmodule PluteusWeb.SurfaceLive do
           borne={@borne}
           facts={@facts}
           reader={@reader}
-          principal_name={@principal_name}
         />
       </div>
     </Chrome.shell>
@@ -411,7 +410,6 @@ defmodule PluteusWeb.SurfaceLive do
   attr :borne, :any, required: true
   attr :facts, :list, required: true
   attr :reader, :any, required: true
-  attr :principal_name, :any, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -450,7 +448,6 @@ defmodule PluteusWeb.SurfaceLive do
       held_as={@reader.held_as}
       marks={@reader.marks}
       preferences={@reader.preferences}
-      principal_name={@principal_name}
     />
     """
   end
