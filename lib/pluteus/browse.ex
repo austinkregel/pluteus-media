@@ -38,6 +38,7 @@ defmodule Pluteus.Browse do
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest.Acquisition
   alias Pluteus.Ingest.Registry, as: IngestRegistry
+  alias Pluteus.Presentation.Geometry
   alias Pluteus.Repo
 
   @typedoc """
@@ -50,6 +51,8 @@ defmodule Pluteus.Browse do
           entries: [Ecto.UUID.t()],
           names: %{Ecto.UUID.t() => String.t()},
           categories: %{Ecto.UUID.t() => String.t()},
+          borne: %{Ecto.UUID.t() => Ecto.UUID.t()},
+          geometry: %{Ecto.UUID.t() => Geometry.t()},
           formats: %{Ecto.UUID.t() => String.t()},
           members: %{Ecto.UUID.t() => non_neg_integer()},
           credited: %{Ecto.UUID.t() => [String.t()]},
@@ -81,6 +84,7 @@ defmodule Pluteus.Browse do
   def surface(%Query{} = query, principal_id, %Profile{} = profile, limit \\ 60) do
     entries = Entries.ids(query, limit)
     facets = Counts.for_query(query)
+    borne = borne(entries)
 
     %{
       labels: labelled(facets, profile),
@@ -88,6 +92,8 @@ defmodule Pluteus.Browse do
       entries: entries,
       names: named(entries, profile),
       categories: categorised(entries),
+      borne: borne,
+      geometry: Geometry.for_res(Map.values(borne)),
       formats: formatted(entries),
       members: membered(entries),
       credited: credited(entries, profile),
@@ -193,6 +199,26 @@ defmodule Pluteus.Browse do
       from c in subquery(Entries.effective_categories()),
         where: c.res_id in ^entries,
         select: {c.res_id, c.value}
+    )
+    |> Map.new()
+  end
+
+  # The manifestation an entry is carried by, which is what an image profile is asked
+  # for against. A photograph wears no cover: the photograph is the picture, so a grid
+  # of them asks the holding itself rather than a companion (§12.2).
+  defp borne([]), do: %{}
+
+  defp borne(entries) do
+    # One per entry, by identifier, so a work embodied twice answers the same way on
+    # every render rather than drawing a different picture each time.
+    Repo.all(
+      from x in Expression,
+        join: e in Embodiment,
+        on: e.expression_id == x.id,
+        where: x.work_id in ^entries,
+        distinct: x.work_id,
+        order_by: [x.work_id, e.manifestation_id],
+        select: {x.work_id, e.manifestation_id}
     )
     |> Map.new()
   end
