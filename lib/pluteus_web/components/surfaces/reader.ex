@@ -36,7 +36,6 @@ defmodule PluteusWeb.Surfaces.Reader do
   attr :held_as, :list, required: true
   attr :marks, :list, required: true
   attr :preferences, :map, required: true
-  attr :principal_name, :any, required: true
 
   def surface(assigns) do
     ~H"""
@@ -53,7 +52,7 @@ defmodule PluteusWeb.Surfaces.Reader do
       />
 
       <div class="flex min-w-0 flex-1 flex-col">
-        <Settings.preferences held={@preferences} principal_name={@principal_name} />
+        <Settings.preferences held={@preferences} />
         <.text reading={@reading} division={@division} preferences={@preferences} />
         <.position reading={@reading} division={@division} />
       </div>
