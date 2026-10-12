@@ -129,6 +129,19 @@ defmodule PluteusWeb.EntityLiveTest do
       assert body =~ "Square Peg"
     end
 
+    # §8.1 resolves the action over the thing itself, and a series is not a thing anybody
+    # plays: what there is to do with it is to carry on with a member.
+    test "a series' action reaches a member rather than being disabled",
+         %{conn: conn, inbox: inbox} do
+      series = a_series(inbox, ["101 - Pilot.mkv", "102 - Square Peg.mkv"])
+
+      body = conn |> as_a_person(~p"/works/#{series}") |> html_response(200)
+
+      assert body =~ "Start with 101 - Pilot"
+      assert body =~ ~s|id="entity-primary-action"|
+      refute body =~ ~s|id="entity-action-why"|
+    end
+
     test "a holding that gathers nothing carries no such band", %{conn: conn, library: library} do
       track = work_of(library.songs["01 So What.flac"])
 
