@@ -260,32 +260,90 @@ defmodule Pluteus.Ingest.Registry do
   match would make a genre of "Podcast Theme Music" a podcast episode, which is the
   guess §6.2's correction surface exists to avoid needing.
 
+  A rule may instead decide on a tag being **there at all**, where carrying the field
+  is itself the statement: a file that says which album it is a track of, and which
+  track, is saying it is a track of an album. The rules are read in order, so one that
+  reads a value decides before one that reads only presence.
+
   The classes are a guard on plausibility: an audiobook is audio, so a video file
   whose genre reads `Audiobook` is not placed as one.
 
-  A miss is nil, and §6.3's class default answers.
+  A miss is nil, and nothing stands in for it: §6.3 decides a category from evidence and
+  from nothing else.
   """
   @spec category_from_tags(atom(), map()) :: String.t() | nil
   def category_from_tags(class, tags) do
     class = Atom.to_string(class)
 
     Enum.find_value(registry()["category_evidence"], fn rule ->
-      if class in rule["classes"], do: rule["values"][folded(tags[rule["tag"]])]
+      if class in rule["classes"], do: decided_by(rule, tags)
     end)
   end
+
+  defp decided_by(%{"values" => values, "tag" => tag}, tags), do: values[folded(tags[tag])]
+
+  defp decided_by(%{"present" => category, "tag" => tag}, tags),
+    do: if(stated?(tags[tag]), do: category)
+
+  defp stated?(nil), do: false
+  defp stated?(value), do: String.trim(value) != ""
 
   defp folded(nil), do: nil
   defp folded(value), do: value |> String.trim() |> String.downcase()
 
   @doc """
-  The category placement records where evidence decides nothing (spec-04 §6.3).
+  The category a companion's kind is (spec-04 §4.6).
+
+  A companion is the one holding whose category needs no evidence beyond itself: what it
+  is was decided from the file, and a cover is cover art wherever it sits.
   """
-  @spec default_category(atom(), String.t() | nil) :: String.t()
-  def default_category(:companion, companion_kind),
+  @spec companion_category(String.t()) :: String.t()
+  def companion_category(companion_kind),
     do: Map.fetch!(registry()["categories"]["companion"], companion_kind)
 
-  def default_category(class, nil),
-    do: Map.fetch!(registry()["categories"], Atom.to_string(class))
+  @doc """
+  The category a release takes (spec-04 §6.4).
+
+  A release is not a holding and has no bytes of its own: it is the work the tracks were
+  released as, which placement writes, so what it is follows from having made one.
+  """
+  @spec release_category() :: String.t()
+  def release_category, do: Map.fetch!(registry()["categories"], "release")
+
+  @doc """
+  The category a track of a release takes (spec-04 §6.4).
+
+  A track read from a cue sheet is not a file and has no evidence of its own: what it is
+  follows from the sheet, which describes a release and the tracks it was pressed with.
+  """
+  @spec track_category() :: String.t()
+  def track_category, do: Map.fetch!(registry()["categories"], "audio")
+
+  @doc """
+  The category a format alone says a holding is, or nil (spec-04 §6.3).
+
+  A format is evidence where it means one kind of thing: an EPUB is a book. It is not
+  where a format carries anything — a FLAC is a recording or a reading and the bytes do
+  not say which.
+  """
+  @spec category_from_format(String.t()) :: String.t() | nil
+  def category_from_format(format) do
+    case registry()["streamless_formats"][format] do
+      nil -> nil
+      rule -> rule["category"]
+    end
+  end
+
+  @doc """
+  The category a broad class says a holding is, or nil (spec-04 §6.3).
+
+  A class decides only where it means one kind of thing. The three that mean several —
+  video, audio and image — decide nothing, which is why a birthday, a film and an episode
+  are told apart by what is stated about them and never by what their bytes are made of.
+  """
+  @spec category_from_class(atom()) :: String.t() | nil
+  def category_from_class(class),
+    do: registry()["class_evidence"]["of_class"][Atom.to_string(class)]
 
   @doc """
   The separator a container writes between several values in one tag, or nil where the
@@ -357,10 +415,23 @@ defmodule Pluteus.Ingest.Registry do
         per_kind when is_map(per_kind) -> Map.values(per_kind)
       end)
 
-    evidence = Enum.flat_map(registry()["category_evidence"], &Map.values(&1["values"]))
+    tagged = Enum.flat_map(registry()["category_evidence"], &stated_by/1)
     filed = for {_segment, rule} <- of_segment(), do: rule["category"]
+    beside = for {_root, rule} <- of_root(), rule["category"], do: rule["category"]
+    named = for {_name, rule} <- names_members(), do: rule["category"]
 
-    (defaults ++ evidence ++ serial_categories() ++ filed) |> Enum.uniq() |> Enum.sort()
+    from_format =
+      for {_format, rule} <- registry()["streamless_formats"],
+          rule["category"],
+          do: rule["category"]
+
+    from_class = Map.values(registry()["class_evidence"]["of_class"])
+
+    (defaults ++
+       tagged ++
+       serial_categories() ++ filed ++ beside ++ named ++ from_format ++ from_class)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   @doc """
@@ -390,6 +461,12 @@ defmodule Pluteus.Ingest.Registry do
   end
 
   defp of_segment, do: registry()["path_evidence"]["of_segment"]
+  defp of_root, do: registry()["sidecar_documents"]["of_root"]
+  defp names_members, do: registry()["sidecar_documents"]["names_members"]
+
+  # A rule reads a tag's value, or reads the tag being there at all.
+  defp stated_by(%{"values" => values}), do: Map.values(values)
+  defp stated_by(%{"present" => category}), do: [category]
 
   defp filed_under(directories, media_class) do
     directories

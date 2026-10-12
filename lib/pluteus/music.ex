@@ -104,7 +104,7 @@ defmodule Pluteus.Music do
             x.work_id,
             ^Place.category_scheme(),
             ^ranks,
-            ^Registry.default_category(:release, nil)
+            ^Registry.release_category()
           ),
         where: m.id not in subquery(from p in ManifestationPart, select: p.part_id),
         where: m.id not in subquery(recycled()),
