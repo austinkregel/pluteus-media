@@ -129,6 +129,27 @@ defmodule Pluteus.Principals do
   def get_principal(id), do: Repo.get(Principal, id)
 
   @doc """
+  The person each of many principals is, where one is recorded.
+
+  A surface naming several principals — whoever marked a passage, whoever cleared a
+  finding — resolves their names in one pass rather than one lookup each. A principal
+  that is nobody is absent from the answer rather than present as nothing, since the
+  deployment itself acts as one.
+  """
+  @spec people([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => Ecto.UUID.t()}
+  def people([]), do: %{}
+
+  def people(principal_ids) do
+    Map.new(
+      Repo.all(
+        from p in Principal,
+          where: p.id in ^principal_ids and not is_nil(p.person_id),
+          select: {p.id, p.person_id}
+      )
+    )
+  end
+
+  @doc """
   The deployment's own principal, minted at onboarding (spec-06 §6.5).
   Raises before onboarding, when there is none: whatever asked has nothing to
   act as.
