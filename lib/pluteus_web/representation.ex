@@ -31,7 +31,7 @@ defmodule PluteusWeb.Representation do
   end
 
   def call(conn, _opts) do
-    case kind_of(conn.path_info) do
+    case Native.kind_at(conn.path_info) do
       nil -> conn
       kind -> forked(assign(conn, :kind, kind))
     end
@@ -46,10 +46,4 @@ defmodule PluteusWeb.Representation do
       answered -> halt(answered)
     end
   end
-
-  defp kind_of([path, _id]) do
-    Enum.find_value(Native.paths(), fn {kind, kind_path} -> kind_path == path and kind end)
-  end
-
-  defp kind_of(_not_an_entity_uri), do: nil
 end
