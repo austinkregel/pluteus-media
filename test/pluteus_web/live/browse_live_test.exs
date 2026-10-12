@@ -279,7 +279,8 @@ defmodule PluteusWeb.BrowseLiveTest do
     test "each inert axis is named with its own reason", %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/everything")
 
-      assert html =~ "gazetteer"
+      assert html =~ "None of these say where they were made."
+      assert html =~ "None of these say what language they are in."
       assert html =~ "Languages"
     end
 
@@ -294,7 +295,8 @@ defmodule PluteusWeb.BrowseLiveTest do
          %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/everything")
 
-      assert html =~ "Places: answering where a holding was made"
+      assert html =~ "Places"
+      assert html =~ "None of these say where they were made."
     end
 
     test "the place axis does not claim the household holds nothing", %{conn: conn} do
