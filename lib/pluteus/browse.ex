@@ -54,6 +54,7 @@ defmodule Pluteus.Browse do
           borne: %{Ecto.UUID.t() => Ecto.UUID.t()},
           geometry: %{Ecto.UUID.t() => Geometry.t()},
           formats: %{Ecto.UUID.t() => String.t()},
+          dates: %{Ecto.UUID.t() => String.t()},
           members: %{Ecto.UUID.t() => non_neg_integer()},
           credited: %{Ecto.UUID.t() => [String.t()]},
           covers: %{Ecto.UUID.t() => Ecto.UUID.t()},
@@ -99,6 +100,7 @@ defmodule Pluteus.Browse do
       borne: borne,
       geometry: Geometry.for_res(Map.values(borne)),
       formats: formatted(entries),
+      dates: dated(entries),
       members: membered(entries),
       credited: credited(entries, profile),
       covers: Cover.for_works(entries),
@@ -250,6 +252,21 @@ defmodule Pluteus.Browse do
         select: {w.work_id, min(a.format)}
     )
     |> Map.new(fn {id, format} -> {id, IngestRegistry.format_name(format)} end)
+  end
+
+  # When each entry was issued, as the container stated it. The earliest where a work
+  # answers for several, because a reissue states a date of its own and what a person
+  # looking at a list wants beside the name is when the thing first came out.
+  defp dated([]), do: %{}
+
+  defp dated(entries) do
+    Repo.all(
+      from d in subquery(Entries.dates()),
+        where: d.res_id in ^entries,
+        group_by: d.res_id,
+        select: {d.res_id, min(d.value)}
+    )
+    |> Map.new()
   end
 
   # How many expressions an entry aggregates: a release's tracks.
