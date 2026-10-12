@@ -188,19 +188,19 @@ defmodule PluteusWeb.Chrome do
       aria-label="Modes and the current query"
       class={[
         "hidden md:flex shrink-0 flex-col overflow-y-auto",
-        if(@collapsed, do: "w-22", else: "w-60"),
+        if(@collapsed, do: "w-16", else: "w-60"),
         "border-r-[length:var(--sys-border-width-hairline)] border-border-subtle",
         "bg-surface-raised"
       ]}
     >
+      <%!-- The deployment's name belongs to the wide rail. Collapsed, the square it
+            stood in is where the way back to the wide one lives, because a surface that
+            took the width has to hand it back from somewhere a person can see. --%>
       <div class={[
         "flex h-16 shrink-0 items-center gap-2",
-        if(@collapsed, do: "flex-col justify-center px-2 py-2", else: "px-4")
+        if(@collapsed, do: "justify-center px-2", else: "px-4")
       ]}>
-        <span class={[
-          "font-medium text-on-surface-strong",
-          if(@collapsed, do: "text-caption", else: "grow text-title-sm")
-        ]}>
+        <span :if={!@collapsed} class="grow text-title-sm font-medium text-on-surface-strong">
           Pluteus
         </span>
 
@@ -222,9 +222,9 @@ defmodule PluteusWeb.Chrome do
         </button>
       </div>
 
-      <.search :if={!@collapsed} />
+      <.search collapsed={@collapsed} />
 
-      <div class={["flex flex-col gap-0.5", if(@collapsed, do: "px-3", else: "px-3")]}>
+      <div class={["flex flex-col gap-0.5", if(@collapsed, do: "items-center px-2", else: "px-3")]}>
         <.mode
           :for={{slug, noun, glyph, what, at} <- modes()}
           slug={slug}
@@ -241,7 +241,10 @@ defmodule PluteusWeb.Chrome do
 
       <div class="grow"></div>
 
-      <div class={["flex flex-col gap-3 pb-4", if(@collapsed, do: "px-3", else: "px-4")]}>
+      <div class={[
+        "flex flex-col gap-3 pb-4",
+        if(@collapsed, do: "items-center px-2", else: "px-4")
+      ]}>
         <.findings_link findings={@findings} collapsed={@collapsed} />
         <.contexts :if={!@collapsed} contexts={@contexts} at="rail" />
         <.identity principal_name={@principal_name} collapsed={@collapsed} />
@@ -314,21 +317,38 @@ defmodule PluteusWeb.Chrome do
   attr :principal_name, :string, default: nil
   attr :collapsed, :boolean, default: false
 
+  def identity(%{collapsed: true} = assigns) do
+    ~H"""
+    <button
+      type="button"
+      disabled
+      aria-label={"Acting as #{@principal_name}. Switch principal."}
+      aria-describedby="identity-switch-why"
+      class={[
+        "min-h-target-touch min-w-target-touch flex items-center justify-center rounded-md",
+        "bg-surface-overlay px-1 text-caption font-medium text-on-surface-strong",
+        "disabled:opacity-100"
+      ]}
+    >
+      <span :if={@principal_name} class="truncate" id="identity-principal">
+        {@principal_name}
+      </span>
+      <.icon :if={!@principal_name} name="hero-user-mini" />
+      <p id="identity-switch-why" class="sr-only">
+        Switching goes through the identity provider, and this deployment has no route to it.
+      </p>
+    </button>
+    """
+  end
+
   def identity(assigns) do
     ~H"""
     <div class={[
-      "flex gap-3 pt-4",
-      if(@collapsed, do: "flex-col items-center", else: "items-center"),
+      "flex items-center gap-3 pt-4",
       "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle"
     ]}>
-      <span
-        id="identity-principal"
-        class={[
-          "truncate text-on-surface-strong",
-          if(@collapsed, do: "max-w-full text-caption", else: "grow text-body-md")
-        ]}
-      >
-        {if @collapsed, do: @principal_name, else: "Acting as #{@principal_name}"}
+      <span id="identity-principal" class="grow truncate text-body-md text-on-surface-strong">
+        Acting as {@principal_name}
       </span>
       <button
         type="button"
@@ -351,6 +371,34 @@ defmodule PluteusWeb.Chrome do
 
   # §9.5 makes search its own surface, and none exists, so the field is disabled and says
   # so rather than reaching a browse results page, which criterion 52 forbids it sharing.
+  # Collapsed, the field is the control it opens with: a surface that took the width still
+  # has to carry every entry point the wide rail does, and one that disappeared with the
+  # width would be reachable on a gateway and nowhere else.
+  attr :collapsed, :boolean, default: false
+
+  defp search(%{collapsed: true} = assigns) do
+    ~H"""
+    <div class="flex justify-center px-2 pb-4">
+      <button
+        type="button"
+        disabled
+        aria-label="Search every name a thing carries"
+        aria-describedby="rail-search-why"
+        class={[
+          "min-h-target-touch min-w-target-touch flex items-center justify-center rounded-md",
+          "border-[length:var(--sys-border-width-component)] border-border-strong",
+          "bg-surface-base text-on-surface-muted disabled:opacity-100"
+        ]}
+      >
+        <.icon name="hero-magnifying-glass-mini" />
+      </button>
+      <p id="rail-search-why" class="sr-only">
+        Search has a surface of its own, and this deployment serves none.
+      </p>
+    </div>
+    """
+  end
+
   defp search(assigns) do
     ~H"""
     <div class="px-4 pb-4">
@@ -457,13 +505,28 @@ defmodule PluteusWeb.Chrome do
       navigate={~p"/findings"}
       title={@collapsed && "#{@findings} #{findings_said(@findings)}"}
       class={[
-        "min-h-target-touch flex items-center rounded-md",
+        "relative min-h-target-touch flex items-center rounded-md",
         "text-body-md text-on-surface-strong",
         "hover:bg-fill-subtle-strong",
-        if(@collapsed, do: "w-16 justify-center", else: "gap-3 px-3")
+        if(@collapsed, do: "min-w-target-touch justify-center", else: "gap-3 px-3")
       ]}
     >
       <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
+
+      <%!-- Collapsed, the number is carried on the glyph rather than beside it: how many
+            there are is the thing that decides whether a person goes and looks, and a
+            count only a pointer can reveal is a count nobody reads. --%>
+      <span
+        :if={@collapsed && @findings > 0}
+        aria-hidden="true"
+        class={[
+          "absolute right-0 top-0 min-w-6 rounded-full px-1 text-center",
+          "bg-status-warning text-caption font-medium text-on-status-warning"
+        ]}
+      >
+        {@findings}
+      </span>
+
       <span class={@collapsed && "sr-only"}>{@findings} {findings_said(@findings)}</span>
     </.link>
     """
