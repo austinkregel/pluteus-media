@@ -28,6 +28,7 @@ defmodule Pluteus.Presentation do
   alias Pluteus.Presentation.Waveform
   alias Pluteus.Repo
   alias Pluteus.Storage
+  alias Pluteus.Workers.GeneratePresentationAsset
 
   @doc """
   The artefact for one subject and profile, or nil.
@@ -38,6 +39,26 @@ defmodule Pluteus.Presentation do
   @spec get(Ecto.UUID.t(), String.t(), non_neg_integer()) :: Asset.t() | nil
   def get(subject_id, profile, ordinal \\ 0) do
     Repo.get_by(Asset, subject_id: subject_id, profile: profile, ordinal: ordinal)
+  end
+
+  @doc """
+  Asks for one artefact to be made, where there are bytes to make it from.
+
+  Queued rather than made here: a surface cannot wait on an encode, and the job's
+  uniqueness is what keeps two people opening one holding from making it twice. A
+  subject with nothing to generate from queues nothing, which is the same answer the
+  wire gives in that situation (§11.6).
+  """
+  @spec ask(Ecto.UUID.t(), String.t()) :: :queued | :nothing_to_generate
+  def ask(subject_id, profile) do
+    case source_for(subject_id) do
+      nil ->
+        :nothing_to_generate
+
+      _source ->
+        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, profile)
+        :queued
+    end
   end
 
   @doc """
