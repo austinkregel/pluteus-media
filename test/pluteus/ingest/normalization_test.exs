@@ -287,6 +287,27 @@ defmodule Pluteus.Ingest.NormalizationTest do
       assert Normalize.normalize_due(standard(@eight_bit)) == []
     end
 
+    # A finding that names no digital item is about something else — a derivative that
+    # could not be made is recorded against the subject it was for — so it blocks
+    # nothing. One of them in the same stage would otherwise put a NULL inside the
+    # `NOT IN` that excludes blocked items, which is NULL for every row: the stage would
+    # do nothing at all for the whole household and say nothing about it.
+    test "a finding naming no digital item blocks nobody", %{inbox: inbox} do
+      [track] = ingest!(inbox, %{"a.flac" => media!(:flac)})
+
+      Ingest.record_finding(%{
+        stage: :normalize,
+        kind: "derivative_not_generated",
+        permanent: false,
+        detail: %{},
+        input_id: track.id,
+        recorded_at: DateTime.utc_now()
+      })
+
+      assert [{digital_item_id, :adopted}] = Normalize.normalize_due()
+      assert digital_item_id == track.digital_item_id
+    end
+
     test "clearing the finding makes the holding due again", %{inbox: inbox, actor: actor} do
       ingest!(inbox, %{"a.flac" => media!(:flac)})
       Normalize.normalize_due(standard(@eight_bit))
