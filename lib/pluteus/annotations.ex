@@ -152,14 +152,27 @@ defmodule Pluteus.Annotations do
   @doc """
   The current derived body of one type on each of many targets, keyed by
   target. A target with none is absent.
+
+  Which derivation is current is decided among the runs over the same inputs as
+  the targets asked about, rather than among every run the deployment has ever
+  recorded. The answer is the same either way — a run over other bytes could
+  never supersede one of these — and the difference is what it costs: deciding
+  it over the whole table reads and orders every derivation held, on a page that
+  asked about the sixty rows it is drawing.
   """
   @spec current_bodies([Ecto.UUID.t()], String.t()) :: %{Ecto.UUID.t() => map()}
+  def current_bodies([], _body_type), do: %{}
+
   def current_bodies(target_ids, body_type) do
+    asked = from a in Annotation, where: a.target_id in ^target_ids and a.body_type == ^body_type
+
+    inputs =
+      from d in Derivation, where: d.id in subquery(from(a in asked, select: a.derivation_id))
+
     Map.new(
       Repo.all(
-        from a in Annotation,
-          where: a.target_id in ^target_ids and a.body_type == ^body_type,
-          where: a.derivation_id in subquery(current_derivations()),
+        from a in asked,
+          where: a.derivation_id in subquery(current_derivations(inputs)),
           order_by: a.id,
           select: {a.target_id, a.body}
       )
@@ -316,6 +329,14 @@ defmodule Pluteus.Annotations do
       distinct: [t.tool, d.input_id],
       order_by: [desc: t.sequence, desc: d.derived_at, desc: d.id],
       select: d.id
+  end
+
+  # The same, decided only among the runs over the inputs some given derivations read.
+  # A run supersedes another by tool and input, so narrowing to those inputs cannot
+  # change which run wins — it changes how many rows have to be ordered to find out.
+  defp current_derivations(among) do
+    from d in current_derivations(),
+      where: d.input_id in subquery(from(a in among, select: a.input_id))
   end
 
   # Validated before the lookup, so a missing version is refused as input
