@@ -35,6 +35,18 @@ defmodule PluteusWeb.TransportLive do
     Phoenix.PubSub.broadcast(Pluteus.PubSub, topic(principal_id), :queue_moved)
   end
 
+  @doc """
+  Tells this principal's player to go to a position in what it is carrying.
+
+  A person pressing a chapter is asking to be taken there, which is not the same act as
+  a session reporting where it has reached: §13.2's thresholds are about what a report
+  may move, and nothing here is a report.
+  """
+  @spec seek(Ecto.UUID.t(), non_neg_integer()) :: :ok
+  def seek(principal_id, position_ms) do
+    Phoenix.PubSub.broadcast(Pluteus.PubSub, topic(principal_id), {:seek, position_ms})
+  end
+
   @impl Phoenix.LiveView
   def mount(_params, session, socket) do
     profile = %Profile{language: session["language"], assigner_id: session["assigner_id"]}
@@ -157,6 +169,18 @@ defmodule PluteusWeb.TransportLive do
   @impl Phoenix.LiveView
   def handle_info(:queue_moved, socket) do
     {:noreply, socket |> assign(:playing?, true) |> showing()}
+  end
+
+  # The element is where the position is, so this moves the position the element is told
+  # to be at and the hook takes it there. Nothing is carried, so there is nowhere to go.
+  def handle_info({:seek, _position_ms}, %{assigns: %{showing: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_info({:seek, position_ms}, socket) do
+    {:noreply,
+     socket
+     |> assign(:playing?, true)
+     |> assign(:showing, %{socket.assigns.showing | position_ms: position_ms})}
   end
 
   def handle_info(:offer_tick, %{assigns: %{offering: nil}} = socket), do: {:noreply, socket}
