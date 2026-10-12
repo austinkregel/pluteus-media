@@ -288,9 +288,8 @@ defmodule Pluteus.Presentation.Text do
   end
 
   defp publication_positions(held) do
-    with {:ok, divisions} <- Publication.divisions(held) do
-      {:ok, index(Enum.map(divisions, &normalise/1), "epub")}
-    else
+    case Publication.divisions(held) do
+      {:ok, divisions} -> {:ok, index(Enum.map(divisions, &normalise/1), "epub")}
       {:error, _refusal} -> from_publication(held)
     end
   end
