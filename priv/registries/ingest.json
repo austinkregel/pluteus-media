@@ -286,6 +286,34 @@
     ],
     "byte_ceiling": 1048576
   },
+  "sidecar_documents": {
+    "for": "What a metadata document beside a holding states (spec-04 §6.3, which names a companion `.nfo` among the evidence a category is decided from). A media manager writes one per release, per series and per episode, and for a great deal of what a household holds it is the only thing that says what the file is: a television rip states nothing in its own container — no title, no show, no number.\n\nThe root element says what the document is about, which is how §4.6 already tells a media manager's `.nfo` from a release's notes. A root this table does not name states nothing rather than being read as whatever it resembles.\n\n`describes` says what the document is about. `holding` is the file itself, so its category is the holding's; `whole` is what the file belongs to, so an album document dates the release and never makes a track an album. A document's fields are read under the names it writes them, and the lists elsewhere in this registry — what names a serial, what numbers an issue, what dates an edition — name those alongside a container's own tag names, because §6.3 weighs the two alike.",
+    "of_root": {
+      "episodedetails": { "describes": "holding", "category": "television_episode" },
+      "details": { "describes": "holding", "category": "television_episode" },
+      "movie": { "describes": "holding", "category": "film" },
+      "song": { "describes": "holding", "category": "music_recording" },
+      "comicinfo": { "describes": "holding", "category": "comic_issue" },
+      "metroninfo": { "describes": "holding", "category": "comic_issue" },
+      "tvshow": { "describes": "whole" },
+      "album": { "describes": "whole" },
+      "artist": { "describes": "whole" }
+    },
+    "names_members": {
+      ".plexmatch": {
+        "category": "television_episode",
+        "fields_as": {
+          "title": "showtitle",
+          "year": "year",
+          "tvdbid": "tvdbid",
+          "imdbid": "imdbid"
+        },
+        "for": "A match file names a show and says which of its episodes each file under it is, by path. It therefore speaks for every directory beneath its own, which no other document does, and it is the only evidence many a rip has: the container states no title, no show and no number.\n\nIts own fields are the show's, so they are read under the names the rest of this registry uses for a whole — a match file's `Title` is the show's title and never the episode's, which is why it is not read as one."
+      }
+    },
+    "byte_ceiling": 1048576
+  },
+
   "renderable_entries": {
     "for": "What an archive may hold and still be a package. A page image, or a document a reader can open. An entry outside this makes the archive unclassifiable and names itself in the finding, so a ZIP holding an installer or a game's assets is not a holding this deployment knows how to be wrong about. A ZIP of holiday photographs is renderable throughout and does become a comic issue, which a member corrects.",
     "extensions": [
@@ -491,6 +519,7 @@
       "date",
       "premiered",
       "aired",
+      "firstaired",
       "releasedate",
       "year"
     ]
@@ -523,37 +552,42 @@
         "category": "television_series",
         "named_by": [
           "show",
+          "showtitle",
+          "series_name",
           "album"
         ],
         "numbered_by": [
           "episode_id",
           "episode",
+          "episode_number",
           "track"
-        ]
+        ],
+        "seasoned_by": [
+          "season",
+          "season_number"
+        ],
+        "episodes_per_season": 1000
       }
     }
   },
 
   "path_evidence": {
-    "for": "What a household states by where it filed a holding (spec-04 §6.3, which names the inbox path among the evidence a category is decided from). A segment of the path is matched whole and case-folded against this table, so a directory called TV decides and one called TV Rips Old does not; a holding whose own tags state a category is left alone, because a file's statement about itself outranks where somebody filed it.\n\nA rule names the broad classes it may decide for, as a tag rule does: a cover sitting in the same directory as an episode is an image and not an episode, and a rule that read the directory alone would make it one.\n\nWhere the rule names a serial, the segment that many places further along the path names it: a show is the directory its seasons sit in. The number comes from the start of the file's own name and nowhere else, and a name the pattern does not match leaves the holding unnumbered rather than numbered by a guess — a serial is ordered where it says it is, and two episodes stating no number are two parts of it all the same (§6.9).\n\nSeed data, because where a household files things is the household's own convention and §6.2's correction is what makes a wrong reading of it recoverable.",
+    "for": "What a household states by where it filed a holding (spec-04 §6.3, which names the inbox path among the evidence a category is decided from). A segment of the path is matched whole and case-folded against this table, so a directory called TV decides and one called TV Rips Old does not; a holding whose own tags state a category is left alone, because a file's statement about itself outranks where somebody filed it.\n\nA rule names the broad classes it may decide for, as a tag rule does: a cover sitting in the same directory as an episode is an image and not an episode, and a rule that read the directory alone would make it one.\n\nWhere the rule names a serial, the segment that many places further along the path names it: a show is the directory its seasons sit in.\n\nA path numbers nothing. A file name beginning with digits is not a season and an episode, and reading one as the other orders a series by a convention nobody stated: within one show, episodes a match file numbers by season and episode would then sort against episodes numbered from their file names. An episode nothing numbers joins its series unnumbered, which §6.9 already admits — a serial is ordered where it says it is.\n\nSeed data, because where a household files things is the household's own convention and §6.2's correction is what makes a wrong reading of it recoverable.",
     "of_segment": {
       "tv": {
         "category": "television_episode",
         "classes": ["video"],
-        "serial_named_by_segment": 1,
-        "numbered_by": "^(\\d+)"
+        "serial_named_by_segment": 1
       },
       "television": {
         "category": "television_episode",
         "classes": ["video"],
-        "serial_named_by_segment": 1,
-        "numbered_by": "^(\\d+)"
+        "serial_named_by_segment": 1
       },
       "shows": {
         "category": "television_episode",
         "classes": ["video"],
-        "serial_named_by_segment": 1,
-        "numbered_by": "^(\\d+)"
+        "serial_named_by_segment": 1
       },
       "movies": {
         "category": "film",
