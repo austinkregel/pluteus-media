@@ -86,6 +86,7 @@ defmodule PluteusWeb.Surfaces.Medium do
   attr :medium, :string, required: true
   attr :extent, :any, required: true
   attr :marks, :list, default: []
+  attr :trickplay, :any, default: nil
 
   def controls(assigns) do
     assigns = assign(assigns, :steps, Surfaces.seek_granularity("millisecond"))
@@ -126,6 +127,29 @@ defmodule PluteusWeb.Surfaces.Medium do
             aria-hidden="true"
             class="pointer-events-none absolute top-0 h-6 w-0.5 bg-border-strong"
             style={"left: #{at}%"}
+          >
+          </span>
+
+          <%!-- §11.3's frames. Hidden until the slider is moved and never in the
+                accessible tree: it is the picture a person is already looking at,
+                shown at a position they have not committed to, and the position
+                itself is what the slider announces. --%>
+          <span
+            :if={@trickplay}
+            id="player-trickplay"
+            aria-hidden="true"
+            hidden
+            data-at={@trickplay.at}
+            data-interval={@trickplay.interval}
+            data-columns={@trickplay.columns}
+            data-frames={@trickplay.frames}
+            data-frame-width={@trickplay.frame_width}
+            data-frame-height={@trickplay.frame_height}
+            class={[
+              "pointer-events-none absolute bottom-8 overflow-hidden rounded-md",
+              "border-[length:var(--sys-border-width-component)] border-border-strong",
+              "bg-surface-base bg-no-repeat"
+            ]}
           >
           </span>
         </div>
