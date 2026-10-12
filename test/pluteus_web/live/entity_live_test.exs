@@ -32,6 +32,48 @@ defmodule PluteusWeb.EntityLiveTest do
     }
   end
 
+  describe "§9.1. The kind a page answers for is fixed by its address" do
+    # A live session's session is built once, by the request that establishes the socket,
+    # and a navigation to another surface mounts from that same map. So a page taking its
+    # kind from the session answers for whatever page the socket was opened on — and the
+    # modes open sockets and have no kind. Asserted as a property of the session rather
+    # than by navigating, because the harness re-establishes a connection on a live
+    # redirect and so rebuilds the map that the browser keeps.
+    test "the session a surface mounts from carries nothing belonging to one address",
+         %{conn: conn, album: album} do
+      rendered = as_a_person(conn, ~p"/works/#{album}")
+      session = PluteusWeb.Interface.session(rendered)
+
+      assert Map.keys(session) |> Enum.sort() ==
+               ~w(assigner_id contexts device_id device_revoked language principal_id)
+
+      refute Map.has_key?(session, "kind")
+    end
+
+    test "every path the registry names answers with its own kind" do
+      for {kind, path} <- Native.paths() do
+        assert Native.kind_at([path, "an-identifier"]) == kind
+      end
+    end
+
+    test "a path the registry does not name answers with no kind" do
+      assert Native.kind_at(["nothing-is-served-here", "an-identifier"]) == nil
+      assert Native.kind_at(["works"]) == nil
+      assert Native.kind_at([]) == nil
+    end
+
+    test "a kind is never rebuilt from a string the request carried" do
+      # An atom built from a string exists only where something has already built it, so
+      # the answer would depend on what the virtual machine has loaded rather than on the
+      # vocabulary — which is a page that works until the module holding that literal
+      # happens not to be loaded first.
+      source = File.read!("lib/pluteus_web/live/entity_live.ex")
+
+      refute source =~ "to_existing_atom",
+             "the page builds an atom from a string; read the kind from the registry"
+    end
+  end
+
   describe "§9.1, §10.1. A work answers with the interface where one is asked for" do
     test "an album renders, named and said to be what it is", %{conn: conn, album: album} do
       rendered = as_a_person(conn, ~p"/works/#{album}")
