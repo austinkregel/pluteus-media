@@ -151,6 +151,11 @@ defmodule PluteusWeb.Router do
       for {kind, path} <- PluteusWeb.Native.paths(), PluteusWeb.Native.negotiates?(kind) do
         live "/#{path}/:id", EntityLive, :show
       end
+
+      # §16.1 puts this on every surface, so it is reached from the chrome without the
+      # page being torn down. spec-07 §4.1 makes it a resource too, which the pipeline
+      # answers before this route is reached.
+      live "/findings", FindingsLive, :index
     end
   end
 
@@ -201,7 +206,9 @@ defmodule PluteusWeb.Router do
     # principal reaches its own consumption through its own surfaces.
     get "/platform-events", PlatformEventController, :index
 
-    get "/findings", FindingController, :index
+    # The index is both a resource and §16.1's surface, so it shares one address the way
+    # an entity URI does and the pipeline answers the representation. One finding is a
+    # resource and nothing else, so it keeps its own route.
     get "/findings/:id", FindingController, :show
     post "/findings/:id/clearing", WriteController, :clear_finding
 
