@@ -428,7 +428,9 @@
     },
     "fmt/483": {
       "class": "text",
-      "essence": "not_applicable"
+      "essence": "not_applicable",
+      "category": "ebook",
+      "for": "an EPUB, which is a book rather than a document: the one text format that says which of the two it is"
     },
     "fmt/1069": {
       "class": "text",
@@ -596,6 +598,50 @@
       "films": {
         "category": "film",
         "classes": ["video"]
+      },
+      "home video": {
+        "category": "home_video",
+        "classes": ["video"]
+      },
+      "home videos": {
+        "category": "home_video",
+        "classes": ["video"]
+      },
+      "photos": {
+        "category": "photograph",
+        "classes": ["image"]
+      },
+      "pictures": {
+        "category": "photograph",
+        "classes": ["image"]
+      },
+      "images": {
+        "category": "photograph",
+        "classes": ["image"]
+      },
+      "scans": {
+        "category": "scan",
+        "classes": ["image"]
+      },
+      "music": {
+        "category": "music_recording",
+        "classes": ["audio"]
+      },
+      "audiobooks": {
+        "category": "audiobook",
+        "classes": ["audio"]
+      },
+      "podcasts": {
+        "category": "podcast_episode",
+        "classes": ["audio"]
+      },
+      "books": {
+        "category": "ebook",
+        "classes": ["text"]
+      },
+      "ebooks": {
+        "category": "ebook",
+        "classes": ["text"]
       }
     }
   },
@@ -666,8 +712,29 @@
         "podcast": "podcast_episode"
       },
       "for": "the genre a distributor set and a tagger wrote. Matched whole and case-folded, so 'Audiobook' decides and 'Audiobooks & Spoken Word' does not"
+    },
+    {
+      "tag": "album",
+      "classes": ["audio"],
+      "present": "music_recording",
+      "for": "a file saying which album it is a track of is saying that it is a track of an album. Read after the rules above, so a reading that states its genre and the book it belongs to is still a reading"
+    },
+    {
+      "tag": "track",
+      "classes": ["audio"],
+      "present": "music_recording",
+      "for": "and a file saying which track of one it is, likewise. Both are read, because a single released recording carries one of them and not always the other"
     }
   ],
+
+  "class_evidence": {
+    "for": "A broad class decides a category only where the class means one kind of thing (spec-04 §6.3). Software is produced by a cartridge dump or a disc image and nothing else; a package by an archive whose every entry is a page a reader could open, which identification corroborated before taking the class at all; and text, once an ebook's own format is told from it, is a document.\n\nThe three classes absent here are the three that mean several things. `video` covers a film, an episode of a series and a video of a birthday; `audio` covers a recording, a reading and an episode of a podcast; `image` covers a photograph and a scan. The bytes cannot say which, so nothing here says: what tells them apart is what is stated about the holding, and a file nothing states anything about is one the household still has to deal with.",
+    "of_class": {
+      "software": "video_game",
+      "package": "comic_issue",
+      "text": "document"
+    }
+  },
   "byte_signatures": [
     {
       "format": "ines",
