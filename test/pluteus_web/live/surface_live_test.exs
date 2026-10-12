@@ -286,7 +286,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
       {:ok, _live, html} = live(conn, ~p"/works/#{letter}/read")
 
       assert html =~ ~s|id="reader-absence"|
-      assert html =~ "not held"
+      assert html =~ "No text is held for this."
       refute html =~ ~s|id="reader-position"|
     end
   end
