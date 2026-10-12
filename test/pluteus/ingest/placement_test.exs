@@ -227,6 +227,112 @@ defmodule Pluteus.Ingest.PlacementTest do
     end
   end
 
+  describe "the category from where a household filed a holding (§6.3)" do
+    test "a video filed under television is an episode and not a home video",
+         %{inbox: inbox} do
+      # The class default for video is a home video, and a rip states nothing about
+      # itself: the directory is the household saying what it is.
+      placed = ingest!(inbox, %{"TV/Pinwheel/Season 01/101 - Pilot.mkv" => media!(:film)})
+
+      assert categories(placed) == %{
+               "TV/Pinwheel/Season 01/101 - Pilot.mkv" => "television_episode"
+             }
+    end
+
+    test "the segment is matched whole and case-folded, never as a substring",
+         %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{
+          "tv/Pinwheel/101 - Pilot.mkv" => media!(:film),
+          "TV Rips/Pinwheel/101 - Pilot.mkv" => media!(:film)
+        })
+
+      assert categories(placed) == %{
+               "tv/Pinwheel/101 - Pilot.mkv" => "television_episode",
+               "TV Rips/Pinwheel/101 - Pilot.mkv" => "home_video"
+             }
+    end
+
+    test "a rule decides only for the broad classes it names", %{inbox: inbox} do
+      # A still sitting beside the episodes is an image. A rule that read the directory
+      # alone would make it an episode of the series.
+      placed = ingest!(inbox, %{"TV/Pinwheel/the cast.png" => media!(:png)})
+
+      assert categories(placed) == %{"TV/Pinwheel/the cast.png" => "photograph"}
+    end
+
+    test "what a file states about itself outranks where it was filed", %{inbox: inbox} do
+      placed =
+        ingest!(inbox, %{"TV/Ologies/12.flac" => media!(:flac, tags: %{"genre" => "Podcast"})})
+
+      assert categories(placed) == %{"TV/Ologies/12.flac" => "podcast_episode"}
+    end
+
+    test "a path naming nothing the registry holds states nothing" do
+      assert Registry.path_evidence("holiday/IMG_0001.jpg", :image) == nil
+      assert Registry.path_evidence("TV/Pinwheel/101 - Pilot.mkv", :audio) == nil
+
+      assert %{category: "television_episode", serial_name: "Pinwheel", position: 101} =
+               Registry.path_evidence("TV/Pinwheel/Season 01/101 - Pilot.mkv", :video)
+    end
+  end
+
+  describe "§6.9. An episode is a work positioned within the series the path names" do
+    defp an_episode(inbox, show, file_name) do
+      prefix = unique_prefix()
+
+      [episode] = ingest!(inbox, %{"#{prefix}/TV/#{show}/#{file_name}" => media!(:film)})
+
+      episode
+    end
+
+    test "the directory above the seasons names the series", %{inbox: inbox} do
+      episode = an_episode(inbox, "Pinwheel", "Season 01/101 - Pilot.mkv")
+      series = series_of(episode)
+
+      assert Catalog.category_of(series, Place.category_scheme()) == "television_series"
+      assert names(series) == ["Pinwheel"]
+      assert [%{position: 101}] = Catalog.parts_of(serial_manifestation(episode))
+    end
+
+    test "two episodes of one show find one series", %{inbox: inbox} do
+      first = an_episode(inbox, "Pinwheel", "Season 01/101 - Pilot.mkv")
+      second = an_episode(inbox, "Pinwheel", "Season 01/102 - Square Peg.mkv")
+
+      assert series_of(first) == series_of(second)
+      assert [%{position: 101}, %{position: 102}] = Catalog.parts_of(serial_manifestation(first))
+    end
+
+    # A serial is ordered where it says it is, and an episode whose name begins with no
+    # number is a part of the show all the same.
+    test "an episode the name does not number joins the series unnumbered", %{inbox: inbox} do
+      episode = an_episode(inbox, "Overlord", "Specials/[Group] Overlord - S01SP01.mkv")
+
+      assert [%{position: nil}] = Catalog.parts_of(serial_manifestation(episode))
+    end
+
+    test "an episode whose number the series holds is a finding", %{inbox: inbox} do
+      an_episode(inbox, "Pinwheel", "Season 01/101 - Pilot.mkv")
+
+      prefix = unique_prefix()
+      drop!(inbox, "#{prefix}/TV/Pinwheel/Season 01/101 - Pilot.mkv", media!(:film))
+      [id] = inbox |> acquire_settled!(@t0) |> acquired()
+      Place.place_due(inbox)
+
+      assert [%{kind: "position_taken", detail: %{"position" => 101}}] =
+               Ingest.findings_for_acquisition(id)
+    end
+
+    test "a video filed under no series is placed on its own", %{inbox: inbox} do
+      prefix = unique_prefix()
+
+      [video] = ingest!(inbox, %{"#{prefix}/birthday.mkv" => media!(:film)})
+
+      assert Catalog.inspirations_of(work_of(video)) == []
+      assert Catalog.wholes_of(manifestation_of(video)) == []
+    end
+  end
+
   describe "placement records how much of the holding there is (spec-01 §8.4)" do
     test "a sounding holding carries its duration on the manifestation", %{inbox: inbox} do
       [track] =
