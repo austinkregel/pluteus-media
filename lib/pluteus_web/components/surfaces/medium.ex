@@ -40,13 +40,28 @@ defmodule PluteusWeb.Surfaces.Medium do
       </button>
 
       <div class="flex min-w-0 flex-col">
-        <span class="flex items-center gap-2 text-body-sm text-on-surface-muted">
-          <.icon name={Surfaces.category_icon(@category).glyph} class={hue(@category)} />
-          {Surfaces.category_icon(@category).name}
-        </span>
+        <.kind category={@category} />
         <h1 class="truncate text-title-lg font-medium text-on-surface-strong">{@name}</h1>
       </div>
     </header>
+    """
+  end
+
+  @doc """
+  What kind of holding this is, in the household's word for it and under its own glyph.
+
+  The glyph carries the category and the colour the broad class, which is the division
+  §20 draws: twelve categories over five hues, because a hue groups and a glyph
+  identifies.
+  """
+  attr :category, :string, required: true
+
+  def kind(assigns) do
+    ~H"""
+    <span class="flex items-center gap-2 text-body-sm text-on-surface-muted">
+      <.icon name={Surfaces.category_icon(@category).glyph} class={hue(@category)} />
+      {Surfaces.category_icon(@category).name}
+    </span>
     """
   end
 
