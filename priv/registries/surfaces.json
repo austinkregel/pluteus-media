@@ -284,7 +284,7 @@
       "album": { "glyph": "music-recording", "class": "audio", "name": "Music", "members": "tracks" },
       "audiobook": { "glyph": "audiobook", "class": "audio", "name": "Audiobooks" },
       "podcast_episode": { "glyph": "hero-microphone", "class": "audio", "name": "Episodes" },
-      "podcast": { "glyph": "hero-rectangle-stack", "class": "audio", "name": "Podcasts" },
+      "podcast": { "glyph": "hero-rectangle-stack", "class": "audio", "name": "Podcasts", "members": "episodes" },
       "film": { "glyph": "hero-film", "class": "video", "name": "Films" },
       "television_episode": { "glyph": "hero-tv", "class": "video", "name": "Television" },
       "television_series": { "glyph": "hero-rectangle-stack", "class": "video", "name": "Series", "members": "episodes" },
@@ -294,7 +294,7 @@
       "document": { "glyph": "hero-document-text", "class": "text", "name": "Documents" },
       "ebook": { "glyph": "hero-book-open", "class": "text", "name": "Ebooks" },
       "comic_issue": { "glyph": "comic-issue", "class": "package", "name": "Comics" },
-      "comic_series": { "glyph": "hero-rectangle-stack", "class": "package", "name": "Comic series" },
+      "comic_series": { "glyph": "hero-rectangle-stack", "class": "package", "name": "Comic series", "members": "issues" },
       "video_game": { "glyph": "video-game", "class": "software", "name": "Games" }
     }
   },
