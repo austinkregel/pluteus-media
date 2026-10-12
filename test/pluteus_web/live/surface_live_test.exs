@@ -17,7 +17,9 @@ defmodule PluteusWeb.SurfaceLiveTest do
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
+  alias Pluteus.Paging
   alias Pluteus.Presentation.Generate
+  alias Pluteus.Presentation.Geometry
   alias Pluteus.Presentation.Registry
   alias Pluteus.Principals
   alias Pluteus.Reading
@@ -403,6 +405,139 @@ defmodule PluteusWeb.SurfaceLiveTest do
     end
   end
 
+  describe "§12.1, §12.3. A container of pages is read one page at a time" do
+    test "the position runs over the pages placement counted, not the pages made",
+         %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 3)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{comic}/read")
+
+      assert html =~ "Page 1 of 3"
+      assert has_element?(live, "#page-position")
+    end
+
+    test "turning the page moves the position", %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 3)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{comic}/read")
+
+      live |> element(~s|#page-position button[phx-value-to="1"]|) |> render_click()
+
+      assert has_element?(live, "#page-position", "Page 2 of 3")
+    end
+
+    # A page past the end is the end, as a position past the end of a publication is.
+    test "a page outside the issue is clamped to it", %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 3)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{comic}/read")
+
+      live |> element("#page-at") |> render_change(%{"to" => "40"})
+
+      assert has_element?(live, "#page-position", "Page 3 of 3")
+    end
+
+    # Nothing counted the pages, so §12.3 has nowhere to put a position: the slider would
+    # run over a figure this deployment made up.
+    test "a holding whose pages nothing counted has no page to turn to", %{conn: conn} do
+      issue = named("An issue", "comic_issue")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{issue}/read")
+
+      assert html =~ ~s|id="page-absence"|
+      assert html =~ "Nothing has counted the pages of this"
+      refute html =~ ~s|id="page-position"|
+    end
+  end
+
+  describe "§11.2, §11.6. A page absent is a state, inside the box kept for it" do
+    test "a page nothing has made yet says so, and the box is the category's ratio",
+         %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 2)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{comic}/read")
+
+      assert html =~ ~s|id="page-absent"|
+      assert html =~ "This page is being made."
+      assert html =~ "aspect-ratio: 0.6471"
+      assert html =~ "Page 1 of 2"
+    end
+
+    # The widths of one page are not the shape of the holding: an archive has no one
+    # shape, so what reserves the box is what the page itself was measured at.
+    test "a page that has been made is shown at its own shape, at every width held",
+         %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 2)
+      subject = manifestation_of(comic)
+
+      {:ok, made} = Generate.run(subject, "image-160", 0)
+      on_exit(fn -> Storage.delete(made.location) end)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{comic}/read")
+
+      assert html =~ ~s|id="page-image"|
+      assert html =~ "presentation/image-160/0 #{made.width}w"
+      assert html =~ "aspect-ratio: #{Geometry.ratio(made.width, made.height)}"
+      refute html =~ "aspect-ratio: 0.6471"
+    end
+
+    # The page arrives on its own: the surface asked for it, looked again and drew it,
+    # because an image element has no way to ask a second time for itself.
+    test "a page made while the surface is open is drawn when it arrives",
+         %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 2)
+
+      {:ok, live, html} = live(conn, ~p"/works/#{comic}/read")
+
+      assert html =~ "This page is being made."
+
+      {:ok, made} = Generate.run(manifestation_of(comic), "image-160", 0)
+      on_exit(fn -> Storage.delete(made.location) end)
+
+      send(live.pid, :page_again)
+
+      assert render(live) =~ ~s|id="page-image"|
+    end
+
+    # A page offered at a width that is not there would draw nothing where a browser
+    # chose it, so the set a browser chooses from is the set that is held.
+    test "a width nothing has made is not offered", %{conn: conn, inbox: inbox} do
+      comic = a_comic(inbox, 2)
+
+      {:ok, made} = Generate.run(manifestation_of(comic), "image-160", 0)
+      on_exit(fn -> Storage.delete(made.location) end)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{comic}/read")
+
+      refute html =~ "presentation/image-2048/0"
+    end
+
+    # §5.2 distinguishes a page nobody has made from one a tool tried and could not, and
+    # the second is not asked for again: the same entry at the same version answers the
+    # same way, and the finding is what a person clears to say try once more.
+    test "a page a tool could not read says so, and is not asked for again",
+         %{conn: conn, inbox: inbox} do
+      comic =
+        a_comic(inbox, [
+          {"page-1.png", comic_page(1)},
+          {"page-2.png", "this is not a picture"}
+        ])
+
+      subject = manifestation_of(comic)
+
+      assert {:error, "derivative_not_generated", _detail} = Generate.run(subject, "image-160", 1)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{comic}/read")
+
+      live |> element(~s|#page-position button[phx-value-to="1"]|) |> render_click()
+      html = render(live)
+
+      assert html =~ "This page could not be read from the file."
+      assert html =~ "Page 2 of 2"
+      assert Paging.ask(subject, 1) == :attempted_failed
+    end
+  end
+
   describe "A.3.6, §14.5. How a person is read to is theirs alone" do
     test "a setting pressed is kept, and nobody else is set by it",
          %{conn: conn, inbox: inbox} do
@@ -542,6 +677,24 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
   defp a_moving_picture(inbox) do
     drop!(inbox, "#{unique_prefix()}/birthday.mkv", media!(:ffv1, duration: 11))
+
+    [id] = inbox |> acquire_settled!(@t0) |> acquired()
+    place_all!(inbox)
+    Normalize.normalize_due(fn _class -> nil end)
+
+    id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
+  end
+
+  # A comic archive placed and normalized, so the page reader meets a holding whose pages
+  # placement counted from the archive's own entries and whose master a page can be
+  # extracted from. Entries may be given outright, so a caller can put something in the
+  # archive that an encoder cannot read.
+  defp a_comic(inbox, pages) when is_integer(pages) do
+    a_comic(inbox, for(n <- 1..pages, do: {"page-#{n}.png", comic_page(n)}))
+  end
+
+  defp a_comic(inbox, entries) when is_list(entries) do
+    drop!(inbox, "#{unique_prefix()}/Excitebike Weekly 001.cbz", cbz(entries))
 
     [id] = inbox |> acquire_settled!(@t0) |> acquired()
     place_all!(inbox)
