@@ -39,21 +39,15 @@ defmodule PluteusWeb.Chrome do
   # surface for it. A mode with no address is rendered disabled carrying the reason
   # rather than linking somewhere that would answer nothing.
   @modes [
-    {"continue", "Continue", "hero-play-mini", "what you have not finished", nil},
+    {"continue", "Continue", "hero-play-mini", "what you have not finished", "/continue"},
     {"recently_added", "Recently added", "hero-plus-mini", "what arrived most recently",
      "/recently-added"},
     {"people", "People", "hero-user-mini", "who made or appears in what you hold", nil},
     {"places", "Places", "hero-map-pin-mini", "where a holding was made", nil},
-    {"time", "Time", "hero-clock-mini", "when a holding was made", nil},
+    {"time", "Time", "hero-clock-mini", "when a holding was made", "/time"},
     {"sets", "Sets", "hero-rectangle-stack-mini", "the groupings a holding belongs to", "/sets"},
     {"everything", "Everything", "hero-squares-2x2-mini", "the whole catalogue", "/everything"}
   ]
-
-  # Four fit across a phone, and §9.2 forbids anything being reachable in the rail and
-  # not here. Seven do not fit, so what this holds is every mode that has a surface plus
-  # the ones a household reaches for most; a test asserts the first half, so a mode
-  # gaining a surface cannot quietly become unreachable at phone width.
-  @tabs ~w(continue recently_added sets everything)
 
   @doc """
   §9.2's seven modes, each with the glyph and the noun it is named by, and its address
@@ -76,9 +70,14 @@ defmodule PluteusWeb.Chrome do
 
   @doc """
   The modes the tab bar carries below the rail's breakpoint, in the order it carries them.
+
+  Every one of them. §9.2 forbids anything being reachable in the rail and not here, and
+  four of the seven fit across a phone — so the bar scrolls rather than choosing four,
+  because choosing would make the three it left out reachable on a laptop and nowhere
+  else the moment they gained a surface.
   """
   @spec tabs() :: [{String.t(), String.t(), String.t(), String.t(), String.t() | nil}]
-  def tabs, do: for(slug <- @tabs, mode <- @modes, elem(mode, 0) == slug, do: mode)
+  def tabs, do: @modes
 
   @doc """
   Wraps a surface in the chrome.
@@ -634,7 +633,7 @@ defmodule PluteusWeb.Chrome do
     <nav
       aria-label="Modes"
       class={[
-        "md:hidden flex items-stretch",
+        "md:hidden flex items-stretch overflow-x-auto",
         "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle",
         "bg-surface-raised"
       ]}
@@ -695,10 +694,12 @@ defmodule PluteusWeb.Chrome do
     """
   end
 
+  # Each tab takes the width its own name needs and the bar scrolls past the edge, rather
+  # than every tab taking a seventh of a phone and every name being cut in half.
   defp tab_face(current) do
     [
-      "flex-1 min-h-target-touch flex flex-col items-center justify-center gap-1 py-2",
-      "text-caption text-on-surface-muted",
+      "shrink-0 min-h-target-touch min-w-20 flex flex-col items-center justify-center gap-1",
+      "px-3 py-2 text-caption text-on-surface-muted",
       current && "text-on-surface-strong font-medium"
     ]
   end
