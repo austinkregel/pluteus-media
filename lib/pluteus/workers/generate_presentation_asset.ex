@@ -16,7 +16,7 @@ defmodule Pluteus.Workers.GeneratePresentationAsset do
   use Oban.Worker,
     queue: :presentation,
     max_attempts: 3,
-    unique: [keys: [:subject_id, :profile], states: :incomplete, period: :infinity]
+    unique: [keys: [:subject_id, :profile, :ordinal], states: :incomplete, period: :infinity]
 
   alias Pluteus.Presentation.Generate
   alias Pluteus.Presentation.Registry
@@ -24,9 +24,10 @@ defmodule Pluteus.Workers.GeneratePresentationAsset do
   @doc """
   Queues generation of one artefact, if it is not already queued.
   """
-  @spec queue(Ecto.UUID.t(), String.t()) :: {:ok, Oban.Job.t()} | {:error, term()}
-  def queue(subject_id, profile) do
-    %{subject_id: subject_id, profile: profile}
+  @spec queue(Ecto.UUID.t(), String.t(), non_neg_integer()) ::
+          {:ok, Oban.Job.t()} | {:error, term()}
+  def queue(subject_id, profile, ordinal \\ 0) do
+    %{subject_id: subject_id, profile: profile, ordinal: ordinal}
     |> new()
     |> Oban.insert()
   end
@@ -48,8 +49,8 @@ defmodule Pluteus.Workers.GeneratePresentationAsset do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"subject_id" => subject_id, "profile" => profile}}) do
-    case Generate.run(subject_id, profile) do
+  def perform(%Oban.Job{args: %{"subject_id" => subject_id, "profile" => profile} = args}) do
+    case Generate.run(subject_id, profile, Map.get(args, "ordinal", 0)) do
       {:ok, _asset} -> :ok
       {:refused, reason} -> {:cancel, reason}
       {:error, kind, _detail} -> {:error, kind}
