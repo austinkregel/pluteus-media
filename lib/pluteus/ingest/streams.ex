@@ -194,12 +194,27 @@ defmodule Pluteus.Ingest.Streams do
   end
 
   @doc """
-  The container's duration in milliseconds.
+  The container's duration in milliseconds, or nil where it states none.
+
+  A still image is a container with no duration — ffprobe's format block simply has no
+  such field for a JPEG — and spec-01 §8.4 makes the figure the holding's rather than
+  something to supply: a photograph is not zero milliseconds long.
   """
-  @spec duration_ms(map()) :: non_neg_integer()
+  @spec duration_ms(map()) :: non_neg_integer() | nil
   def duration_ms(probe) do
-    {seconds, ""} = probe |> get_in(["format", "duration"]) |> Float.parse()
-    round(seconds * 1000)
+    case probe |> get_in(["format", "duration"]) |> seconds() do
+      nil -> nil
+      seconds -> round(seconds * 1000)
+    end
+  end
+
+  defp seconds(nil), do: nil
+
+  defp seconds(stated) when is_binary(stated) do
+    case Float.parse(stated) do
+      {value, ""} -> value
+      _not_a_duration -> nil
+    end
   end
 
   @doc """
