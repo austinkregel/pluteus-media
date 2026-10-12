@@ -372,24 +372,20 @@ defmodule Pluteus.Ingest.Registry do
   answers: a holding filed under `TV/…` was put under television by whoever filed it, and
   a deeper directory is how they arranged it rather than a second statement.
 
-  The answer carries the category, the serial the path names where the rule says a segment
-  names one, and the number the file's own name begins with where the rule gives a pattern
-  for it. A rule that applies to other classes than this holding's states nothing about it.
+  The answer carries the category and the serial the path names where the rule says a
+  segment names one. A path numbers nothing: a file name beginning with digits is not a
+  season and an episode, and reading one as the other would order a series by a convention
+  nobody stated. A rule that applies to other classes than this holding's states nothing
+  about it.
   """
   @spec path_evidence(String.t(), atom()) ::
-          %{
-            category: String.t(),
-            serial_name: String.t() | nil,
-            position: integer() | nil
-          }
-          | nil
+          %{category: String.t(), serial_name: String.t() | nil} | nil
   def path_evidence(inbox_path, media_class) do
-    segments = Path.split(inbox_path)
-    directories = Enum.drop(segments, -1)
+    directories = inbox_path |> Path.split() |> Enum.drop(-1)
 
     case filed_under(directories, media_class) do
       nil -> nil
-      {index, rule} -> stated(rule, directories, index, List.last(segments))
+      {index, rule} -> stated(rule, directories, index)
     end
   end
 
@@ -405,11 +401,10 @@ defmodule Pluteus.Ingest.Registry do
     end)
   end
 
-  defp stated(rule, directories, index, file_name) do
+  defp stated(rule, directories, index) do
     %{
       category: Map.fetch!(rule, "category"),
-      serial_name: serial_name(rule, directories, index),
-      position: position(rule, file_name)
+      serial_name: serial_name(rule, directories, index)
     }
   end
 
@@ -417,15 +412,6 @@ defmodule Pluteus.Ingest.Registry do
     do: Enum.at(directories, index + further)
 
   defp serial_name(_naming_none, _directories, _index), do: nil
-
-  defp position(%{"numbered_by" => pattern}, file_name) do
-    case Regex.run(Regex.compile!(pattern), Path.rootname(file_name)) do
-      [_whole, digits] -> String.to_integer(digits)
-      nil -> nil
-    end
-  end
-
-  defp position(_numbering_none, _file_name), do: nil
 
   @doc """
   The serial a holding of this category is an issue of, or nil where the category belongs
@@ -436,14 +422,79 @@ defmodule Pluteus.Ingest.Registry do
   its own, which is every category but one until a podcast can be recognized.
   """
   @spec serial_of(String.t()) ::
-          %{category: String.t(), named_by: [String.t()], numbered_by: [String.t()]} | nil
+          %{
+            category: String.t(),
+            named_by: [String.t()],
+            numbered_by: [String.t()],
+            seasoned_by: [String.t()],
+            episodes_per_season: pos_integer() | nil
+          }
+          | nil
   def serial_of(category) do
     case registry()["serials"]["of_category"][category] do
       nil ->
         nil
 
-      %{"category" => serial, "named_by" => named_by, "numbered_by" => numbered_by} ->
-        %{category: serial, named_by: named_by, numbered_by: numbered_by}
+      %{"category" => serial, "named_by" => named_by, "numbered_by" => numbered_by} = rule ->
+        %{
+          category: serial,
+          named_by: named_by,
+          numbered_by: numbered_by,
+          seasoned_by: rule["seasoned_by"] || [],
+          episodes_per_season: rule["episodes_per_season"]
+        }
+    end
+  end
+
+  @doc """
+  What a metadata document with this root element is about, or nil where the registry
+  names no such root (spec-04 §6.3).
+
+  `describes` is `:holding` where the document is about the file itself, and the category
+  it states is that file's; `:whole` where it is about what the file belongs to, so an
+  album document dates the release and never makes a track an album.
+  """
+  @spec sidecar_document(String.t() | nil) ::
+          %{describes: :holding | :whole, category: String.t() | nil} | nil
+  def sidecar_document(nil), do: nil
+
+  def sidecar_document(root) do
+    case registry()["sidecar_documents"]["of_root"][root] do
+      nil -> nil
+      rule -> %{describes: describes(rule["describes"]), category: rule["category"]}
+    end
+  end
+
+  defp describes("holding"), do: :holding
+  defp describes("whole"), do: :whole
+
+  @doc """
+  The root element a document begins with, without its namespace prefix, or nil where
+  the bytes are not markup.
+  """
+  @spec document_root(binary()) :: String.t() | nil
+  def document_root(bytes), do: root_element(bytes)
+
+  @doc """
+  How much of a sidecar document is read. A document past this is refused rather than
+  parsed, as a document inside a container is.
+  """
+  @spec sidecar_ceiling() :: pos_integer()
+  def sidecar_ceiling, do: registry()["sidecar_documents"]["byte_ceiling"]
+
+  @doc """
+  The rule for a document that names the files it is about by path, or nil.
+
+  Such a document speaks for every directory beneath its own, which no other document
+  does. Its fields are read under the names the rest of this registry uses, because what
+  it states is about the whole and not about any one file.
+  """
+  @spec members_named_by(String.t()) ::
+          %{category: String.t(), fields_as: %{String.t() => String.t()}} | nil
+  def members_named_by(file_name) do
+    case registry()["sidecar_documents"]["names_members"][String.downcase(file_name)] do
+      nil -> nil
+      rule -> %{category: rule["category"], fields_as: rule["fields_as"]}
     end
   end
 
