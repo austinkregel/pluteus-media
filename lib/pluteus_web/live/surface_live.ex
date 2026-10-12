@@ -26,6 +26,9 @@ defmodule PluteusWeb.SurfaceLive do
   alias Pluteus.Lifecycle
   alias Pluteus.Playback
   alias Pluteus.Preferences
+  alias Pluteus.Presentation
+  alias Pluteus.Presentation.Asset
+  alias Pluteus.Presentation.Registry
   alias Pluteus.Principals
   alias Pluteus.Principals.Principal
   alias Pluteus.Reading
@@ -35,6 +38,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.Chrome
   alias PluteusWeb.GoneError
   alias PluteusWeb.Interface
+  alias PluteusWeb.Native
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Settings
   alias PluteusWeb.Surfaces.Music
@@ -218,6 +222,7 @@ defmodule PluteusWeb.SurfaceLive do
     |> assign(:queue, queued(work.id, socket.assigns.principal_id, socket.assigns.profile))
     |> assign(:playing, playing(socket.assigns.principal_id, socket.assigns.profile))
     |> assign(:borne, borne(work.id))
+    |> assign(:trickplay, trickplay(surface, borne(work.id)))
     |> assign(:facts, facts(surface, work, socket.assigns.profile))
     |> assign_new(:rail_collapsed, fn -> narrow?(surface) end)
   end
@@ -318,6 +323,32 @@ defmodule PluteusWeb.SurfaceLive do
   defp narrow?("transport and queue"), do: false
   defp narrow?("transport and chapter list"), do: false
 
+  # §11.3's trickplay: the frames a person scrubbing is shown, as one sprite with the
+  # figures needed to find a frame in it. Asked for where it is not held yet, so the
+  # second visit has it; the first shows none rather than a broken picture, because an
+  # absent artefact is a state and not a failure (§11.6).
+  defp trickplay("player", borne) when is_binary(borne) do
+    profile = Registry.trickplay()
+
+    case Presentation.get(borne, Map.fetch!(profile, "name")) do
+      nil ->
+        Presentation.ask(borne, Map.fetch!(profile, "name"))
+        nil
+
+      %Asset{descriptor: descriptor} = held ->
+        %{
+          at: "/#{Native.paths()[:manifestation]}/#{borne}/presentation/#{held.profile}",
+          interval: Map.fetch!(descriptor, "frame_interval_ms"),
+          columns: Map.fetch!(descriptor, "tile_columns"),
+          frames: Map.fetch!(descriptor, "frames"),
+          frame_width: Map.fetch!(descriptor, "frame_width"),
+          frame_height: div(held.height, Map.fetch!(descriptor, "tile_rows"))
+        }
+    end
+  end
+
+  defp trickplay(_another_surface, _borne), do: nil
+
   # The manifestation the holding is carried by, which is the address an image profile
   # is asked for at (§11.1).
   defp borne(work_id) do
@@ -402,6 +433,7 @@ defmodule PluteusWeb.SurfaceLive do
           reader={@reader}
           preferences={@preferences}
           refusal={@refusal}
+          trickplay={@trickplay}
         />
       </div>
     </Chrome.shell>
@@ -424,6 +456,7 @@ defmodule PluteusWeb.SurfaceLive do
   attr :reader, :any, required: true
   attr :preferences, :map, required: true
   attr :refusal, :any, required: true
+  attr :trickplay, :any, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -435,6 +468,7 @@ defmodule PluteusWeb.SurfaceLive do
       chosen={@chosen}
       preferences={@preferences}
       refusal={@refusal}
+      trickplay={@trickplay}
     />
     """
   end
