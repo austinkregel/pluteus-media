@@ -401,11 +401,21 @@ defmodule Pluteus.Ingest.Registry do
   which §8.5 forbids.
   """
   @spec format_name(String.t()) :: String.t()
-  def format_name(format) do
+  def format_name(format), do: name_of_media_type(media_type(format))
+
+  @doc """
+  What a household calls what is served under a media type.
+
+  A surface saying what it handed a client knows the media type it set, not the format
+  that was identified: those are the bytes' own fact and what was sent is the deployment's
+  statement about them.
+  """
+  @spec name_of_media_type(String.t()) :: String.t()
+  def name_of_media_type(media_type) do
     registry()
     |> Map.fetch!("format_names")
     |> Map.fetch!("of_media_type")
-    |> Map.fetch!(media_type(format))
+    |> Map.fetch!(media_type)
   end
 
   @doc """
