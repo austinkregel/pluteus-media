@@ -39,19 +39,30 @@ defmodule Pluteus.Ingest.Identify do
   An error is permanent: the same bytes give the same answer on every attempt.
   """
   @spec identify(Acquisition.t()) :: {:ok, map()} | {:error, {String.t(), map()}}
-  def identify(%Acquisition{} = acquisition) do
+  def identify(%Acquisition{} = acquisition),
+    do: identify(acquisition, Storage.path(acquisition.location))
+
+  @doc """
+  The same, of a file read where it lies rather than at its location.
+
+  §4.3 moves a file out of the inbox once the deployment takes it, and what it is has to
+  be known before that: a file nothing can say the category of is one the household still
+  has to deal with, and it deals with it where it put it (§6.3).
+  """
+  @spec identify(Acquisition.t(), Path.t()) :: {:ok, map()} | {:error, {String.t(), map()}}
+  def identify(%Acquisition{} = acquisition, path) do
     companion_kind =
       Registry.companion_kind(
         Path.basename(acquisition.inbox_path),
-        fn -> Storage.leading(acquisition.location, @head_bytes) end
+        fn -> Storage.leading_file(path, @head_bytes) end
       )
 
-    with {:ok, format} <- format(acquisition.location),
-         {:ok, probe} <- probe(acquisition.location, format) do
+    with {:ok, format} <- format(path),
+         {:ok, probe} <- probe(path, format, companion_kind) do
       streams = streams(probe)
 
       with {:ok, media_class, container_tags} <-
-             media_class(companion_kind, streams, probe, format, acquisition.location) do
+             media_class(companion_kind, streams, probe, format, path) do
         {:ok,
          %{
            format: format,
@@ -68,19 +79,19 @@ defmodule Pluteus.Ingest.Identify do
 
   # §5.1. PRONOM answers first; a deployment signature answers what it leaves
   # unknown, from the content at a stated offset.
-  defp format(location) do
-    case Formats.identify(location) do
+  defp format(path) do
+    case Formats.identify_file(path) do
       {:ok, format} ->
-        if format == Formats.unknown(), do: {:ok, by_signature(location)}, else: {:ok, format}
+        if format == Formats.unknown(), do: {:ok, by_signature(path)}, else: {:ok, format}
 
       {:error, reason} ->
         {:error, {"format_unidentifiable", %{reason: inspect(reason)}}}
     end
   end
 
-  defp by_signature(location) do
-    location
-    |> Storage.leading(Registry.signature_span())
+  defp by_signature(path) do
+    path
+    |> Storage.leading_file(Registry.signature_span())
     |> Registry.byte_signature()
     |> case do
       nil -> Formats.unknown()
@@ -91,17 +102,24 @@ defmodule Pluteus.Ingest.Identify do
   # A document or plain text file is not a container, and ffprobe says so by
   # failing. That is the expected answer for a format the registry knows carries
   # no streams. For anything else a failure means the bytes do not decode.
-  defp probe(location, format) do
-    case Probe.probe(location) do
+  defp probe(path, format, companion_kind) do
+    case Probe.probe_file(path) do
       {:ok, probe} ->
         {:ok, probe}
 
       {:error, {:ffprobe, status, output}} ->
         # A format the registry knows carries no streams has nothing for ffprobe to read,
         # and an archive is one of those: what it holds is read from its entries instead.
-        if Registry.streamless_format(format) || Registry.archive_format(format),
-          do: {:ok, nil},
-          else: {:error, {"undecodable", %{format: format, status: status, output: output}}}
+        #
+        # A companion is the same case for a different reason: §4.6 decided what it is
+        # from its name and its first bytes, and a lyrics file or a media manager's
+        # document is not a thing ffprobe reads. It is still probed, because a cover's
+        # dimensions are read from the same answer, but failing to read one is not a
+        # failure to know what it is.
+        if companion_kind || Registry.streamless_format(format) ||
+             Registry.archive_format(format),
+           do: {:ok, nil},
+           else: {:error, {"undecodable", %{format: format, status: status, output: output}}}
     end
   end
 
@@ -177,10 +195,10 @@ defmodule Pluteus.Ingest.Identify do
     end
   end
 
-  defp media_class(kind, _streams, _probe, _format, _location) when is_binary(kind),
+  defp media_class(kind, _streams, _probe, _format, _path) when is_binary(kind),
     do: {:ok, :companion, %{}}
 
-  defp media_class(nil, streams, probe, format, location) do
+  defp media_class(nil, streams, probe, format, path) do
     kinds = for %{"content" => true, "kind" => kind} <- streams, do: kind
 
     cond do
@@ -196,17 +214,17 @@ defmodule Pluteus.Ingest.Identify do
         {:ok, :text, %{}}
 
       true ->
-        streamless_class(streams, format, location)
+        streamless_class(streams, format, path)
     end
   end
 
-  defp streamless_class(streams, format, location) do
+  defp streamless_class(streams, format, path) do
     case {Registry.streamless_format(format), Registry.archive_format(format)} do
       {%{class: class}, _archive} when streams == [] ->
         {:ok, class, %{}}
 
       {nil, %{class: class}} when streams == [] ->
-        corroborated(class, format, location)
+        corroborated(class, format, path)
 
       _unclassified ->
         {:error, {"unclassifiable", %{format: format, streams: length(streams)}}}
@@ -221,8 +239,8 @@ defmodule Pluteus.Ingest.Identify do
   # §6.9 criterion 35. A metadata document the registry names is not content and is read
   # here instead, as the embedded tags §6.3 weighs. An unnamed document is content, so an
   # XML that names nothing the registry knows is weighed as a page would be and refused.
-  defp corroborated(class, format, location) do
-    case Container.read(location) do
+  defp corroborated(class, format, path) do
+    case Container.read_file(path) do
       {:ok, %{content: [], documents: []}} ->
         {:error, {"archive_is_empty", %{format: format}}}
 
