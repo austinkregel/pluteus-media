@@ -271,13 +271,11 @@ defmodule PluteusWeb.Surfaces.Reader do
         <span class="text-caption text-on-surface-muted">{marked_by(mark)}</span>
       </article>
 
-      <p
-        class={[
-          "mt-auto rounded-md px-4 py-3 text-caption text-on-surface-muted",
-          "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
-          "bg-surface-raised"
-        ]}
-      >
+      <p class={[
+        "mt-auto rounded-md px-4 py-3 text-caption text-on-surface-muted",
+        "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+        "bg-surface-raised"
+      ]}>
         Visible to the household.
       </p>
     </aside>
