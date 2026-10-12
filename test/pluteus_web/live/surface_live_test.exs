@@ -18,6 +18,7 @@ defmodule PluteusWeb.SurfaceLiveTest do
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Presentation.Generate
+  alias Pluteus.Presentation.Registry
   alias Pluteus.Principals
   alias Pluteus.Reading
   alias Pluteus.Repo
@@ -168,6 +169,31 @@ defmodule PluteusWeb.SurfaceLiveTest do
 
       refute html =~ ~s|<video id="player-medium" controls|
       assert html =~ ~s|phx-hook="Player"|
+    end
+
+    # §11.3's frames, which a person scrubbing is shown. The surface carries the figures
+    # that find a frame in the sprite rather than the frame: which one to show follows
+    # from a position the server does not have.
+    test "the frames are offered where they are held, and asked for where they are not",
+         %{conn: conn, inbox: inbox} do
+      # Longer than one interval, because §20 puts a frame every ten seconds and a
+      # holding shorter than that has no frame to put anywhere.
+      film = a_moving_picture(inbox)
+      manifestation = manifestation_of(film)
+
+      {:ok, _live, asked} = live(conn, ~p"/works/#{film}/play")
+
+      # Nothing has made them yet, so the first visit shows none and asks.
+      refute asked =~ ~s|id="player-trickplay"|
+
+      {:ok, made} = Generate.run(manifestation, Registry.trickplay()["name"])
+      on_exit(fn -> Storage.delete(made.location) end)
+
+      {:ok, _live, held} = live(conn, ~p"/works/#{film}/play")
+
+      assert held =~ ~s|id="player-trickplay"|
+      assert held =~ ~s|data-interval="10000"|
+      assert held =~ ~s|data-frame-width="320"|
     end
 
     # The canvas's own note on this board: a pill reading "Direct play — no transcode"
@@ -512,6 +538,23 @@ defmodule PluteusWeb.SurfaceLiveTest do
     trailer<</Root 1 0 R>>
     %%EOF
     """
+  end
+
+  defp a_moving_picture(inbox) do
+    drop!(inbox, "#{unique_prefix()}/birthday.mkv", media!(:ffv1, duration: 11))
+
+    [id] = inbox |> acquire_settled!(@t0) |> acquired()
+    place_all!(inbox)
+    Normalize.normalize_due(fn _class -> nil end)
+
+    id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
+  end
+
+  defp manifestation_of(work_id) do
+    [expression | _rest] = Catalog.expressions_of(work_id)
+    [manifestation | _more] = Catalog.manifestations_of(expression.id)
+
+    manifestation.id
   end
 
   defp named(name, category) do
