@@ -27,6 +27,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias Pluteus.Playback
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
+  alias Pluteus.Representation
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Chrome
   alias PluteusWeb.GoneError
@@ -34,6 +35,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias PluteusWeb.NotFoundError
   alias PluteusWeb.Surfaces.Music
   alias PluteusWeb.Surfaces.Player
+  alias PluteusWeb.Surfaces.Viewer
   alias PluteusWeb.TransportLive
 
   @impl Phoenix.LiveView
@@ -156,8 +158,48 @@ defmodule PluteusWeb.SurfaceLive do
     )
     |> assign(:queue, queued(work.id, socket.assigns.principal_id, socket.assigns.profile))
     |> assign(:playing, playing(socket.assigns.principal_id, socket.assigns.profile))
-    |> assign_new(:rail_collapsed, fn -> surface == "player" end)
+    |> assign(:borne, borne(work.id))
+    |> assign(:facts, facts(surface, work, socket.assigns.profile))
+    |> assign_new(:rail_collapsed, fn -> narrow?(surface) end)
   end
+
+  # Width belongs to the medium on a surface that shows one, which is every surface here
+  # but the one that is a list of tracks. A clause each and no catch-all.
+  defp narrow?("player"), do: true
+  defp narrow?("reader"), do: true
+  defp narrow?("scan beside its transcript"), do: true
+  defp narrow?("page reader"), do: true
+  defp narrow?("viewer in a justified grid"), do: true
+  defp narrow?("transport and queue"), do: false
+  defp narrow?("transport and chapter list"), do: false
+
+  # The manifestation the holding is carried by, which is the address an image profile
+  # is asked for at (§11.1).
+  defp borne(work_id) do
+    with [expression | _rest] <- Catalog.expressions_of(work_id),
+         [manifestation | _more] <- Catalog.manifestations_of(expression.id) do
+      manifestation.id
+    else
+      _nothing_embodies_it -> nil
+    end
+  end
+
+  # What the catalog holds about the holding, said as the representation already says it,
+  # and only where a surface shows it: building one costs queries a player has no use for.
+  #
+  # A field nobody has looked at is left out rather than said as a blank — §5.2's absence
+  # states are the entity page's to report, and this surface is the medium's. The name is
+  # left out too, since the band above already carries it.
+  defp facts("viewer in a justified grid", work, profile) do
+    for {field, %{"state" => "held", "value" => value}} <- Representation.of(work, profile),
+        field != "name",
+        is_binary(value) or is_integer(value),
+        do: {said_field(field), value}
+  end
+
+  defp facts(_another_surface, _work, _profile), do: []
+
+  defp said_field(field), do: field |> String.replace("_", " ") |> String.capitalize()
 
   # A release is its tracks, so what a transport plays through is the queue the work
   # resolves to. A holding that is a member of nothing is a queue of one.
@@ -210,6 +252,8 @@ defmodule PluteusWeb.SurfaceLive do
           queue={@queue}
           playing={@playing}
           chosen={@chosen}
+          borne={@borne}
+          facts={@facts}
         />
       </div>
     </Chrome.shell>
@@ -227,6 +271,8 @@ defmodule PluteusWeb.SurfaceLive do
   attr :queue, :list, required: true
   attr :playing, :any, required: true
   attr :chosen, :map, required: true
+  attr :borne, :any, required: true
+  attr :facts, :list, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -259,8 +305,11 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp presented(%{surface: "page reader"} = assigns), do: ~H|<.bare name={@name} />|
 
-  defp presented(%{surface: "viewer in a justified grid"} = assigns),
-    do: ~H|<.bare name={@name} />|
+  defp presented(%{surface: "viewer in a justified grid"} = assigns) do
+    ~H"""
+    <Viewer.surface name={@name} category={@category} borne={@borne} facts={@facts} />
+    """
+  end
 
   attr :name, :string, required: true
 
