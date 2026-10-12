@@ -34,6 +34,7 @@ defmodule PluteusWeb.BrowseLive do
   alias PluteusWeb.Absence
   alias PluteusWeb.Chrome
   alias PluteusWeb.Interface
+  alias PluteusWeb.Native
   alias PluteusWeb.TransportLive
 
   @impl Phoenix.LiveView
@@ -141,6 +142,7 @@ defmodule PluteusWeb.BrowseLive do
 
         <.doors :if={@surface && gateway?(@surface)} surface={@surface} />
         <.spine :if={@surface && spine?(@surface)} surface={@surface} />
+        <.agents :if={@surface && agents?(@surface)} surface={@surface} />
         <.rows :if={@surface && listed?(@surface)} surface={@surface} />
       </div>
     </Chrome.shell>
@@ -156,7 +158,11 @@ defmodule PluteusWeb.BrowseLive do
   # mode a person has narrowed, since then they have said what they are after.
   defp gateway?(surface), do: surface.query.mode == "everything" and not narrowed?(surface)
   defp spine?(surface), do: surface.query.mode == "time" and not narrowed?(surface)
-  defp listed?(surface), do: not gateway?(surface) and not spine?(surface)
+  defp agents?(surface), do: surface.query.mode == "people" and not narrowed?(surface)
+
+  defp listed?(surface) do
+    not gateway?(surface) and not spine?(surface) and not agents?(surface)
+  end
 
   defp narrowed?(surface), do: Query.narrowed?(surface.query)
 
@@ -239,6 +245,56 @@ defmodule PluteusWeb.BrowseLive do
     />
     """
   end
+
+  # §9.2's People: the agents a household's holdings credit, each leading to its own
+  # page rather than to the holdings narrowed by it — a person is a res, and the page
+  # that is about them is theirs.
+  attr :surface, :map, required: true
+
+  defp agents(assigns) do
+    assigns = assign(assigns, :values, offered(assigns.surface.facets["person"]))
+
+    ~H"""
+    <header class="mb-8">
+      <h1 class="text-title-lg font-medium text-on-surface-strong">{showing(@surface)}</h1>
+      <p class="mt-1 text-body-sm text-on-surface-muted">
+        <span class="text-on-surface-strong">{length(@values)}</span>
+        {agents_said(length(@values))} credited across {@surface.catalogue}
+        {holdings(@surface.catalogue)}
+      </p>
+    </header>
+
+    <ul :if={@values != []} class="flex flex-col divide-y divide-border-subtle">
+      <li :for={{id, count} <- @values}>
+        <.link
+          navigate={at(@surface.agents[id], id)}
+          class="flex min-h-target-touch items-center gap-3 py-3 hover:bg-fill-subtle-strong"
+        >
+          <.icon name="hero-user-mini" class="shrink-0 text-on-surface-muted" />
+          <span class="grow truncate text-body-md text-on-surface-strong">
+            {@surface.labels[id] || id}
+          </span>
+          <span class="shrink-0 font-mono text-caption text-on-surface-muted">{count}</span>
+        </.link>
+      </li>
+    </ul>
+
+    <p :if={@values == []} class="text-body-md text-on-surface-muted">
+      Nothing held credits anybody.
+    </p>
+
+    <p :if={@surface.uncredited > 0} class="mt-6 text-body-sm text-on-surface-muted">
+      {@surface.uncredited} {holdings(@surface.uncredited)} credit nobody yet.
+    </p>
+    """
+  end
+
+  defp agents_said(1), do: "person"
+  defp agents_said(_many), do: "people"
+
+  # spec-01 §3.1's three agent kinds are three addresses, and which one an agent has is
+  # the catalogue's answer rather than this surface's to assume.
+  defp at(kind, id), do: "/#{Map.fetch!(Native.paths(), kind)}/#{id}"
 
   # Oldest first, because a decade spine read in any other order is not a spine.
   attr :facet, :any, required: true
