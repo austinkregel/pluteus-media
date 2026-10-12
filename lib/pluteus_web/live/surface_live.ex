@@ -67,6 +67,7 @@ defmodule PluteusWeb.SurfaceLive do
      socket
      |> assign(:work, held!(id))
      |> assign(:asked, asked)
+     |> assign(:refusal, nil)
      |> assign_new(:chosen, fn -> %{audio: nil, subtitle: nil} end)
      |> showing(asked)
      |> reading(params["held"])}
@@ -119,6 +120,14 @@ defmodule PluteusWeb.SurfaceLive do
 
   def handle_event("rail-toggle", _params, socket) do
     {:noreply, assign(socket, :rail_collapsed, not socket.assigns.rail_collapsed)}
+  end
+
+  # §16.1 puts a failure on the surface it happened on. Whether the bytes play is the
+  # browser's answer and nothing on this side can establish it, so what is shown is what
+  # the element reported — worded here, because a media error code is the model's
+  # vocabulary and §8.5 keeps that off a surface.
+  def handle_event("medium-refused", %{"code" => code} = reported, socket) do
+    {:noreply, assign(socket, :refusal, %{said: Player.refusal(code), detail: reported["said"]})}
   end
 
   def handle_event("page", %{"to" => to}, socket) do
@@ -392,6 +401,7 @@ defmodule PluteusWeb.SurfaceLive do
           facts={@facts}
           reader={@reader}
           preferences={@preferences}
+          refusal={@refusal}
         />
       </div>
     </Chrome.shell>
@@ -413,6 +423,7 @@ defmodule PluteusWeb.SurfaceLive do
   attr :facts, :list, required: true
   attr :reader, :any, required: true
   attr :preferences, :map, required: true
+  attr :refusal, :any, required: true
 
   defp presented(%{surface: "player"} = assigns) do
     ~H"""
@@ -423,6 +434,7 @@ defmodule PluteusWeb.SurfaceLive do
       playable={@playable}
       chosen={@chosen}
       preferences={@preferences}
+      refusal={@refusal}
     />
     """
   end
