@@ -45,7 +45,6 @@ defmodule Pluteus.Reading do
   alias Pluteus.Presentation.Asset
   alias Pluteus.Repo
   alias Pluteus.Storage
-  alias Pluteus.Workers.GeneratePresentationAsset
 
   @profile "text-extracted"
 
@@ -157,17 +156,8 @@ defmodule Pluteus.Reading do
   holding from extracting it twice. A holding with nothing to read from queues nothing,
   which is the 204 the wire answers in the same situation.
   """
-  @spec ask(Ecto.UUID.t()) :: :queued | :nothing_to_read
-  def ask(subject_id) do
-    case Presentation.source_for(subject_id) do
-      nil ->
-        :nothing_to_read
-
-      _source ->
-        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, @profile)
-        :queued
-    end
-  end
+  @spec ask(Ecto.UUID.t()) :: :queued | :nothing_to_generate
+  def ask(subject_id), do: Presentation.ask(subject_id, @profile)
 
   @doc """
   Which division a position in characters falls in.
