@@ -309,16 +309,18 @@ defmodule Pluteus.Representation do
         Field.held(Repo.one(from a in Asset, where: a.id == ^id, select: a.digital_item_id))
     }
 
-  defp related(%Res{kind: kind, id: id}, context) when kind in [:person, :collective_agent] do
+  # spec-01 §3.1's three agent kinds. An artist is an agent of an undetermined one of the
+  # other two, which is what a credit read from a container names, so it answers for the
+  # same relations: a surface that showed a person's work and not an artist's would show
+  # nothing for almost every agent this deployment holds.
+  defp related(%Res{kind: kind, id: id}, context)
+       when kind in [:person, :collective_agent, :artist] do
     %{
       "created" =>
         field(ids(from c in WorkCreator, where: c.agent_id == ^id, select: c.work_id), context,
           as: "created"
         ),
-      "credited_as" =>
-        field(ids(from c in Credit, where: c.agent_id == ^id, select: c.work_id), context,
-          as: "credited_as"
-        )
+      "credited_as" => field(credited_as(id), context, as: "credited_as")
     }
   end
 
@@ -454,4 +456,17 @@ defmodule Pluteus.Representation do
     do: Repo.all(from c in Credit, where: c.work_id == ^work_id, order_by: [c.role, c.position])
 
   defp ids(query), do: Repo.all(query)
+
+  # What a credit names, which since spec-04 §6.9 is a work or an expression: an author
+  # is credited on the text and a narrator on the reading of it, and both are credits of
+  # the same agent. Each is listed as the res the credit names rather than resolved to
+  # one level, because which of the two it is, is the fact the credit records.
+  defp credited_as(agent_id) do
+    ids(
+      from c in Credit,
+        where: c.agent_id == ^agent_id,
+        order_by: [asc: c.role, asc: c.position, asc: c.id],
+        select: coalesce(c.work_id, c.expression_id)
+    )
+  end
 end
