@@ -14,6 +14,7 @@ defmodule PluteusWeb.Surfaces.Player do
 
   use PluteusWeb, :html
 
+  alias Pluteus.Ingest.Registry
   alias Pluteus.Playback
   alias Pluteus.Presentation.Geometry
   alias PluteusWeb.Settings
@@ -25,6 +26,7 @@ defmodule PluteusWeb.Surfaces.Player do
   attr :playable, :any, required: true
   attr :chosen, :map, required: true
   attr :preferences, :map, required: true
+  attr :refusal, :any, default: nil
 
   def surface(assigns) do
     assigns =
@@ -47,6 +49,9 @@ defmodule PluteusWeb.Surfaces.Player do
             extent={@extent}
             marks={Medium.marks(@streams.chapters, @extent)}
           />
+
+          <.delivery :if={match?({:ok, _ready}, @playable)} playable={@playable} />
+          <.stopped :if={@refusal} refusal={@refusal} />
         </div>
 
         <.beside streams={@streams} chosen={@chosen} preferences={@preferences} />
@@ -96,6 +101,48 @@ defmodule PluteusWeb.Surfaces.Player do
         src={~p"/assets/#{first_part(@playable).asset_id}/content"}
       >
       </video>
+    </div>
+    """
+  end
+
+  # What was handed to the client, which is all this deployment can state: the stored
+  # bytes under the media type they are served as. Whether the browser then plays them is
+  # the browser's answer and arrives as a failure or not at all, so saying so here would
+  # be asserting an outcome nothing has established.
+  attr :playable, :any, required: true
+
+  defp delivery(assigns) do
+    served = Registry.name_of_media_type(first_part(assigns.playable).media_type)
+
+    assigns = assign(assigns, :served, served)
+
+    ~H"""
+    <p id="player-delivery" class="text-caption text-on-surface-muted">
+      Served as held · {@served}
+    </p>
+    """
+  end
+
+  # The holding was served and the browser stopped. It is on this surface rather than in
+  # a flash that goes away, because it is a fact about this holding on this device: the
+  # bytes are held and this browser will not play them.
+  attr :refusal, :map, required: true
+
+  defp stopped(assigns) do
+    ~H"""
+    <div
+      id="player-stopped"
+      role="status"
+      class={[
+        "flex flex-col gap-1 rounded-md px-4 py-3",
+        "border-[length:var(--sys-border-width-component)] border-border-strong",
+        "bg-surface-raised"
+      ]}
+    >
+      <p class="text-body-md text-on-surface-strong">{@refusal.said}</p>
+      <p :if={@refusal.detail != ""} class="font-mono text-caption text-on-surface-muted">
+        {@refusal.detail}
+      </p>
     </div>
     """
   end
@@ -257,4 +304,20 @@ defmodule PluteusWeb.Surfaces.Player do
   defp box(ratio), do: "aspect-ratio: #{ratio}"
 
   defp first_part({:ok, %{parts: [part | _rest]}}), do: part
+
+  @doc """
+  What a media element's own error code says, in words.
+
+  The four are the element's whole vocabulary, so a code outside them is something this
+  deployment has not met and is said as that rather than as nothing. The words are here
+  because the code is the model's and §8.5 keeps that off a surface.
+  """
+  @spec refusal(integer() | nil) :: String.t()
+  def refusal(1), do: "Playing this was stopped before it finished."
+  def refusal(2), do: "The bytes stopped arriving part way through."
+  def refusal(3), do: "This browser could not decode what was sent."
+  def refusal(4), do: "This browser does not play what this is held as."
+
+  def refusal(_unmet),
+    do: "This browser stopped playing it, and said why in a way nothing here reads."
 end
