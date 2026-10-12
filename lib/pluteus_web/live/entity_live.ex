@@ -41,12 +41,14 @@ defmodule PluteusWeb.EntityLive do
   alias Pluteus.Repo
   alias Pluteus.Representation
   alias Pluteus.Representation.ComposedName
+  alias Pluteus.Serials
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Absence
   alias PluteusWeb.BadRequestError
   alias PluteusWeb.Chrome
   alias PluteusWeb.GoneError
   alias PluteusWeb.Interface
+  alias PluteusWeb.Members
   alias PluteusWeb.Native
   alias PluteusWeb.NotFoundError
 
@@ -134,6 +136,8 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:addresses, addresses(representation, profile))
      |> assign(:medium, medium(res))
      |> assign(:credits, credits(res, socket.assigns.principal_id, profile))
+     |> assign(:members, members(res, socket.assigns.principal_id, profile))
+     |> assign(:members_word, members_word(res))
      |> assign(:address, address)
      |> assign(:placed?, is_nil(unit) or not is_nil(extent))
      |> assign(:mark, mark(address, extent))
@@ -160,6 +164,27 @@ defmodule PluteusWeb.EntityLive do
   end
 
   defp credits(_another_kind, _principal_id, _profile), do: nil
+
+  # §8.4's band 5 for a work that gathers others. A category the registry gives no word
+  # for its members is a category that gathers none, so nothing is read for it: this is
+  # the question asked of every work the page draws and it costs queries.
+  defp members(%Res{kind: :work} = res, principal_id, profile) do
+    case members_word(res) do
+      nil -> []
+      _word -> Serials.members(res.id, principal_id, profile)
+    end
+  end
+
+  defp members(_another_kind, _principal_id, _profile), do: []
+
+  defp members_word(%Res{kind: :work} = res) do
+    case Catalog.category_of(res.id, Place.category_scheme()) do
+      nil -> nil
+      category -> Surfaces.category_icon(category).members
+    end
+  end
+
+  defp members_word(_another_kind), do: nil
 
   defp selected!(kind, params) do
     case DeepLink.read(kind, params) do
@@ -591,6 +616,13 @@ defmodule PluteusWeb.EntityLive do
         </section>
 
         <.credited :if={@credits} res={@res} surface={@credits} />
+
+        <Members.band
+          :if={@members_word}
+          members={@members}
+          word={@members_word}
+          principal_name={@principal_name}
+        />
 
         <.band
           :for={{band, heading} <- [{5, "Structure"}, {6, "Connections"}]}
