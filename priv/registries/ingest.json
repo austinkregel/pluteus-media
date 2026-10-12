@@ -518,6 +518,50 @@
           "track",
           "episode"
         ]
+      },
+      "television_episode": {
+        "category": "television_series",
+        "named_by": [
+          "show",
+          "album"
+        ],
+        "numbered_by": [
+          "episode_id",
+          "episode",
+          "track"
+        ]
+      }
+    }
+  },
+
+  "path_evidence": {
+    "for": "What a household states by where it filed a holding (spec-04 §6.3, which names the inbox path among the evidence a category is decided from). A segment of the path is matched whole and case-folded against this table, so a directory called TV decides and one called TV Rips Old does not; a holding whose own tags state a category is left alone, because a file's statement about itself outranks where somebody filed it.\n\nA rule names the broad classes it may decide for, as a tag rule does: a cover sitting in the same directory as an episode is an image and not an episode, and a rule that read the directory alone would make it one.\n\nWhere the rule names a serial, the segment that many places further along the path names it: a show is the directory its seasons sit in. The number comes from the start of the file's own name and nowhere else, and a name the pattern does not match leaves the holding unnumbered rather than numbered by a guess — a serial is ordered where it says it is, and two episodes stating no number are two parts of it all the same (§6.9).\n\nSeed data, because where a household files things is the household's own convention and §6.2's correction is what makes a wrong reading of it recoverable.",
+    "of_segment": {
+      "tv": {
+        "category": "television_episode",
+        "classes": ["video"],
+        "serial_named_by_segment": 1,
+        "numbered_by": "^(\\d+)"
+      },
+      "television": {
+        "category": "television_episode",
+        "classes": ["video"],
+        "serial_named_by_segment": 1,
+        "numbered_by": "^(\\d+)"
+      },
+      "shows": {
+        "category": "television_episode",
+        "classes": ["video"],
+        "serial_named_by_segment": 1,
+        "numbered_by": "^(\\d+)"
+      },
+      "movies": {
+        "category": "film",
+        "classes": ["video"]
+      },
+      "films": {
+        "category": "film",
+        "classes": ["video"]
       }
     }
   },
