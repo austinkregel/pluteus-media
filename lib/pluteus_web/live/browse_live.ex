@@ -146,7 +146,12 @@ defmodule PluteusWeb.BrowseLive do
     """
   end
 
-  defp narrowed?(surface), do: Query.narrowed?(surface.query)
+  # The doors are the gateway's own. Everything is the whole catalogue, which is too much
+  # to list, so it opens on the ways in; a mode that has already selected something opens
+  # on what it selected, because the selection is what a person went there for.
+  defp narrowed?(surface) do
+    surface.query.mode != "everything" or Query.narrowed?(surface.query)
+  end
 
   # The unnarrowed phase: the facet values are the content, and every tile is a door.
   attr :surface, :map, required: true
