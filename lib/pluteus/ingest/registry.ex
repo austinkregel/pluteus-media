@@ -530,17 +530,33 @@ defmodule Pluteus.Ingest.Registry do
   `describes` is `:holding` where the document is about the file itself, and the category
   it states is that file's; `:whole` where it is about what the file belongs to, so an
   album document dates the release and never makes a track an album.
-  """
-  @spec sidecar_document(String.t() | nil) ::
-          %{describes: :holding | :whole, category: String.t() | nil} | nil
-  def sidecar_document(nil), do: nil
 
-  def sidecar_document(root) do
+  A root a format writes for more than one kind of thing says which by the fields it
+  carries, and the rule names them: a document carrying none of them states what the
+  holding is called rather than what it is, and decides no category.
+  """
+  @spec sidecar_document(String.t() | nil, map()) ::
+          %{describes: :holding | :whole, category: String.t() | nil} | nil
+  def sidecar_document(root, fields \\ %{})
+
+  def sidecar_document(nil, _fields), do: nil
+
+  def sidecar_document(root, fields) do
     case registry()["sidecar_documents"]["of_root"][root] do
-      nil -> nil
-      rule -> %{describes: describes(rule["describes"]), category: rule["category"]}
+      nil ->
+        nil
+
+      rule ->
+        %{describes: describes(rule["describes"]), category: decides(rule, fields)}
     end
   end
+
+  # A rule naming the fields it decides on decides only where the document carries one.
+  defp decides(%{"when" => named} = rule, fields) do
+    if Enum.any?(named, &Map.has_key?(fields, &1)), do: rule["category"]
+  end
+
+  defp decides(rule, _fields), do: rule["category"]
 
   defp describes("holding"), do: :holding
   defp describes("whole"), do: :whole

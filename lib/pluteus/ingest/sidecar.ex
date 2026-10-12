@@ -169,10 +169,13 @@ defmodule Pluteus.Ingest.Sidecar do
   defp numbered(%{season: season, episode: episode}),
     do: %{"season" => to_string(season), "episode" => to_string(episode)}
 
+  # The fields are read before the rule is asked what the document decides, because a
+  # root a format writes for more than one kind of thing says which by what it carries.
   defp as_markup(inbox, directory, name, relative, bytes) do
     with true <- directory == Path.dirname(relative),
-         rule when not is_nil(rule) <- Registry.sidecar_document(Registry.document_root(bytes)),
-         {:ok, fields} <- Document.fields(bytes) do
+         {:ok, fields} <- Document.fields(bytes),
+         rule when not is_nil(rule) <-
+           Registry.sidecar_document(Registry.document_root(bytes), fields) do
       scope = scope(name, relative)
 
       %{scope: scope, category: categorizes(rule, scope, inbox, directory), fields: fields}

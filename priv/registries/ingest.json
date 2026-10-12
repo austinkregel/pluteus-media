@@ -290,7 +290,12 @@
     "for": "What a metadata document beside a holding states (spec-04 §6.3, which names a companion `.nfo` among the evidence a category is decided from). A media manager writes one per release, per series and per episode, and for a great deal of what a household holds it is the only thing that says what the file is: a television rip states nothing in its own container — no title, no show, no number.\n\nThe root element says what the document is about, which is how §4.6 already tells a media manager's `.nfo` from a release's notes. A root this table does not name states nothing rather than being read as whatever it resembles.\n\n`describes` says what the document is about. `holding` is the file itself, so its category is the holding's; `whole` is what the file belongs to, so an album document dates the release and never makes a track an album. A document's fields are read under the names it writes them, and the lists elsewhere in this registry — what names a serial, what numbers an issue, what dates an edition — name those alongside a container's own tag names, because §6.3 weighs the two alike.",
     "of_root": {
       "episodedetails": { "describes": "holding", "category": "television_episode" },
-      "details": { "describes": "holding", "category": "television_episode" },
+      "details": {
+        "describes": "holding",
+        "category": "television_episode",
+        "when": ["series_name", "season_number", "episode_number"],
+        "for": "Plex writes <details> beside a film and beside an episode alike, and only the episode's states the series it belongs to and where in it this one sits. A document stating none of those says what the holding is called, not what kind of thing it is, so it decides no category and its fields are read all the same."
+      },
       "movie": { "describes": "holding", "category": "film" },
       "song": { "describes": "holding", "category": "music_recording" },
       "comicinfo": { "describes": "holding", "category": "comic_issue" },
