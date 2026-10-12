@@ -35,18 +35,29 @@ defmodule Pluteus.Browse.Unfinished do
 
   *Needs a decision* is the open candidates: a pair something raised as possibly one
   thing, which only a member can settle.
+
+  ## Why the band is one query
+
+  Four of the five ask something of the same set — the holdings the catalog currently
+  holds — and deciding what that set is costs more than any of the questions asked of it.
+  So they are asked together, as conditions each figure counts under, and the set is
+  arrived at once for the band rather than once per door.
+
+  The exception is the pairs awaiting a decision, which are not holdings and so share
+  nothing with the rest; it rides along in the same pass because a second round trip
+  costs more than the condition does.
   """
 
   import Ecto.Query
 
   alias Pluteus.Assets
   alias Pluteus.Browse.Entries
-  alias Pluteus.Catalog
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Refinements
+  alias Pluteus.Catalog.Work
   alias Pluteus.Dedup.Candidate
   alias Pluteus.Events.Event
   alias Pluteus.Repo
@@ -62,82 +73,92 @@ defmodule Pluteus.Browse.Unfinished do
   """
   @spec for_principal(Ecto.UUID.t()) :: [door()]
   def for_principal(principal_id) do
+    figures =
+      Repo.one(
+        from [work: w] in Entries.base(),
+          select: %{
+            unverified: subquery(unverified()),
+            undated: filter(count(w.id), not exists(embodies_one_of(dated()))),
+            unkinded: filter(count(w.id), not exists(Entries.records_a_kind())),
+            unexamined: filter(count(w.id), w.id not in subquery(looked_at(principal_id))),
+            undecided: subquery(undecided())
+          }
+      )
+
     [
-      unexamined_by(principal_id),
-      counted("unverified", unverified()),
-      counted("no_date_recorded", undated()),
-      counted("no_kind_recorded", unkinded()),
-      counted("needs_a_decision", undecided())
+      %{bucket: "nothing_you_have_looked_at", count: nil, any?: figures.unexamined > 0},
+      counted("unverified", figures.unverified),
+      counted("no_date_recorded", figures.undated),
+      counted("no_kind_recorded", figures.unkinded),
+      counted("needs_a_decision", figures.undecided)
     ]
   end
 
   defp counted(bucket, count), do: %{bucket: bucket, count: count, any?: count > 0}
 
-  # Reported as a door with something behind it or nothing, never as a figure.
+  # The works this principal has looked at.
   #
   # An event names the res a person acted on — a digital item, a track — and a browse
-  # entry is a work, so what the principal has looked at is reached through the works
-  # their own events name. That mapping is over this principal's history alone, which is
-  # what keeps the question theirs.
-  defp unexamined_by(principal_id) do
-    looked_at =
-      principal_id
-      |> looked_at_res()
-      |> Catalog.works_of_many()
-      |> Map.values()
-      |> Enum.uniq()
+  # entry is a work, so what they have looked at is the works their own events reach:
+  # directly, through an expression, through a manifestation embodying one, or through a
+  # digital item carrying that manifestation. Those are `Pluteus.Catalog.works_of_many/1`'s
+  # four hops, said as a set rather than as a map — which is the difference that tells
+  # where a manifestation embodies expressions of two works. A map answers with one of
+  # them because a map holds one value per key; here both were looked at, since the person
+  # played the bytes and both works answer for them.
+  #
+  # Over this principal's history alone, which is what keeps the question theirs.
+  defp looked_at(principal_id) do
+    events = from e in Event, where: e.principal_id == ^principal_id
 
-    %{
-      bucket: "nothing_you_have_looked_at",
-      count: nil,
-      any?: Repo.exists?(from [work: w] in Entries.base(), where: w.id not in ^looked_at)
-    }
+    directly = from e in events, join: w in Work, on: w.id == e.res_id, select: %{id: w.id}
+
+    through_expressions =
+      from e in events, join: x in Expression, on: x.id == e.res_id, select: %{id: x.work_id}
+
+    through_manifestations =
+      from e in events,
+        join: m in Embodiment,
+        on: m.manifestation_id == e.res_id,
+        join: x in Expression,
+        on: x.id == m.expression_id,
+        select: %{id: x.work_id}
+
+    through_carriers =
+      from e in events,
+        join: d in DigitalItem,
+        on: d.id == e.res_id,
+        join: m in Embodiment,
+        on: m.manifestation_id == d.manifestation_id,
+        join: x in Expression,
+        on: x.id == m.expression_id,
+        select: %{id: x.work_id}
+
+    directly
+    |> union(^through_expressions)
+    |> union(^through_manifestations)
+    |> union(^through_carriers)
+    |> subquery()
+    |> select([reached], reached.id)
   end
 
-  defp looked_at_res(principal_id) do
-    Repo.all(
-      from e in Event,
-        where: e.principal_id == ^principal_id,
-        distinct: true,
-        select: e.res_id
-    )
-  end
-
-  # The integrity obligation, counted over the holdings it falls due on rather than
-  # over the assets: a holding realized by six parts is one thing to attend to, and a
-  # band whose numbers counted different kinds of thing would not be a band.
+  # The integrity obligation, over the holdings it falls due on rather than over the
+  # assets: a holding realized by six parts is one thing to attend to, and a band whose
+  # numbers counted different kinds of thing would not be a band.
   defp unverified do
     overdue = from a in Assets.unverified_query(), select: a.digital_item_id
 
-    Repo.aggregate(
-      from(i in DigitalItem, where: i.id in subquery(overdue), distinct: true, select: i.id),
-      :count
-    )
+    from i in DigitalItem,
+      where: i.id in subquery(overdue),
+      select: count(i.id, :distinct)
   end
 
   # A date is recorded against the manifestation that was issued, so a holding is undated
   # where nothing it embodies carries the relation.
-  defp undated do
+  defp dated do
     refinement = Refinements.name!("time-of-publication-or-manufacture")
 
-    dated = from a in Association, where: a.refinement == ^refinement, select: a.subject_id
-
-    Repo.aggregate(
-      from([work: w] in Entries.base(),
-        where: not exists(embodies_one_of(dated)),
-        select: w.id
-      ),
-      :count
-    )
-  end
-
-  # Through the band's own subquery rather than a predicate of its own, so a holding this
-  # counts is exactly a holding the kinds band left out.
-  defp unkinded do
-    Repo.aggregate(
-      from(w in Entries.without_category(Entries.base()), select: w.id),
-      :count
-    )
+    from a in Association, where: a.refinement == ^refinement, select: a.subject_id
   end
 
   defp embodies_one_of(manifestations) do
@@ -150,6 +171,6 @@ defmodule Pluteus.Browse.Unfinished do
   end
 
   defp undecided do
-    Repo.aggregate(from(c in Candidate, where: is_nil(c.decision), select: c.left_id), :count)
+    from c in Candidate, where: is_nil(c.decision), select: count(c.left_id)
   end
 end
