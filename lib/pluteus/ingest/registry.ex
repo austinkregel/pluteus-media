@@ -359,9 +359,74 @@ defmodule Pluteus.Ingest.Registry do
 
     evidence = Enum.flat_map(registry()["category_evidence"], &Map.values(&1["values"]))
     serials = for {_issue, rule} <- registry()["serials"]["of_category"], do: rule["category"]
+    filed = for {_segment, rule} <- of_segment(), do: rule["category"]
 
-    (defaults ++ evidence ++ serials) |> Enum.uniq() |> Enum.sort()
+    (defaults ++ evidence ++ serials ++ filed) |> Enum.uniq() |> Enum.sort()
   end
+
+  @doc """
+  What the path a holding arrived at states about it, or nil where it states nothing
+  (spec-04 §6.3).
+
+  Segments are compared whole and case-folded, so a directory called `TV` decides and one
+  called `TV Rips` does not, and the first segment the registry names is the one that
+  answers: a holding filed under `TV/…` was put under television by whoever filed it, and
+  a deeper directory is how they arranged it rather than a second statement.
+
+  The answer carries the category, the serial the path names where the rule says a segment
+  names one, and the number the file's own name begins with where the rule gives a pattern
+  for it. A rule that applies to other classes than this holding's states nothing about it.
+  """
+  @spec path_evidence(String.t(), atom()) ::
+          %{
+            category: String.t(),
+            serial_name: String.t() | nil,
+            position: integer() | nil
+          }
+          | nil
+  def path_evidence(inbox_path, media_class) do
+    segments = Path.split(inbox_path)
+    directories = Enum.drop(segments, -1)
+
+    case filed_under(directories, media_class) do
+      nil -> nil
+      {index, rule} -> stated(rule, directories, index, List.last(segments))
+    end
+  end
+
+  defp of_segment, do: registry()["path_evidence"]["of_segment"]
+
+  defp filed_under(directories, media_class) do
+    directories
+    |> Enum.with_index()
+    |> Enum.find_value(fn {segment, index} ->
+      rule = of_segment()[String.downcase(segment)]
+
+      if rule && Atom.to_string(media_class) in Map.fetch!(rule, "classes"), do: {index, rule}
+    end)
+  end
+
+  defp stated(rule, directories, index, file_name) do
+    %{
+      category: Map.fetch!(rule, "category"),
+      serial_name: serial_name(rule, directories, index),
+      position: position(rule, file_name)
+    }
+  end
+
+  defp serial_name(%{"serial_named_by_segment" => further}, directories, index),
+    do: Enum.at(directories, index + further)
+
+  defp serial_name(_naming_none, _directories, _index), do: nil
+
+  defp position(%{"numbered_by" => pattern}, file_name) do
+    case Regex.run(Regex.compile!(pattern), Path.rootname(file_name)) do
+      [_whole, digits] -> String.to_integer(digits)
+      nil -> nil
+    end
+  end
+
+  defp position(_numbering_none, _file_name), do: nil
 
   @doc """
   The serial a holding of this category is an issue of, or nil where the category belongs
