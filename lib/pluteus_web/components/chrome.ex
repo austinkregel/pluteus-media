@@ -42,7 +42,7 @@ defmodule PluteusWeb.Chrome do
     {"continue", "Continue", "hero-play-mini", "what you have not finished", "/continue"},
     {"recently_added", "Recently added", "hero-plus-mini", "what arrived most recently",
      "/recently-added"},
-    {"people", "People", "hero-user-mini", "who made or appears in what you hold", nil},
+    {"people", "People", "hero-user-mini", "who made or appears in what you hold", "/people"},
     {"places", "Places", "hero-map-pin-mini", "where a holding was made", nil},
     {"time", "Time", "hero-clock-mini", "when a holding was made", "/time"},
     {"sets", "Sets", "hero-rectangle-stack-mini", "the groupings a holding belongs to", "/sets"},
