@@ -49,16 +49,31 @@ defmodule Pluteus.Presentation do
   subject with nothing to generate from queues nothing, which is the same answer the
   wire gives in that situation (§11.6).
   """
-  @spec ask(Ecto.UUID.t(), String.t()) :: :queued | :nothing_to_generate
-  def ask(subject_id, profile) do
+  @spec ask(Ecto.UUID.t(), String.t(), non_neg_integer()) :: :queued | :nothing_to_generate
+  def ask(subject_id, profile, ordinal \\ 0) do
     case source_for(subject_id) do
       nil ->
         :nothing_to_generate
 
       _source ->
-        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, profile)
+        {:ok, _job} = GeneratePresentationAsset.queue(subject_id, profile, ordinal)
         :queued
     end
+  end
+
+  @doc """
+  Every artefact held of one part of a subject, keyed by profile.
+
+  A surface showing page *n* of a container of pages needs to know which of §20's
+  graded widths are there before it draws the page, and the whole ladder is one
+  query rather than a query per step of it.
+  """
+  @spec for_ordinal(Ecto.UUID.t(), non_neg_integer()) :: %{String.t() => Asset.t()}
+  def for_ordinal(subject_id, ordinal) do
+    Map.new(
+      Repo.all(from p in Asset, where: p.subject_id == ^subject_id and p.ordinal == ^ordinal),
+      &{&1.profile, &1}
+    )
   end
 
   @doc """
