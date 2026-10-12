@@ -40,8 +40,8 @@ defmodule Pluteus.BrowseTest do
     end
 
     test "the cost is stated, so a change to it has to be meant", %{principal: principal} do
-      # Twenty-six as measured: the entries, their names, what each of them is and what
-      # it is held as, how much
+      # Twenty-nine as measured: the entries, their names, what each of them is, what
+      # carries it and at what shape, what it is held as, how much
       # it gathers, who it credits and the cover it wears, the query's total and the whole
       # catalogue's, the bytes it takes and when the first of it arrived, how many of it
       # nothing credits, a distribution per narrowable axis, this principal's own looking
@@ -56,7 +56,7 @@ defmodule Pluteus.BrowseTest do
       # row costs none, which are the properties the assertions above hold.
       holdings(5, "photograph")
 
-      assert cost(principal) <= 27, "a render now costs #{cost(principal)} queries"
+      assert cost(principal) <= 30, "a render now costs #{cost(principal)} queries"
     end
 
     test "the cost does not grow with how many values a facet offers",
