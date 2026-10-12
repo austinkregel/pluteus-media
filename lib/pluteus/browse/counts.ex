@@ -89,7 +89,8 @@ defmodule Pluteus.Browse.Counts do
   # other would promise a holding the selection would not gain. Where a work carries one
   # value there is nothing to subtract and this is the plain share.
   defp adds(axis, browse, selected) do
-    Entries.base()
+    browse
+    |> Entries.selected()
     |> Entries.narrow(Query.without(browse, axis))
     |> except(browse, selected)
     |> then(&Entries.distribution(axis, &1))
@@ -98,7 +99,7 @@ defmodule Pluteus.Browse.Counts do
   defp except(selection, _browse, []), do: selection
 
   defp except(selection, browse, _selected) do
-    held = from w in Entries.narrow(Entries.base(), browse), select: w.id
+    held = from w in Entries.narrow(Entries.selected(browse), browse), select: w.id
 
     from [work: w] in selection, where: w.id not in subquery(held)
   end
