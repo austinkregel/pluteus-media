@@ -119,7 +119,7 @@ defmodule Pluteus.Presentation.Generate do
         made
 
       {:error, kind, detail} ->
-        failed(subject_id, profile, location, kind, detail)
+        failed(subject_id, profile, ordinal, location, kind, detail)
     end
   end
 
@@ -140,7 +140,7 @@ defmodule Pluteus.Presentation.Generate do
         descriptor: descriptor(declared, orientation)
       })
     else
-      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+      {:error, kind, detail} -> failed(subject_id, profile, ordinal, location, kind, detail)
     end
   end
 
@@ -212,7 +212,7 @@ defmodule Pluteus.Presentation.Generate do
       })
     else
       false -> {:refused, :below_the_tiling_threshold}
-      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+      {:error, kind, detail} -> failed(subject_id, profile, 0, location, kind, detail)
     end
   end
 
@@ -236,7 +236,7 @@ defmodule Pluteus.Presentation.Generate do
         descriptor: text_descriptor(artefact, read)
       })
     else
-      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+      {:error, kind, detail} -> failed(subject_id, profile, 0, location, kind, detail)
     end
   end
 
@@ -276,7 +276,7 @@ defmodule Pluteus.Presentation.Generate do
         descriptor: descriptor
       })
     else
-      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+      {:error, kind, detail} -> failed(subject_id, profile, 0, location, kind, detail)
     end
   end
 
@@ -301,7 +301,7 @@ defmodule Pluteus.Presentation.Generate do
         }
       })
     else
-      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+      {:error, kind, detail} -> failed(subject_id, profile, 0, location, kind, detail)
     end
   end
 
@@ -340,7 +340,7 @@ defmodule Pluteus.Presentation.Generate do
       })
     else
       false -> {:refused, :shorter_than_one_interval}
-      {:error, kind, detail} -> failed(subject_id, profile, location, kind, detail)
+      {:error, kind, detail} -> failed(subject_id, profile, 0, location, kind, detail)
     end
   end
 
@@ -481,14 +481,18 @@ defmodule Pluteus.Presentation.Generate do
     })
   end
 
-  defp failed(subject_id, profile, location, kind, detail) do
+  # A finding names the artefact it is about by all three of the columns that identify
+  # one (§11.6), the ordinal among them: one page of a comic that cannot be read says
+  # nothing about the next, and a surface told only the subject and the profile would
+  # have to treat the whole issue as unreadable.
+  defp failed(subject_id, profile, ordinal, location, kind, detail) do
     _ = Storage.delete(location)
 
     Ingest.record_finding(%{
       stage: :normalize,
       kind: kind,
       permanent: false,
-      detail: Map.merge(detail, %{subject: subject_id, profile: profile}),
+      detail: Map.merge(detail, %{subject: subject_id, profile: profile, ordinal: ordinal}),
       input_id: subject_id
     })
 
