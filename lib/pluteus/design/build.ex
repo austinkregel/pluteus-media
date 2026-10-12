@@ -92,6 +92,7 @@ defmodule Pluteus.Design.Build do
       primitives(),
       semantics(),
       contexts(),
+      reading_themes(),
       registrations()
     ]
     |> Enum.join("\n")
@@ -320,6 +321,49 @@ defmodule Pluteus.Design.Build do
     extra = if name == "far", do: ["  --root-size: 32px;"], else: []
 
     extra ++ declarations
+  end
+
+  # A.3.6 makes the theme long-form text is read in a choice of its own, so a person may
+  # read light prose on a dark interface. Each theme context is therefore emitted against
+  # a region as well as against the document root, with the same values read from the same
+  # file: the ramp a region carries is the one the root would carry under that theme.
+  #
+  # A descendant of `:root` rather than a bare attribute, so a region outweighs the theme
+  # the root carries — at equal specificity the root's context would win on source order
+  # for whichever of the two came last.
+  #
+  # Dark is named here because A.2.3 makes it the theme the language is authored in: it
+  # overrides nothing, so its region block is every value another theme reassigns, put
+  # back to what the token file authored. Restating the roles would not do it — a role
+  # names a primitive, and it is the primitives a theme moves.
+  defp reading_themes do
+    themes =
+      for {"theme", name} <- Tokens.overrides(),
+          do: reading_theme(name, overrides(name))
+
+    Enum.join([reading_theme("dark", authored(themed_paths())) | themes], "\n")
+  end
+
+  defp reading_theme(name, declarations) do
+    block(~s(:root [data-reading-theme="#{name}"]), declarations)
+  end
+
+  # Every path any theme context reassigns, which is what a region returning to the
+  # authored theme has to state.
+  defp themed_paths do
+    for {"theme", name} <- Tokens.overrides(),
+        {path, _token} <- Tokens.all(name),
+        uniq: true,
+        do: path
+  end
+
+  defp authored(paths) do
+    wanted = MapSet.new(paths)
+
+    Tokens.all()
+    |> Enum.filter(fn {path, _token} -> MapSet.member?(wanted, path) end)
+    |> Enum.sort()
+    |> Enum.map(fn {path, token} -> declaration(path, token) end)
   end
 
   # Layer 3. The `inline` keyword is load-bearing: without it the value is copied at
