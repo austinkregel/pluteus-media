@@ -115,7 +115,6 @@ defmodule PluteusWeb.Surfaces.Reading do
   disclosure keeps every one of them one press away without spending the page on them.
   """
   attr :held, :map, required: true
-  attr :principal_name, :any, required: true
 
   def preferences(assigns) do
     assigns = assign(assigns, :keys, keys())
@@ -135,8 +134,6 @@ defmodule PluteusWeb.Surfaces.Reading do
       ]}>
         <.icon name="hero-bars-3-mini" />
         <span>Reading preferences</span>
-        <span class="grow"></span>
-        <span class="text-caption">{kept_for(@principal_name)}</span>
       </summary>
 
       <div class="grid gap-4 px-4 pb-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
@@ -145,12 +142,6 @@ defmodule PluteusWeb.Surfaces.Reading do
     </details>
     """
   end
-
-  # §14.5 makes these the principal's own and not the household's, which a person
-  # setting one has to be able to see. A principal whose name nobody has recorded is
-  # still the only one they are kept for.
-  defp kept_for(nil), do: "Kept for you alone"
-  defp kept_for(%{nomen_string: name}), do: "Kept for #{name} alone"
 
   attr :key, :string, required: true
   attr :value, :string, required: true
