@@ -118,6 +118,25 @@ defmodule Pluteus.Presentation.GeometryTest do
     end
   end
 
+  describe "§6.1. A reading belongs to the bytes it read" do
+    # A holding placed before the probe was recorded against its asset carries a true
+    # reading that nothing asks about, and reserves its category's assumed shape rather
+    # than its own. Recording it again is what puts it where a surface looks, and it has
+    # to be safe to run over a catalogue that is already right.
+    test "a holding already read is not read again", %{inbox: inbox} do
+      [photo] = ingest!(inbox, %{"holiday/IMG_0001.png" => media!(:png)})
+
+      assert Place.record_probe!(photo) == :recorded_already
+      assert %{width: 64} = Geometry.for_res([manifestation_of(photo)])[manifestation_of(photo)]
+    end
+
+    test "a holding whose bytes nothing probed is left alone", %{inbox: inbox} do
+      [note] = ingest!(inbox, %{"letters/note.txt" => "Dear Ada"})
+
+      assert Place.record_probe!(note) == :states_none
+    end
+  end
+
   describe "a collection reserves a box before any bytes arrive" do
     test "a measured res reserves its own ratio" do
       measured = %{width: 1600, height: 1200, aspect_ratio: 1.3333}
