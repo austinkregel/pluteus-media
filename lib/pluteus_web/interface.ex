@@ -43,6 +43,12 @@ defmodule PluteusWeb.Interface do
 
   @doc """
   The session shape every interface LiveView mounts from.
+
+  **Everything here is the principal's or the device's, and nothing here is the page's.**
+  This is built once, by the request that establishes the socket, and a live navigation to
+  another surface does not build it again — so a value that belongs to one address would
+  be answered to every address reached after it. What belongs to an address is read from
+  the address, in `handle_params`, which is what runs when the address changes.
   """
   @spec session(Plug.Conn.t()) :: %{String.t() => term()}
   def session(conn) do
@@ -54,8 +60,7 @@ defmodule PluteusWeb.Interface do
       "assigner_id" => profile.assigner_id,
       "contexts" => Contexts.held_by(conn.assigns.principal),
       "device_id" => conn.assigns[:device_id],
-      "device_revoked" => conn.assigns[:device_revoked],
-      "kind" => conn.assigns[:kind] && to_string(conn.assigns.kind)
+      "device_revoked" => conn.assigns[:device_revoked]
     }
   end
 
