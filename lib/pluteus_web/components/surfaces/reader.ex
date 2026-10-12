@@ -22,7 +22,6 @@ defmodule PluteusWeb.Surfaces.Reader do
 
   alias Pluteus.Reading
   alias Pluteus.Surfaces.Registry, as: Surfaces
-  alias PluteusWeb.Absence
   alias PluteusWeb.Surfaces.Medium
   alias PluteusWeb.Surfaces.Reading, as: Settings
 
@@ -150,8 +149,8 @@ defmodule PluteusWeb.Surfaces.Reader do
   defp text(%{reading: {:absent, _state}} = assigns) do
     ~H"""
     <div class="flex flex-1 items-start px-4 py-8 sm:px-6">
-      <p id="reader-absence" class="text-body-md">
-        Its text is <Absence.statement state={absent_state(@reading)} />.
+      <p id="reader-absence" class="text-body-md text-on-surface-muted">
+        {missing(@reading)}
       </p>
     </div>
     """
@@ -290,7 +289,12 @@ defmodule PluteusWeb.Surfaces.Reader do
 
   defp said_date(%DateTime{} = at), do: Calendar.strftime(at, "%-d %B %Y")
 
-  defp absent_state({:absent, state}), do: state
+  # What stands in the text's place, said about the copy rather than about whatever went
+  # looking for it. A clause per state and no catch-all, so a state added to §5.2 and not
+  # worded here fails rather than leaving the page blank.
+  defp missing({:absent, "not_held"}), do: "No text is held for this."
+  defp missing({:absent, "not_yet_examined"}), do: "No text is held for this yet."
+  defp missing({:absent, "attempted_failed"}), do: "No text could be read from this file."
 
   defp pages({:read, reading}), do: length(reading.divisions)
   defp pages({:absent, _state}), do: 0
