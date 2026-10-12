@@ -124,6 +124,7 @@ defmodule PluteusWeb.EntityLive do
     address = selector && address(kind, res, selector)
     unit = selector && unit(selector)
     extent = extent(res, unit)
+    members = members(res, socket.assigns.principal_id, profile)
 
     {:noreply,
      socket
@@ -136,8 +137,9 @@ defmodule PluteusWeb.EntityLive do
      |> assign(:addresses, addresses(representation, profile))
      |> assign(:medium, medium(res))
      |> assign(:credits, credits(res, socket.assigns.principal_id, profile))
-     |> assign(:members, members(res, socket.assigns.principal_id, profile))
+     |> assign(:members, members)
      |> assign(:members_word, members_word(res))
+     |> assign(:carry_on, carry_on(members))
      |> assign(:address, address)
      |> assign(:placed?, is_nil(unit) or not is_nil(extent))
      |> assign(:mark, mark(address, extent))
@@ -185,6 +187,24 @@ defmodule PluteusWeb.EntityLive do
   end
 
   defp members_word(_another_kind), do: nil
+
+  # §8.4's band 2 for a work that gathers others. §8.1 resolves the action over the thing
+  # itself, and a series is not a thing anybody plays — what there is to do with it is to
+  # carry on with the member in progress, or to start the first one held.
+  #
+  # The member in progress is the one this principal has a position in, which §13.3 has
+  # already ordered; where several are, the earliest in the arrangement is where a person
+  # fell behind rather than where they most recently were.
+  defp carry_on([]), do: nil
+
+  defp carry_on(members) do
+    held = Enum.filter(members, & &1.held?)
+
+    Enum.find(held, &(&1.resumed_ms != nil)) || List.first(held)
+  end
+
+  defp carried(%{resumed_ms: nil, name: name}), do: "Start with #{name}"
+  defp carried(%{name: name}), do: "Carry on with #{name}"
 
   defp selected!(kind, params) do
     case DeepLink.read(kind, params) do
@@ -491,8 +511,21 @@ defmodule PluteusWeb.EntityLive do
               {verb(@noun)}
             </.link>
 
+            <.link
+              :if={!@surface_at and @carry_on}
+              id="entity-primary-action"
+              navigate={Members.path(@carry_on)}
+              class={[
+                "rounded-full px-4 min-h-target-pointer inline-flex items-center",
+                "text-body-md font-medium",
+                "bg-fill-solid text-on-fill hover:bg-fill-solid-strong"
+              ]}
+            >
+              {carried(@carry_on)}
+            </.link>
+
             <button
-              :if={!@surface_at}
+              :if={!@surface_at and !@carry_on}
               id="entity-primary-action"
               type="button"
               disabled
@@ -517,7 +550,7 @@ defmodule PluteusWeb.EntityLive do
           </div>
 
           <p
-            :if={!@surface_at}
+            :if={!@surface_at and !@carry_on}
             id="entity-action-why"
             class="mt-2 text-body-sm text-on-surface-muted"
           >
