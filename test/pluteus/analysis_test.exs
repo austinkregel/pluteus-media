@@ -5,7 +5,7 @@ defmodule Pluteus.AnalysisTest do
   """
 
   use Pluteus.DataCase, async: true
-  use Oban.Testing, repo: Pluteus.Repo
+  use Oban.Testing, repo: Pluteus.Jobs.Repo
 
   import Pluteus.IngestFixtures
 
@@ -20,6 +20,7 @@ defmodule Pluteus.AnalysisTest do
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
+  alias Pluteus.Jobs
   alias Pluteus.Principals
   alias Pluteus.Representation.Absence
   alias Pluteus.StorageFixtures
@@ -402,7 +403,7 @@ defmodule Pluteus.AnalysisTest do
       :ok = perform_job(ScheduleAnalysis, %{})
       queued = queued_analyses()
 
-      Repo.delete_all("oban_jobs")
+      Jobs.Repo.delete_all("oban_jobs")
 
       :ok = perform_job(ScheduleAnalysis, %{})
 
@@ -412,12 +413,12 @@ defmodule Pluteus.AnalysisTest do
 
     test "every ingest stage finds unfinished work without a job", %{inbox: inbox} do
       drop!(inbox, "a.flac", media!(:flac))
-      Repo.delete_all("oban_jobs")
+      Jobs.Repo.delete_all("oban_jobs")
       acquire_settled!(inbox, @t0)
-      Repo.delete_all("oban_jobs")
+      Jobs.Repo.delete_all("oban_jobs")
 
       assert [{_, :placed}] = Place.place_due(inbox)
-      Repo.delete_all("oban_jobs")
+      Jobs.Repo.delete_all("oban_jobs")
       assert [{_, :adopted}] = Normalize.normalize_due(fn _ -> nil end)
     end
   end
