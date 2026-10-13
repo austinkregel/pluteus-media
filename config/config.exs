@@ -7,9 +7,18 @@
 # General application configuration
 import Config
 
+# Two databases, and every ecto task walks this list. The queue's is separate because
+# Oban polls whether or not anything is happening, and on one server that work shares a
+# connection pool, shared buffers and autovacuum with the request a person is waiting on.
 config :pluteus,
-  ecto_repos: [Pluteus.Repo],
+  ecto_repos: [Pluteus.Repo, Pluteus.Jobs.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
+
+# Where this repo's migrations are, in every environment. It belongs here rather than in
+# the repo module because that is where `mix ecto.migrate` reads it; left unset it falls
+# back to `priv/` plus the module's last segment, which is `repo` — so the queue's
+# database would be handed the catalogue's migrations and would take them.
+config :pluteus, Pluteus.Jobs.Repo, priv: "priv/jobs_repo"
 
 # Background work. Concurrency is set here and nowhere else: a worker never
 # spawns its own pool. Verification reads whole files, so two at a time keeps
@@ -30,7 +39,7 @@ config :pluteus, Pluteus.Design.Watcher, start: false
 
 config :pluteus, Oban,
   engine: Oban.Engines.Basic,
-  repo: Pluteus.Repo,
+  repo: Pluteus.Jobs.Repo,
   # Two derivatives at a time: generating one reads a whole master and writes a new
   # file, so the bound here is the disks' rather than the scheduler's.
   queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2, presentation: 2],
