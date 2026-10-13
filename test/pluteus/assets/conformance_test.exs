@@ -6,7 +6,7 @@ defmodule Pluteus.Assets.ConformanceTest do
   """
 
   use Pluteus.DataCase, async: true
-  use Oban.Testing, repo: Pluteus.Repo
+  use Oban.Testing, repo: Pluteus.Jobs.Repo
 
   alias Pluteus.Annotations
   alias Pluteus.Assets
@@ -17,6 +17,7 @@ defmodule Pluteus.Assets.ConformanceTest do
   alias Pluteus.Dedup
   alias Pluteus.Dedup.Candidate
   alias Pluteus.Formats
+  alias Pluteus.Jobs
   alias Pluteus.Lifecycle
   alias Pluteus.Lifecycle.Tombstone
   alias Pluteus.PlatformEvents
@@ -376,21 +377,23 @@ defmodule Pluteus.Assets.ConformanceTest do
     end
 
     test "the catalog is included, and no table is left unclassified" do
-      tables =
-        Repo.query!("""
-        SELECT table_name FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-        """).rows
-        |> List.flatten()
-        |> Enum.sort()
-
       classification = Backup.classification()
 
-      assert tables == classification |> Map.keys() |> Enum.sort()
+      assert base_tables(Repo) == classification |> Map.keys() |> Enum.sort()
 
       for table <- ~w(res nomens works expressions manifestations digital_items events) do
         assert classification[table] == :whole
       end
+    end
+
+    # The queue has a database of its own, and a classification covering only the
+    # catalogue's would leave every table in it unanswered for — which is the one place
+    # "a new table cannot be left out of the backup by oversight" would stop holding.
+    test "no table of the queue's database is left unclassified either" do
+      classification = Backup.queue_classification()
+
+      assert base_tables(Jobs.Repo) == classification |> Map.keys() |> Enum.sort()
+      assert Enum.all?(Map.values(classification), &(&1 == :excluded))
     end
   end
 
@@ -834,4 +837,13 @@ defmodule Pluteus.Assets.ConformanceTest do
   defp days_ago(days), do: DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
 
   defp ids(rows), do: Enum.map(rows, & &1.id)
+
+  defp base_tables(repo) do
+    repo.query!("""
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    """).rows
+    |> List.flatten()
+    |> Enum.sort()
+  end
 end
