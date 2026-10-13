@@ -34,3 +34,18 @@ end
 
 Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Repo, :manual)
 Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Jobs.Repo, :manual)
+
+# The one listener a browser-driven test reaches the interface through. It serves the
+# endpoint's own pipeline behind the headers the authenticating proxy would have set, so
+# nothing is bypassed and nothing is forwarded twice.
+#
+# Started for every run rather than for the tests that use it, because a listener nobody
+# connects to costs a port and an idle acceptor. The port is the endpoint's configured
+# one; a partitioned run would need it varied as the database names already are.
+{:ok, _listener} =
+  Bandit.start_link(
+    plug: Pluteus.Proxy,
+    scheme: :http,
+    ip: {127, 0, 0, 1},
+    port: Pluteus.Proxy.port()
+  )
