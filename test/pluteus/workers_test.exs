@@ -6,12 +6,13 @@ defmodule Pluteus.WorkersTest do
   """
 
   use Pluteus.DataCase, async: true
-  use Oban.Testing, repo: Pluteus.Repo
+  use Oban.Testing, repo: Pluteus.Jobs.Repo
 
   alias Pluteus.Actor
   alias Pluteus.Assets
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
+  alias Pluteus.Jobs
   alias Pluteus.Lifecycle
   alias Pluteus.Principals
   alias Pluteus.Storage
@@ -162,7 +163,7 @@ defmodule Pluteus.WorkersTest do
       {:ok, _} = Lifecycle.recycle(asset.id, principal.id, now: long_ago)
 
       {:error, _} = perform_job(PurgeExpired, %{})
-      Repo.delete_all("oban_jobs")
+      Jobs.Repo.delete_all("oban_jobs")
 
       assert [%{stage: :purge, kind: "bytes_not_removed", location: location, detail: detail}] =
                Pluteus.Ingest.open_findings()
