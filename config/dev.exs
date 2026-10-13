@@ -10,6 +10,18 @@ config :pluteus, Pluteus.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
+# The queue's own server. `log: false` is the point rather than tidiness: the development
+# log is the only window onto a running server, and a queue polling several times a second
+# fills it with its own bookkeeping. What the queue is doing is asked of the queue.
+config :pluteus, Pluteus.Jobs.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "jobs-db",
+  database: "pluteus_dev_jobs",
+  stacktrace: true,
+  log: false,
+  pool_size: 10
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
