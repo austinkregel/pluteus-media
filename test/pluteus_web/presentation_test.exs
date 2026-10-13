@@ -10,7 +10,7 @@ defmodule PluteusWeb.PresentationTest do
   """
 
   use PluteusWeb.ConnCase, async: true
-  use Oban.Testing, repo: Pluteus.Repo
+  use Oban.Testing, repo: Pluteus.Jobs.Repo
 
   import Ecto.Query, only: [from: 2]
   import Pluteus.IngestFixtures
