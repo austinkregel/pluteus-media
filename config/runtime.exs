@@ -41,6 +41,23 @@ if config_env() == :prod do
     # pool_count: 4,
     socket_options: maybe_ipv6
 
+  # Required rather than defaulted to the catalogue's. The queue is separated so that its
+  # polling does not share a pool with what a person is waiting for, and a deployment that
+  # left this unset would get that sharing back without being told.
+  jobs_database_url =
+    System.get_env("JOBS_DATABASE_URL") ||
+      raise """
+      environment variable JOBS_DATABASE_URL is missing.
+      It is the job queue's own database, which holds no catalogue and is not
+      backed up. For example: ecto://USER:PASS@HOST/DATABASE
+      """
+
+  config :pluteus, Pluteus.Jobs.Repo,
+    url: jobs_database_url,
+    pool_size: String.to_integer(System.get_env("JOBS_POOL_SIZE") || "10"),
+    log: false,
+    socket_options: maybe_ipv6
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
