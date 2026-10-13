@@ -7,7 +7,7 @@ defmodule Pluteus.Presentation.MovingImageTest do
   """
 
   use Pluteus.DataCase, async: true
-  use Oban.Testing, repo: Pluteus.Repo
+  use Oban.Testing, repo: Pluteus.Jobs.Repo
 
   import Pluteus.IngestFixtures
 
