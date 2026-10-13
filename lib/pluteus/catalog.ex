@@ -673,6 +673,21 @@ defmodule Pluteus.Catalog do
   end
 
   @doc """
+  The same for many res at once, keyed by the res addressed. One with none is absent.
+
+  For a caller holding a page or a pass of them, where asking per res costs a query per
+  res and the answer is one relation either way.
+  """
+  @spec addresses_of_many([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => [Address.t()]}
+  def addresses_of_many([]), do: %{}
+
+  def addresses_of_many(target_ids) do
+    from(a in Address, where: a.target_id in ^target_ids)
+    |> Repo.all()
+    |> Enum.group_by(& &1.target_id)
+  end
+
+  @doc """
   Places an aggregated expression at a position within its aggregate (§12.1).
   """
   @spec arrange(Ecto.UUID.t(), Ecto.UUID.t(), pos_integer()) :: non_neg_integer()
