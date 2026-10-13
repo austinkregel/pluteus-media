@@ -33,3 +33,4 @@ case Pluteus.Annotations.record_tool_version("ffprobe", Pluteus.Ingest.Streams.f
 end
 
 Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Jobs.Repo, :manual)
