@@ -17,6 +17,8 @@ defmodule Pluteus.Application do
     children = [
       PluteusWeb.Telemetry,
       Pluteus.Repo,
+      # Before Oban, which is the only thing that reads it.
+      Pluteus.Jobs.Repo,
       {DNSCluster, query: Application.get_env(:pluteus, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pluteus.PubSub},
       {Oban, Application.fetch_env!(:pluteus, Oban)},
