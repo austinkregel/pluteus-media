@@ -23,6 +23,19 @@ config :pluteus, Pluteus.Repo,
   # default statement timeout without anything being wrong.
   timeout: 120_000
 
+# The queue's own database, sandboxed like the catalogue's. A test that inserts or drains
+# a job holds a connection to this one as well as to that one, so both are checked out per
+# test and both must be in manual mode.
+config :pluteus, Pluteus.Jobs.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "jobs-db",
+  database: "pluteus_test_jobs#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: 32,
+  log: false,
+  timeout: 120_000
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :pluteus, PluteusWeb.Endpoint,
