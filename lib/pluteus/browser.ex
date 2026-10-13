@@ -80,11 +80,17 @@ defmodule Pluteus.Browser do
 
   @doc """
   Closes the session and stops the driver.
+
+  The driver may have gone already — it exits of its own accord once its last session is
+  deleted — so the port is closed only if it is still open. That is not a failure being
+  swallowed: it is the thing this asks for having already happened.
   """
   @spec close(t()) :: :ok
   def close(%{session: session, driver: driver}) do
     _ = request(:delete, "/session/#{session}", nil)
-    Port.close(driver)
+
+    if Port.info(driver), do: Port.close(driver)
+
     :ok
   end
 
