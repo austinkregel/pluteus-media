@@ -36,9 +36,14 @@ defmodule Pluteus.DataCase do
   attribution sets its own with `Pluteus.Actor.as/2`; one that needs no
   principals to exist at all, such as onboarding, is tagged `:no_actor`.
   """
+  # Both databases, because a test that enqueues or drains a job writes to the queue's and
+  # to the catalogue's, and a connection checked out of one says nothing about the other.
   def setup_sandbox(tags) do
-    pid = Sandbox.start_owner!(Pluteus.Repo, shared: not tags[:async])
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    owners =
+      for repo <- [Pluteus.Repo, Pluteus.Jobs.Repo],
+          do: Sandbox.start_owner!(repo, shared: not tags[:async])
+
+    on_exit(fn -> Enum.each(owners, &Sandbox.stop_owner/1) end)
 
     if tags[:no_actor], do: [], else: [actor: act_as_member()]
   end
