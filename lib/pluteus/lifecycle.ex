@@ -66,6 +66,31 @@ defmodule Pluteus.Lifecycle do
   end
 
   @doc """
+  Which of many res the catalog currently holds.
+
+  The same three facts `state/1` reads — the res is there, no tombstone stands over it,
+  and nobody's recycling holds it — asked of a set rather than one at a time. A pass over
+  a catalogue asking `state/1` per res spends three queries per res to learn one bit about
+  each, and what it does with the answer is keep or drop.
+
+  Only the bit, because that is what a caller sorting the live from the rest needs. Why a
+  res is not live is `state/1`'s to say, and a caller that needs the reason needs the row.
+  """
+  @spec live_among([Ecto.UUID.t()]) :: MapSet.t(Ecto.UUID.t())
+  def live_among([]), do: MapSet.new()
+
+  def live_among(res_ids) do
+    from(r in Res,
+      where: r.id in ^res_ids,
+      where: r.id not in subquery(from(t in Tombstone, select: t.res_id)),
+      where: r.id not in subquery(from(b in RecycledRes, select: b.res_id)),
+      select: r.id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
   Places a res in the recycle bin, with everything below it.
 
   The window is #{@window_days} days (§14.1). Anything below the res that is
