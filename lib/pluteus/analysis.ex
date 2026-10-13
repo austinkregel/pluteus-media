@@ -88,17 +88,36 @@ defmodule Pluteus.Analysis do
           select: {a, s.manifestation_id}
       )
 
+    # Each of these is a fact about the whole pass, taken once. Asked per holding they are
+    # six queries each — three for whether it is live, one for whether it has a master, and
+    # two more for what is addressed on it — which on a settled library is some thousands a
+    # run to arrive at the set that was analysed last time.
     originals = originals_of(for {acquisition, _manifestation} <- placed, do: acquisition.id)
+    live = Lifecycle.live_among(for {_acquisition, manifestation} <- placed, do: manifestation)
 
-    placed
-    |> Enum.filter(fn {acquisition, manifestation_id} ->
-      original = Map.fetch!(originals, acquisition.id)
+    masters =
+      Normalize.masters_of(for {acquisition, _m} <- placed, do: acquisition.digital_item_id)
 
-      live?(manifestation_id) and
-        not is_nil(Normalize.master_of(acquisition.digital_item_id, original.part_sequence))
-    end)
-    |> Enum.flat_map(fn {acquisition, manifestation_id} ->
-      inputs_of(acquisition, manifestation_id, Map.fetch!(originals, acquisition.id))
+    analysable =
+      Enum.filter(placed, fn {acquisition, manifestation_id} ->
+        original = Map.fetch!(originals, acquisition.id)
+
+        MapSet.member?(live, manifestation_id) and
+          Map.has_key?(masters, {acquisition.digital_item_id, original.part_sequence})
+      end)
+
+    manifestations = for {_acquisition, manifestation} <- analysable, do: manifestation
+    addressed = Catalog.addresses_of_many(manifestations)
+    extents = extents_on_many(manifestations)
+
+    Enum.flat_map(analysable, fn {acquisition, manifestation_id} ->
+      inputs_of(
+        acquisition,
+        manifestation_id,
+        Map.fetch!(originals, acquisition.id),
+        Map.get(addressed, manifestation_id, []),
+        Map.get(extents, manifestation_id, [])
+      )
     end)
   end
 
@@ -110,13 +129,9 @@ defmodule Pluteus.Analysis do
     Map.new(Repo.all(from a in Asset, where: a.id in ^acquisition_ids), &{&1.id, &1})
   end
 
-  defp inputs_of(acquisition, manifestation_id, original) do
+  defp inputs_of(acquisition, manifestation_id, original, addressed, extents) do
     audio_tracks =
-      manifestation_id
-      |> Catalog.addresses_of()
-      |> Enum.filter(&(&1.selector_type == :track and &1.stream_kind == :audio))
-
-    extents = extents_on(manifestation_id)
+      Enum.filter(addressed, &(&1.selector_type == :track and &1.stream_kind == :audio))
 
     cond do
       audio_tracks != [] ->
@@ -159,15 +174,25 @@ defmodule Pluteus.Analysis do
     }
   end
 
-  defp extents_on(manifestation_id) do
-    Repo.all(
-      from a in Address,
-        join: l in Association,
-        on: l.subject_id == a.id and l.refinement == "extent-of",
-        where: a.target_id == ^manifestation_id and a.selector_type == :temporal,
-        order_by: a.start_ms,
-        select: {l.object_id, a}
+  # The tracks cut out of each of many single-file releases, keyed by the holding they are
+  # cut from and in the order they play. Ordered across the pass rather than within each,
+  # which comes to the same thing once grouped: the order that matters is among one
+  # holding's own tracks.
+  defp extents_on_many([]), do: %{}
+
+  defp extents_on_many(manifestation_ids) do
+    from(a in Address,
+      join: l in Association,
+      on: l.subject_id == a.id and l.refinement == "extent-of",
+      where: a.target_id in ^manifestation_ids and a.selector_type == :temporal,
+      order_by: a.start_ms,
+      select: {a.target_id, l.object_id, a}
     )
+    |> Repo.all()
+    |> Enum.group_by(fn {target_id, _track, _address} -> target_id end, fn {_target, track,
+                                                                            address} ->
+      {track, address}
+    end)
   end
 
   defp selector_of(%Address{} = address) do
@@ -422,8 +447,6 @@ defmodule Pluteus.Analysis do
 
     outcome
   end
-
-  defp live?(res_id), do: match?({:live, _}, Lifecycle.state(res_id))
 
   defp config(key), do: :pluteus |> Application.fetch_env!(__MODULE__) |> Keyword.fetch!(key)
 end
