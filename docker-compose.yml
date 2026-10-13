@@ -12,6 +12,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # The job queue, on its own server rather than in its own database beside the
+  # catalogue. Oban polls: it fetches, it elects a leader, it prunes, and it does so
+  # whether or not anything is happening. Sharing a server means sharing a connection
+  # pool, shared buffers, autovacuum and CPU with the thing a person is waiting for,
+  # and it means the catalogue's log is mostly the queue talking to itself.
+  #
+  # Nothing here is backed up or published. The queue is operational state the schedule
+  # rebuilds, which spec-04 §3 makes true by giving every stage its own way of finding
+  # what it is due to do.
+  jobs-db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - jobsdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: .
@@ -24,6 +46,8 @@ services:
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      jobs-db:
         condition: service_healthy
       sidecar:
         condition: service_healthy
@@ -106,6 +130,7 @@ networks:
 
 volumes:
   pgdata:
+  jobsdata:
   deps:
   build:
   homelab-media-linuxserver-plex-music:
