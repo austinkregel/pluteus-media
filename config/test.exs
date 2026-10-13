@@ -38,9 +38,17 @@ config :pluteus, Pluteus.Jobs.Repo,
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
+# The endpoint runs no listener of its own. A browser-driven test serves it through
+# `Pluteus.Proxy`, which is one listener running the endpoint's own pipeline behind the
+# headers the authenticating proxy would have set — so there is one connection, and the
+# live socket upgrades on it rather than being carried across a second.
+#
+# `check_origin: false` because that listener answers on a loopback address and a port,
+# and the configured url is a bare host; the socket would otherwise refuse its own page.
 config :pluteus, PluteusWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "tFUMUMAbmai5feQMvsNvsIqf4Mqvm77mvGgpG59V9D8TES9OgtfXVSpxhHhB/5fY",
+  check_origin: false,
   server: false
 
 # Print only warnings and errors during test
