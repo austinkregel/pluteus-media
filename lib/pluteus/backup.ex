@@ -12,6 +12,11 @@ defmodule Pluteus.Backup do
 
   Every table is classified here. A table missing from the classification is a
   test failure, so a new one cannot be left out of the backup by oversight.
+
+  That holds for both databases. The queue has a server of its own, and a classification
+  that only covered the catalogue would make the guarantee above true of one database and
+  silently untrue of the other — so `queue_classification/0` answers for the queue's, where
+  everything is excluded because the queue is operational state the schedule rebuilds.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -48,12 +53,18 @@ defmodule Pluteus.Backup do
   # something the deployment throws away on purpose. Its eviction log is the record
   # of that throwing away, and means nothing once the rows it counted are gone.
   @excluded ~w(
-    tool_versions derivations oban_jobs oban_peers inbox_sightings now_playing
+    tool_versions derivations inbox_sightings now_playing
     presentation_assets presentation_evictions
   )
 
+  # The queue's own database holds these and nothing else. Its own record of which
+  # migrations have run is excluded with them: it describes a database that is not
+  # backed up, so restoring it would mean restoring the queue.
+  @queue ~w(oban_jobs oban_peers schema_migrations)
+
   @doc """
-  Every table, classified as backed up whole, backed up in part, or excluded.
+  Every table of the catalogue's database, classified as backed up whole, backed up in
+  part, or excluded.
   """
   @spec classification() :: %{String.t() => :whole | :selected | :excluded}
   def classification do
@@ -62,6 +73,17 @@ defmodule Pluteus.Backup do
         Enum.map(@selected, &{&1, :selected}) ++ Enum.map(@excluded, &{&1, :excluded})
     )
   end
+
+  @doc """
+  Every table of the queue's database, which is all of them and all excluded.
+
+  Said as a classification rather than as a sentence, so that a table appearing in that
+  database is answered for by the same test that answers for the catalogue's. A queue
+  that grew a table nobody had thought about would otherwise be the one place the
+  guarantee above does not reach.
+  """
+  @spec queue_classification() :: %{String.t() => :excluded}
+  def queue_classification, do: Map.new(@queue, &{&1, :excluded})
 
   @doc """
   The rows of a partly backed-up table that the backup holds.
