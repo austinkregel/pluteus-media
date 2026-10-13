@@ -1,15 +1,18 @@
-defmodule Pluteus.Ingest.NormalizeCostTest do
+defmodule Pluteus.ScheduledWorkTest do
   @moduledoc """
-  What one pass of the normalize stage costs.
+  What a scheduled pass costs to find its own work.
 
-  spec-04 §3 makes each stage scheduled work that finds its own due items, and this is
-  scheduled every minute. So what it costs when there is nothing to do is what it costs
-  almost always, and that figure has to be a property of the pass rather than of how much
-  the household has already finished.
+  spec-04 §3 makes each stage scheduled work that finds its due items from recorded state,
+  and spec-04 §8's analysis is scheduled the same way. A pass runs whether or not there is
+  anything to do, so what it costs when there is nothing is what it costs almost always —
+  and that has to be a property of the pass rather than of how much the household has
+  already finished.
 
-  Measured on the household's own catalogue before this was asserted: 1135 placed
-  holdings, none of them due, and the pass asked three questions of each — about two
-  thousand queries a minute to establish that there was nothing to do.
+  Measured on the household's own catalogue before this was asserted: of 2274 queries in a
+  minute on an idle server, 2001 were two passes asking after each holding in turn. The
+  normalize pass asked five questions of each of 1135 placed holdings to establish that
+  none of them was due, and analysis asked six of each to arrive at the set it had
+  analysed already.
 
   Not async. `queries_during/1` reads the repo's telemetry, which is process-wide, so a
   test running beside this one would put its queries in the same stream.
@@ -19,6 +22,7 @@ defmodule Pluteus.Ingest.NormalizeCostTest do
 
   import Pluteus.IngestFixtures
 
+  alias Pluteus.Analysis
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
   alias Pluteus.Principals
@@ -32,7 +36,7 @@ defmodule Pluteus.Ingest.NormalizeCostTest do
     %{inbox: inbox!()}
   end
 
-  describe "spec-04 §3. A stage finds its due items at a cost the catalogue does not set" do
+  describe "spec-04 §3, §8. A pass finds its work at a cost the catalogue does not set" do
     test "a pass over many finished holdings costs what a pass over one does",
          %{inbox: inbox} do
       # Lossy, so each is adopted as its own master on the first pass and none is due on
@@ -61,6 +65,24 @@ defmodule Pluteus.Ingest.NormalizeCostTest do
       Normalize.normalize_due(standard(@flac))
 
       assert cost() == 1
+    end
+
+    test "asking what analysis has to run over costs the same over many as over one",
+         %{inbox: inbox} do
+      ingest!(inbox, %{"one.mp3" => media!(:mp3)})
+      Normalize.normalize_due(standard(@flac))
+
+      over_one = queries_during(fn -> Analysis.inputs() end) |> Enum.count()
+
+      ingest!(inbox, for(n <- 1..8, into: %{}, do: {"#{n}.mp3", media!(:mp3)}))
+      Normalize.normalize_due(standard(@flac))
+
+      over_nine = queries_during(fn -> Analysis.inputs() end) |> Enum.count()
+
+      assert Enum.count(Analysis.inputs()) == 9
+
+      assert over_nine == over_one,
+             "nine holdings cost #{over_nine} queries where one cost #{over_one}"
     end
   end
 
