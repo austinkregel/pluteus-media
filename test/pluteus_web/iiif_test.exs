@@ -6,7 +6,7 @@ defmodule PluteusWeb.IiifTest do
   """
 
   use PluteusWeb.ConnCase, async: true
-  use Oban.Testing, repo: Pluteus.Repo
+  use Oban.Testing, repo: Pluteus.Jobs.Repo
 
   # Every test here encodes a sixteen-megapixel image and tiles it, which is minutes of
   # work rather than seconds when the whole suite is competing for the same cores. The
