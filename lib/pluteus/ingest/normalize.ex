@@ -18,7 +18,7 @@ defmodule Pluteus.Ingest.Normalize do
   principal.
   """
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, subquery: 1]
 
   alias Pluteus.Actor
   alias Pluteus.Assets
@@ -166,6 +166,22 @@ defmodule Pluteus.Ingest.Normalize do
       where: a.digital_item_id == ^digital_item_id,
       where: a.id not in subquery(from b in RecycledRes, select: b.res_id),
       distinct: true
+  end
+
+  @doc """
+  Which parts of many holdings have a master, keyed by the holding and the part.
+
+  `master_of/2`'s question asked of a set. A pass deciding whether each of a thousand
+  holdings has one spends a query on each to learn the same thing this learns at once, and
+  the key is the pair because the role is per part.
+  """
+  @spec masters_of([Ecto.UUID.t()]) :: %{{Ecto.UUID.t(), integer() | nil} => map()}
+  def masters_of([]), do: %{}
+
+  def masters_of(digital_item_ids) do
+    from(m in subquery(masters()), where: m.digital_item_id in ^digital_item_ids)
+    |> Repo.all()
+    |> Map.new(&{{&1.digital_item_id, &1.part_sequence}, &1})
   end
 
   # A placed holding whose asset is gone is a broken invariant rather than a holding with
