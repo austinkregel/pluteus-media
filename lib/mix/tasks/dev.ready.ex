@@ -94,10 +94,21 @@ defmodule Mix.Tasks.Dev.Ready do
     end
   end
 
+  # Every repo the deployment configures, not the catalogue's alone: a migration pending
+  # against the queue's database stops the queue as surely as one pending against the
+  # catalogue's stops a request, and a check that named one of them would say the
+  # development tree was current while a stage was not running.
   defp pending do
+    for repo <- Application.fetch_env!(:pluteus, :ecto_repos),
+        version <- pending_for(repo),
+        do: version
+  end
+
+  defp pending_for(repo) do
     {:ok, versions, _started} =
-      Ecto.Migrator.with_repo(Pluteus.Repo, fn repo ->
-        for {:down, version, name} <- Ecto.Migrator.migrations(repo), do: "#{version}_#{name}"
+      Ecto.Migrator.with_repo(repo, fn started ->
+        for {:down, version, name} <- Ecto.Migrator.migrations(started),
+            do: "#{inspect(repo)} #{version}_#{name}"
       end)
 
     versions
