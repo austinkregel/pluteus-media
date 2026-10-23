@@ -108,6 +108,7 @@ defmodule PluteusWeb.CoreComponents do
         </div>
         <button
           type="button"
+          id={"#{@id}-close"}
           class="shrink-0 rounded-sm text-on-surface-muted hover:text-on-surface-strong"
           aria-label="close"
         >
