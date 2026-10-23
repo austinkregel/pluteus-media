@@ -146,6 +146,12 @@ defmodule PluteusWeb.Layouts do
     required: true,
     doc: "the intent each stored modifier carries, as `PluteusWeb.Contexts` assembles it"
 
+  # §17.7 turns focus restoration on a focusable's own identity, and the chrome draws
+  # these twice — once in the rail and once in the top bar — so the same control appears
+  # at two identities in one document and each needs its own. Where there is only one set
+  # on the page, there is nothing to tell apart and the default says so.
+  attr :at, :string, default: "page", doc: "which of the page's control sets this is"
+
   def context_controls(assigns) do
     assigns = assign(assigns, :modifiers, modifiers())
 
@@ -158,6 +164,7 @@ defmodule PluteusWeb.Layouts do
           <button
             :for={context <- contexts}
             type="button"
+            id={"#{@at}-context-#{modifier}-#{context}"}
             class={[
               "rounded-full px-3 text-body-sm min-h-target-pointer",
               "border-[length:var(--sys-border-width-component)]",
