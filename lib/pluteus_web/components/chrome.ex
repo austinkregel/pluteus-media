@@ -281,6 +281,7 @@ defmodule PluteusWeb.Chrome do
       <h2 class="text-title-md font-medium text-on-surface-strong">Narrowed by</h2>
       <.link
         :for={{axis, value} <- @narrowings}
+        id={"narrowed-#{axis}-#{value}"}
         patch={without(@query, axis, value)}
         aria-label={"Remove the facet #{label(axis, value)}"}
         class={[
@@ -331,6 +332,7 @@ defmodule PluteusWeb.Chrome do
     <button
       type="button"
       disabled
+      id="identity-switch"
       aria-label={"Acting as #{@principal_name}. Switch principal."}
       aria-describedby="identity-switch-why"
       class={[
@@ -362,6 +364,7 @@ defmodule PluteusWeb.Chrome do
       <button
         type="button"
         disabled
+        id="identity-switch"
         aria-label={"Acting as #{@principal_name}. Switch principal."}
         aria-describedby="identity-switch-why"
         class={[
@@ -391,6 +394,7 @@ defmodule PluteusWeb.Chrome do
       <button
         type="button"
         disabled
+        id="rail-search"
         aria-label="Search every name a thing carries"
         aria-describedby="rail-search-why"
         class={[
@@ -449,6 +453,7 @@ defmodule PluteusWeb.Chrome do
     <button
       type="button"
       disabled
+      id={"mode-#{@slug}"}
       aria-current={@current && "page"}
       aria-describedby={"mode-#{@slug}-why"}
       class={["w-full text-left", mode_face(@current, @collapsed), "disabled:opacity-100"]}
@@ -470,7 +475,7 @@ defmodule PluteusWeb.Chrome do
   # narrowing is cleared without stopping anything either.
   defp mode(%{current: true} = assigns) do
     ~H"""
-    <.link patch={@at} aria-current="page" class={mode_face(true, @collapsed)}>
+    <.link id={"mode-#{@slug}"} patch={@at} aria-current="page" class={mode_face(true, @collapsed)}>
       <.icon name={@glyph} />
       <span class={@collapsed && "sr-only"}>{@noun}</span>
     </.link>
@@ -479,7 +484,12 @@ defmodule PluteusWeb.Chrome do
 
   defp mode(assigns) do
     ~H"""
-    <.link navigate={@at} class={mode_face(false, @collapsed)} title={@collapsed && @noun}>
+    <.link
+      id={"mode-#{@slug}"}
+      navigate={@at}
+      class={mode_face(false, @collapsed)}
+      title={@collapsed && @noun}
+    >
       <.icon name={@glyph} />
       <span class={@collapsed && "sr-only"}>{@noun}</span>
     </.link>
@@ -511,6 +521,7 @@ defmodule PluteusWeb.Chrome do
   defp findings_link(assigns) do
     ~H"""
     <.link
+      id="rail-findings"
       navigate={~p"/findings"}
       title={@collapsed && "#{@findings} #{findings_said(@findings)}"}
       class={[
@@ -563,6 +574,7 @@ defmodule PluteusWeb.Chrome do
         {@principal_name || "a principal with no person of its own"}
       </span>
       <.link
+        id="top-bar-findings"
         navigate={~p"/findings"}
         class="ml-auto min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
       >
@@ -586,13 +598,13 @@ defmodule PluteusWeb.Chrome do
   defp contexts(assigns) do
     ~H"""
     <details id={"contexts-#{@at}"} class={@at == "top-bar" && "relative shrink-0"}>
-      <summary class={summary_face(@at)}>
+      <summary id={"contexts-#{@at}-summary"} class={summary_face(@at)}>
         <.icon name="hero-bars-3-mini" />
         <span class={@at == "top-bar" && "sr-only"}>Presentation</span>
       </summary>
 
       <div class={panel_face(@at)}>
-        <Layouts.context_controls contexts={@contexts} />
+        <Layouts.context_controls contexts={@contexts} at={@at} />
       </div>
     </details>
     """
@@ -663,6 +675,7 @@ defmodule PluteusWeb.Chrome do
     <button
       type="button"
       disabled
+      id={"tab-#{@slug}"}
       aria-current={@current && "page"}
       aria-describedby={"tab-#{@slug}-why"}
       class={[tab_face(@current), "disabled:opacity-100"]}
@@ -678,7 +691,7 @@ defmodule PluteusWeb.Chrome do
 
   defp tab(%{current: true} = assigns) do
     ~H"""
-    <.link patch={@at} aria-current="page" class={tab_face(true)}>
+    <.link id={"tab-#{@slug}"} patch={@at} aria-current="page" class={tab_face(true)}>
       <.icon name={@glyph} />
       <span>{@noun}</span>
     </.link>
@@ -687,7 +700,7 @@ defmodule PluteusWeb.Chrome do
 
   defp tab(assigns) do
     ~H"""
-    <.link navigate={@at} class={tab_face(false)}>
+    <.link id={"tab-#{@slug}"} navigate={@at} class={tab_face(false)}>
       <.icon name={@glyph} />
       <span>{@noun}</span>
     </.link>
