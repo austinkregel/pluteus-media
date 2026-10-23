@@ -267,6 +267,7 @@ defmodule PluteusWeb.BrowseLive do
     <ul :if={@values != []} class="flex flex-col divide-y divide-border-subtle">
       <li :for={{id, count} <- @values}>
         <.link
+          id={"people-list-#{id}"}
           navigate={at(@surface.agents[id], id)}
           class="flex min-h-target-touch items-center gap-3 py-3 hover:bg-fill-subtle-strong"
         >
@@ -327,7 +328,11 @@ defmodule PluteusWeb.BrowseLive do
       </h2>
       <ul class="mt-3 flex items-end gap-2">
         <li :for={{value, count} <- @values} class="flex min-w-0 grow basis-0 flex-col">
-          <.link patch={"#{@at}?#{URI.encode_query(decade: value)}"} class="group flex flex-col gap-2">
+          <.link
+            id={"decade-#{value}"}
+            patch={"#{@at}?#{URI.encode_query(decade: value)}"}
+            class="group flex flex-col gap-2"
+          >
             <span class="flex h-24 items-end" aria-hidden="true">
               <span
                 class={[
@@ -491,6 +496,7 @@ defmodule PluteusWeb.BrowseLive do
 
     ~H"""
     <.link
+      id={"kind-#{@value}"}
       patch={~p"/everything?#{[category: @value]}"}
       class={[
         "flex flex-col gap-3 rounded-md p-4",
@@ -560,6 +566,7 @@ defmodule PluteusWeb.BrowseLive do
           class="min-w-40"
         >
           <.tile
+            res={id}
             at={~p"/works/#{id}/view"}
             name={Map.fetch!(@surface.names, id)}
             mark={mark(@surface.categories[id])}
@@ -604,6 +611,7 @@ defmodule PluteusWeb.BrowseLive do
     Geometry.reserve(surface.geometry[surface.borne[id]], surface.categories[id])
   end
 
+  attr :res, :string, required: true
   attr :at, :string, required: true
   attr :name, :string, required: true
   attr :mark, :any, required: true
@@ -612,7 +620,7 @@ defmodule PluteusWeb.BrowseLive do
 
   defp tile(assigns) do
     ~H"""
-    <.link navigate={@at} class="group flex flex-col gap-2">
+    <.link id={"tile-#{@res}"} navigate={@at} class="group flex flex-col gap-2">
       <span
         class={[
           "flex items-center justify-center overflow-hidden rounded-md",
@@ -665,7 +673,7 @@ defmodule PluteusWeb.BrowseLive do
       "border-b-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "hover:bg-fill-subtle"
     ]}>
-      <.link navigate={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
+      <.link id={"row-#{@res}"} navigate={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
         <.cover at={@cover} mark={@mark} />
         <span class="flex min-w-0 grow flex-col gap-0.5">
           <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
@@ -790,7 +798,7 @@ defmodule PluteusWeb.BrowseLive do
       </h2>
       <ul :if={@values != []} class="mt-3 flex flex-wrap gap-2">
         <li :for={{value, count} <- @values}>
-          <.link patch={~p"/everything?#{[person: value]}"} class={pill()}>
+          <.link id={"people-band-#{value}"} patch={~p"/everything?#{[person: value]}"} class={pill()}>
             <.icon name="hero-user-mini" class="text-on-surface-muted" />
             <span class="text-body-md text-on-surface-strong">{@labels[value] || value}</span>
             <span class="font-mono text-caption text-on-surface-muted">{count}</span>
@@ -929,6 +937,7 @@ defmodule PluteusWeb.BrowseLive do
     <button
       type="button"
       disabled
+      id={"door-#{slug(@label)}"}
       aria-describedby={"door-#{slug(@label)}-why"}
       class={[door_face(), "w-full text-left disabled:opacity-100"]}
     >
@@ -944,6 +953,7 @@ defmodule PluteusWeb.BrowseLive do
     <button
       type="button"
       disabled
+      id={"door-#{slug(@label)}"}
       aria-describedby={"door-#{slug(@label)}-why"}
       class={[door_face(), "w-full text-left disabled:opacity-100"]}
     >
@@ -958,7 +968,7 @@ defmodule PluteusWeb.BrowseLive do
 
   defp door(assigns) do
     ~H"""
-    <.link navigate={@at} class={door_face()}>
+    <.link id={"door-#{slug(@label)}"} navigate={@at} class={door_face()}>
       <span class="grow text-body-md text-on-surface-strong">{@label}</span>
       <span :if={@count} class="font-mono text-caption text-on-surface-strong">{@count}</span>
     </.link>
