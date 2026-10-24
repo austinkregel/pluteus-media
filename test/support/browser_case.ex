@@ -8,16 +8,17 @@ defmodule PluteusWeb.BrowserCase do
   only true, or only false, in a browser: where focus lands after a patch, what a live
   region says the second time, and whether a collection moves as its images arrive.
 
-  ## It commits, and it runs alone
+  ## One sandbox, shared with everything the browser reaches
 
-  A browser's request is a separate process with its own connection, so it cannot join
-  this test's sandbox transaction and cannot see anything held uncommitted in one. These
-  tests therefore commit for real and remove what they wrote, which is the shape
-  `Pluteus.ChangeFeedTest` already uses and for the same reason.
+  The sandbox is in shared mode for the test's duration, so every process the test causes
+  uses the test's own connection: the request that renders the page, the live socket, and
+  each LiveView it joins. What a fixture writes is visible to the page without being
+  committed, and when the test ends it is rolled back together with everything the browser
+  did. Nothing is left in the database for the next test that counts something to find.
 
-  What was written is found rather than remembered: every res this test's principal
-  created is recorded in `catalog_writes`, so the cleanup reads that and goes back down
-  the tree. A fixture that grew a row nobody listed is then still removed.
+  That is why a browser-driven test must run alone. Shared mode hands every process one
+  connection, so two tests holding it at once would each see the other's rows — and this
+  refuses an async test rather than letting that happen quietly.
 
   ## Nothing is bypassed to get in
 
@@ -28,23 +29,11 @@ defmodule PluteusWeb.BrowserCase do
 
   use ExUnit.CaseTemplate
 
-  import Ecto.Query, only: [from: 2]
-
-  alias Ecto.Adapters.SQL.Sandbox
   alias Pluteus.Actor
   alias Pluteus.Catalog
-  alias Pluteus.Catalog.Category
-  alias Pluteus.Catalog.Embodiment
-  alias Pluteus.Catalog.Expression
-  alias Pluteus.Catalog.Extent
-  alias Pluteus.Catalog.Manifestation
-  alias Pluteus.Catalog.Nomen
-  alias Pluteus.Catalog.Res
-  alias Pluteus.Catalog.Work
   alias Pluteus.Ingest.Place
   alias Pluteus.Principals
   alias Pluteus.Proxy
-  alias Pluteus.Repo
 
   using do
     quote do
@@ -55,9 +44,13 @@ defmodule PluteusWeb.BrowserCase do
     end
   end
 
-  setup do
-    :ok = Sandbox.mode(Repo, :auto)
-    :ok = Sandbox.mode(Pluteus.Jobs.Repo, :auto)
+  setup tags do
+    if tags[:async] do
+      raise "a browser-driven test shares one database connection with every process the " <>
+              "browser reaches, so it cannot run beside another test"
+    end
+
+    actor = Pluteus.DataCase.setup_sandbox(tags)
 
     principal =
       Principals.admit(
@@ -65,20 +58,16 @@ defmodule PluteusWeb.BrowserCase do
         Proxy.default_subject()
       )
 
-    on_exit(fn ->
-      remove!(principal.id)
-      Sandbox.mode(Repo, :manual)
-      Sandbox.mode(Pluteus.Jobs.Repo, :manual)
-    end)
-
-    %{principal: principal}
+    actor |> Map.new() |> Map.put(:principal, principal)
   end
 
   @doc """
   A browser open on a path, as the proxy's principal on a declared surface.
 
   Closed when the test ends, whether or not it passed: a session left open holds a
-  browser, and a run of them would hold one each.
+  browser, and a run of them would hold one each. It closes before the sandbox does,
+  because callbacks run last-registered first, so no live view is left querying a
+  connection that has gone.
   """
   @spec open!(String.t(), keyword()) :: Pluteus.Browser.t()
   def open!(path, options \\ []) do
@@ -103,60 +92,5 @@ defmodule PluteusWeb.BrowserCase do
       {:ok, _} = Catalog.categorize(work.id, Place.category_scheme(), category, :automatic)
       work.id
     end)
-  end
-
-  # Everything this principal wrote, including what it did not ask for. Rendering a
-  # surface enrols a device (spec-06 §4.1) and may leave a queue and a position behind, so
-  # a cleanup that took only the fixtures would leave a device per page load — committed,
-  # and visible to every test that counts them.
-  #
-  # Then every res its writes created, taken down in the order the keys allow. A work is
-  # five rows, two links and a category, each keyed on a res about to go, so each goes
-  # before its res does.
-  defp remove!(principal_id) do
-    id = Ecto.UUID.dump!(principal_id)
-
-    res_ids =
-      Repo.all(
-        from w in "catalog_writes",
-          where: w.principal_id == ^id and w.table_name == "res" and w.operation == "INSERT",
-          select: type(fragment("(?->>'id')::uuid", w.row_key), Ecto.UUID)
-      )
-
-    for table <- ~w(resume_positions stars ratings playlists play_queues now_playing) do
-      Repo.query!("DELETE FROM #{table} WHERE principal_id = $1", [id])
-    end
-
-    Repo.query!("DELETE FROM events WHERE principal_id = $1", [id])
-
-    # The credential goes before the device: a device is shared and outlives any one
-    # principal's enrolment on it, so it is removed only once nothing references it.
-    Repo.query!("DELETE FROM device_credentials WHERE principal_id = $1", [id])
-
-    Repo.query!("""
-    DELETE FROM devices WHERE NOT EXISTS
-      (SELECT 1 FROM device_credentials c WHERE c.device_id = devices.id)
-    """)
-
-    {:ok, _} =
-      Actor.as(principal_id, fn ->
-        Repo.delete_all(from e in Extent, where: e.res_id in ^res_ids)
-        Repo.delete_all(from c in Category, where: c.res_id in ^res_ids)
-
-        Repo.delete_all(
-          from e in Embodiment,
-            where: e.expression_id in ^res_ids or e.manifestation_id in ^res_ids
-        )
-
-        Repo.delete_all(from m in Manifestation, where: m.id in ^res_ids)
-        Repo.delete_all(from e in Expression, where: e.id in ^res_ids)
-        Repo.delete_all(from w in Work, where: w.id in ^res_ids)
-        Repo.delete_all(from n in Nomen, where: n.id in ^res_ids or n.res_id in ^res_ids)
-        {:ok, Repo.delete_all(from r in Res, where: r.id in ^res_ids)}
-      end)
-
-    Repo.query!("DELETE FROM catalog_writes WHERE principal_id = $1", [id])
-    Repo.query!("DELETE FROM principal_identities WHERE principal_id = $1", [id])
-    Repo.query!("DELETE FROM principals WHERE id = $1", [id])
   end
 end
