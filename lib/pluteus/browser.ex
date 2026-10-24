@@ -95,12 +95,30 @@ defmodule Pluteus.Browser do
   end
 
   @doc """
-  Loads a URL and waits for the document to be ready.
+  Loads a URL and waits for the document to be ready and any LiveView on it to have
+  joined.
+
+  **The socket being connected is not the view being joined**, and the difference is the
+  whole of whether the page does anything. A click on a patch link made while the view's
+  channel is still joining is pushed into a channel that cannot send it, times out, and
+  LiveView recovers by reloading the page it is on — so the address does not change, no
+  handler runs on the server, and nothing is logged anywhere. It reads exactly like a
+  patch link that does nothing, and it is a test that acted too early.
+
+  So this waits for the view, not the socket. A page carrying no LiveView has nothing to
+  wait for and says so at once.
   """
   @spec go(t(), String.t()) :: :ok
   def go(%{session: session} = browser, url) do
     request(:post, "/session/#{session}/url", %{url: url})
     await(browser, "return document.readyState === 'complete'")
+
+    await(browser, """
+    if (!document.querySelector("[data-phx-main]")) return true;
+    if (!window.liveSocket) return false;
+    return !!(window.liveSocket.main && window.liveSocket.main.isConnected());
+    """)
+
     :ok
   end
 
