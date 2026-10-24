@@ -143,6 +143,7 @@ defmodule PluteusWeb.Transport do
     <div id="transport-controls" role="toolbar" aria-label="Transport" class="flex items-center gap-1">
       <button
         type="button"
+        id="transport-previous"
         phx-click="transport-previous"
         disabled={@first?}
         aria-label="The entry before this one"
@@ -153,6 +154,7 @@ defmodule PluteusWeb.Transport do
 
       <button
         type="button"
+        id="transport-play"
         phx-click="transport-play"
         disabled={@refused?}
         aria-label={if @playing?, do: "Pause", else: "Play"}
@@ -163,6 +165,7 @@ defmodule PluteusWeb.Transport do
 
       <button
         type="button"
+        id="transport-next"
         phx-click="transport-next"
         disabled={@last?}
         aria-label="The entry after this one"
@@ -183,6 +186,7 @@ defmodule PluteusWeb.Transport do
 
       <button
         type="button"
+        id="transport-queue-toggle"
         phx-click="transport-queue"
         aria-expanded={to_string(@queue_open?)}
         aria-controls="transport-queue"
@@ -311,11 +315,21 @@ defmodule PluteusWeb.Transport do
         Next: {@next.name}, in {@seconds} {if @seconds == 1, do: "second", else: "seconds"}
       </span>
 
-      <button type="button" phx-click="transport-offer-take" class={control()}>
+      <button
+        type="button"
+        id="transport-offer-take"
+        phx-click="transport-offer-take"
+        class={control()}
+      >
         <span class="px-2 text-body-sm">Play it now</span>
       </button>
 
-      <button type="button" phx-click="transport-offer-cancel" class={control()}>
+      <button
+        type="button"
+        id="transport-offer-cancel"
+        phx-click="transport-offer-cancel"
+        class={control()}
+      >
         <span class="px-2 text-body-sm">Stop here</span>
       </button>
     </div>
@@ -325,12 +339,15 @@ defmodule PluteusWeb.Transport do
   attr :showing, :map, required: true
 
   defp queue(assigns) do
+    assigns = assign(assigns, :entries, appearances(assigns.showing.queue))
+
     ~H"""
     <section id="transport-queue" aria-label="The queue" class="max-h-48 overflow-y-auto">
       <ol class="flex flex-col">
-        <li :for={{entry, index} <- Enum.with_index(@showing.queue)}>
+        <li :for={{entry, index, appearance} <- @entries}>
           <button
             type="button"
+            id={"queued-#{entry.res_id}-#{appearance}"}
             phx-click="transport-jump"
             phx-value-index={index}
             aria-current={index == @showing.index && "true"}
@@ -349,6 +366,21 @@ defmodule PluteusWeb.Transport do
       </ol>
     </section>
     """
+  end
+
+  # A queue may hold one track twice, so an entry is named by its res and by which
+  # appearance of it this is. Counted from the queue's own order rather than taken from
+  # the index, so removing another entry leaves this one's identity where it was.
+  defp appearances(queue) do
+    {entries, _seen} =
+      queue
+      |> Enum.with_index()
+      |> Enum.map_reduce(%{}, fn {entry, index}, seen ->
+        appearance = Map.get(seen, entry.res_id, 0) + 1
+        {{entry, index, appearance}, Map.put(seen, entry.res_id, appearance)}
+      end)
+
+    entries
   end
 
   # spec-01 §8.4's recorded figure, which §13.2's thresholds also measure against.
