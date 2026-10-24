@@ -18,25 +18,19 @@ defmodule PluteusWeb.Browser.FocusTest do
 
   describe "41. Every focusable carries the identity the restoration turns on" do
     test "no focusable in the shell is without an id", %{principal: principal} do
-      holding!(principal.id, "a photograph", "photograph")
+      # A kind that plays beside one that does not, because a row of a playing kind
+      # carries a control the other does not — and a page holding only documents would
+      # pass while every album row's play button went unnamed.
+      holding!(principal.id, "a letter", "document")
+      holding!(principal.id, "a record", "album")
 
-      browser = open!("/everything?category=photograph")
+      browser = open!("/everything?category=album,document")
 
-      unidentified =
-        Browser.evaluate(browser, """
-        const focusable = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])";
-        return [...document.querySelector("#shell").querySelectorAll(focusable)]
-          .filter((e) => !e.id)
-          .map((e) => [
-            e.tagName.toLowerCase(),
-            (e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40),
-            "in #" + ((e.closest("[id]") || {}).id || "nothing")
-          ].join(" "));
-        """)
+      found = unidentified(browser)
 
-      assert unidentified == [],
-             "#{length(unidentified)} focusable element(s) carry no id:\n" <>
-               Enum.map_join(unidentified, "\n", &"  #{&1}")
+      assert found == [],
+             "#{length(found)} focusable element(s) carry no id:\n" <>
+               Enum.map_join(found, "\n", &"  #{&1}")
     end
 
     test "an element that survives a patch keeps focus", %{principal: principal} do
