@@ -268,6 +268,8 @@ defmodule PluteusWeb.TransportTest do
       {:ok, live, _html} = live(conn, ~p"/everything?category=album")
       live |> element(~s|button[phx-value-res="#{release}"]|) |> render_click()
 
+      # Present first, or the refutation holds of a bar that never drew a slider.
+      assert has_element?(player(live), "#transport-position")
       refute has_element?(live, "#shell-announcement #transport-position")
     end
   end
