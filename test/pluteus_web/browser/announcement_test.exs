@@ -21,18 +21,10 @@ defmodule PluteusWeb.Browser.AnnouncementTest do
   use PluteusWeb.BrowserCase
 
   alias Pluteus.Ingest
-  alias Pluteus.Repo
 
   @kind "text_is_not_utf8"
 
-  # Registered before anything is written, and by what it writes rather than by what it
-  # returned. These findings are committed, so a setup that raised part way through would
-  # otherwise leave rows behind with no callback yet registered to take them away — and a
-  # committed finding is visible to every sandboxed test that counts them, which is most
-  # of the ones about ingest.
   setup do
-    on_exit(fn -> Repo.query!("DELETE FROM ingest_findings WHERE kind = $1", [@kind]) end)
-
     %{findings: for(_each <- 1..2, do: recorded!())}
   end
 
