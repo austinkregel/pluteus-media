@@ -686,6 +686,7 @@ defmodule PluteusWeb.BrowseLive do
       <button
         :if={@plays?}
         type="button"
+        id={"play-#{@res}"}
         phx-click="play"
         phx-value-res={@res}
         aria-label={"Play #{@name}"}
