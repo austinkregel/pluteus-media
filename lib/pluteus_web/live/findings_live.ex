@@ -177,12 +177,18 @@ defmodule PluteusWeb.FindingsLive do
 
   defp group(assigns) do
     ~H"""
-    <details class={[
-      "rounded-md",
-      "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
-      "bg-surface-raised"
-    ]}>
-      <summary class="flex min-h-target-touch cursor-pointer list-none items-center gap-3 px-4 py-3">
+    <details
+      id={"group-#{@group.kind}"}
+      class={[
+        "rounded-md",
+        "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
+        "bg-surface-raised"
+      ]}
+    >
+      <summary
+        id={"group-#{@group.kind}-summary"}
+        class="flex min-h-target-touch cursor-pointer list-none items-center gap-3 px-4 py-3"
+      >
         <.icon name="hero-exclamation-triangle-mini" class="shrink-0 text-status-warning" />
 
         <span class="flex min-w-0 grow flex-col">
@@ -231,6 +237,7 @@ defmodule PluteusWeb.FindingsLive do
 
       <button
         type="button"
+        id={"clear-#{@finding.id}"}
         phx-click="clear"
         phx-value-id={@finding.id}
         class={[
