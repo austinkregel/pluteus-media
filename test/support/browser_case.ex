@@ -83,6 +83,28 @@ defmodule PluteusWeb.BrowserCase do
   end
 
   @doc """
+  Every focusable in the shell that carries no id, described well enough to find it.
+
+  [spec-10] §17.7's first obligation, and one stated in one place because it has to be
+  asked of every state a surface can be in rather than of one page: a control that renders
+  only when something is queued, or only for a kind that plays, is unidentified on exactly
+  the pages a test about something else never opens.
+  """
+  @spec unidentified(Pluteus.Browser.t()) :: [String.t()]
+  def unidentified(browser) do
+    Pluteus.Browser.evaluate(browser, """
+    const focusable = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])";
+    return [...document.querySelector("#shell").querySelectorAll(focusable)]
+      .filter((e) => !e.id)
+      .map((e) => [
+        e.tagName.toLowerCase(),
+        (e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40),
+        "in #" + ((e.closest("[id]") || {}).id || "nothing")
+      ].join(" "));
+    """)
+  end
+
+  @doc """
   A holding the catalogue holds, named and of a kind, written as the acting principal.
   """
   @spec holding!(Ecto.UUID.t(), String.t(), String.t()) :: Ecto.UUID.t()
