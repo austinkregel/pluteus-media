@@ -99,6 +99,7 @@ defmodule PluteusWeb.Surfaces.Reader do
 
         <.link
           :for={copy <- @held_as}
+          id={"held-#{copy.id}"}
           patch={~p"/works/#{@work.id}/read?#{[held: copy.id]}"}
           aria-current={copy.reading? && "true"}
           class={entry(copy.reading?)}
@@ -130,6 +131,7 @@ defmodule PluteusWeb.Surfaces.Reader do
         <button
           :for={{_text, at} <- Enum.with_index(pages_of(@reading))}
           type="button"
+          id={"division-#{at}"}
           phx-click="page"
           phx-value-to={at}
           aria-current={at == @division && "true"}
@@ -196,6 +198,7 @@ defmodule PluteusWeb.Surfaces.Reader do
       <div class="flex items-center gap-4">
         <button
           type="button"
+          id="reader-previous"
           phx-click="page"
           phx-value-to={@division - @steps["small"]}
           disabled={@division == 0}
@@ -222,6 +225,7 @@ defmodule PluteusWeb.Surfaces.Reader do
 
         <button
           type="button"
+          id="reader-next"
           phx-click="page"
           phx-value-to={@division + @steps["small"]}
           disabled={@division == @pages - 1}
