@@ -96,10 +96,14 @@ defmodule PluteusWeb.SurfaceLive do
     end
   end
 
+  # The two selections §12.2 keeps independent, named by the control that sent the choice.
+  # Anything else raises: the player draws no third.
+  defp track_kind("audio"), do: :audio
+  defp track_kind("subtitle"), do: :subtitle
+
   @impl Phoenix.LiveView
   def handle_event("choose-track", %{"kind" => kind, "index" => index}, socket) do
-    chosen =
-      Map.put(socket.assigns.chosen, String.to_existing_atom(kind), String.to_integer(index))
+    chosen = Map.put(socket.assigns.chosen, track_kind(kind), String.to_integer(index))
 
     {:noreply, assign(socket, :chosen, chosen)}
   end
