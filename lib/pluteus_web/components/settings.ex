@@ -80,6 +80,7 @@ defmodule PluteusWeb.Settings do
         <button
           :for={value <- @domain["values"]}
           type="button"
+          id={"preference-#{@key}-#{value}"}
           phx-click="prefer"
           phx-value-key={@key}
           phx-value-value={value}
