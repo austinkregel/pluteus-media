@@ -242,6 +242,7 @@ defmodule PluteusWeb.Surfaces.Player do
         <li :for={track <- @tracks}>
           <button
             type="button"
+            id={"#{@id}-#{track.index}"}
             aria-pressed={to_string(track.index == @chosen)}
             phx-click="choose-track"
             phx-value-kind={@kind}
