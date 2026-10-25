@@ -67,6 +67,23 @@ defmodule PluteusWeb.BrowseLiveTest do
     end
   end
 
+  describe "§14.1. Every surface states which principal it is acting as" do
+    test "a principal with no person of its own is said to be one, in the rail too",
+         %{conn: conn} do
+      # The rail and the top bar are two renderings of one statement, and the rail's had
+      # no words for a principal without a person: it read "Acting as" and stopped.
+      {:ok, live, _html} = live(conn, ~p"/everything")
+
+      assert live |> element("#identity-principal") |> render() =~
+               "Acting as a principal with no person of its own"
+
+      assert has_element?(
+               live,
+               ~s|#identity-switch[aria-label="Acting as a principal with no person of its own. Switch principal."]|
+             )
+    end
+  end
+
   describe "§9.2. The gateway renders what the catalogue holds" do
     test "every kind the catalogue holds is a door carrying its count", %{conn: conn} do
       for _each <- 1..3, do: holding("photograph")
