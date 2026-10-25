@@ -7,7 +7,7 @@ config :pluteus, Pluteus.Repo,
   hostname: "db",
   database: "pluteus_dev",
   stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
+  show_sensitive_data_on_connection_error: false,
   pool_size: 10
 
 # The queue's own server. `log: false` is the point rather than tidiness: the development
