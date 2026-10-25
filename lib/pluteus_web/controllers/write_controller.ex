@@ -11,20 +11,28 @@ defmodule PluteusWeb.WriteController do
   alias Pluteus.Annotations
   alias Pluteus.Catalog
   alias Pluteus.Dedup
+  alias Pluteus.Dedup.Candidate
   alias Pluteus.Ingest
   alias Pluteus.Lifecycle
   alias PluteusWeb.Native
 
   @nomen_fields ~w(
     res_id nomen_string language language_unknown script scheme context_of_use
-  )
+  )a
+
+  # A request names a level as a string; the atom is looked up in the vocabulary that
+  # owns it rather than made from what was sent.
+  @decisions Map.new(Candidate.decisions(), &{Atom.to_string(&1), &1})
+
+  {earlier, [last]} = Enum.split(Enum.map(Candidate.decisions(), &Atom.to_string/1), -1)
+  @described Enum.join(earlier, ", ") <> " or " <> last
 
   def create_nomen(conn, params) do
     attrs =
-      params
-      |> Map.take(@nomen_fields)
-      |> Map.new(fn {key, value} -> {String.to_existing_atom(key), value} end)
-      |> Map.put(:provenance, :local)
+      for field <- @nomen_fields,
+          Map.has_key?(params, Atom.to_string(field)),
+          into: %{provenance: :local},
+          do: {field, Map.fetch!(params, Atom.to_string(field))}
 
     Native.write(conn, fn -> Catalog.create_nomen(attrs) end, fn conn, nomen ->
       Native.created(conn, %{
@@ -59,23 +67,17 @@ defmodule PluteusWeb.WriteController do
   def annotate(conn, _params),
     do: Native.invalid(conn, "an annotation needs a target_id, body_type and body")
 
-  def decide(conn, %{"id" => id, "decision" => decision})
-      when decision in ~w(same_holding same_manifestation same_expression same_work distinct) do
+  def decide(conn, %{"id" => id, "decision" => decision}) when is_map_key(@decisions, decision) do
     Native.write(
       conn,
-      fn -> Dedup.decide(id, String.to_existing_atom(decision), conn.assigns.principal.id) end,
+      fn -> Dedup.decide(id, Map.fetch!(@decisions, decision), conn.assigns.principal.id) end,
       fn conn, candidate ->
         json(conn, %{"id" => candidate.id, "decision" => candidate.decision})
       end
     )
   end
 
-  def decide(conn, _params),
-    do:
-      Native.invalid(
-        conn,
-        "a decision is same_holding, same_manifestation, same_expression, same_work or distinct"
-      )
+  def decide(conn, _params), do: Native.invalid(conn, "a decision is #{@described}")
 
   def restore(conn, %{"id" => id}) do
     Native.write(conn, fn -> Lifecycle.restore(id) end, fn conn, restored ->
