@@ -17,6 +17,7 @@ defmodule PluteusWeb.Transport do
   alias Pluteus.Playback
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Absence
+  alias PluteusWeb.Picture
 
   @doc """
   The bar, from what the transport is showing.
@@ -95,8 +96,7 @@ defmodule PluteusWeb.Transport do
   defp kind_of(nil), do: Absence.words("not_yet_examined")
   defp kind_of(category), do: Surfaces.category_icon(category).name
 
-  # The cover, the category glyph where there is none, and A.8.8's marker where the kind
-  # is unrecorded.
+  # The cover over the category glyph, or over A.8.8's marker where the kind is unrecorded.
   attr :showing, :map, required: true
 
   defp standing_for(assigns) do
@@ -109,19 +109,13 @@ defmodule PluteusWeb.Transport do
       "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "bg-surface-base"
     ]}>
-      <img
-        :if={@showing.cover}
-        src={~p"/manifestations/#{@showing.cover}/presentation/image-320"}
-        alt=""
-        class="size-full object-cover"
-        onerror="this.remove()"
-      />
-      <.icon :if={!@showing.cover && @mark} name={@mark.glyph} class={hue(@mark.class)} />
-      <.icon
-        :if={!@showing.cover && !@mark}
-        name="state-not-yet-examined-mini"
-        class="text-on-surface-muted"
-      />
+      <Picture.picture
+        src={@showing.cover && ~p"/manifestations/#{@showing.cover}/presentation/image-320"}
+        loading="eager"
+      >
+        <.icon :if={@mark} name={@mark.glyph} class={hue(@mark.class)} />
+        <.icon :if={!@mark} name="state-not-yet-examined-mini" class="text-on-surface-muted" />
+      </Picture.picture>
     </span>
     """
   end
@@ -427,11 +421,5 @@ defmodule PluteusWeb.Transport do
     ]
   end
 
-  # Complete literals: a class built from a value generates no rule and renders colourless.
-  defp hue("video"), do: "text-class-video"
-  defp hue("audio"), do: "text-class-audio"
-  defp hue("image"), do: "text-class-image"
-  defp hue("text"), do: "text-class-text"
-  defp hue("software"), do: "text-class-software"
-  defp hue("package"), do: "text-class-package"
+  defp hue(class), do: Picture.hue(class)
 end
