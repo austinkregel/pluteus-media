@@ -266,17 +266,19 @@ defmodule Pluteus.Browser do
   page that said nothing would report hundreds of messages and the one line worth reading
   would be somewhere among them.
   """
+  # The session asks for the browser log in its capabilities, so a driver that does not
+  # offer it has not done what it was asked, and that raises rather than reading as a page
+  # that said nothing.
   @spec console(t()) :: [String.t()]
   def console(%{session: session}) do
-    case request(:get, "/session/#{session}/se/log/types", nil) do
-      types when is_list(types) ->
-        if "browser" in types,
-          do: Enum.reject(logged(session), &echoed?/1),
-          else: []
+    types = request(:get, "/session/#{session}/se/log/types", nil)
 
-      _no_log_endpoint ->
-        []
+    unless is_list(types) and "browser" in types do
+      raise "#{@driver} offers no browser log for this session, though it was asked for " <>
+              "one: it answered #{inspect(types)}"
     end
+
+    Enum.reject(logged(session), &echoed?/1)
   end
 
   defp echoed?(message), do: String.contains?(message, "/phoenix/live_reload/frame")
