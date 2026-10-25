@@ -140,6 +140,53 @@ defmodule PluteusWeb.Browser.FocusTest do
              "focus landed on something carrying no identity, so the next patch loses it"
     end
 
+    test "a route change keeps focus on an element the new surface also carries" do
+      # A mode is a route, so moving between two replaces the whole view and with it the
+      # element the hook is mounted on. The rail is drawn again on the far side with the
+      # same identities, so the control the person pressed is there to return to.
+      browser = open!("/everything")
+
+      Browser.focus(browser, "#mode-recently_added")
+      Browser.press(browser, "#mode-recently_added")
+      Browser.await(browser, "return window.location.pathname === '/recently-added'")
+      Browser.await(browser, "return window.liveSocket.main.isConnected()")
+
+      assert {_tag, "mode-recently_added"} = Browser.focused(browser)
+    end
+
+    test "a route change away from the pressed element moves focus on rather than losing it",
+         %{principal: principal} do
+      # The row a person pressed belongs to the surface they left, so the page they arrive
+      # on cannot hold it, and focus has to land on something there rather than the body.
+      work = holding!(principal.id, "a letter", "document")
+
+      browser = open!("/everything?category=document")
+
+      Browser.press(browser, "#row-#{work}")
+      Browser.await(browser, "return window.location.pathname === '/works/#{work}'")
+      Browser.await(browser, "return window.liveSocket.main.isConnected()")
+
+      {tag, id} = Browser.focused(browser)
+
+      refute tag == "body", "focus fell to the document after the route change"
+      refute id == "", "focus landed on something carrying no identity"
+    end
+
+    test "a reconnection keeps focus where it was" do
+      browser = open!("/everything")
+
+      Browser.focus(browser, "#mode-everything")
+
+      # The socket dropped and joined again, as it is when a server restarts or a network
+      # blinks. The view rejoins and is rendered afresh.
+      Browser.evaluate(browser, "window.liveSocket.disconnect(); return true;")
+      Browser.await(browser, "return !window.liveSocket.main.isConnected()")
+      Browser.evaluate(browser, "window.liveSocket.connect(); return true;")
+      Browser.await(browser, "return window.liveSocket.main.isConnected()")
+
+      assert {_tag, "mode-everything"} = Browser.focused(browser)
+    end
+
     test "the identity is the thing addressed, not where it sits", %{principal: principal} do
       # Content-derived rather than positional, which is the half of §17.7's wording that
       # decides whether restoration lands on the right element or merely on an element: an
