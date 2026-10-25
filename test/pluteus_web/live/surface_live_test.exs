@@ -293,6 +293,21 @@ defmodule PluteusWeb.SurfaceLiveTest do
       # §12.2 keeps the two apart: choosing audio says nothing about subtitles.
       refute has_element?(live, ~s|#player-subtitles [aria-pressed="true"]|)
     end
+
+    test "a choice of a selection the player does not draw is refused, not recorded",
+         %{conn: conn, inbox: inbox} do
+      # The kind arrives from the client. Made into an atom it would add whatever key was
+      # sent beside the two selections, so it is matched against the two instead.
+      film = a_film(inbox)
+
+      {:ok, live, _html} = live(conn, ~p"/works/#{film}/play")
+
+      Process.flag(:trap_exit, true)
+
+      {{:function_clause, [{PluteusWeb.SurfaceLive, :track_kind, ["volume"], _at} | _rest]},
+       _call} =
+        catch_exit(render_click(live, "choose-track", %{"kind" => "volume", "index" => "0"}))
+    end
   end
 
   describe "§12.1, §11.2. A photograph is looked at, and its box is reserved" do
