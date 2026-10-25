@@ -149,6 +149,25 @@ defmodule Pluteus.Browser do
   end
 
   @doc """
+  Runs a script at the start of every document the session loads from now on, before any
+  of the page's own.
+
+  What a measurement of the page *as it first stood* needs: by the time `go/2` returns the
+  document is complete, so its images have arrived and whatever they moved has moved. A
+  script installed here records the page before that. It goes through chromedriver's
+  passthrough to the DevTools protocol, since WebDriver itself has no such command.
+  """
+  @spec on_every_document(t(), String.t()) :: :ok
+  def on_every_document(%{session: session}, script) do
+    request(:post, "/session/#{session}/goog/cdp/execute", %{
+      cmd: "Page.addScriptToEvaluateOnNewDocument",
+      params: %{source: script}
+    })
+
+    :ok
+  end
+
+  @doc """
   Clicks the first element a CSS selector names.
   """
   @spec click(t(), String.t()) :: :ok
