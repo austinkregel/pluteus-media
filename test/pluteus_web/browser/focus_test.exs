@@ -16,6 +16,65 @@ defmodule PluteusWeb.Browser.FocusTest do
 
   use PluteusWeb.BrowserCase
 
+  import Pluteus.IngestFixtures
+
+  alias Pluteus.Catalog
+  alias Pluteus.Ingest
+  alias Pluteus.Ingest.Normalize
+  alias Pluteus.Presentation.Generate
+  alias Pluteus.Reading
+  alias Pluteus.Storage
+
+  describe "41. Every surface's focusables carry the identity the restoration turns on" do
+    # One per surface, because each draws controls the others do not: a player's track
+    # choices, a reader's page controls, a finding's clear button. A check asked of the
+    # gateway alone passed while the player's track buttons went unnamed.
+    test "the player" do
+      film = placed!("home video/#{unique_prefix()}/duck.mkv", media!(:film))
+
+      assert_identified(open!("/works/#{film}/play"))
+    end
+
+    test "the viewer" do
+      photograph = placed!("photos/#{unique_prefix()}/IMG_0001.png", media!(:png))
+
+      assert_identified(open!("/works/#{photograph}/view"))
+    end
+
+    test "the reader" do
+      pages = for n <- 1..3, do: {"page-#{n}.png", comic_page(n)}
+      comic = placed!("#{unique_prefix()}/Excitebike Weekly 001.cbz", cbz(pages))
+
+      assert_identified(open!("/works/#{comic}/read"))
+    end
+
+    test "the reader of a document" do
+      letters = placed!("#{unique_prefix()}/letters.txt", "Dear Ada\n\fand Thomas\n")
+      generated!(letters, Reading.profile())
+
+      assert_identified(open!("/works/#{letters}/read"))
+    end
+
+    test "an entity page" do
+      film = placed!("home video/#{unique_prefix()}/duck.mkv", media!(:film))
+
+      assert_identified(open!("/works/#{film}"))
+    end
+
+    test "the findings surface" do
+      Ingest.record_finding(%{
+        stage: :normalize,
+        kind: "text_is_not_utf8",
+        permanent: false,
+        detail: %{},
+        location: "a6/89/#{Ecto.UUID.generate()}",
+        recorded_at: DateTime.utc_now()
+      })
+
+      assert_identified(open!("/findings"))
+    end
+  end
+
   describe "41. Every focusable carries the identity the restoration turns on" do
     test "no focusable in the shell is without an id", %{principal: principal} do
       # A kind that plays beside one that does not, because a row of a playing kind
@@ -95,5 +154,33 @@ defmodule PluteusWeb.Browser.FocusTest do
       assert Browser.showing?(browser, "#narrowed-category-document")
       assert Browser.showing?(browser, "#mode-everything")
     end
+  end
+
+  defp assert_identified(browser) do
+    found = unidentified(browser)
+
+    assert found == [],
+           "#{length(found)} focusable element(s) carry no id:\n" <>
+             Enum.map_join(found, "\n", &"  #{&1}")
+  end
+
+  defp generated!(work, profile) do
+    [expression | _rest] = Catalog.expressions_of(work)
+    [manifestation | _more] = Catalog.manifestations_of(expression.id)
+
+    {:ok, made} = Generate.run(manifestation.id, profile)
+    on_exit(fn -> Storage.delete(made.location) end)
+  end
+
+  # A holding placed and normalized from the inbox, answered as its work.
+  defp placed!(path, bytes) do
+    inbox = inbox!()
+    drop!(inbox, path, bytes)
+
+    [id] = inbox |> acquire_settled!() |> acquired()
+    place_all!(inbox)
+    Normalize.normalize_due()
+
+    id |> Ingest.get_acquisition!() |> Map.fetch!(:digital_item_id) |> Catalog.work_of()
   end
 end
