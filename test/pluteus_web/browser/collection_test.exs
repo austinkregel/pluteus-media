@@ -88,13 +88,47 @@ defmodule PluteusWeb.Browser.CollectionTest do
     end
   end
 
-  # Photographs placed from the inbox, each with the derivative the grid asks for already
-  # made, so what loads is the image a person would see rather than an absence.
-  defp photographs do
+  describe "A tile with no image shows what it is rather than nothing" do
+    test "the glyph is what is seen until the image arrives, and the image after",
+         %{photographs: [shown | _rest]} do
+      # A derivative not yet made is answered 202 with nothing to draw, which is the
+      # ordinary state of a holding just placed. The box it leaves must show the
+      # category's glyph, as a tile with no source at all does.
+      [unmade] = photographs(["64x48"], made: false)
+
+      browser = open!("/everything?category=photograph", height: 1600)
+
+      Browser.await(browser, """
+      return [...document.querySelectorAll("[id^='tile-'] img")]
+        .every((i) => i.complete && i.naturalWidth > 0);
+      """)
+
+      assert seen(browser, unmade) == "svg"
+      assert seen(browser, shown) == "img"
+    end
+  end
+
+  # What is drawn at the centre of a tile's picture: the topmost element there, as a
+  # pointer would meet it.
+  defp seen(browser, work) do
+    Browser.evaluate(
+      browser,
+      """
+      const box = document.querySelector(arguments[0]).firstElementChild.getBoundingClientRect();
+      const at = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return at.closest("svg") ? "svg" : at.tagName.toLowerCase();
+      """,
+      ["#tile-#{work}"]
+    )
+  end
+
+  # Photographs placed from the inbox, by default each with the derivative the grid asks
+  # for already made, so what loads is the image a person would see rather than an absence.
+  defp photographs(shapes \\ @shapes, options \\ []) do
     inbox = inbox!()
     prefix = unique_prefix()
 
-    for {size, index} <- Enum.with_index(@shapes, 1) do
+    for {size, index} <- Enum.with_index(shapes, 1) do
       drop!(inbox, "#{prefix}/photos/holiday/IMG_000#{index}.png", media!(:png, size: size))
     end
 
@@ -106,8 +140,10 @@ defmodule PluteusWeb.Browser.CollectionTest do
       acquisition = Ingest.get_acquisition!(id)
       manifestation = Repo.get!(DigitalItem, acquisition.digital_item_id).manifestation_id
 
-      {:ok, made} = Generate.run(manifestation, "image-640")
-      on_exit(fn -> Storage.delete(made.location) end)
+      if Keyword.get(options, :made, true) do
+        {:ok, made} = Generate.run(manifestation, "image-640")
+        on_exit(fn -> Storage.delete(made.location) end)
+      end
 
       work_of(manifestation)
     end
