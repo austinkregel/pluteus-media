@@ -39,6 +39,12 @@ defmodule Pluteus.Dedup.Candidate do
   @type t :: %__MODULE__{}
 
   @doc """
+  The levels a decision may name, which the column's check constraint also holds.
+  """
+  @spec decisions() :: [atom()]
+  def decisions, do: @decisions
+
+  @doc """
   A pair a member proposes, which no signal found.
   """
   def proposal_changeset(candidate, attrs) do
