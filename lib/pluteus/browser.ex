@@ -178,6 +178,20 @@ defmodule Pluteus.Browser do
   end
 
   @doc """
+  Presses Enter on the first element a CSS selector names, as a keyboard does.
+
+  Not `click/2`: a pointer and a keyboard reach a control by different paths, and what
+  happens to focus afterwards is a question about the keyboard's. WebDriver's own
+  key-sending focuses the element before it sends the key.
+  """
+  @spec press(t(), String.t()) :: :ok
+  def press(%{session: session} = browser, selector) do
+    id = element(browser, selector)
+    request(:post, "/session/#{session}/element/#{id}/value", %{text: ""})
+    :ok
+  end
+
+  @doc """
   Moves focus to the first element a CSS selector names, as a keyboard would.
   """
   @spec focus(t(), String.t()) :: :ok
