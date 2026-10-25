@@ -29,6 +29,7 @@ defmodule PluteusWeb.Surfaces.Medium do
     ]}>
       <button
         type="button"
+        id="surface-back"
         onclick="history.back()"
         class={[
           "min-h-target-pointer shrink-0 rounded-md px-4",
@@ -172,6 +173,7 @@ defmodule PluteusWeb.Surfaces.Medium do
           <button
             type="button"
             disabled
+            id="player-back"
             data-act="back"
             aria-label={"Back #{seconds(@steps["small"])} seconds"}
             class={control()}
@@ -179,7 +181,14 @@ defmodule PluteusWeb.Surfaces.Medium do
             <.icon name="back-10-mini" />
           </button>
 
-          <button type="button" disabled data-act="play" aria-label="Play" class={accent()}>
+          <button
+            type="button"
+            disabled
+            id="player-play"
+            data-act="play"
+            aria-label="Play"
+            class={accent()}
+          >
             <.icon name="hero-play-mini" data-glyph="play" />
             <.icon name="hero-pause-mini" data-glyph="pause" class="hidden" />
           </button>
@@ -187,6 +196,7 @@ defmodule PluteusWeb.Surfaces.Medium do
           <button
             type="button"
             disabled
+            id="player-forward"
             data-act="forward"
             aria-label={"Forward #{seconds(@steps["large"])} seconds"}
             class={control()}
@@ -198,6 +208,7 @@ defmodule PluteusWeb.Surfaces.Medium do
         <button
           type="button"
           disabled
+          id="player-mute"
           data-act="mute"
           aria-label="Mute"
           aria-pressed="false"
@@ -224,6 +235,7 @@ defmodule PluteusWeb.Surfaces.Medium do
         <button
           type="button"
           disabled
+          id="player-fullscreen"
           data-act="fullscreen"
           class={[
             "min-h-target-pointer shrink-0 rounded-md px-4",
