@@ -35,6 +35,7 @@ defmodule PluteusWeb.BrowseLive do
   alias PluteusWeb.Chrome
   alias PluteusWeb.Interface
   alias PluteusWeb.Native
+  alias PluteusWeb.Picture
   alias PluteusWeb.TransportLive
 
   @impl Phoenix.LiveView
@@ -629,15 +630,9 @@ defmodule PluteusWeb.BrowseLive do
         ]}
         style={@reserved && "aspect-ratio: #{@reserved}"}
       >
-        <img
-          :if={@borne}
-          src={~p"/manifestations/#{@borne}/presentation/image-640"}
-          alt=""
-          loading="lazy"
-          class="size-full object-cover"
-          onerror="this.remove()"
-        />
-        <.icon :if={!@borne} name={glyph(@mark)} class={ink(@mark)} />
+        <Picture.picture src={@borne && ~p"/manifestations/#{@borne}/presentation/image-640"}>
+          <.icon name={glyph(@mark)} class={ink(@mark)} />
+        </Picture.picture>
       </span>
 
       <span class="flex items-center gap-2">
@@ -727,8 +722,8 @@ defmodule PluteusWeb.BrowseLive do
   defp said([], mark, members), do: kind(mark, members)
   defp said(credited, mark, members), do: "#{Enum.join(credited, ", ")} · #{kind(mark, members)}"
 
-  # Asked for at the size the row draws. §11.1 answers 202 while it is being made, so the
-  # glyph stands in until then and where there is no cover.
+  # Asked for at the size the row draws, with the glyph beneath it for as long as no cover
+  # arrives.
   attr :at, :string, default: nil
   attr :mark, :any, required: true
 
@@ -739,15 +734,9 @@ defmodule PluteusWeb.BrowseLive do
       "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
       "bg-surface-raised"
     ]}>
-      <img
-        :if={@at}
-        src={~p"/manifestations/#{@at}/presentation/image-320"}
-        alt=""
-        loading="lazy"
-        class="size-full object-cover"
-        onerror="this.remove()"
-      />
-      <.icon :if={!@at} name={glyph(@mark)} class={ink(@mark)} />
+      <Picture.picture src={@at && ~p"/manifestations/#{@at}/presentation/image-320"}>
+        <.icon name={glyph(@mark)} class={ink(@mark)} />
+      </Picture.picture>
     </span>
     """
   end
@@ -758,14 +747,9 @@ defmodule PluteusWeb.BrowseLive do
   defp gathered(%{members: noun}, 1), do: " · 1 #{String.trim_trailing(noun, "s")}"
   defp gathered(%{members: noun}, count), do: " · #{count} #{noun}"
 
-  # Complete literals: a class built from a value generates no rule and renders colourless.
-  defp hue("video"), do: "text-class-video"
-  defp hue("audio"), do: "text-class-audio"
-  defp hue("image"), do: "text-class-image"
-  defp hue("text"), do: "text-class-text"
-  defp hue("software"), do: "text-class-software"
-  defp hue("package"), do: "text-class-package"
+  defp hue(class), do: Picture.hue(class)
 
+  # Complete literals: a class built from a value generates no rule and renders colourless.
   defp bar("video"), do: "bg-class-video"
   defp bar("audio"), do: "bg-class-audio"
   defp bar("image"), do: "bg-class-image"
