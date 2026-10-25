@@ -51,6 +51,7 @@ defmodule PluteusWeb.EntityLive do
   alias PluteusWeb.Members
   alias PluteusWeb.Native
   alias PluteusWeb.NotFoundError
+  alias PluteusWeb.Picture
 
   # §5.2's seven absences, each in words. A state with none raises rather than rendering
   # §8.4's band 5 is structure and band 6 is connections. §8.5 forbids the model's own
@@ -755,20 +756,12 @@ defmodule PluteusWeb.EntityLive do
               "border-[length:var(--sys-border-width-hairline)] border-border-subtle",
               "bg-surface-raised group-hover:border-border-strong"
             ]}>
-              <img
-                :if={@surface.covers[id]}
-                src={~p"/manifestations/#{@surface.covers[id]}/presentation/image-320"}
-                alt=""
-                loading="lazy"
-                class="size-full object-cover"
-                onerror="this.remove()"
-              />
-              <span
-                :if={!@surface.covers[id]}
-                class="px-2 text-center text-caption text-on-surface-muted"
-              >
-                No cover is held for this.
-              </span>
+              <Picture.picture src={
+                @surface.covers[id] &&
+                  ~p"/manifestations/#{@surface.covers[id]}/presentation/image-320"
+              }>
+                <.member_glyph category={@surface.categories[id]} />
+              </Picture.picture>
             </span>
 
             <span class="text-body-sm text-on-surface-strong">
@@ -786,6 +779,24 @@ defmodule PluteusWeb.EntityLive do
 
   defp holdings(1), do: "holding"
   defp holdings(_many), do: "holdings"
+
+  # What stands for a member's cover beneath it: its category's glyph, or A.8.8's marker
+  # where nothing has recorded what kind of thing it is.
+  attr :category, :string, default: nil
+
+  defp member_glyph(%{category: nil} = assigns) do
+    ~H"""
+    <.icon name="state-not-yet-examined" class="text-on-surface-muted" />
+    """
+  end
+
+  defp member_glyph(assigns) do
+    assigns = assign(assigns, :mark, Surfaces.category_icon(assigns.category))
+
+    ~H"""
+    <.icon name={@mark.glyph} class={Picture.hue(@mark.class)} />
+    """
+  end
 
   attr :id, :string, required: true
   attr :heading, :string, required: true
