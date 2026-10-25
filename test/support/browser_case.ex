@@ -93,7 +93,8 @@ defmodule PluteusWeb.BrowserCase do
   @spec unidentified(Pluteus.Browser.t()) :: [String.t()]
   def unidentified(browser) do
     Pluteus.Browser.evaluate(browser, """
-    const focusable = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])";
+    const focusable = "a[href], button, input:not([type=hidden]), select, textarea, " +
+      "[tabindex]:not([tabindex='-1'])";
     return [...document.querySelector("#shell").querySelectorAll(focusable)]
       .filter((e) => !e.id)
       .map((e) => [
