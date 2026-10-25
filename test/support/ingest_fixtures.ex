@@ -286,7 +286,8 @@ defmodule Pluteus.IngestFixtures do
     * `:ffv1` — lossless video with no audio
     * `:x264_444` — H.264 in the High 4:4:4 Predictive profile, which has a
       lossless mode the probe cannot see
-    * `:png`, `:jpeg` — one still frame
+    * `:png`, `:jpeg` — one still frame, 64×48 unless `size:` names another as
+      `"<width>x<height>"`
   """
   @spec media!(atom(), keyword()) :: binary()
   def media!(recipe, opts \\ []) do
@@ -383,8 +384,8 @@ defmodule Pluteus.IngestFixtures do
     do: moving(opts) ++ chapters(opts[:chapters], dir) ++ ["-c:v", "ffv1"]
 
   defp args(:x264_444, _opts, _dir), do: moving() ++ ["-c:v", "libx264", "-pix_fmt", "yuv444p"]
-  defp args(:png, _opts, _dir), do: still()
-  defp args(:jpeg, _opts, _dir), do: still()
+  defp args(:png, opts, _dir), do: still(opts)
+  defp args(:jpeg, opts, _dir), do: still(opts)
 
   # Just past [spec-10] §20's sixteen-megapixel threshold, which is where a graded
   # profile set gives way to a tiled pyramid. Just past rather than well past, because
@@ -413,7 +414,10 @@ defmodule Pluteus.IngestFixtures do
     ["-f", "lavfi", "-i", "testsrc=duration=#{duration}:size=64x48:rate=5"]
   end
 
-  defp still, do: ["-f", "lavfi", "-i", "testsrc=size=64x48", "-frames:v", "1"]
+  defp still(opts \\ []) do
+    size = Keyword.get(opts, :size, "64x48")
+    ["-f", "lavfi", "-i", "testsrc=size=#{size}", "-frames:v", "1"]
+  end
 
   defp tags(tags),
     do: Enum.flat_map(tags, fn {key, value} -> ["-metadata", "#{key}=#{value}"] end)
