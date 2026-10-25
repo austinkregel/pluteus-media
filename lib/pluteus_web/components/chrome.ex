@@ -333,7 +333,7 @@ defmodule PluteusWeb.Chrome do
       type="button"
       disabled
       id="identity-switch"
-      aria-label={"Acting as #{@principal_name}. Switch principal."}
+      aria-label={"Acting as #{who(@principal_name)}. Switch principal."}
       aria-describedby="identity-switch-why"
       class={[
         "min-h-target-touch min-w-target-touch flex items-center justify-center rounded-md",
@@ -359,13 +359,13 @@ defmodule PluteusWeb.Chrome do
       "border-t-[length:var(--sys-border-width-hairline)] border-border-subtle"
     ]}>
       <span id="identity-principal" class="grow truncate text-body-md text-on-surface-strong">
-        Acting as {@principal_name}
+        Acting as {who(@principal_name)}
       </span>
       <button
         type="button"
         disabled
         id="identity-switch"
-        aria-label={"Acting as #{@principal_name}. Switch principal."}
+        aria-label={"Acting as #{who(@principal_name)}. Switch principal."}
         aria-describedby="identity-switch-why"
         class={[
           "shrink-0 min-h-target-pointer min-w-target-pointer flex items-center justify-center",
@@ -380,6 +380,12 @@ defmodule PluteusWeb.Chrome do
     </div>
     """
   end
+
+  # Who the surface is acting as, in words, for every place that states it. A principal
+  # with no person of its own has no name to resolve, and saying so is the statement §14.1
+  # asks for; an empty one would read as a name that failed to load.
+  defp who(nil), do: "a principal with no person of its own"
+  defp who(principal_name), do: principal_name
 
   # §9.5 makes search its own surface, and none exists, so the field is disabled and says
   # so rather than reaching a browse results page, which criterion 52 forbids it sharing.
@@ -571,7 +577,7 @@ defmodule PluteusWeb.Chrome do
     ]}>
       <span class="shrink-0 text-body-sm text-on-surface-muted">Acting as</span>
       <span class="truncate text-body-sm font-medium text-on-surface-strong">
-        {@principal_name || "a principal with no person of its own"}
+        {who(@principal_name)}
       </span>
       <.link
         id="top-bar-findings"
