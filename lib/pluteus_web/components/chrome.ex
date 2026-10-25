@@ -216,6 +216,7 @@ defmodule PluteusWeb.Chrome do
         <button
           :if={@collapsible}
           type="button"
+          id="rail-toggle"
           phx-click="rail-toggle"
           aria-expanded={to_string(!@collapsed)}
           aria-controls="rail"
