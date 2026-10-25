@@ -164,6 +164,7 @@ defmodule PluteusWeb.Surfaces.Pages do
       <div class="flex items-center gap-4">
         <button
           type="button"
+          id="page-previous"
           phx-click="page"
           phx-value-to={@page - @steps["small"]}
           disabled={@page == 0}
@@ -190,6 +191,7 @@ defmodule PluteusWeb.Surfaces.Pages do
 
         <button
           type="button"
+          id="page-next"
           phx-click="page"
           phx-value-to={@page + @steps["small"]}
           disabled={@page == @pages - 1}
