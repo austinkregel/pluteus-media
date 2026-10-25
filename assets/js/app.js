@@ -34,12 +34,22 @@ import topbar from "../vendor/topbar"
 // order §17.7 fixes.
 const focusable = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])"
 
+// What the person was on, kept beside the hook rather than in it. A route change replaces
+// the view and mounts the hook afresh on the new one, and what was focused has to outlive
+// that to be restored there.
+const held = {id: null, order: null}
+
+// An element focus can actually land on. A control drawn for the other breakpoint is laid
+// out as nothing and a disabled one refuses focus, and either chosen as the target would
+// leave focus on the body exactly as if nothing had been restored.
+const reachable = (element) =>
+  !!element && !element.disabled && element.getClientRects().length > 0
+
 const Focus = {
   mounted() {
-    this.remembered = null
     this.el.addEventListener("focusin", (event) => {
-      this.remembered = event.target.id || null
-      this.order = this.remembered ? [...this.el.querySelectorAll(focusable)].map((e) => e.id) : null
+      held.id = event.target.id || null
+      held.order = held.id ? [...this.el.querySelectorAll(focusable)].map((e) => e.id) : null
     })
     this.restore()
   },
@@ -53,16 +63,17 @@ const Focus = {
   },
 
   restore() {
-    if (!this.remembered) return
-    const held = this.el.querySelector(`#${CSS.escape(this.remembered)}`)
-    if (held) return held.focus()
+    if (!held.id) return
+    const same = this.el.querySelector(`#${CSS.escape(held.id)}`)
+    if (reachable(same)) return same.focus()
 
-    const survivor = (this.order || [])
-      .slice((this.order || []).indexOf(this.remembered) + 1)
+    const order = held.order || []
+    const survivor = order
+      .slice(order.indexOf(held.id) + 1)
       .map((id) => id && this.el.querySelector(`#${CSS.escape(id)}`))
-      .find((element) => element)
+      .find(reachable)
 
-    const target = survivor || this.el.querySelector(focusable)
+    const target = survivor || [...this.el.querySelectorAll(focusable)].find(reachable)
     if (target) target.focus()
     else if (this.el.tabIndex >= 0) this.el.focus()
   }
