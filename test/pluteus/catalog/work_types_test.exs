@@ -19,7 +19,11 @@ defmodule Pluteus.Catalog.WorkTypesTest do
   describe "§6.5's table is the registry's" do
     test "LRM supplies five rows and the attributes it names" do
       assert WorkTypes.attributes("textual") == ~w(language intended_audience)
-      assert WorkTypes.attributes("musical") == ~w(key medium_of_performance)
+
+      # Musical carries one authored attribute beside LRM's two (§6.5), and says which.
+      assert WorkTypes.attributes("musical") -- WorkTypes.authored("musical") ==
+               ~w(key medium_of_performance)
+
       assert WorkTypes.attributes("cartographic") == ~w(cartographic_scale projection)
       assert WorkTypes.attributes("moving_image") == ~w(aspect_ratio colourization)
       assert WorkTypes.attributes("art") == ~w(medium_of_execution)
