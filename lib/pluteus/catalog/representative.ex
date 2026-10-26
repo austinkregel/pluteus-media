@@ -84,6 +84,33 @@ defmodule Pluteus.Catalog.Representative do
   end
 
   @doc """
+  A person's revision of a work's or an expression's attributes: those named are set,
+  the rest are kept, and a nil value removes the one it names.
+
+  Merged rather than replaced, because a member recording what kind of recording
+  something is has said nothing about its key, and a write that replaced the map would
+  erase whatever was already known about it.
+  """
+  @spec revise(:work | :expression, Ecto.UUID.t(), map()) ::
+          {:ok, Work.t() | Expression.t()} | {:error, Ecto.Changeset.t()}
+  def revise(:work, work_id, changes) do
+    represent(work_id, merged(Repo.get!(Work, work_id).representative_attributes, changes))
+  end
+
+  def revise(:expression, expression_id, changes) do
+    expression = Repo.get!(Expression, expression_id)
+
+    describe(expression_id, merged(expression.significant_attributes, changes))
+  end
+
+  defp merged(held, changes) do
+    Enum.reduce(changes, held, fn
+      {attribute, nil}, held -> Map.delete(held, attribute)
+      {attribute, value}, held -> Map.put(held, attribute, value)
+    end)
+  end
+
+  @doc """
   Promotes an expression's attributes to its work's, where §6.5's condition holds.
 
   Answers `:promoted` where it did, and why not where it did not, so a caller that expected
