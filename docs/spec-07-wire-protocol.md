@@ -255,6 +255,8 @@ uses, and adds none. Each is a request on the resource it changes:
 | add or correct a name (spec-01 §7) | `POST /nomens` |
 | categorize (spec-01 §7.5) | `POST /{kind}/{id}/categories` |
 | annotate (spec-02) | `POST /annotations` |
+| record representative or significant attributes (spec-01 §6.5) | `POST /works/{id}/attributes`, `POST /expressions/{id}/attributes` |
+| propose a duplicate candidate (spec-03 §8.3) | `POST /duplicate-candidates` |
 | decide a duplicate candidate (spec-03 §8.3) | `POST /duplicate-candidates/{id}/decision` |
 | recycle, restore, empty (spec-01 §14) | `DELETE /{kind}/{id}`, `POST /recyclings/{id}/restoration`, `DELETE /recyclings/{id}` |
 | clear a finding (spec-04 §9) | `POST /findings/{id}/clearing` |
@@ -263,6 +265,16 @@ uses, and adds none. Each is a request on the resource it changes:
 A write a catalog constraint refuses is answered with problem details naming the
 constraint. A write that raises is answered 500 and is not retried by the
 server.
+
+An attributes write names the attributes it sets and leaves the rest as they
+were, and a value of null removes the one it names. An attribute the res's type
+does not name, and a value outside an attribute's vocabulary, are refused naming
+which.
+
+A proposal names two res, `left_id` and `right_id`, in either order. A pair
+already decided is refused with the decision it carries, and a pair already
+raised and undecided answers with that candidate, since a pair appears once
+([spec-05] §8.5).
 
 **What `/devices` names is a credential, not a screen.** [spec-06] §4.1 lets one
 device hold a credential for each of several principals, so each entry is the
