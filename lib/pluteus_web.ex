@@ -64,12 +64,16 @@ defmodule PluteusWeb do
   A LiveView nested inside a surface does not declare it. It has no connection of its
   own to establish anything against, and its session is the one its parent handed down
   after establishing the principal on the connection they share.
+
+  Every surface draws the chrome, and with it the search field, so every surface answers
+  that field's submission through `PluteusWeb.Live.Search`.
   """
   def surface do
     quote do
       use PluteusWeb, :live_view
 
       on_mount PluteusWeb.Live.Identity
+      on_mount PluteusWeb.Live.Search
     end
   end
 
