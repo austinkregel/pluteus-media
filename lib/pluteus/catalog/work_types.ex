@@ -53,6 +53,29 @@ defmodule Pluteus.Catalog.WorkTypes do
   end
 
   @doc """
+  The attributes of a type that are authored here rather than taken from LRM: every one
+  of an authored row's, and on an LRM row whichever it names as authored beside LRM's own.
+  """
+  @spec authored(String.t()) :: [String.t()]
+  def authored(type) do
+    row = registry() |> Map.fetch!("work_types") |> Map.fetch!(type)
+
+    case row do
+      %{"source" => "authored", "attributes" => attributes} -> attributes
+      %{"authored" => authored} -> authored
+      %{} -> []
+    end
+  end
+
+  @doc """
+  The values an attribute may take, or nil where its values are not a closed set.
+  """
+  @spec vocabulary(String.t()) :: [String.t()] | nil
+  def vocabulary(attribute) do
+    registry() |> Map.fetch!("vocabularies") |> Map.drop(["for"]) |> Map.get(attribute)
+  end
+
+  @doc """
   The type of work a category of work belongs to.
 
   A category the registry does not map raises. Placement records a category from evidence
