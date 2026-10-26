@@ -31,9 +31,14 @@ defmodule PluteusWeb.BrowserCase do
 
   alias Pluteus.Actor
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Ingest
+  alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
+  alias Pluteus.IngestFixtures
   alias Pluteus.Principals
   alias Pluteus.Proxy
+  alias Pluteus.Repo
 
   using do
     quote do
@@ -103,6 +108,60 @@ defmodule PluteusWeb.BrowserCase do
         "in #" + ((e.closest("[id]") || {}).id || "nothing")
       ].join(" "));
     """)
+  end
+
+  @doc """
+  A two-track release ingested from a real recording, answered as its work: what a test
+  needs something actually playing for.
+  """
+  @spec a_release!() :: Ecto.UUID.t()
+  def a_release! do
+    inbox = IngestFixtures.inbox!()
+    prefix = IngestFixtures.unique_prefix()
+
+    for {path, bytes} <- %{
+          "#{prefix}/album.flac" => IngestFixtures.media!(:flac, duration: 6),
+          "#{prefix}/album.cue" => """
+          TITLE "Kind of Blue"
+          PERFORMER "Miles Davis"
+          FILE "album.flac" WAVE
+            TRACK 01 AUDIO
+              TITLE "So What"
+              INDEX 01 00:00:00
+            TRACK 02 AUDIO
+              TITLE "Freddie Freeloader"
+              INDEX 01 00:03:00
+          """
+        },
+        do: IngestFixtures.drop!(inbox, path, bytes)
+
+    ids = inbox |> IngestFixtures.acquire_settled!() |> IngestFixtures.acquired()
+    IngestFixtures.place_all!(inbox)
+    Normalize.normalize_due()
+
+    album = ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.find(&(&1.media_class == :audio))
+    release = Repo.get!(DigitalItem, album.digital_item_id).manifestation_id
+
+    [expression | _rest] = Catalog.expressions_in(release)
+    expression.work_id
+  end
+
+  @doc """
+  A browser with a release pressed play on from its row, the way a person starts one, and
+  left until the medium has actually begun.
+  """
+  @spec playing!(Ecto.UUID.t()) :: Pluteus.Browser.t()
+  def playing!(release) do
+    browser = open!("/everything?category=album")
+
+    Pluteus.Browser.click(browser, "#play-#{release}")
+
+    Pluteus.Browser.await(browser, """
+    const m = document.querySelector("#transport-medium");
+    return !!m && !m.paused && m.currentTime > 0.3;
+    """)
+
+    browser
   end
 
   @doc """
