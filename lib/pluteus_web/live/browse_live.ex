@@ -23,6 +23,7 @@ defmodule PluteusWeb.BrowseLive do
 
   alias Pluteus.Browse
   alias Pluteus.Browse.Query
+  alias Pluteus.Browse.Search
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Ingest
@@ -58,9 +59,7 @@ defmodule PluteusWeb.BrowseLive do
   # be linked to, reloaded or gone back to.
   @impl Phoenix.LiveView
   def handle_params(params, _uri, socket) do
-    mode = Atom.to_string(socket.assigns.live_action)
-
-    case Query.parse(mode, params) do
+    case parsed(socket.assigns.live_action, params) do
       {:ok, query} ->
         surface =
           Browse.surface(query, socket.assigns.principal_id, socket.assigns.profile)
@@ -71,6 +70,11 @@ defmodule PluteusWeb.BrowseLive do
         {:noreply, socket |> put_flash(:error, refused(refusal)) |> assign(:surface, nil)}
     end
   end
+
+  # Search reads a term and the mode it searches within; a mode reads its own name from
+  # the route and never a term, so an address cannot make a browse surface a results page.
+  defp parsed(:search, params), do: Query.parse_search(params)
+  defp parsed(mode, params), do: Query.parse(Atom.to_string(mode), params)
 
   # The player is a LiveView of its own, so a surface starts something and says so on
   # the principal's own topic rather than rendering the result itself.
@@ -132,13 +136,18 @@ defmodule PluteusWeb.BrowseLive do
       principal_name={@principal_name}
       contexts={@contexts}
       findings={@findings}
-      mode={Atom.to_string(@live_action)}
+      mode={mode_of(@live_action, @surface)}
       announcement={@announcement}
       query={@surface && @surface.query}
       socket={@socket}
       transport={@transport}
     >
-      <div id="browse" class="mx-auto w-full px-4 py-10 sm:px-6">
+      <div :if={@live_action == :search} id="search" class="mx-auto w-full px-4 py-10 sm:px-6">
+        <Layouts.flash_group flash={@flash} />
+        <.results :if={@surface} surface={@surface} />
+      </div>
+
+      <div :if={@live_action != :search} id="browse" class="mx-auto w-full px-4 py-10 sm:px-6">
         <Layouts.flash_group flash={@flash} />
 
         <.doors :if={@surface && gateway?(@surface)} surface={@surface} />
@@ -149,6 +158,11 @@ defmodule PluteusWeb.BrowseLive do
     </Chrome.shell>
     """
   end
+
+  # A search is within a mode's selection, so the rail goes on marking that mode current.
+  defp mode_of(:search, %{query: query}), do: query.mode
+  defp mode_of(:search, nil), do: "everything"
+  defp mode_of(mode, _surface), do: Atom.to_string(mode)
 
   # Three ways a mode opens, and a mode opens exactly one of them.
   #
@@ -180,7 +194,7 @@ defmodule PluteusWeb.BrowseLive do
     </header>
 
     <div class="flex flex-col gap-10">
-      <.kinds facet={@surface.facets["category"]} />
+      <.kinds facet={@surface.facets["category"]} query={@surface.query} />
       <.decades facet={@surface.facets["decade"]} undated={undated(@surface.unfinished)} />
       <.people
         facet={@surface.facets["person"]}
@@ -405,6 +419,7 @@ defmodule PluteusWeb.BrowseLive do
           credited={@surface.credited[id] || []}
           cover={@surface.covers[id]}
           format={@surface.formats[id]}
+          alike={@surface.alike[id]}
         />
       </li>
     </ol>
@@ -417,13 +432,101 @@ defmodule PluteusWeb.BrowseLive do
       <h2 id="further-heading" class="mb-3 text-title-md font-medium text-on-surface-strong">
         Narrow this further
       </h2>
-      <.kinds facet={@surface.facets["category"]} />
+      <.kinds facet={@surface.facets["category"]} query={@surface.query} />
       <div class="mt-6">
         <.inert_axes facets={@surface.facets} />
       </div>
     </section>
     """
   end
+
+  # §9.5's results: dense and scannable rather than image-led, because a person searching
+  # has said what they want and is looking for it in a list. Each row carries §6.2's three
+  # slots, and the header says what order they are in, since an unexplained order reads
+  # as a ranking nobody can check.
+  attr :surface, :map, required: true
+
+  defp results(%{surface: %{query: %{term: nil}}} = assigns) do
+    ~H"""
+    <header class="mb-8">
+      <h1 class="text-title-lg font-medium text-on-surface-strong">Search</h1>
+      <p class="mt-1 text-body-md text-on-surface-muted">
+        Every name a holding carries is searched, along with its tracks' and the names of
+        whoever it credits. Type what you are looking for in the search field.
+      </p>
+    </header>
+    """
+  end
+
+  defp results(assigns) do
+    ~H"""
+    <header class="mb-8">
+      <h1 class="text-title-lg font-medium text-on-surface-strong">
+        Searched for “{@surface.query.term}”
+      </h1>
+      <p id="search-standing" class="mt-1 text-body-sm text-on-surface-muted">
+        <span class="text-on-surface-strong">{@surface.total}</span> {searched_of(@surface)}
+      </p>
+    </header>
+
+    <ol :if={@surface.entries != []} id="search-results" class="flex flex-col">
+      <li :for={id <- @surface.entries}>
+        <.row
+          res={id}
+          at={~p"/works/#{id}"}
+          name={Map.fetch!(@surface.names, id)}
+          category={@surface.categories[id]}
+          members={@surface.members[id]}
+          credited={@surface.credited[id] || []}
+          cover={@surface.covers[id]}
+          format={@surface.formats[id]}
+          alike={@surface.alike[id]}
+          matched={
+            Search.matched_through(
+              Map.get(@surface.matched, id, []),
+              Map.fetch!(@surface.names, id)
+            )
+          }
+        />
+      </li>
+    </ol>
+
+    <p :if={@surface.entries == []} class="text-body-md text-on-surface-muted">
+      No name held here contains “{@surface.query.term}”.
+      <span :if={Query.narrowings(@surface.query) != []}>
+        Removing a facet from the rail will search more widely.
+      </span>
+    </p>
+
+    <%!-- A search that reached nothing has nothing to narrow, and its kinds band would
+          report the catalogue empty when only the search is. --%>
+    <section :if={@surface.entries != []} class="mt-10" aria-labelledby="further-heading">
+      <h2 id="further-heading" class="mb-3 text-title-md font-medium text-on-surface-strong">
+        Narrow this further
+      </h2>
+      <.kinds facet={@surface.facets["category"]} query={@surface.query} />
+    </section>
+    """
+  end
+
+  # How much of what the search was within it reached, and the order it lists them in.
+  defp searched_of(surface) do
+    "of #{surface.catalogue} #{holdings(surface.catalogue)}#{within(surface.query.mode)}, " <>
+      ordered_by(surface.ordering)
+  end
+
+  # Everything is the whole catalogue, so a search of it is of the holdings and nothing
+  # narrower; any other mode is a selection the figure is a part of.
+  defp within("everything"), do: ""
+  defp within(mode), do: " in #{String.downcase(mode_noun(mode))}"
+
+  # §6.4: the ordering nomen where there is one, the resolved name where there is not, and
+  # the surface says which.
+  defp ordered_by(:resolved), do: "in order of their names"
+  defp ordered_by(:ordering), do: "in order of the names each is filed under"
+
+  defp ordered_by(:mixed),
+    do: "in order of the name each is filed under, or of its name where it has none"
 
   defp holdings(1), do: "holding"
   defp holdings(_many), do: "holdings"
@@ -453,7 +556,12 @@ defmodule PluteusWeb.BrowseLive do
 
   # The kinds band: every category the catalogue holds, with what selecting it would
   # leave. Ordered by count descending, which the header states.
+  #
+  # Each value narrows the query the surface is showing rather than starting a new one,
+  # because its count is what it would leave of *this* query: a link that dropped the mode
+  # or the other facets would follow somewhere its own count does not describe.
   attr :facet, :any, required: true
+  attr :query, Query, required: true
 
   defp kinds(%{facet: {:available, []}} = assigns) do
     ~H"""
@@ -479,7 +587,12 @@ defmodule PluteusWeb.BrowseLive do
       <h2 id="kinds-heading" class="text-title-md font-medium text-on-surface-strong">By kind</h2>
       <ul class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <li :for={{value, count} <- @values}>
-          <.kind value={value} count={count} share={share(count, @most)} />
+          <.kind
+            value={value}
+            count={count}
+            share={share(count, @most)}
+            at={Chrome.address(Query.narrow(@query, "category", value))}
+          />
         </li>
       </ul>
     </section>
@@ -491,6 +604,7 @@ defmodule PluteusWeb.BrowseLive do
   attr :value, :string, required: true
   attr :count, :integer, required: true
   attr :share, :integer, required: true
+  attr :at, :string, required: true
 
   defp kind(assigns) do
     assigns = assign(assigns, :mark, Surfaces.category_icon(assigns.value))
@@ -498,7 +612,7 @@ defmodule PluteusWeb.BrowseLive do
     ~H"""
     <.link
       id={"kind-#{@value}"}
-      patch={~p"/everything?#{[category: @value]}"}
+      patch={@at}
       class={[
         "flex flex-col gap-3 rounded-md p-4",
         "border-[length:var(--sys-border-width-component)] border-border-strong",
@@ -656,6 +770,14 @@ defmodule PluteusWeb.BrowseLive do
   attr :cover, :string, default: nil
   attr :format, :string, default: nil
 
+  attr :alike, :string,
+    default: nil,
+    doc: "§6.2's disambiguator, where another result is shown by the same name"
+
+  attr :matched, :string,
+    default: nil,
+    doc: "§6.2's matched nomen, where a search reached this through a name not shown"
+
   defp row(assigns) do
     assigns =
       assigns
@@ -671,9 +793,14 @@ defmodule PluteusWeb.BrowseLive do
       <.link id={"row-#{@res}"} navigate={@at} class="flex min-w-0 grow items-center gap-4 px-2 py-3">
         <.cover at={@cover} mark={@mark} />
         <span class="flex min-w-0 grow flex-col gap-0.5">
-          <span class="truncate text-body-md font-medium text-on-surface-strong">{@name}</span>
+          <span class="truncate text-body-md font-medium text-on-surface-strong">
+            {@name}<span :if={@alike} class="font-normal text-on-surface-muted"> ({@alike})</span>
+          </span>
           <span class="truncate text-body-sm text-on-surface-muted">
             {said(@credited, @mark, @members, @format)}
+          </span>
+          <span :if={@matched} class="truncate text-body-sm text-on-surface-muted">
+            Matched “{@matched}”
           </span>
         </span>
       </.link>
