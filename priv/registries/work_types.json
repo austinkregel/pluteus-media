@@ -6,8 +6,10 @@
       "source": "LRM-E2-A2"
     },
     "musical": {
-      "attributes": ["key", "medium_of_performance"],
-      "source": "LRM-E2-A2"
+      "attributes": ["key", "medium_of_performance", "performance"],
+      "source": "LRM-E2-A2",
+      "authored": ["performance"],
+      "for": "spec-01 §6.5: performance is authored beside LRM's two, because recordings of one song by one performer differ as live, demo and alternate takes differ from the studio one, and key and medium of performance can agree across all of them."
     },
     "cartographic": {
       "attributes": ["cartographic_scale", "projection"],
@@ -41,6 +43,10 @@
       "source": "authored",
       "for": "Two expressions of one game are a port and a revision, which none of LRM's five attributes reaches."
     }
+  },
+  "vocabularies": {
+    "for": "The attributes whose values are a closed set, with the values spec-01 §6.5 defines. An attribute absent here takes any value: a key or a language is not a list this deployment could close.",
+    "performance": ["studio", "live", "demo", "remix", "alternate"]
   },
   "of_category": {
     "music_recording": "musical",
