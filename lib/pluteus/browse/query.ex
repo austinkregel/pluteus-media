@@ -36,18 +36,34 @@ defmodule Pluteus.Browse.Query do
   mode selects and what every facet count is computed against are then the same
   statement, and a count that quietly answered for the household could not arise. It is
   not a parameter — no request names it and no address carries it.
+
+  ## A search is one more term over the same selection
+
+  [spec-10] §9.5 makes search a surface of its own and a query "one more term over the
+  current selection", so the term sits beside the facets rather than among them: it has
+  no values to count and no vocabulary to refuse against, and what it narrows is the
+  mode's selection, exactly as the facets do. The profile is carried with it for the same
+  reason the principal is — which names a term may match is a question about whose names
+  are visible, and §7.3 keeps one person's word for a thing with that person.
+
+  A browse address never carries a term. `to_params/1` is the facets alone, and the term
+  is only read by `parse_search/1`, so §9.5's rule that browsing and searching do not
+  share a results page holds of the addresses as well as of the surfaces.
   """
 
+  alias Pluteus.Catalog.Profile
   alias Pluteus.Ingest.Registry
   alias Pluteus.Surfaces.Registry, as: Surfaces
 
   @enforce_keys [:mode]
-  defstruct mode: nil, facets: %{}, principal_id: nil
+  defstruct mode: nil, facets: %{}, principal_id: nil, term: nil, profile: nil
 
   @type t :: %__MODULE__{
           mode: String.t(),
           facets: %{String.t() => [String.t()]},
-          principal_id: Ecto.UUID.t() | nil
+          principal_id: Ecto.UUID.t() | nil,
+          term: String.t() | nil,
+          profile: Profile.t() | nil
         }
 
   @typedoc """
@@ -84,6 +100,35 @@ defmodule Pluteus.Browse.Query do
   end
 
   @doc """
+  The search a request's parameters name: the term in `q`, over the selection of the mode
+  in `in`, narrowed by the facets beside them.
+
+  The mode defaults to Everything, because a search reached from no mode — from an
+  entity page, say — is a search of the whole catalogue. A request naming no term is a
+  search not yet asked, which the surface answers by offering the field.
+  """
+  @spec parse_search(map()) :: {:ok, t()} | {:error, refusal()}
+  def parse_search(params) do
+    with {:ok, query} <- parse(Map.get(params, "in", "everything"), params) do
+      {:ok, search(query, params["q"])}
+    end
+  end
+
+  @doc """
+  The same selection searched for a term. Surrounding space is not part of what anybody
+  typed, and a term of nothing is no term.
+  """
+  @spec search(t(), String.t() | nil) :: t()
+  def search(%__MODULE__{} = query, nil), do: %{query | term: nil}
+
+  def search(%__MODULE__{} = query, term) when is_binary(term) do
+    case String.trim(term) do
+      "" -> %{query | term: nil}
+      term -> %{query | term: term}
+    end
+  end
+
+  @doc """
   The parameters a query is carried by, which is what a link to it holds.
 
   An axis narrowing nothing is absent rather than empty, so one query has one address.
@@ -93,6 +138,18 @@ defmodule Pluteus.Browse.Query do
     for {axis, [_one | _more] = values} <- facets,
         into: %{},
         do: {axis, Enum.join(Enum.sort(values), ",")}
+  end
+
+  @doc """
+  The parameters a search is carried by: the facets, the term, and the mode it searches
+  within where that is not Everything.
+  """
+  @spec search_params(t()) :: %{String.t() => String.t()}
+  def search_params(%__MODULE__{} = query) do
+    query
+    |> to_params()
+    |> then(&if query.term, do: Map.put(&1, "q", query.term), else: &1)
+    |> then(&if query.mode == "everything", do: &1, else: Map.put(&1, "in", query.mode))
   end
 
   @doc """
@@ -122,7 +179,7 @@ defmodule Pluteus.Browse.Query do
   What a narrowed surface counts against to say how much of the whole it is showing.
   """
   @spec unnarrowed(t()) :: t()
-  def unnarrowed(%__MODULE__{} = query), do: %{query | facets: %{}}
+  def unnarrowed(%__MODULE__{} = query), do: %{query | facets: %{}, term: nil}
 
   @doc """
   The same query with one axis carrying nothing.
@@ -149,7 +206,7 @@ defmodule Pluteus.Browse.Query do
   Whether anything narrows this query.
   """
   @spec narrowed?(t()) :: boolean()
-  def narrowed?(%__MODULE__{} = query), do: narrowings(query) != []
+  def narrowed?(%__MODULE__{} = query), do: narrowings(query) != [] or query.term != nil
 
   @doc """
   The values a query carries on one axis.
