@@ -137,6 +137,10 @@ defmodule PluteusWeb.Router do
         live at, BrowseLive, :"#{mode}"
       end
 
+      # §9.5's search, a surface of its own over the same selection. In this live session
+      # so that reaching it from a mode is a navigation that keeps what is playing.
+      live "/search", BrowseLive, :search
+
       # §12.1's primary surfaces, addressed beneath the work whose category names them
       # (§10.1). Under the work because a category is the work's.
       #
