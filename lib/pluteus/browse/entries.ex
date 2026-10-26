@@ -47,6 +47,7 @@ defmodule Pluteus.Browse.Entries do
   import Ecto.Query
 
   alias Pluteus.Browse.Query
+  alias Pluteus.Browse.Search
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Association
@@ -118,7 +119,32 @@ defmodule Pluteus.Browse.Entries do
   does not show.
   """
   @spec selected(Query.t()) :: Ecto.Query.t()
-  def selected(%Query{} = browse), do: selects(browse.mode, browse)
+  def selected(%Query{} = browse), do: browse.mode |> selects(browse) |> searched(browse)
+
+  # §9.5's term is one more condition on what the mode selects, so the facets narrow a
+  # search's results exactly as they narrow a browse surface's, and each count is taken
+  # over what the term reached. A term with no profile to say whose names it may match
+  # raises, for the reason Continue raises without a principal.
+  defp searched(query, %Query{term: nil}), do: query
+
+  defp searched(_query, %Query{profile: nil}) do
+    raise ArgumentError, "a search matches the names a profile may see, and this query has none"
+  end
+
+  defp searched(query, %Query{term: term, profile: profile}) do
+    from [work: w] in query, where: w.id in subquery(Search.works(term, profile))
+  end
+
+  @doc """
+  Every identifier a query holds, in no particular order.
+
+  What a search orders itself, since §6.4's order is by a name that resolution decides
+  and no query can express.
+  """
+  @spec held(Query.t()) :: [Ecto.UUID.t()]
+  def held(%Query{} = browse) do
+    browse |> selected() |> narrow(browse) |> select([work: w], w.id) |> Repo.all()
+  end
 
   # A clause per mode and no catch-all, so a mode the registry names and nothing selects
   # fails here rather than answering with the whole catalogue under its name.
