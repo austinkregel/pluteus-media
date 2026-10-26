@@ -87,14 +87,29 @@ defmodule Pluteus.Dedup do
   appears, and a member pointing at it has not failed at anything.
   """
   @spec propose(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
-          {:ok, Candidate.t()} | {:error, Ecto.Changeset.t() | {:already_decided, atom()}}
+          {:ok, Candidate.t()}
+          | {:error,
+             Ecto.Changeset.t() | {:already_decided, atom()} | {:not_a_holding, Ecto.UUID.t()}}
   def propose(one_id, other_id, principal_id, now \\ DateTime.utc_now()) do
     [left_id, right_id] = Enum.sort([one_id, other_id])
 
-    case raised(left_id, right_id) do
-      nil -> record_proposal(left_id, right_id, principal_id, now)
-      %Candidate{decision: nil} = open -> {:ok, open}
-      %Candidate{decision: decision} -> {:error, {:already_decided, decision}}
+    with :ok <- a_holding(left_id), :ok <- a_holding(right_id) do
+      case raised(left_id, right_id) do
+        nil -> record_proposal(left_id, right_id, principal_id, now)
+        %Candidate{decision: nil} = open -> {:ok, open}
+        %Candidate{decision: decision} -> {:error, {:already_decided, decision}}
+      end
+    end
+  end
+
+  # A pair names two holdings, digital items or manifestations, and every level a
+  # decision can name is reached from them. A pair of works, or of anything else, could
+  # never be decided, so it is refused here rather than accepted and left to raise when
+  # someone tries.
+  defp a_holding(res_id) do
+    case Repo.get!(Res, res_id) do
+      %Res{kind: kind} when kind in [:digital_item, :manifestation] -> :ok
+      %Res{} -> {:error, {:not_a_holding, res_id}}
     end
   end
 
