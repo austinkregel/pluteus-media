@@ -10,6 +10,9 @@ defmodule PluteusWeb.WriteController do
   alias Pluteus.Administration
   alias Pluteus.Annotations
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Expression
+  alias Pluteus.Catalog.Representative
+  alias Pluteus.Catalog.Work
   alias Pluteus.Dedup
   alias Pluteus.Dedup.Candidate
   alias Pluteus.Ingest
@@ -66,6 +69,41 @@ defmodule PluteusWeb.WriteController do
 
   def annotate(conn, _params),
     do: Native.invalid(conn, "an annotation needs a target_id, body_type and body")
+
+  # spec-01 §6.5's attributes, revised rather than replaced: the attributes named are set,
+  # the rest kept, and a null removes the one it names. The work's type bounds which may
+  # be named and what values a closed one takes, and a refusal names which.
+  def revise_attributes(conn, %{"id" => id, "attributes" => attributes})
+      when is_map(attributes) do
+    kind = conn.assigns.kind
+
+    Native.write(conn, fn -> Representative.revise(kind, id, attributes) end, fn conn, res ->
+      json(conn, %{"id" => res.id, "attributes" => held(res)})
+    end)
+  end
+
+  def revise_attributes(conn, _params),
+    do: Native.invalid(conn, "an attributes write names its attributes as an object")
+
+  defp held(%Work{representative_attributes: attributes}), do: attributes
+  defp held(%Expression{significant_attributes: attributes}), do: attributes
+
+  # spec-03 §8.3's member proposal: a pair no signal raised, put forward for a decision.
+  def propose(conn, %{"left_id" => left_id, "right_id" => right_id}) do
+    principal_id = conn.assigns.principal.id
+
+    Native.write(conn, fn -> Dedup.propose(left_id, right_id, principal_id) end, fn conn, pair ->
+      json(conn, %{
+        "id" => pair.id,
+        "left_id" => pair.left_id,
+        "right_id" => pair.right_id,
+        "signal" => pair.signal
+      })
+    end)
+  end
+
+  def propose(conn, _params),
+    do: Native.invalid(conn, "a proposal names the two res it is about, as left_id and right_id")
 
   def decide(conn, %{"id" => id, "decision" => decision}) when is_map_key(@decisions, decision) do
     Native.write(
