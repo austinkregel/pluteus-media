@@ -22,14 +22,6 @@ defmodule PluteusWeb.Browser.LiveRegionTest do
 
   use PluteusWeb.BrowserCase
 
-  import Pluteus.IngestFixtures
-
-  alias Pluteus.Catalog
-  alias Pluteus.Catalog.DigitalItem
-  alias Pluteus.Ingest
-  alias Pluteus.Ingest.Normalize
-  alias Pluteus.Repo
-
   # What makes an element a live region: an explicit politeness other than off, or one of
   # the roles whose implicit politeness is not off. `timer` is left out because its implicit
   # politeness is off, which is the whole reason the role exists.
@@ -48,7 +40,7 @@ defmodule PluteusWeb.Browser.LiveRegionTest do
   """
 
   setup do
-    %{release: a_release()}
+    %{release: a_release!()}
   end
 
   describe "43. No live region contains a position, a buffer state or a progress value" do
@@ -133,51 +125,5 @@ defmodule PluteusWeb.Browser.LiveRegionTest do
              "#{length(found)} focusable element(s) carry no id:\n" <>
                Enum.map_join(found, "\n", &"  #{&1}")
     end
-  end
-
-  # A release pressed play on from its row, the way a person starts one, and left until
-  # the medium has actually begun.
-  defp playing!(release) do
-    browser = open!("/everything?category=album")
-
-    Browser.click(browser, "#play-#{release}")
-
-    Browser.await(browser, """
-    const m = document.querySelector("#transport-medium");
-    return !!m && !m.paused && m.currentTime > 0.3;
-    """)
-
-    browser
-  end
-
-  defp a_release do
-    inbox = inbox!()
-    prefix = unique_prefix()
-
-    for {path, bytes} <- %{
-          "#{prefix}/album.flac" => media!(:flac, duration: 6),
-          "#{prefix}/album.cue" => """
-          TITLE "Kind of Blue"
-          PERFORMER "Miles Davis"
-          FILE "album.flac" WAVE
-            TRACK 01 AUDIO
-              TITLE "So What"
-              INDEX 01 00:00:00
-            TRACK 02 AUDIO
-              TITLE "Freddie Freeloader"
-              INDEX 01 00:03:00
-          """
-        },
-        do: drop!(inbox, path, bytes)
-
-    ids = inbox |> acquire_settled!() |> acquired()
-    place_all!(inbox)
-    Normalize.normalize_due()
-
-    album = ids |> Enum.map(&Ingest.get_acquisition!/1) |> Enum.find(&(&1.media_class == :audio))
-    release = Repo.get!(DigitalItem, album.digital_item_id).manifestation_id
-
-    [expression | _rest] = Catalog.expressions_in(release)
-    expression.work_id
   end
 end
