@@ -23,9 +23,11 @@ defmodule Pluteus.Browse do
   how the property is held rather than claimed.
   """
 
+  alias Pluteus.Browse.Alike
   alias Pluteus.Browse.Counts
   alias Pluteus.Browse.Entries
   alias Pluteus.Browse.Query
+  alias Pluteus.Browse.Search
   alias Pluteus.Browse.Unfinished
   alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
@@ -59,6 +61,9 @@ defmodule Pluteus.Browse do
           members: %{Ecto.UUID.t() => non_neg_integer()},
           credited: %{Ecto.UUID.t() => [String.t()]},
           covers: %{Ecto.UUID.t() => Ecto.UUID.t()},
+          ordering: Search.basis() | nil,
+          matched: %{Ecto.UUID.t() => [String.t()]},
+          alike: %{Ecto.UUID.t() => String.t()},
           labels: %{String.t() => String.t()},
           agents: %{Ecto.UUID.t() => atom()},
           total: non_neg_integer(),
@@ -87,26 +92,32 @@ defmodule Pluteus.Browse do
   def surface(%Query{} = query, principal_id, %Profile{} = profile, limit \\ 60) do
     # §14.3 makes a mode selecting on consumption the requesting principal's own, so the
     # query carries whose it is before anything is selected or counted against it.
-    query = %{query | principal_id: principal_id}
+    query = %{query | principal_id: principal_id, profile: profile}
 
-    entries = Entries.ids(query, limit)
+    {entries, ordering} = listed(query, limit)
     figures = figures(query)
     facets = Counts.for_query(query, figures.total)
     borne = borne(entries)
 
-    %{
+    facts = %{
+      names: named(entries, profile),
+      categories: categorised(entries),
+      formats: formatted(entries),
+      dates: dated(entries),
+      credited: credited(entries, profile)
+    }
+
+    Map.merge(facts, %{
       labels: labelled(facets, profile),
       agents: kinded(facets),
       query: query,
       entries: entries,
-      names: named(entries, profile),
-      categories: categorised(entries),
+      ordering: ordering,
+      matched: matched(entries, query),
+      alike: Alike.among(entries, facts),
       borne: borne,
       geometry: Geometry.for_res(Map.values(borne)),
-      formats: formatted(entries),
-      dates: dated(entries),
       members: membered(entries),
-      credited: credited(entries, profile),
       covers: Cover.for_works(entries),
       total: figures.total,
       catalogue: figures.catalogue,
@@ -115,8 +126,22 @@ defmodule Pluteus.Browse do
       uncredited: figures.uncredited,
       facets: facets,
       unfinished: Unfinished.for_principal(principal_id)
-    }
+    })
   end
+
+  # A browse surface's rows come in its mode's order, which a query expresses. A search's
+  # come in §6.4's, which is by a name resolution decides, so every result is ordered and
+  # then the page is taken.
+  defp listed(%Query{term: nil} = query, limit), do: {Entries.ids(query, limit), nil}
+
+  defp listed(%Query{} = query, limit) do
+    {ordered, basis} = query |> Entries.held() |> Search.ordered(query.profile)
+
+    {Enum.take(ordered, limit), basis}
+  end
+
+  defp matched(_entries, %Query{term: nil}), do: %{}
+  defp matched(entries, %Query{} = query), do: Search.matched(entries, query.term, query.profile)
 
   # Every figure the surface states, in one pass.
   #
