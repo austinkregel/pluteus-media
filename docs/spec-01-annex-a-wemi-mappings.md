@@ -217,12 +217,13 @@ and so may a moving image.
 ### The representative expression attributes, and what they are not
 
 spec-01 §6.5 carries the registry. LRM-E2-A2 supplies five of its rows directly;
-four are authored here, because LRM has no analogue for them:
+four are authored here, because LRM has no analogue for them, and one LRM row
+carries an authored attribute beside its own:
 
 | Work type | Significant attributes | Source |
 | --- | --- | --- |
 | Textual | language, intended audience | LRM-E2-A2 |
-| Musical | key, medium of performance | LRM-E2-A2 |
+| Musical | key, medium of performance; performance | LRM-E2-A2; performance authored |
 | Cartographic | cartographic scale, projection | LRM-E2-A2 |
 | Moving image | aspect ratio, colourization | LRM-E2-A2 |
 | Art | medium of execution | LRM-E2-A2 |
@@ -230,6 +231,11 @@ four are authored here, because LRM has no analogue for them:
 | Personal record | the correspondents, the date of writing | authored |
 | Graphic narrative | language, colourization | authored |
 | Software | platform, revision | authored |
+
+Musical's authored attribute is performance — studio, live, demo, remix or
+alternate — because the recordings a household holds of one song by one performer
+differ in exactly that, and LRM's key and medium of performance can agree across
+all of them. spec-01 §6.5 defines its values.
 
 LRM's *art works* row gives medium of execution, which suits a painting and says
 nothing useful about a photograph — hence a still image row of its own. Personal
