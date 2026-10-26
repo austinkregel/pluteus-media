@@ -9,19 +9,45 @@ defmodule Pluteus.Catalog.Attributes do
 
   import Ecto.Changeset
 
-  @doc """
-  Refuses a map carrying a key the work's type does not name.
+  alias Pluteus.Catalog.WorkTypes
 
-  The offending keys are named in the message. An attribute outside the set would be stored
-  and then ignored by an ordering that reads only the type's own, which is a value the
-  catalog holds and nothing can act on.
+  @doc """
+  Refuses a map carrying a key the work's type does not name, or a value outside the
+  vocabulary of an attribute whose values are a closed set.
+
+  The offending keys and values are named in the message. An attribute outside the set
+  would be stored and then ignored by an ordering that reads only the type's own, and a
+  value outside a vocabulary would be a distance from the canonical form that no other
+  recording could ever be measured as sharing.
   """
   @spec only(Ecto.Changeset.t(), atom(), [String.t()]) :: Ecto.Changeset.t()
   def only(changeset, field, permitted) do
     case get_change(changeset, field) do
-      nil -> changeset
-      attributes -> refuse_unnamed(changeset, field, attributes, permitted)
+      nil ->
+        changeset
+
+      attributes ->
+        changeset
+        |> refuse_unnamed(field, attributes, permitted)
+        |> refuse_unknown_values(field, attributes)
     end
+  end
+
+  defp refuse_unknown_values(changeset, field, attributes) do
+    outside =
+      for {attribute, value} <- Enum.sort(attributes),
+          vocabulary = WorkTypes.vocabulary(attribute),
+          vocabulary != nil and value not in vocabulary,
+          do: {attribute, value, vocabulary}
+
+    Enum.reduce(outside, changeset, fn {attribute, value, vocabulary}, changeset ->
+      add_error(
+        changeset,
+        field,
+        "gives #{attribute} the value #{inspect(value)}, which is not one of " <>
+          Enum.join(vocabulary, ", ")
+      )
+    end)
   end
 
   defp refuse_unnamed(changeset, field, attributes, permitted) do
