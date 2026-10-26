@@ -150,6 +150,7 @@ defmodule PluteusWeb.Chrome do
             principal_name={@principal_name}
             contexts={@contexts}
             findings={@findings}
+            query={@query}
           />
 
           <main id="surface" class="flex-1 min-w-0 overflow-y-auto">
@@ -232,7 +233,7 @@ defmodule PluteusWeb.Chrome do
         </button>
       </div>
 
-      <.search collapsed={@collapsed} />
+      <.search collapsed={@collapsed} query={@query} />
 
       <div class={["flex flex-col gap-0.5", if(@collapsed, do: "items-center px-2", else: "px-3")]}>
         <.mode
@@ -278,8 +279,27 @@ defmodule PluteusWeb.Chrome do
     assigns = assign(assigns, :narrowings, Query.narrowings(assigns.query))
 
     ~H"""
-    <div :if={@narrowings != []} class="flex flex-col gap-2">
+    <div :if={@narrowings != [] or @query.term} class="flex flex-col gap-2 px-3 pt-6">
       <h2 class="text-title-md font-medium text-on-surface-strong">Narrowed by</h2>
+
+      <%!-- §9.5: the term is one more narrowing, carried here with the rest. Removing it
+            leaves the search for the mode it was searching, with the facets still on. --%>
+      <.link
+        :if={@query.term}
+        id="narrowed-term"
+        patch={address(Query.search(@query, nil))}
+        aria-label={"Remove the search for #{@query.term}"}
+        class={[
+          "min-h-target-touch flex items-center gap-2 rounded-full pl-4 pr-3",
+          "border-[length:var(--sys-border-width-component)] border-border-strong",
+          "bg-surface-overlay text-body-md text-on-surface-strong"
+        ]}
+      >
+        <.icon name="hero-magnifying-glass-micro" />
+        <span class="grow truncate">“{@query.term}”</span>
+        <.icon name="hero-x-mark-micro" />
+      </.link>
+
       <.link
         :for={{axis, value} <- @narrowings}
         id={"narrowed-#{axis}-#{value}"}
@@ -298,18 +318,36 @@ defmodule PluteusWeb.Chrome do
     """
   end
 
-  # The address of the same query with one value gone. The mode's own address is where it
-  # goes, because a narrowing is a narrowing *of a mode* and removing one does not leave
-  # the mode.
-  defp without(query, axis, value) do
-    widened = Query.widen(query, axis, value)
+  @doc """
+  The address a query is shown at: its mode's own, carrying the facets, or the search
+  surface's where it carries a term.
+
+  The one place a query becomes a link, so a count promising what a value would leave
+  and the link that value follows are about the same query.
+  """
+  @spec address(Query.t()) :: String.t()
+  def address(%Query{term: nil} = query) do
     {_slug, _noun, _glyph, _what, at} = Enum.find(@modes, &(elem(&1, 0) == query.mode))
 
-    case Query.to_params(widened) do
-      params when params == %{} -> at
-      params -> at <> "?" <> URI.encode_query(params)
-    end
+    with_params(at, Query.to_params(query))
   end
+
+  def address(%Query{} = query), do: searched_at(query)
+
+  @doc """
+  The search surface's address for a query, whether or not it carries a term yet: the
+  mode it searches within and its facets come along either way (§9.5).
+  """
+  @spec searched_at(Query.t() | nil) :: String.t()
+  def searched_at(nil), do: "/search"
+  def searched_at(%Query{} = query), do: with_params("/search", Query.search_params(query))
+
+  defp with_params(at, params) when params == %{}, do: at
+  defp with_params(at, params), do: at <> "?" <> URI.encode_query(params)
+
+  # The address of the same query with one value gone. A narrowing is a narrowing *of a
+  # mode*, or of a search, and removing one leaves neither.
+  defp without(query, axis, value), do: address(Query.widen(query, axis, value))
 
   # A category reaches a person as the noun they would use, never as the model's own
   # spelling of it. Only the first character is raised, so a value carrying a proper noun
@@ -394,34 +432,35 @@ defmodule PluteusWeb.Chrome do
   # has to carry every entry point the wide rail does, and one that disappeared with the
   # width would be reachable on a gateway and nowhere else.
   attr :collapsed, :boolean, default: false
+  attr :query, :any, default: nil
 
+  # Collapsed, the field is the way to it: the search surface opens with the field it
+  # needs, carrying the selection this surface was showing.
   defp search(%{collapsed: true} = assigns) do
     ~H"""
     <div class="flex justify-center px-2 pb-4">
-      <button
-        type="button"
-        disabled
+      <.link
         id="rail-search"
+        navigate={searched_at(@query && Query.search(@query, nil))}
         aria-label="Search every name a thing carries"
-        aria-describedby="rail-search-why"
         class={[
           "min-h-target-touch min-w-target-touch flex items-center justify-center rounded-md",
           "border-[length:var(--sys-border-width-component)] border-border-strong",
-          "bg-surface-base text-on-surface-muted disabled:opacity-100"
+          "bg-surface-base text-on-surface-strong hover:bg-fill-subtle-strong"
         ]}
       >
         <.icon name="hero-magnifying-glass-mini" />
-      </button>
-      <p id="rail-search-why" class="sr-only">
-        Search has a surface of its own, and this deployment serves none.
-      </p>
+      </.link>
     </div>
     """
   end
 
+  # §9.5: a query is one more term over the current selection, so the form carries the
+  # mode and the facets this surface is showing beside what is typed. Submitted, it is
+  # answered on whichever surface drew it, by `PluteusWeb.Live.Search`.
   defp search(assigns) do
     ~H"""
-    <div class="px-4 pb-4">
+    <form id="rail-search-form" role="search" phx-submit="search" class="px-4 pb-4">
       <label for="rail-search" class="sr-only">Search every name a thing carries</label>
       <div class="relative">
         <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted">
@@ -430,9 +469,9 @@ defmodule PluteusWeb.Chrome do
         <input
           id="rail-search"
           type="search"
-          disabled
+          name="q"
+          value={@query && @query.term}
           placeholder="Search"
-          aria-describedby="rail-search-why"
           class={[
             "w-full min-h-target-touch rounded-md pl-10 pr-3 text-body-md",
             "border-[length:var(--sys-border-width-component)] border-border-strong",
@@ -440,12 +479,15 @@ defmodule PluteusWeb.Chrome do
           ]}
         />
       </div>
-      <p id="rail-search-why" class="sr-only">
-        Search has a surface of its own, and this deployment serves none.
-      </p>
-    </div>
+      <input :for={{name, value} <- carried(@query)} type="hidden" name={name} value={value} />
+    </form>
     """
   end
+
+  # The selection a search from here is over: the mode and its facets, and not a term
+  # already searched for, which the field itself carries.
+  defp carried(nil), do: []
+  defp carried(query), do: query |> Query.search(nil) |> Query.search_params() |> Enum.sort()
 
   attr :slug, :string, required: true
   attr :noun, :string, required: true
@@ -567,6 +609,7 @@ defmodule PluteusWeb.Chrome do
   attr :principal_name, :string, default: nil
   attr :contexts, :map, required: true
   attr :findings, :integer, required: true
+  attr :query, :any, default: nil
 
   defp top_bar(assigns) do
     ~H"""
@@ -580,10 +623,20 @@ defmodule PluteusWeb.Chrome do
       <span class="truncate text-body-sm font-medium text-on-surface-strong">
         {who(@principal_name)}
       </span>
+      <%!-- §9.5 makes search reachable from every mode, which below the rail's
+            breakpoint means from here: the rail's field is not drawn at this width. --%>
+      <.link
+        id="top-bar-search"
+        navigate={searched_at(@query && Query.search(@query, nil))}
+        aria-label="Search every name a thing carries"
+        class="ml-auto min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
+      >
+        <.icon name="hero-magnifying-glass-mini" />
+      </.link>
       <.link
         id="top-bar-findings"
         navigate={~p"/findings"}
-        class="ml-auto min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
+        class="min-h-target-touch min-w-target-touch flex shrink-0 items-center justify-center rounded-md text-on-surface-strong"
       >
         <.icon name="hero-exclamation-triangle-mini" class="text-status-warning" />
         <span class="sr-only">{@findings} {findings_said(@findings)}</span>
