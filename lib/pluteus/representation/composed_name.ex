@@ -122,6 +122,13 @@ defmodule Pluteus.Representation.ComposedName do
   @spec noun(atom()) :: String.t()
   def noun(kind), do: Map.fetch!(@kind_nouns, kind)
 
+  @doc """
+  The noun a category is said by, with its article, or nil for a category these nouns do
+  not name — where a composed name falls back to its kind's noun.
+  """
+  @spec category_noun(String.t() | nil) :: String.t() | nil
+  def category_noun(category), do: Map.get(@category_nouns, category)
+
   defp compose(%Res{kind: kind} = res, work_id, agent_ids, target_id, named)
        when kind in [:address, :annotation] do
     # A region and a note are identified by what they are about, so the thing they
@@ -150,7 +157,7 @@ defmodule Pluteus.Representation.ComposedName do
   defp head(%Res{kind: kind} = res, work_id) do
     category = category_of(res, work_id)
 
-    Map.get(@category_nouns, category) || noun(kind)
+    category_noun(category) || noun(kind)
   end
 
   defp category_of(%Res{id: id}, nil), do: Catalog.category_of(id, Place.category_scheme())
