@@ -186,6 +186,12 @@ defmodule PluteusWeb.Router do
       delete "/#{path}/:id", EntityController, :delete, assigns: %{kind: kind}
       post "/#{path}/:id/categories", WriteController, :categorize, assigns: %{kind: kind}
 
+      # spec-01 §6.5's attributes are a work's and an expression's, and no other kind's.
+      if kind in [:work, :expression] do
+        post "/#{path}/:id/attributes", WriteController, :revise_attributes,
+          assigns: %{kind: kind}
+      end
+
       # [spec-10] §11.1. Inside this comprehension so the kind stays fixed by the
       # path, as §9.1 requires of every entity URI.
       get "/#{path}/:id/presentation/:profile", PresentationController, :show,
@@ -210,6 +216,7 @@ defmodule PluteusWeb.Router do
 
     post "/nomens", WriteController, :create_nomen
     post "/annotations", WriteController, :annotate
+    post "/duplicate-candidates", WriteController, :propose
     post "/duplicate-candidates/:id/decision", WriteController, :decide
     post "/recyclings/:id/restoration", WriteController, :restore
     delete "/recyclings/:id", WriteController, :empty
