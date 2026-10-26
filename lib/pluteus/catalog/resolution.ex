@@ -232,14 +232,22 @@ defmodule Pluteus.Catalog.Resolution do
     |> assigned_for(profile)
   end
 
-  # A profile naming no assigner sees household names only. The two clauses are
-  # separate because SQL equality against NULL is never true, so one query
-  # cannot serve both cases.
-  defp assigned_for(query, %Profile{assigner_id: nil}) do
+  @doc """
+  A query over nomens narrowed to the ones a profile may see: the household's, and its
+  own person's variants on them (§7.3).
+
+  The one statement of that rule, which a search also reads: a name matching for a
+  member it is not visible to would show that member another's word for a thing.
+
+  A profile naming no assigner sees household names only. The two clauses are separate
+  because SQL equality against NULL is never true, so one query cannot serve both cases.
+  """
+  @spec assigned_for(Ecto.Queryable.t(), Profile.t()) :: Ecto.Query.t()
+  def assigned_for(query, %Profile{assigner_id: nil}) do
     from n in query, where: is_nil(n.assigner_id)
   end
 
-  defp assigned_for(query, %Profile{assigner_id: assigner_id}) do
+  def assigned_for(query, %Profile{assigner_id: assigner_id}) do
     from n in query, where: is_nil(n.assigner_id) or n.assigner_id == ^assigner_id
   end
 
