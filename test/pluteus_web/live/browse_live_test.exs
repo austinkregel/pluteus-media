@@ -461,12 +461,15 @@ defmodule PluteusWeb.BrowseLiveTest do
   defp an_open_candidate do
     {:ok, principal} = Principals.create_principal(%{role: "member"})
 
-    {:ok, candidate} =
-      Dedup.propose(
-        named("a letter", "document"),
-        named("the same letter", "document"),
-        principal.id
-      )
+    # A pair names two holdings, so the manifestation each letter is held as.
+    [one, other] =
+      for name <- ["a letter", "the same letter"] do
+        [expression] = name |> named("document") |> Catalog.expressions_of()
+        [manifestation] = Catalog.manifestations_of(expression.id)
+        manifestation.id
+      end
+
+    {:ok, candidate} = Dedup.propose(one, other, principal.id)
 
     candidate
   end
