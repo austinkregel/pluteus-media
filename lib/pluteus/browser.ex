@@ -185,9 +185,16 @@ defmodule Pluteus.Browser do
   key-sending focuses the element before it sends the key.
   """
   @spec press(t(), String.t()) :: :ok
-  def press(%{session: session} = browser, selector) do
+  def press(browser, selector), do: type(browser, selector, "")
+
+  @doc """
+  Types text into the first element a CSS selector names, as a keyboard does, focusing
+  it first. WebDriver's codepoint for Enter (`\\uE007`) in the text presses it.
+  """
+  @spec type(t(), String.t(), String.t()) :: :ok
+  def type(%{session: session} = browser, selector, text) do
     id = element(browser, selector)
-    request(:post, "/session/#{session}/element/#{id}/value", %{text: ""})
+    request(:post, "/session/#{session}/element/#{id}/value", %{text: text})
     :ok
   end
 
