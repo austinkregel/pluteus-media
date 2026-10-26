@@ -492,7 +492,7 @@ category of work. The registry (§7.5, §17) carries:
 | Category of work | Significant attributes | Source |
 | --- | --- | --- |
 | textual | language, intended audience | LRM-E2-A2 |
-| musical | key, medium of performance | LRM-E2-A2 |
+| musical | key, medium of performance; performance | LRM-E2-A2; performance authored |
 | cartographic | cartographic scale, projection | LRM-E2-A2 |
 | moving image | aspect ratio, colourization | LRM-E2-A2 |
 | art | medium of execution | LRM-E2-A2 |
@@ -504,6 +504,27 @@ category of work. The registry (§7.5, §17) carries:
 LRM supplies the first five. The last four have no LRM analogue and are
 authored here ([ANNEX-A] §A.9): libraries do not catalogue a relative's
 letters, and LRM's list reaches neither a comic nor a game.
+
+Musical carries one authored attribute beside LRM's two: **performance**, what
+kind of recording an expression is. Its vocabulary is closed and is the
+registry's:
+
+| Value | The recording is |
+| --- | --- |
+| studio | a finished recording made for release, the form the performer issued the song in |
+| live | performed before an audience and recorded as it was performed |
+| demo | a preliminary recording made ahead of the finished one |
+| remix | a finished recording reworked by changing its mix |
+| alternate | the same performer giving the song another arrangement or delivery: an alternate take, a re-recording, a stripped version |
+
+Two recordings of one song by one performer differ as a live take differs from
+the studio one, or a demo from the finished recording, and LRM's musical
+attributes do not reach that: key and medium of performance can agree across
+every one of them. Performance measures distance from the canonical form as the
+others do. A work whose representative performance is studio places its live,
+demo and alternate recordings one step further from it, which is what lets §8.6
+resolve to the recording a household treats as the song. A cover is not among
+these: it is a work of its own ([ANNEX-A] §A.1).
 
 **These measure distance from the canonical form, and do nothing else.** They
 order expressions where a work has several (§8.6); where it has one, the
