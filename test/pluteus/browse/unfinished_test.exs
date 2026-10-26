@@ -87,10 +87,11 @@ defmodule Pluteus.Browse.UnfinishedTest do
     end
 
     test "an open candidate needs a decision and a settled one does not", %{ada: ada} do
-      left = work()
-      right = work()
+      # A pair names two holdings, so the manifestations each work is held as.
+      {:ok, %{manifestation: left}} = Catalog.create_work("a holding")
+      {:ok, %{manifestation: right}} = Catalog.create_work("a holding")
 
-      {:ok, candidate} = Dedup.propose(left, right, ada.id)
+      {:ok, candidate} = Dedup.propose(left.id, right.id, ada.id)
 
       assert %{count: 1, any?: true} = door(ada, "needs_a_decision")
 
