@@ -96,6 +96,18 @@ defmodule Pluteus.BrowseTest do
       assert narrowed - bare <= 1,
              "narrowing cost #{narrowed - bare} extra queries"
     end
+
+    test "a search costs the same however many holdings it reaches", %{principal: principal} do
+      # Every result is ordered before the page is taken, since §6.4 orders by a name only
+      # resolution decides; resolution over a set is bounded, so the count holds anyway.
+      holdings(3, "photograph")
+      few = searched_cost(principal, "photograph")
+
+      holdings(40, "photograph")
+      many = searched_cost(principal, "photograph")
+
+      assert many == few, "a search cost #{few} queries reaching 3 and #{many} reaching 43"
+    end
   end
 
   describe "what a surface is handed" do
@@ -118,7 +130,7 @@ defmodule Pluteus.BrowseTest do
 
       assert map_size(surface.facets) == 5
       assert [_looking, _unverified, _undated, _unkinded, _undecided] = surface.unfinished
-      assert surface.query == %{query | principal_id: principal.id}
+      assert surface.query == %{query | principal_id: principal.id, profile: %Profile{}}
     end
 
     # §14.3 makes a mode selecting on consumption one principal's own, and the surface is
@@ -142,6 +154,12 @@ defmodule Pluteus.BrowseTest do
     {:ok, query} = Query.parse("everything", params)
 
     queries_during(fn -> Browse.surface(query, principal.id, %Profile{}, limit) end) |> length()
+  end
+
+  defp searched_cost(principal, term) do
+    {:ok, query} = Query.parse_search(%{"q" => term})
+
+    queries_during(fn -> Browse.surface(query, principal.id, %Profile{}) end) |> length()
   end
 
   defp holdings(count, category) do
