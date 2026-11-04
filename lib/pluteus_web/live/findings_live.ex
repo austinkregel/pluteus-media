@@ -233,6 +233,10 @@ defmodule PluteusWeb.FindingsLive do
         <span :if={@finding.location} class="truncate text-caption text-on-surface-muted">
           {@finding.location}
         </span>
+
+        <span :if={@finding.corpus} class="truncate text-caption text-on-surface-muted">
+          The {@finding.corpus} corpus
+        </span>
       </span>
 
       <button
