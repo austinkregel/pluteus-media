@@ -7,7 +7,8 @@ defmodule Pluteus.Ingest.Finding do
   record for acquisition, identification and placement; the digital item for
   normalization; the input, tool and version for analysis. Stray bytes under
   primary storage have no record at all, and bytes a purge could not remove
-  have outlived theirs, so each is recorded against its location.
+  have outlived theirs, so each is recorded against its location. A corpus that
+  will not fetch or verify is recorded against the corpus (spec-05 §12).
 
   An uncleared finding keeps its subject out of the stage's due work. Clearing
   one is a person asking for it to be tried again, and the finding stays on
@@ -18,7 +19,7 @@ defmodule Pluteus.Ingest.Finding do
 
   import Ecto.Changeset
 
-  @stages ~w(acquire examine identify place normalize analyse purge credit)a
+  @stages ~w(acquire examine identify place normalize analyse purge credit corpus)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -34,6 +35,7 @@ defmodule Pluteus.Ingest.Finding do
     field :input_id, UUIDv7
     field :tool_version_id, UUIDv7
     field :musicbrainz_id, Ecto.UUID
+    field :corpus, :string
 
     field :recorded_at, :utc_datetime_usec
     field :cleared_at, :utc_datetime_usec
@@ -57,6 +59,7 @@ defmodule Pluteus.Ingest.Finding do
       :input_id,
       :tool_version_id,
       :musicbrainz_id,
+      :corpus,
       :recorded_at
     ])
     |> validate_required([:stage, :kind, :permanent, :recorded_at])
@@ -66,6 +69,7 @@ defmodule Pluteus.Ingest.Finding do
     |> unique_constraint(:musicbrainz_id,
       name: :ingest_findings_one_open_per_musicbrainz_id_index
     )
+    |> unique_constraint(:corpus, name: :ingest_findings_one_open_per_corpus_index)
   end
 
   def clear_changeset(finding, principal_id, now) do
