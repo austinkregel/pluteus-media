@@ -36,6 +36,21 @@ config :pluteus, Pluteus.Jobs.Repo,
   log: false,
   timeout: 120_000
 
+# The corpora's database, sandboxed the same way: a test that records a snapshot or reads a
+# corpus's rows holds a connection here too.
+config :pluteus, Pluteus.Corpus.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "corpus-db",
+  database: "pluteus_test_corpora#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: 32,
+  log: false,
+  timeout: 120_000
+
+# Scratch, emptied at the start of every run as the storage root is.
+config :pluteus, Pluteus.Corpus, directory: Path.expand("../tmp/corpora/test", __DIR__)
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 # The endpoint runs no listener of its own. A browser-driven test serves it through
