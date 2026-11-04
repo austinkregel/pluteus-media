@@ -1773,7 +1773,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       Catalog.create_nomen(%{
         res_id: artist.id,
         nomen_string: "ae1b47d5-5128-431c-9d30-e08fd90e0767",
-        scheme: "musicbrainz",
+        scheme: "musicbrainz_artist",
         provenance: :automatic
       })
 
