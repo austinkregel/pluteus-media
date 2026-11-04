@@ -23,6 +23,7 @@ defmodule PluteusWeb.FindingController do
     :input_id,
     :tool_version_id,
     :musicbrainz_id,
+    :corpus,
     :recorded_at,
     :cleared_at,
     :cleared_by
