@@ -184,6 +184,10 @@ follows; the registry (§15) holds the rest.
 | MusicBrainz release | one release | release manifestation |
 | MusicBrainz disc ID | one disc's table of contents | medium manifestation |
 | MusicBrainz track | one track as released | track manifestation |
+| MusicBrainz artist | one artist | agent |
+| Discogs master | the release as a thing released, across its versions | aggregating work |
+| Discogs release | one release | release manifestation |
+| Discogs artist | one artist | agent |
 | ISWC | a musical work | work |
 | ISRC | one recording | expression |
 | ISAN | an audiovisual work | work |
@@ -192,6 +196,7 @@ follows; the registry (§15) holds the rest.
 | TMDB / TheTVDB series | a series | serial work |
 | TMDB / TheTVDB episode | one episode | work |
 | IMDb title | a film or an episode | work |
+| IMDb name | one person | agent |
 | Open Library work | a work | work |
 | Open Library edition, OCLC number, LCCN | one edition | manifestation |
 | ISBN | one edition in one format | manifestation |
@@ -409,11 +414,13 @@ of a service.
 | Corpus | Answers | Terms | Held as |
 | --- | --- | --- | --- |
 | MusicBrainz | works, recordings, tracks, releases, artists, disc IDs, ISRCs | the core data is CC0 | a replicated PostgreSQL database |
-| Wikidata | the mapping between schemes for one res; agents; places | CC0 | dumps, or a local query endpoint |
-| Open Library | works, editions, ISBNs, authors, covers | CC0 | monthly JSON dumps |
+| Discogs | releases, masters, artists, labels | CC0 | monthly XML dumps |
+| Wikidata | the mapping between schemes for one res; agents; places | CC0 | an extract of the weekly dumps (§5.7) |
+| Open Library | works, editions, ISBNs, authors, covers | the Internet Archive asserts no new rights, and some contributions may carry rights of their own | monthly dumps |
 | GeoNames | places, by coordinate and by name | CC BY 4.0 | the gazetteer dump |
+| IMDb | titles, alternative titles, episodes, principal credits, people | personal and non-commercial use only | daily TSV files |
 | No-Intro, Redump | the identity of a cartridge or disc dump, by digest | per project | XML DAT files |
-| Grand Comics Database | series, issues, creators | CC BY-SA 4.0 | SQLite dumps |
+| Grand Comics Database | series, issues, creators | CC BY-SA 4.0 | SQLite dumps, downloaded behind an account |
 | AcousticBrainz | Essentia music-extractor descriptors per recording identifier | published; the project ended in 2022 | tarballs |
 | PRONOM | format identity | — | already required by spec-03 §6 |
 
@@ -436,6 +443,45 @@ older one due again (§8.7).
 
 A corpus whose snapshot cannot advance is recorded as frozen, and its matches
 are never due again.
+
+### 5.7 Acquiring a corpus
+
+A corpus reaches the household in one of three ways, and its registry entry says
+which:
+
+| Way | Is | Snapshot |
+| --- | --- | --- |
+| **Fetched** | downloaded on a schedule from the address its publisher gives | the date the publisher states for the files |
+| **Replicated** | a copy kept current from the publisher's change feed | the last change applied |
+| **Dropped** | placed by a person in the deployment's corpus drop directory | the date the publisher states, as the person supplied it |
+
+**A fetched file is verified before anything reads it.** Where the publisher
+publishes a checksum, the file's digest is compared with it, and a file that does
+not agree is a finding and is not imported. Where the publisher publishes none,
+the registry entry says so, and the file's size against the size the publisher
+announced is the only check there is. A fetch resumes rather than restarting, and
+the snapshot in use stays in use until its successor is verified and imported, so
+a failed fetch leaves the household with the corpus it had rather than with none.
+
+**Dropped is for a publisher that admits a person and not a program**: a download
+behind an account, or behind a challenge meant to tell the two apart. The
+deployment MUST NOT script the account's sign-in or the challenge. A person
+downloads the file and places it, and the corpus is as current as they keep it.
+
+**Replication needs a credential**, and §14's observation about credentials holds
+of it: the credential identifies the deployment to the publisher on every change it
+asks for. A deployment holding none takes the corpus as fetched instead.
+
+**A corpus is not backed up.** It is the publisher's data and is refetched after
+loss, which puts it with what spec-01 §13.7 makes expendable. What is backed up
+is the match record, which is the household's own and which no publisher holds.
+
+**An extract is a corpus.** Where a published dump is far larger than what the
+household reads from it — Wikidata's runs to well over a hundred gigabytes — the
+deployment MAY keep only the part it reads, streamed out of the dump once per
+snapshot. The extract carries the dump's snapshot, and what it keeps is stated in
+the registry entry, so that a scheme answered by the extract is known to be
+answered by it and not by the whole.
 
 ---
 
@@ -532,7 +578,9 @@ the deployment.
 | MobyGames | a paid API |
 | Grand Comics Database | CC BY-SA 4.0: attribution, and share-alike on anything redistributed |
 | GeoNames | CC BY 4.0: attribution |
-| MusicBrainz, Wikidata, Open Library | CC0 |
+| MusicBrainz, Discogs, Wikidata | CC0 |
+| Open Library | no new rights asserted by the Internet Archive; some contributions may carry rights of their own |
+| IMDb | personal and non-commercial use only |
 
 These bind the deployment's use of the provider. They are not the rights
 modelling spec-01 §1.1 excludes, which concerns rights in the household's own
@@ -902,8 +950,8 @@ the other a PDF — those are two encodings, two manifestations, one expression,
 and §4.3's rule about LRM-R3 is what keeps them apart.
 
 **The corpus answers both levels.** Open Library distinguishes a work from an
-edition and publishes both under CC0, so a household that knows an ISBN can reach
-the work without asking anyone. Both levels are answered where elsewhere they
+edition and publishes both in its dumps, so a household that knows an ISBN can
+reach the work without asking anyone. Both levels are answered where elsewhere they
 would require a provider.
 
 **Audiobooks.** A narration is a new expression of the text under spec-01 §6.4's
@@ -1098,9 +1146,9 @@ matches.
 
 | Class | Equality available | Corpus | Provider |
 | --- | --- | --- | --- |
-| music recording | MusicBrainz IDs, ISRC, disc ID from a cue sheet | MusicBrainz, AcousticBrainz | AcoustID, LRCLIB, the Cover Art Archive |
-| film | `.nfo`, `.plexmatch`, movie hash | Wikidata | TMDB, TheTVDB, EIDR, OpenSubtitles |
-| television episode | `.nfo`, `.plexmatch` | Wikidata | TMDB, TheTVDB |
+| music recording | MusicBrainz IDs, ISRC, disc ID from a cue sheet | MusicBrainz, Discogs, AcousticBrainz | AcoustID, LRCLIB, the Cover Art Archive |
+| film | `.nfo`, `.plexmatch`, movie hash | Wikidata, IMDb | TMDB, TheTVDB, EIDR, OpenSubtitles |
+| television episode | `.nfo`, `.plexmatch` | Wikidata, IMDb | TMDB, TheTVDB |
 | ebook, document | ISBN in OPF, `metadata.opf` | Open Library, Wikidata | — |
 | audiobook | ASIN, ISBN | Open Library where an ISBN exists | Audnexus, AudiMeta |
 | comic issue | `ComicInfo.xml`, `MetronInfo.xml` | Grand Comics Database | Metron, Comic Vine |
@@ -1354,7 +1402,9 @@ one level (§5.4); and whether the scheme is answered by a corpus, a provider, o
 neither.
 
 **Corpora.** Per corpus: the schemes it answers, the levels, its terms, its
-snapshot, and whether its snapshot can advance (§5.5, §5.6).
+snapshot, whether its snapshot can advance (§5.5, §5.6), how it is acquired, where
+it is fetched from and how a fetched file is verified, and what an extract keeps
+(§5.7).
 
 **Providers.** Per provider: the schemes it answers, the levels, what a query
 discloses (§6.2), the rate limit, the credential, and the terms and the
