@@ -19,6 +19,8 @@ defmodule Pluteus.Application do
       Pluteus.Repo,
       # Before Oban, which is the only thing that reads it.
       Pluteus.Jobs.Repo,
+      # Before Oban too, whose stages fetch, import and read the corpora.
+      Pluteus.Corpus.Repo,
       {DNSCluster, query: Application.get_env(:pluteus, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pluteus.PubSub},
       {Oban, Application.fetch_env!(:pluteus, Oban)},
