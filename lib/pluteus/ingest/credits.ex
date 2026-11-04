@@ -30,6 +30,7 @@ defmodule Pluteus.Ingest.Credits do
   alias Pluteus.Ingest.MusicBrainzArtist
   alias Pluteus.Ingest.Streams
   alias Pluteus.Lifecycle
+  alias Pluteus.Matching.Registry, as: MatchingRegistry
   alias Pluteus.Principals
   alias Pluteus.Repo
 
@@ -234,7 +235,7 @@ defmodule Pluteus.Ingest.Credits do
         Catalog.create_nomen(%{
           res_id: artist.id,
           nomen_string: musicbrainz_id,
-          scheme: "musicbrainz",
+          scheme: MatchingRegistry.scheme!("musicbrainz_artist"),
           provenance: :automatic
         })
     end
