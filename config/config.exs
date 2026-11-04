@@ -7,18 +7,20 @@
 # General application configuration
 import Config
 
-# Two databases, and every ecto task walks this list. The queue's is separate because
+# Three databases, and every ecto task walks this list. The queue's is separate because
 # Oban polls whether or not anything is happening, and on one server that work shares a
 # connection pool, shared buffers and autovacuum with the request a person is waiting on.
+# The corpora's is separate because they are large and imported in bulk.
 config :pluteus,
-  ecto_repos: [Pluteus.Repo, Pluteus.Jobs.Repo],
+  ecto_repos: [Pluteus.Repo, Pluteus.Jobs.Repo, Pluteus.Corpus.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-# Where this repo's migrations are, in every environment. It belongs here rather than in
+# Where each repo's migrations are, in every environment. It belongs here rather than in
 # the repo module because that is where `mix ecto.migrate` reads it; left unset it falls
-# back to `priv/` plus the module's last segment, which is `repo` — so the queue's
-# database would be handed the catalogue's migrations and would take them.
+# back to `priv/` plus the module's last segment, which is `repo` — so the database would
+# be handed the catalogue's migrations and would take them.
 config :pluteus, Pluteus.Jobs.Repo, priv: "priv/jobs_repo"
+config :pluteus, Pluteus.Corpus.Repo, priv: "priv/corpus_repo"
 
 # Background work. Concurrency is set here and nowhere else: a worker never
 # spawns its own pool. Verification reads whole files, so two at a time keeps
