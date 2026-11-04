@@ -22,6 +22,20 @@ config :pluteus, Pluteus.Jobs.Repo,
   log: false,
   pool_size: 10
 
+# The corpora's own server, quiet for the reason the queue's is: an import writes millions
+# of rows, and the log would be nothing else while it ran.
+config :pluteus, Pluteus.Corpus.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "corpus-db",
+  database: "pluteus_dev_corpora",
+  stacktrace: true,
+  log: false,
+  pool_size: 10
+
+# Where a corpus's files are fetched to and dropped into: the `corpora` volume.
+config :pluteus, Pluteus.Corpus, directory: "/corpora"
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
