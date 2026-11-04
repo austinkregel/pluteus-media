@@ -14,6 +14,7 @@ defmodule Pluteus.Assets.ConformanceTest do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Reconstruction
+  alias Pluteus.Corpus
   alias Pluteus.Dedup
   alias Pluteus.Dedup.Candidate
   alias Pluteus.Formats
@@ -393,6 +394,16 @@ defmodule Pluteus.Assets.ConformanceTest do
       classification = Backup.queue_classification()
 
       assert base_tables(Jobs.Repo) == classification |> Map.keys() |> Enum.sort()
+      assert Enum.all?(Map.values(classification), &(&1 == :excluded))
+    end
+
+    # The corpora's database too, read across every schema rather than only the public
+    # one: each corpus is imported into a schema of its own, so a check that read `public`
+    # alone would let a corpus's tables arrive answered for by nothing.
+    test "no table of the corpora's database is left unclassified either" do
+      classification = Backup.corpus_classification()
+
+      assert every_table(Corpus.Repo) == classification |> Map.keys() |> Enum.sort()
       assert Enum.all?(Map.values(classification), &(&1 == :excluded))
     end
   end
@@ -842,6 +853,20 @@ defmodule Pluteus.Assets.ConformanceTest do
     repo.query!("""
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    """).rows
+    |> List.flatten()
+    |> Enum.sort()
+  end
+
+  # Every base table outside the database's own catalogues, a public one by its name and
+  # any other as `schema.table`.
+  defp every_table(repo) do
+    repo.query!("""
+    SELECT CASE WHEN table_schema = 'public' THEN table_name
+                ELSE table_schema || '.' || table_name END
+    FROM information_schema.tables
+    WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+      AND table_type = 'BASE TABLE'
     """).rows
     |> List.flatten()
     |> Enum.sort()
