@@ -232,7 +232,10 @@ defmodule Pluteus.Ingest.CreditsTest do
                &(&1.nomen_string == "Miles Davis" and &1.provenance == :automatic)
              )
 
-      assert Enum.any?(nomens, &(&1.nomen_string == Fake.person() and &1.scheme == "musicbrainz"))
+      assert Enum.any?(
+               nomens,
+               &(&1.nomen_string == Fake.person() and &1.scheme == "musicbrainz_artist")
+             )
 
       {:ok, _} = Credits.resolve_due(client: Fake, interval_ms: 0)
 
