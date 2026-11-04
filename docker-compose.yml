@@ -34,6 +34,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # spec-05 §5.5's corpora: published data the household holds a copy of so that a lookup
+  # tells nobody it was made. On a server of its own because a corpus is large and imported
+  # in bulk — MusicBrainz alone is tens of gigabytes — and an import on the catalogue's
+  # server would take its buffers and its disk from the request a person is waiting on.
+  #
+  # Not published and not backed up: every corpus is the publisher's, refetched after loss
+  # (spec-05 §5.7).
+  corpus-db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - corpusdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: .
@@ -48,6 +68,8 @@ services:
       db:
         condition: service_healthy
       jobs-db:
+        condition: service_healthy
+      corpus-db:
         condition: service_healthy
       sidecar:
         condition: service_healthy
@@ -71,6 +93,11 @@ services:
       # inbox (spec-04 §4.3), so the inbox is never pointed at a dataset that
       # is not meant to be consumed; files are copied from here into it.
       - pluteus-catalog-demo:/demo:ro
+      # Where a corpus's files are downloaded to and kept until they are imported, and
+      # where a person drops the ones a publisher will only give a person (spec-05 §5.7).
+      # A named volume because a dump runs to tens of gigabytes and is nothing to do with
+      # the source tree.
+      - corpora:/corpora
     stdin_open: true
     tty: true
     networks:
@@ -131,6 +158,8 @@ networks:
 volumes:
   pgdata:
   jobsdata:
+  corpusdata:
+  corpora:
   deps:
   build:
   homelab-media-linuxserver-plex-music:
