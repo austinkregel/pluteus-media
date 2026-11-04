@@ -34,6 +34,11 @@ end
 
 Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Repo, :manual)
 Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Jobs.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(Pluteus.Corpus.Repo, :manual)
+
+# Fetched corpus files outlive the transaction that recorded them, as stored bytes do, so
+# their scratch directory starts each run empty too.
+File.rm_rf!(Pluteus.Corpus.directory())
 
 # The one listener a browser-driven test reaches the interface through. It serves the
 # endpoint's own pipeline behind the headers the authenticating proxy would have set, so
