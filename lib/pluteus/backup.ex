@@ -13,10 +13,11 @@ defmodule Pluteus.Backup do
   Every table is classified here. A table missing from the classification is a
   test failure, so a new one cannot be left out of the backup by oversight.
 
-  That holds for both databases. The queue has a server of its own, and a classification
-  that only covered the catalogue would make the guarantee above true of one database and
-  silently untrue of the other — so `queue_classification/0` answers for the queue's, where
-  everything is excluded because the queue is operational state the schedule rebuilds.
+  That holds for every database. The queue and the corpora have servers of their own, and a
+  classification that only covered the catalogue would make the guarantee above true of one
+  database and silently untrue of the others — so `queue_classification/0` answers for the
+  queue's and `corpus_classification/0` for the corpora's, where everything is excluded:
+  the queue is operational state the schedule rebuilds, and a corpus is refetched.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -62,6 +63,12 @@ defmodule Pluteus.Backup do
   # backed up, so restoring it would mean restoring the queue.
   @queue ~w(oban_jobs oban_peers schema_migrations)
 
+  # The corpora's database, the same way: published data refetched after loss (spec-05
+  # §5.7), and the record of which snapshot of each was held, which describes a copy that
+  # is not backed up. A corpus importer's own tables live in schemas of their own, named
+  # here as `schema.table`, and are answered for as they arrive.
+  @corpora ~w(corpus_snapshots schema_migrations)
+
   @doc """
   Every table of the catalogue's database, classified as backed up whole, backed up in
   part, or excluded.
@@ -84,6 +91,13 @@ defmodule Pluteus.Backup do
   """
   @spec queue_classification() :: %{String.t() => :excluded}
   def queue_classification, do: Map.new(@queue, &{&1, :excluded})
+
+  @doc """
+  Every table of the corpora's database, all excluded: a corpus is the publisher's data
+  and is refetched after loss.
+  """
+  @spec corpus_classification() :: %{String.t() => :excluded}
+  def corpus_classification, do: Map.new(@corpora, &{&1, :excluded})
 
   @doc """
   The rows of a partly backed-up table that the backup holds.
