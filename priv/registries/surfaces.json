@@ -1,10 +1,9 @@
 {
   "nomen_schemes": {
-    "for": "The schemes a nomen may be in (spec-10 §20). `ordering` is reserved for the ordering nomen of §6.4, which is a nomen of its own and never a transliteration of another: §6.4 forbids generating one, so a res carrying none is ordered by its resolved nomen and the surface says so. `musicbrainz` carries an identifier as a nomen, which is how an identifier survives a rename.",
+    "for": "The schemes of the interface's own a nomen may be in (spec-10 §20). `ordering` is reserved for the ordering nomen of §6.4, which is a nomen of its own and never a transliteration of another: §6.4 forbids generating one, so a res carrying none is ordered by its resolved nomen and the surface says so. An external identifier is a nomen too, which is how an identifier survives a rename, and its schemes are spec-05's, listed in the matching registry rather than here.",
     "ordering": "ordering",
     "known": [
-      "ordering",
-      "musicbrainz"
+      "ordering"
     ]
   },
 
