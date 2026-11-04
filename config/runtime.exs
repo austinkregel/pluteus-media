@@ -58,6 +58,32 @@ if config_env() == :prod do
     log: false,
     socket_options: maybe_ipv6
 
+  # Required for the reason the queue's is: the corpora are kept off the catalogue's server
+  # so a bulk import does not compete with a person's request, and a deployment that
+  # pointed this at the catalogue would undo that without being told.
+  corpus_database_url =
+    System.get_env("CORPUS_DATABASE_URL") ||
+      raise """
+      environment variable CORPUS_DATABASE_URL is missing.
+      It is the corpora's own database, which holds published data the household
+      keeps a copy of and is not backed up. For example: ecto://USER:PASS@HOST/DATABASE
+      """
+
+  config :pluteus, Pluteus.Corpus.Repo,
+    url: corpus_database_url,
+    pool_size: String.to_integer(System.get_env("CORPUS_POOL_SIZE") || "10"),
+    log: false,
+    socket_options: maybe_ipv6
+
+  config :pluteus, Pluteus.Corpus,
+    directory:
+      System.get_env("CORPUS_DIRECTORY") ||
+        raise("""
+        environment variable CORPUS_DIRECTORY is missing.
+        It is where a corpus's files are fetched to and dropped into, and a dump runs to
+        tens of gigabytes, so it is named rather than assumed.
+        """)
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
