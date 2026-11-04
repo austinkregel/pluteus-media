@@ -14,6 +14,7 @@ defmodule Pluteus.Surfaces.Registry do
   bytes at all, so every hazard is one a person asserts.
   """
 
+  alias Pluteus.Matching.Registry, as: MatchingRegistry
   alias Pluteus.Registry
 
   @source "surfaces"
@@ -28,10 +29,12 @@ defmodule Pluteus.Surfaces.Registry do
   def ordering_scheme, do: Map.fetch!(fetch("nomen_schemes"), "ordering")
 
   @doc """
-  Every nomen scheme the registry names.
+  Every scheme a nomen may be in: the interface's own, and the external identifier schemes
+  spec-05 registers, which are read from there rather than listed twice.
   """
   @spec nomen_schemes() :: [String.t()]
-  def nomen_schemes, do: Map.fetch!(fetch("nomen_schemes"), "known")
+  def nomen_schemes,
+    do: Map.fetch!(fetch("nomen_schemes"), "known") ++ MatchingRegistry.schemes()
 
   @doc """
   Every browse mode of §9.2, in the order the top level offers them.
