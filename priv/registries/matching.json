@@ -1,0 +1,130 @@
+{
+  "description": "spec-05 §15's registries for matching: the external identifier schemes a corpus answers, the corpora the deployment holds, and the order of evidence rank it applies. A corpus's fetch address and verification arrive with the phase that builds its importer, checked against the publisher's own page at that time; an entry without them is a corpus not yet acquirable, and asking for its address raises.",
+
+  "levels": {
+    "for": "The entity levels spec-05 §4.1 names a scheme as identifying.",
+    "known": [
+      "work",
+      "aggregating_work",
+      "serial_work",
+      "expression",
+      "release_manifestation",
+      "medium_manifestation",
+      "track_manifestation",
+      "manifestation",
+      "agent",
+      "place",
+      "any"
+    ]
+  },
+
+  "schemes": {
+    "for": "Per scheme, from spec-05 §4.1, §4.4 and §5.4: the level it identifies, the check-digit algorithm where one exists, and whether one res may carry several at one level. A scheme's syntax is recorded with the phase that first reads it.",
+    "musicbrainz_work": { "level": "work", "several": false },
+    "musicbrainz_release_group": { "level": "aggregating_work", "several": false },
+    "musicbrainz_recording": { "level": "expression", "several": false },
+    "musicbrainz_release": { "level": "release_manifestation", "several": false },
+    "musicbrainz_disc": { "level": "medium_manifestation", "several": false },
+    "musicbrainz_track": { "level": "track_manifestation", "several": false },
+    "musicbrainz_artist": { "level": "agent", "several": false },
+    "isrc": {
+      "level": "expression",
+      "several": true,
+      "for": "spec-05 §5.4 and §9.1: distributors assign their own ISRCs to one recording, so several on one expression are ordinary."
+    },
+    "iswc": { "level": "work", "several": false, "check": "mod10" },
+    "discogs_master": { "level": "aggregating_work", "several": false },
+    "discogs_release": { "level": "release_manifestation", "several": false },
+    "discogs_artist": { "level": "agent", "several": false },
+    "wikidata": { "level": "any", "several": false },
+    "openlibrary_work": { "level": "work", "several": false },
+    "openlibrary_edition": { "level": "manifestation", "several": false },
+    "isbn": {
+      "level": "manifestation",
+      "several": false,
+      "check": "isbn",
+      "for": "spec-05 §4.4: an ISBN-13 checks modulo 10 and an ISBN-10 modulo 11, the length deciding which."
+    },
+    "geonames": { "level": "place", "several": false },
+    "imdb_title": { "level": "work", "several": false },
+    "imdb_name": { "level": "agent", "several": false },
+    "gcd_series": { "level": "serial_work", "several": false },
+    "gcd_issue": { "level": "manifestation", "several": false },
+    "no_intro_entry": { "level": "manifestation", "several": false },
+    "redump_entry": { "level": "manifestation", "several": false }
+  },
+
+  "corpora": {
+    "for": "Per corpus, from spec-05 §5.5 and §5.7: the schemes it answers, its terms, how it is acquired, and whether its snapshot advances. AcousticBrainz is not held: it is derived data nothing here reads yet.",
+    "musicbrainz": {
+      "answers": [
+        "musicbrainz_work",
+        "musicbrainz_release_group",
+        "musicbrainz_recording",
+        "musicbrainz_release",
+        "musicbrainz_disc",
+        "musicbrainz_track",
+        "musicbrainz_artist",
+        "isrc",
+        "iswc"
+      ],
+      "terms": "The core data is CC0. The cover art, edit, editor, derived and statistics dumps are CC BY-NC-SA 3.0 and are not held.",
+      "acquisition": "replicated",
+      "advances": true
+    },
+    "discogs": {
+      "answers": ["discogs_master", "discogs_release", "discogs_artist"],
+      "terms": "CC0.",
+      "acquisition": "fetched",
+      "advances": true
+    },
+    "wikidata": {
+      "answers": ["wikidata"],
+      "terms": "Structured data CC0.",
+      "acquisition": "fetched",
+      "extract": true,
+      "advances": true
+    },
+    "open_library": {
+      "answers": ["openlibrary_work", "openlibrary_edition", "isbn"],
+      "terms": "The Internet Archive asserts no new rights over the data; some contributions may carry rights of their own.",
+      "acquisition": "fetched",
+      "advances": true
+    },
+    "geonames": {
+      "answers": ["geonames"],
+      "terms": "CC BY 4.0, which obliges attribution.",
+      "acquisition": "fetched",
+      "advances": true
+    },
+    "imdb": {
+      "answers": ["imdb_title", "imdb_name"],
+      "terms": "Personal and non-commercial use only.",
+      "acquisition": "fetched",
+      "advances": true
+    },
+    "grand_comics_database": {
+      "answers": ["gcd_series", "gcd_issue"],
+      "terms": "CC BY-SA 4.0, which obliges attribution and binds anything redistributed to the same licence.",
+      "acquisition": "dropped",
+      "advances": true
+    },
+    "no_intro": {
+      "answers": ["no_intro_entry"],
+      "terms": "Per project.",
+      "acquisition": "dropped",
+      "advances": true
+    },
+    "redump": {
+      "answers": ["redump_entry"],
+      "terms": "Per project.",
+      "acquisition": "dropped",
+      "advances": true
+    }
+  },
+
+  "rank_order": {
+    "for": "spec-05 §5.3's order of evidence. A member's assertion is first and may not be moved; this deployment applies the specification's order for the rest.",
+    "order": ["member", "companion", "embedded_tags", "corpus", "provider"]
+  }
+}
