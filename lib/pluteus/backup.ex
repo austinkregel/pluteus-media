@@ -70,7 +70,7 @@ defmodule Pluteus.Backup do
   # schema exists only while the import runs and holds the same tables.
   @corpora ~w(
     corpus_snapshots schema_migrations
-    geonames.places geonames.admin1 geonames.admin2
+    geonames.places geonames.admin1 geonames.admin2 geonames.countries
   )
 
   @doc """
