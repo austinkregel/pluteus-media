@@ -148,6 +148,31 @@ defmodule Pluteus.Corpus.FetchTest do
     end
   end
 
+  describe "§5.7. A file arrives over as many fetches as it takes" do
+    test "one stopped at its deadline keeps what arrived, and the next one finishes it", %{
+      origin: origin,
+      destination: path
+    } do
+      already_past = System.monotonic_time(:millisecond) - 1
+
+      assert {:paused, held} =
+               Fetch.file("#{origin}/whole", path,
+                 user_agent: "pluteus-test",
+                 until: already_past
+               )
+
+      assert held > 0
+      refute File.exists?(path)
+      assert File.read!(path <> ".partial") == binary_part(@body, 0, held)
+
+      assert {:ok, %{size: size}} =
+               Fetch.file("#{origin}/whole", path, user_agent: "pluteus-test")
+
+      assert size == byte_size(@body)
+      assert File.read!(path) == @body
+    end
+  end
+
   describe "§5.7. What is not whole is never taken for whole" do
     test "a body shorter than the server said is refused and kept to resume", %{
       origin: origin,
