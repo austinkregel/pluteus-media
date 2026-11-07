@@ -71,6 +71,13 @@ defmodule Pluteus.Backup do
   @corpora ~w(
     corpus_snapshots schema_migrations
     geonames.places geonames.admin1 geonames.admin2 geonames.countries
+    musicbrainz.recording musicbrainz.recording_gid_redirect
+    musicbrainz.track musicbrainz.track_gid_redirect
+    musicbrainz.medium musicbrainz.medium_cdtoc musicbrainz.cdtoc
+    musicbrainz.release musicbrainz.release_gid_redirect
+    musicbrainz.release_group musicbrainz.release_group_gid_redirect
+    musicbrainz.work musicbrainz.work_gid_redirect
+    musicbrainz.isrc
   )
 
   @doc """
