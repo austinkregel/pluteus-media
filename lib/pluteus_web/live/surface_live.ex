@@ -18,16 +18,22 @@ defmodule PluteusWeb.SurfaceLive do
 
   use PluteusWeb, :surface
 
+  import Ecto.Query, only: [from: 2]
+
+  alias Pluteus.Actor
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Addressing
   alias Pluteus.Catalog.Cover
   alias Pluteus.Catalog.Profile
+  alias Pluteus.Catalog.Res
   alias Pluteus.Catalog.Resolution
+  alias Pluteus.Dedup
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
   alias Pluteus.Listening
   alias Pluteus.Paging
+  alias Pluteus.Places
   alias Pluteus.Playback
   alias Pluteus.Preferences
   alias Pluteus.Presentation
@@ -39,6 +45,7 @@ defmodule PluteusWeb.SurfaceLive do
   alias Pluteus.Reading
   alias Pluteus.Repo
   alias Pluteus.Representation
+  alias Pluteus.Representation.ComposedName
   alias Pluteus.Surfaces.Registry, as: Surfaces
   alias PluteusWeb.Chrome
   alias PluteusWeb.GoneError
@@ -193,6 +200,55 @@ defmodule PluteusWeb.SurfaceLive do
     {:noreply, assign(socket, :preferences, Preferences.held_by(socket.assigns.principal_id))}
   end
 
+  # [spec-10] §15.4: a candidate's decision is made where the candidate is shown. Only a
+  # place proposed for this holding is decided here, and only as proposed or as distinct
+  # (spec-03 §8.3); anything else sent is not something this surface offered, and raises.
+  # The decision is the principal's, attributed as every catalog write is.
+  def handle_event("decide-place", %{"candidate" => id, "decision" => decision}, socket) do
+    %{principal_id: principal, work: work} = socket.assigns
+    chosen = Map.fetch!(%{"taken-here" => :place_of_capture, "not-here" => :distinct}, decision)
+
+    unless Enum.any?(Places.proposed(work.id), &(&1.candidate_id == id)) do
+      raise "#{id} is not a place proposed for #{work.id}"
+    end
+
+    {:ok, _decided} = Actor.as(principal, fn -> Dedup.decide(id, chosen, principal) end)
+
+    {:noreply, placed(socket, "Recorded.")}
+  end
+
+  # §15.1: a place matching recorded is correctable where it is shown. Only an automatic
+  # place of this holding is offered; anything else sent raises.
+  def handle_event("reject-place", %{"place" => place_id}, socket) do
+    %{principal_id: principal, work: work} = socket.assigns
+
+    unless Enum.any?(
+             Places.captured(work.id),
+             &(&1.place_id == place_id and &1.provenance == :automatic)
+           ) do
+      raise "#{place_id} is not a place matching recorded for #{work.id}"
+    end
+
+    {:ok, _rejected} =
+      Actor.as(principal, fn -> Dedup.reject_place(work.id, place_id, principal) end)
+
+    {:noreply, placed(socket, "Recorded.")}
+  end
+
+  # §15.4: a decision about where a holding was taken is undone where it is shown. Only a
+  # decision about this holding is offered; anything else sent raises.
+  def handle_event("reconsider-place", %{"candidate" => id}, socket) do
+    %{principal_id: principal, work: work} = socket.assigns
+
+    unless Enum.any?(Places.decided(work.id), &(&1.candidate_id == id)) do
+      raise "#{id} is not a decision about where #{work.id} was taken"
+    end
+
+    {:ok, _undone} = Actor.as(principal, fn -> Dedup.reconsider(id) end)
+
+    {:noreply, placed(socket, "Undone.")}
+  end
+
   # The text is made from the bytes on demand, so a reading opened before anything had
   # read it arrives while the job is still running. The surface asks again rather than
   # leaving a person to reload: a reading that fails records a finding, which is a state
@@ -276,6 +332,7 @@ defmodule PluteusWeb.SurfaceLive do
     |> opened()
     |> listening()
     |> assign(:facts, facts(surface, work, socket.assigns.profile))
+    |> assign(:place, place(surface, work.id, socket.assigns))
     |> assign_new(:rail_collapsed, fn -> narrow?(surface) end)
   end
 
@@ -509,6 +566,85 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp facts(_another_surface, _work, _profile), do: []
 
+  # Where a photograph was taken, said by the names of the place and of every place
+  # containing it, so a region reads as a region ([spec-10] §5.3), each name a list item
+  # of its own so its direction is its own (§7). Every value here is correctable from
+  # where it is shown (§15.1, §15.4): a place matching recorded can be said to be wrong, a
+  # proposal taken or declined, and any decision undone. Where no place is recorded the
+  # field's state is said instead (§5.2). Only the viewer shows it, so no other surface
+  # pays for the queries.
+  defp place("viewer in a justified grid", work_id, assigns) do
+    captured = Places.captured(work_id)
+    proposed = Places.proposed(work_id)
+    decided = Places.decided(work_id)
+
+    ids =
+      Enum.uniq(
+        Enum.flat_map(captured, &[&1.place_id | &1.within]) ++
+          Enum.map(proposed ++ decided, & &1.place_id)
+      )
+
+    names = named_or_composed(ids, assigns.profile)
+    said = fn ids -> Enum.map(ids, &Map.fetch!(names, &1)) end
+    accepted = for %{decision: :place_of_capture} = d <- decided, into: %{}, do: {d.place_id, d}
+
+    %{
+      captured:
+        Enum.map(captured, fn place ->
+          %{
+            place_id: place.place_id,
+            said: said.([place.place_id | place.within]),
+            provenance: place.provenance,
+            undo: place.provenance == :local && Map.fetch!(accepted, place.place_id).candidate_id
+          }
+        end),
+      absent: if(captured == [], do: absence(assigns.work, assigns.profile)),
+      proposed:
+        Enum.map(proposed, fn place ->
+          %{candidate_id: place.candidate_id, said: said.([place.place_id])}
+        end),
+      declined:
+        for %{decision: :distinct} = place <- decided do
+          %{candidate_id: place.candidate_id, said: said.([place.place_id])}
+        end
+    }
+  end
+
+  defp place(_another_surface, _work_id, _assigns), do: nil
+
+  # §15.2: an accepted correction is acknowledged visibly — the panel says what is now
+  # recorded, a declined place included — and in words the chrome's live region announces.
+  defp placed(socket, acknowledgement) do
+    socket
+    |> assign(:place, place(socket.assigns.surface, socket.assigns.work.id, socket.assigns))
+    |> assign(:announcement, acknowledgement)
+  end
+
+  # The state the representation reports for a work's place of capture where none is
+  # recorded: the same field, in the same words, as every other surface says it.
+  defp absence(work, profile) do
+    %{"state" => state} = Representation.of(work, profile)["related"]["place_of_capture"]
+    state
+  end
+
+  # [spec-10] §5.3: a res resolution returns no displayable name for is named by §6.3's
+  # composed name, never left out and never a crash.
+  defp named_or_composed(ids, profile) do
+    resolved = Resolution.resolve_many(ids, profile)
+    unnamed = Enum.reject(ids, &Map.has_key?(resolved, &1))
+
+    composed =
+      Repo.all(from r in Res, where: r.id in ^unnamed)
+      |> ComposedName.for_many(profile)
+
+    Map.new(ids, fn id ->
+      case resolved do
+        %{^id => nomen} -> {id, nomen.nomen_string}
+        _unresolved -> {id, Map.fetch!(composed, id)}
+      end
+    end)
+  end
+
   defp said_field(field), do: field |> String.replace("_", " ") |> String.capitalize()
 
   # A release is its tracks, so what a transport plays through is the queue the work
@@ -564,6 +700,7 @@ defmodule PluteusWeb.SurfaceLive do
           chosen={@chosen}
           borne={@borne}
           facts={@facts}
+          place={@place}
           reader={@reader}
           preferences={@preferences}
           refusal={@refusal}
@@ -594,6 +731,7 @@ defmodule PluteusWeb.SurfaceLive do
   attr :chosen, :map, required: true
   attr :borne, :any, required: true
   attr :facts, :list, required: true
+  attr :place, :any, required: true
   attr :reader, :any, required: true
   attr :preferences, :map, required: true
   attr :refusal, :any, required: true
@@ -678,7 +816,13 @@ defmodule PluteusWeb.SurfaceLive do
 
   defp presented(%{surface: "viewer in a justified grid"} = assigns) do
     ~H"""
-    <Viewer.surface name={@name} category={@category} borne={@borne} facts={@facts} />
+    <Viewer.surface
+      name={@name}
+      category={@category}
+      borne={@borne}
+      facts={@facts}
+      place={@place}
+    />
     """
   end
 
