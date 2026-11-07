@@ -25,6 +25,7 @@ defmodule Pluteus.Dedup do
   import Ecto.Query, only: [from: 2]
 
   alias Pluteus.Catalog
+  alias Pluteus.Catalog.Aggregation
   alias Pluteus.Catalog.Asset
   alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DigitalItem
@@ -486,9 +487,37 @@ defmodule Pluteus.Dedup do
           where: e.expression_id in ^Enum.map(left, & &1.id)
       )
 
-    left
-    |> Enum.filter(&(Catalog.manifestations_of(&1.id) == []))
-    |> recycle_emptied(principal_id, now)
+    emptied = Enum.filter(left, &(Catalog.manifestations_of(&1.id) == []))
+    carry_aggregations(emptied, expression_id)
+    recycle_emptied(emptied, principal_id, now)
+  end
+
+  # An expression the decision empties goes into the bin, and every aggregate that selected
+  # it selects the one it was decided to be instead: the compilation a track was placed on
+  # still holds that track once it is one expression with the album's. An aggregate that
+  # already selects the survivor keeps the one selection it has.
+  defp carry_aggregations(emptied, kept_id) do
+    for %{id: emptied_id} <- emptied do
+      already =
+        from a in Aggregation,
+          where: a.aggregated_expression_id == ^kept_id,
+          select: a.aggregating_expression_id
+
+      {_count, _} =
+        Repo.delete_all(
+          from a in Aggregation,
+            where: a.aggregated_expression_id == ^emptied_id,
+            where: a.aggregating_expression_id in subquery(already)
+        )
+
+      {_count, _} =
+        Repo.update_all(
+          from(a in Aggregation, where: a.aggregated_expression_id == ^emptied_id),
+          set: [aggregated_expression_id: kept_id]
+        )
+    end
+
+    :ok
   end
 
   # An expression left with no manifestation goes; its work goes with it when
@@ -589,14 +618,26 @@ defmodule Pluteus.Dedup do
   # A name in a scheme is an identifier (spec-01 §4.3), and §4.3 tolerates two
   # things carrying the same one, which is what makes it a candidate and not a
   # fact.
+  #
+  # Only a pair a decision can name is raised: two digital items or manifestations,
+  # as a member's proposal must be. Two expressions or two works carrying one identifier
+  # are equated by matching itself where [spec-05] §8.4 allows it, through a pair of the
+  # manifestations embodying them, and a pair of them raised here could never be decided.
   defp identifier_pairs do
+    decidable = [:digital_item, :manifestation]
+
     Repo.all(
       from n in Nomen,
         join: m in Nomen,
         on:
           n.scheme == m.scheme and n.nomen_string == m.nomen_string and
             n.res_id < m.res_id,
+        join: a in Res,
+        on: a.id == n.res_id,
+        join: b in Res,
+        on: b.id == m.res_id,
         where: not is_nil(n.scheme),
+        where: a.kind in ^decidable and b.kind in ^decidable,
         distinct: true,
         select: {n.res_id, m.res_id, :external_identifier}
     )
