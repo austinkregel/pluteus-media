@@ -233,23 +233,34 @@ defmodule Pluteus.Catalog.Resolution do
   end
 
   @doc """
-  A query over nomens narrowed to the ones a profile may see: the household's, and its
-  own person's variants on them (§7.3).
+  A query over nomens narrowed to the ones a profile may see (§7.3): the names a source
+  gave, the household's, and its own person's variants on them.
 
   The one statement of that rule, which a search also reads: a name matching for a
   member it is not visible to would show that member another's word for a thing.
 
-  A profile naming no assigner sees household names only. The two clauses are separate
+  A source's names are every profile's to see, because a source is an organization
+  naming the thing for everyone, and the household's own names refine them rather than
+  replace them. A person's variant is that person's alone.
+
+  A profile naming no assigner sees no person's variants. The two clauses are separate
   because SQL equality against NULL is never true, so one query cannot serve both cases.
   """
   @spec assigned_for(Ecto.Queryable.t(), Profile.t()) :: Ecto.Query.t()
   def assigned_for(query, %Profile{assigner_id: nil}) do
-    from n in query, where: is_nil(n.assigner_id)
+    from n in query, where: is_nil(n.assigner_id) or n.assigner_id in subquery(sources())
   end
 
   def assigned_for(query, %Profile{assigner_id: assigner_id}) do
-    from n in query, where: is_nil(n.assigner_id) or n.assigner_id == ^assigner_id
+    from n in query,
+      where:
+        is_nil(n.assigner_id) or n.assigner_id == ^assigner_id or
+          n.assigner_id in subquery(sources())
   end
+
+  # The collective agents that are sources (spec-05 §3.1), each recorded once with the
+  # source it is.
+  defp sources, do: from(s in "source_agents", select: s.agent_id)
 
   # Lower sorts first. Every component is decided by data already on the row, so
   # the comparison is stable across calls and across processes.
@@ -261,12 +272,17 @@ defmodule Pluteus.Catalog.Resolution do
   # above a tagged one, preferring the names a nil language does not ask for.
   defp rank(nomen) do
     {
-      personal_before_household(nomen),
+      layer(nomen),
       Enum.find_index(Nomen.provenance_rank(), &(&1 == nomen.provenance)),
       nomen.id
     }
   end
 
-  defp personal_before_household(%Nomen{assigner_id: nil}), do: 1
-  defp personal_before_household(_nomen), do: 0
+  # §7.3: a person's own word first, then the household's, then the name a source gave
+  # it, which the household's refines. A source is a collective agent (spec-05 §3.1) and a
+  # person's variant is a person's, so the assigner's kind says which a name is, and the
+  # choice needs nothing beyond the names themselves.
+  defp layer(%Nomen{assigner_id: nil}), do: 1
+  defp layer(%Nomen{assigner_kind: :collective_agent}), do: 2
+  defp layer(%Nomen{}), do: 0
 end
