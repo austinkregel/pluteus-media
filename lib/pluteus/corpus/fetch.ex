@@ -118,6 +118,36 @@ defmodule Pluteus.Corpus.Fetch do
     end
   end
 
+  @doc """
+  Fetches a small file the publisher keeps beside a corpus's archives — a pointer naming
+  the newest snapshot, or the checksums its archives are verified against — and answers
+  its body.
+  """
+  @spec text(String.t(), keyword()) ::
+          {:ok, binary()} | {:error, {:status, pos_integer()} | {:transport, term()}}
+  def text(url, options) do
+    user_agent = Keyword.fetch!(options, :user_agent)
+    headers = [{~c"user-agent", String.to_charlist(user_agent)}]
+
+    case :httpc.request(
+           :get,
+           {String.to_charlist(url), headers},
+           [{:timeout, @timeout} | http_options(url)],
+           body_format: :binary
+         ) do
+      {:ok, {{_version, 200, _reason}, _headers, body}} -> {:ok, body}
+      {:ok, {{_version, status, _reason}, _headers, _body}} -> {:error, {:status, status}}
+      {:error, reason} -> {:error, {:transport, reason}}
+    end
+  end
+
+  @doc """
+  The digest of a whole file, as lowercase hexadecimal: what a file already fetched is
+  verified by where nothing more of it is fetched.
+  """
+  @spec digest(Path.t(), atom()) :: String.t()
+  def digest(path, algorithm), do: path |> digests([algorithm]) |> Map.fetch!(algorithm)
+
   defp announced(headers) do
     with {:ok, length} <- announced_length(header(headers, "content-length")),
          {:ok, last_modified} <- announced_date(header(headers, "last-modified")) do
