@@ -706,14 +706,21 @@ defmodule Pluteus.Assets.ConformanceTest do
       assert Repo.aggregate(Asset, :count) == assets_before
     end
 
-    test "the vocabulary is exactly the five levels §8.3 names" do
+    test "the vocabulary is exactly the five levels and the one association §8.3 names" do
       assert Ecto.Enum.values(Candidate, :decision) == [
                :same_holding,
                :same_manifestation,
                :same_expression,
                :same_work,
+               :place_of_capture,
                :distinct
              ]
+    end
+
+    test "an association is proposed by matching, and decided only as proposed or distinct" do
+      # §8.3: a candidate proposing an association is decided as proposed or as distinct,
+      # and as nothing else.
+      assert Ecto.Enum.values(Candidate, :proposed) == [:place_of_capture]
     end
   end
 
