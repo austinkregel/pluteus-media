@@ -21,7 +21,7 @@ defmodule Pluteus.Matching.Registry do
   Every external identifier scheme the registry names.
   """
   @spec schemes() :: [String.t()]
-  def schemes, do: "schemes" |> fetch() |> Map.delete("for") |> Map.keys() |> Enum.sort()
+  def schemes, do: "schemes" |> section() |> Map.delete("for") |> Map.keys() |> Enum.sort()
 
   @doc """
   A scheme's name, where the registry holds it, so a writer names a scheme the registry
@@ -56,13 +56,13 @@ defmodule Pluteus.Matching.Registry do
   The levels a scheme may identify.
   """
   @spec levels() :: [String.t()]
-  def levels, do: "levels" |> fetch() |> Map.fetch!("known")
+  def levels, do: "levels" |> section() |> Map.fetch!("known")
 
   @doc """
   Every corpus the deployment holds.
   """
   @spec corpora() :: [String.t()]
-  def corpora, do: "corpora" |> fetch() |> Map.delete("for") |> Map.keys() |> Enum.sort()
+  def corpora, do: "corpora" |> section() |> Map.delete("for") |> Map.keys() |> Enum.sort()
 
   @doc """
   The schemes a corpus answers.
@@ -95,13 +95,42 @@ defmodule Pluteus.Matching.Registry do
   def terms(corpus), do: corpus |> corpus() |> Map.fetch!("terms")
 
   @doc """
+  Where a fetched corpus's files are, which files they are, how each is verified, and what
+  states the snapshot's date (§5.7, §15).
+
+  A corpus whose entry gives none of this is not yet acquirable, and asking raises rather
+  than guessing at an address.
+  """
+  @spec fetch!(String.t()) :: %{
+          from: String.t(),
+          files: [String.t()],
+          verified_by: :size,
+          stated_by: :last_modified
+        }
+  def fetch!(corpus) do
+    entry = corpus |> corpus() |> Map.fetch!("fetch")
+
+    %{
+      from: Map.fetch!(entry, "from"),
+      files: Map.fetch!(entry, "files"),
+      verified_by: verified_by(Map.fetch!(entry, "verified_by")),
+      stated_by: stated_by(Map.fetch!(entry, "stated_by"))
+    }
+  end
+
+  # A publisher that states a checksum gets a clause of its own when its corpus is built.
+  defp verified_by("size"), do: :size
+
+  defp stated_by("last_modified"), do: :last_modified
+
+  @doc """
   The order of evidence rank the deployment applies (§5.3).
   """
   @spec rank_order() :: [String.t()]
-  def rank_order, do: "rank_order" |> fetch() |> Map.fetch!("order")
+  def rank_order, do: "rank_order" |> section() |> Map.fetch!("order")
 
-  defp scheme(scheme), do: "schemes" |> fetch() |> Map.fetch!(scheme)
-  defp corpus(corpus), do: "corpora" |> fetch() |> Map.fetch!(corpus)
+  defp scheme(scheme), do: "schemes" |> section() |> Map.fetch!(scheme)
+  defp corpus(corpus), do: "corpora" |> section() |> Map.fetch!(corpus)
 
-  defp fetch(key), do: @source |> Registry.read() |> Map.fetch!(key)
+  defp section(key), do: @source |> Registry.read() |> Map.fetch!(key)
 end
