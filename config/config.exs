@@ -91,6 +91,9 @@ config :pluteus, Oban,
       # regenerates its dump at about 02:50 UTC; the worker asks the publisher nothing on
       # a day the corpus is not due.
       {"0 5 * * *", Pluteus.Workers.AcquireCorpus, args: %{corpus: "geonames"}},
+      # MusicBrainz begins an export at about 00:20 UTC on Wednesdays and Saturdays and
+      # finishes its archives by about 05:15.
+      {"0 7 * * *", Pluteus.Workers.AcquireCorpus, args: %{corpus: "musicbrainz"}},
       # spec-05 §7: matching runs on a schedule over the catalog, never because of a render
       # or a search (§14).
       {"*/5 * * * *", Pluteus.Workers.KeyPositions},
