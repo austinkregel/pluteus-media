@@ -413,7 +413,7 @@ of a service.
 
 | Corpus | Answers | Terms | Held as |
 | --- | --- | --- | --- |
-| MusicBrainz | works, recordings, tracks, releases, artists, disc IDs, ISRCs | the core data is CC0 | a replicated PostgreSQL database |
+| MusicBrainz | works, recordings, tracks, releases, artists, disc IDs, ISRCs | the core data is CC0; the replication packets are CC BY-NC-SA 3.0 | the core PostgreSQL dump, published twice a week, or a database replicated from its change feed |
 | Discogs | releases, masters, artists, labels | CC0 | monthly XML dumps |
 | Wikidata | the mapping between schemes for one res; agents; places | CC0 | an extract of the weekly dumps (§5.7) |
 | Open Library | works, editions, ISBNs, authors, covers | the Internet Archive asserts no new rights, and some contributions may carry rights of their own | monthly dumps |
