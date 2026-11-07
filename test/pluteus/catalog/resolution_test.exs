@@ -187,6 +187,46 @@ defmodule Pluteus.Catalog.ResolutionTest do
     end
   end
 
+  describe "§7.3. A source's name is everyone's, and the household's refines it" do
+    test "the household's name is chosen over a source's" do
+      source = nomen("Michigan", provenance: :automatic, assigner_id: UUIDv7.generate())
+      source = %{source | assigner_kind: :collective_agent}
+      household = nomen("The Mitten", provenance: :local)
+
+      assert Resolution.choose([source, household], %Profile{}).nomen_string == "The Mitten"
+    end
+
+    test "a person's own word is chosen over both" do
+      source = %{
+        nomen("Michigan", assigner_id: UUIDv7.generate())
+        | assigner_kind: :collective_agent
+      }
+
+      household = nomen("The Mitten")
+      personal = %{nomen("Home", assigner_id: UUIDv7.generate()) | assigner_kind: :person}
+
+      assert Resolution.choose([source, household, personal], %Profile{}).nomen_string == "Home"
+    end
+
+    test "a source's name is seen by every profile, and another person's variant by none" do
+      {:ok, place} = Catalog.create_res(%{kind: :place})
+      {:ok, %{res: source}} = Catalog.create_named_res(:collective_agent, "GeoNames")
+      Repo.insert!(%Pluteus.Matching.SourceAgent{source: "geonames", agent_id: source.id})
+      {:ok, %{res: someone}} = Catalog.create_named_res(:person, "Someone else")
+
+      nomen!(place.id, %{nomen_string: "Michigan", assigner_id: source.id, provenance: :automatic})
+
+      nomen!(place.id, %{nomen_string: "Where we lived", assigner_id: someone.id})
+
+      for profile <- [%Profile{}, %Profile{assigner_id: UUIDv7.generate()}] do
+        assert Resolution.resolve(place.id, profile).nomen_string == "Michigan"
+      end
+
+      assert Resolution.resolve(place.id, %Profile{assigner_id: someone.id}).nomen_string ==
+               "Where we lived"
+    end
+  end
+
   describe "a profile naming no language narrows nothing" do
     test "a nil language does not ask for names that are themselves untagged" do
       # Filtering to the untagged names here would discard the personal name
