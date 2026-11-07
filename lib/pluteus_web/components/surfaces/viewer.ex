@@ -14,12 +14,23 @@ defmodule PluteusWeb.Surfaces.Viewer do
 
   alias Pluteus.Presentation.Geometry
   alias Pluteus.Presentation.Registry, as: Presentation
+  alias PluteusWeb.Absence
   alias PluteusWeb.Surfaces.Medium
 
   attr :name, :string, required: true
   attr :category, :string, required: true
   attr :borne, :any, required: true
   attr :facts, :list, required: true
+
+  attr :place, :map,
+    required: true,
+    doc: """
+    Where the photograph was taken: each place of capture said by its names and those of
+    the places containing it, whether a tool or a person put it there, and the decision
+    that put it there where one can be undone; the field's state where no place is
+    recorded; the finer places proposed and not yet decided; and the places the household
+    has said it was not taken in.
+    """
 
   def surface(assigns) do
     assigns = assign(assigns, :reserved, reserved(assigns.borne, assigns.category))
@@ -33,7 +44,7 @@ defmodule PluteusWeb.Surfaces.Viewer do
           <.picture name={@name} borne={@borne} reserved={@reserved} />
         </div>
 
-        <.beside facts={@facts} />
+        <.beside facts={@facts} place={@place} />
       </div>
     </div>
     """
@@ -91,6 +102,7 @@ defmodule PluteusWeb.Surfaces.Viewer do
   end
 
   attr :facts, :list, required: true
+  attr :place, :map, required: true
 
   defp beside(assigns) do
     ~H"""
@@ -102,19 +114,120 @@ defmodule PluteusWeb.Surfaces.Viewer do
         "border-l-[length:var(--sys-border-width-hairline)] border-border-subtle"
       ]}
     >
-      <dl :if={@facts != []} class="flex flex-col gap-4">
+      <dl class="flex flex-col gap-4">
         <div :for={{label, said} <- @facts} class="flex flex-col gap-1">
-          <dt class="text-caption uppercase tracking-wide text-on-surface-muted">{label}</dt>
+          <dt class="text-caption uppercase text-on-surface-muted">{label}</dt>
           <dd class="text-body-sm text-on-surface-strong">{said}</dd>
+        </div>
+
+        <div
+          :for={captured <- @place.captured}
+          id={"viewer-place-#{captured.place_id}"}
+          class="flex flex-col gap-1"
+        >
+          <dt class="text-caption uppercase text-on-surface-muted">Taken in</dt>
+          <dd class="text-body-sm text-on-surface-strong"><.names said={captured.said} /></dd>
+          <dd class="text-caption text-on-surface-muted">{who_said(captured.provenance)}</dd>
+          <dd>
+            <.button
+              :if={captured.provenance == :automatic}
+              id={"viewer-wrong-place-#{captured.place_id}"}
+              variant="bare"
+              phx-click="reject-place"
+              phx-value-place={captured.place_id}
+            >
+              Not here
+            </.button>
+            <.button
+              :if={captured.undo}
+              id={"viewer-undo-#{captured.undo}"}
+              variant="bare"
+              phx-click="reconsider-place"
+              phx-value-candidate={captured.undo}
+            >
+              Undo
+            </.button>
+          </dd>
+        </div>
+
+        <div :if={@place.absent} id="viewer-place-absent" class="flex flex-col gap-1">
+          <dt class="text-caption uppercase text-on-surface-muted">Taken in</dt>
+          <dd class="text-body-sm"><Absence.statement state={@place.absent} /></dd>
         </div>
       </dl>
 
-      <p :if={@facts == []} class="text-body-sm text-on-surface-muted">
-        Nothing is recorded about this yet.
-      </p>
+      <section
+        :for={proposed <- @place.proposed}
+        id={"viewer-proposed-place-#{proposed.candidate_id}"}
+        aria-label={"Possibly taken in #{Enum.join(proposed.said, ", ")}"}
+        class="flex flex-col gap-2"
+      >
+        <p class="text-body-sm text-on-surface-strong">
+          Possibly taken in <.names said={proposed.said} />
+        </p>
+        <p class="text-caption text-on-surface-muted">
+          The photograph's location is too coarse to say this for certain.
+        </p>
+
+        <div class="flex gap-2">
+          <.button
+            id={"viewer-taken-here-#{proposed.candidate_id}"}
+            phx-click="decide-place"
+            phx-value-candidate={proposed.candidate_id}
+            phx-value-decision="taken-here"
+          >
+            Taken here
+          </.button>
+          <.button
+            id={"viewer-not-here-#{proposed.candidate_id}"}
+            variant="bare"
+            phx-click="decide-place"
+            phx-value-candidate={proposed.candidate_id}
+            phx-value-decision="not-here"
+          >
+            Not here
+          </.button>
+        </div>
+      </section>
+
+      <section
+        :for={declined <- @place.declined}
+        id={"viewer-declined-place-#{declined.candidate_id}"}
+        aria-label={"Not taken in #{Enum.join(declined.said, ", ")}"}
+        class="flex flex-col gap-1"
+      >
+        <p class="text-body-sm text-on-surface-strong">
+          Not taken in <.names said={declined.said} />
+        </p>
+        <p class="text-caption text-on-surface-muted">Said by the household</p>
+        <div>
+          <.button
+            id={"viewer-undo-#{declined.candidate_id}"}
+            variant="bare"
+            phx-click="reconsider-place"
+            phx-value-candidate={declined.candidate_id}
+          >
+            Undo
+          </.button>
+        </div>
+      </section>
     </aside>
     """
   end
+
+  # [spec-10] §7: each name takes its direction from itself, so a right-to-left name in a
+  # list of left-to-right ones is not reordered with its neighbours.
+  attr :said, :list, required: true
+
+  defp names(assigns) do
+    ~H"""
+    <span :for={{name, index} <- Enum.with_index(@said)} phx-no-format><bdi>{name}</bdi>{if index < length(@said) - 1, do: ", "}</span>
+    """
+  end
+
+  # [spec-10] §15.3: whether a tool or a person put the place there is visible beside it.
+  defp who_said(:automatic), do: "Matched from the photograph's own location"
+  defp who_said(:local), do: "Confirmed by the household"
 
   defp reserved(nil, category), do: Geometry.reserve(nil, category)
 
