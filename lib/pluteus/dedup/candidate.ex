@@ -12,14 +12,19 @@ defmodule Pluteus.Dedup.Candidate do
   place, so `signal` records the signal that *first* raised the pair rather than
   every signal that has seen it. A second signal meeting a pair already raised
   adds nothing, and meeting one already decided must add nothing.
+
+  A candidate matching raised carries what [spec-05] §8.5 requires of one: the decision
+  it proposes, the source that suggested it, the match record holding the evidence, and
+  the source's own score where it gave one. It is decided as proposed or as distinct.
   """
 
   use Ecto.Schema
 
   import Ecto.Changeset
 
-  @signals ~w(digest perceptual external_identifier member)a
-  @decisions ~w(same_holding same_manifestation same_expression same_work distinct)a
+  @signals ~w(digest perceptual external_identifier member matching)a
+  @decisions ~w(same_holding same_manifestation same_expression same_work place_of_capture distinct)a
+  @proposals ~w(place_of_capture)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -32,6 +37,11 @@ defmodule Pluteus.Dedup.Candidate do
     field :decision, Ecto.Enum, values: @decisions
     field :decided_by, UUIDv7
     field :decided_at, :utc_datetime_usec
+
+    field :proposed, Ecto.Enum, values: @proposals
+    field :source, :string
+    field :match_record_id, UUIDv7
+    field :score, :float
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -61,12 +71,45 @@ defmodule Pluteus.Dedup.Candidate do
     |> foreign_key_constraint(:raised_by)
   end
 
+  @doc """
+  A pair matching raised from a resemblance, with what it proposes and the record of
+  why ([spec-05] §8.5).
+  """
+  def raised_changeset(candidate, attrs) do
+    candidate
+    |> cast(attrs, [
+      :left_id,
+      :right_id,
+      :signal,
+      :detected_at,
+      :proposed,
+      :source,
+      :match_record_id,
+      :score
+    ])
+    |> validate_required([
+      :left_id,
+      :right_id,
+      :detected_at,
+      :proposed,
+      :source,
+      :match_record_id
+    ])
+    |> put_change(:signal, :matching)
+    |> check_constraint(:left_id, name: :pair_is_ordered)
+    |> check_constraint(:proposed, name: :a_matching_candidate_names_its_evidence)
+    |> foreign_key_constraint(:left_id)
+    |> foreign_key_constraint(:right_id)
+    |> foreign_key_constraint(:match_record_id)
+  end
+
   def decision_changeset(candidate, attrs) do
     candidate
     |> cast(attrs, [:decision, :decided_by, :decided_at])
     |> validate_required([:decision, :decided_by, :decided_at])
     |> check_constraint(:decision, name: :decision_must_be_known)
     |> check_constraint(:decision, name: :decision_is_attributed)
+    |> check_constraint(:decision, name: :a_proposal_is_decided_as_proposed)
     |> foreign_key_constraint(:decided_by)
   end
 end
