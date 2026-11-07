@@ -98,7 +98,10 @@ config :pluteus, Oban,
       # or a search (§14).
       {"*/5 * * * *", Pluteus.Workers.KeyPositions},
       {"1-59/5 * * * *", Pluteus.Workers.ResolvePositions},
-      {"2-59/5 * * * *", Pluteus.Workers.ApplyPositions}
+      {"2-59/5 * * * *", Pluteus.Workers.ApplyPositions},
+      {"3-59/5 * * * *", Pluteus.Workers.KeyMusic},
+      {"4-59/5 * * * *", Pluteus.Workers.ResolveMusic},
+      {"*/5 * * * *", Pluteus.Workers.ApplyMusic}
     ]
   ]
 
