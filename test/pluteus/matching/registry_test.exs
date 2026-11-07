@@ -119,6 +119,18 @@ defmodule Pluteus.Matching.RegistryTest do
       end
     end
 
+    test "every scheme MusicBrainz answers is read from tags, and the recording from UFID too" do
+      # §9.1: in Vorbis comments MUSICBRAINZ_TRACKID is the recording, not the track.
+      keys = Registry.keys!("musicbrainz")
+
+      assert Enum.sort(Map.keys(keys.tags)) == Enum.sort(Registry.answers("musicbrainz"))
+      assert "musicbrainz_trackid" in keys.tags["musicbrainz_recording"]
+      assert "musicbrainz_releasetrackid" in keys.tags["musicbrainz_track"]
+      assert keys.ufid_owner == "http://musicbrainz.org"
+      assert keys.ufid_scheme == "musicbrainz_recording"
+      assert keys.disc.sample_rate == 44_100 and keys.disc.channels == 2
+    end
+
     test "a corpus whose entry names no address cannot be fetched" do
       assert_raise KeyError, fn -> Registry.fetch!("discogs") end
     end
