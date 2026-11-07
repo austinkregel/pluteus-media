@@ -296,33 +296,45 @@ defmodule Pluteus.Matching.Geocoding do
         "replaced" => capture!(work, nil)
       })
     else
-      answer =
-        Places.answer(
-          position(record.query),
-          neighbours(record.response),
-          Registry.reverse_geocoding!(@corpus)
-        )
-
-      agent = Sources.agent!(@corpus)
-      recorded = answer.recorded && place!(answer.recorded, record.response, agent)
-      replaced = capture!(work, recorded)
-      candidate = answer.candidate && place!(answer.candidate, record.response, agent)
-      if candidate, do: raise!(work, candidate, record)
-
-      state =
-        cond do
-          recorded -> :applied
-          candidate -> :candidate
-          true -> :empty
-        end
-
-      finish(record, state, %{
-        "recorded" => recorded,
-        "candidate" => candidate,
-        "replaced" => replaced
-      })
+      matched(record, work)
     end
   end
+
+  defp matched(record, work) do
+    answer =
+      Places.answer(
+        position(record.query),
+        neighbours(record.response),
+        Registry.reverse_geocoding!(@corpus)
+      )
+
+    agent = Sources.agent!(@corpus)
+    supported = answer.recorded && place!(answer.recorded, record.response, agent)
+    {recorded, declined} = unless_declined(work, supported)
+
+    replaced = capture!(work, recorded)
+    candidate = answer.candidate && place!(answer.candidate, record.response, agent)
+    if candidate, do: raise!(work, candidate, record)
+
+    finish(record, state_of(recorded, candidate), %{
+      "recorded" => recorded,
+      "declined" => declined,
+      "candidate" => candidate,
+      "replaced" => replaced
+    })
+  end
+
+  # A place a member has said the work was not made in is not written again, however the
+  # gazetteer answers (spec-05 §8.7); the conclusion says it was declined.
+  defp unless_declined(_work, nil), do: {nil, nil}
+
+  defp unless_declined(work, supported) do
+    if distinct?(work, supported["place_id"]), do: {nil, supported}, else: {supported, nil}
+  end
+
+  defp state_of(recorded, _candidate) when not is_nil(recorded), do: :applied
+  defp state_of(nil, candidate) when not is_nil(candidate), do: :candidate
+  defp state_of(nil, nil), do: :empty
 
   defp finish(record, state, conclusion) do
     record
@@ -467,6 +479,15 @@ defmodule Pluteus.Matching.Geocoding do
     end
 
     replaced
+  end
+
+  defp distinct?(work, place) do
+    [left, right] = Enum.sort([work, place])
+
+    Repo.exists?(
+      from c in Candidate,
+        where: c.left_id == ^left and c.right_id == ^right and c.decision == :distinct
+    )
   end
 
   defp settled?(work) do
