@@ -1085,7 +1085,12 @@ defmodule Pluteus.Ingest.Place do
 
   # --- A release in one file (§6.4) ------------------------------------------------
 
-  defp cue_sheet_for(acquisition) do
+  @doc """
+  The cue sheet beside a file that names it in its `FILE` line, read, or nil where none
+  does.
+  """
+  @spec cue_sheet_for(Acquisition.t()) :: Cue.t() | nil
+  def cue_sheet_for(acquisition) do
     file_name = acquisition.inbox_path |> Path.basename() |> String.normalize(:nfc)
 
     from(a in Acquisition,
@@ -1363,14 +1368,17 @@ defmodule Pluteus.Ingest.Place do
   defp filed_as(%Acquisition{} = acquisition),
     do: Registry.path_evidence(acquisition.inbox_path, acquisition.media_class) || %{}
 
-  # The tags a holding carries, from whichever reader answered them: a container with
-  # streams states them in its own header, a container of files states them in a document
-  # the registry names inside it (§6.9 criterion 35), and a media manager states them in a
-  # document beside it (§6.3), which examination read and recorded while the file was
-  # still next to it. §6.3 weighs them alike, so nothing here asks which it was; what
-  # decides between them where they disagree is nearness, and the file's own container is
-  # nearest.
-  defp embedded_tags(%Acquisition{} = acquisition),
+  @doc """
+  The tags a holding carries, from whichever reader answered them: a container with
+  streams states them in its own header, a container of files states them in a document
+  the registry names inside it (§6.9 criterion 35), and a media manager states them in a
+  document beside it (§6.3), which examination read and recorded while the file was
+  still next to it. §6.3 weighs them alike, so nothing here asks which it was; what
+  decides between them where they disagree is nearness, and the file's own container is
+  nearest.
+  """
+  @spec embedded_tags(Acquisition.t()) :: map()
+  def embedded_tags(%Acquisition{} = acquisition),
     do: Map.merge(acquisition.container_tags, Streams.tags(acquisition.probe))
 
   defp title(acquisition) do
