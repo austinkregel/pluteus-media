@@ -8,14 +8,21 @@ defmodule PluteusWeb.FindingsLive do
   Grouped by what went wrong, because a pass that could not do one thing to two hundred
   files records two hundred findings of one shape, and a list of them in order would
   bury the other two.
+
+  An equation matching performed is reported here ([spec-05] §8.4) with what it moved,
+  and is undone from here: the two are separated again exactly, the pair is recorded as
+  the person's decision that they are distinct, and the report is cleared.
   """
 
   use PluteusWeb, :surface
 
+  alias Pluteus.Actor
   alias Pluteus.Catalog.Profile
   alias Pluteus.Catalog.Resolution
   alias Pluteus.Design.Glyphs
   alias Pluteus.Ingest
+  alias Pluteus.Ingest.Finding
+  alias Pluteus.Matching.Equation
   alias Pluteus.Principals.Principal
   alias Pluteus.Repo
   alias PluteusWeb.Absence
@@ -63,6 +70,22 @@ defmodule PluteusWeb.FindingsLive do
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "That was not cleared: #{inspect(reason)}")}
     end
+  end
+
+  def handle_event("undo-equation", %{"id" => id}, socket) do
+    principal = socket.assigns.principal_id
+    %Finding{kind: "equated", cleared_at: nil} = finding = Repo.get!(Finding, id)
+
+    {:ok, _cleared} =
+      Actor.as(principal, fn ->
+        Repo.transaction(fn ->
+          {:ok, _distinct} = Equation.undo(finding.detail, principal)
+          {:ok, cleared} = Ingest.clear_finding(id, principal)
+          cleared
+        end)
+      end)
+
+    {:noreply, socket |> gathered() |> assign(:announcement, "Undone.")}
   end
 
   defp gathered(socket) do
@@ -238,6 +261,21 @@ defmodule PluteusWeb.FindingsLive do
           The {@finding.corpus} corpus
         </span>
       </span>
+
+      <button
+        :if={@finding.kind == "equated"}
+        type="button"
+        id={"undo-equation-#{@finding.id}"}
+        phx-click="undo-equation"
+        phx-value-id={@finding.id}
+        class={[
+          "min-h-target-pointer shrink-0 rounded-md px-4",
+          "border-[length:var(--sys-border-width-component)] border-border-strong",
+          "text-body-sm text-on-surface-strong hover:bg-fill-subtle-strong"
+        ]}
+      >
+        Undo
+      </button>
 
       <button
         type="button"
