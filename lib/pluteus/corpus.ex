@@ -56,6 +56,14 @@ defmodule Pluteus.Corpus do
   end
 
   @doc """
+  Records the files of a snapshot fetched so far, each with what it was verified at.
+  """
+  @spec fetched(Snapshot.t(), map()) :: Snapshot.t()
+  def fetched(%Snapshot{state: :fetching} = snapshot, files) do
+    snapshot |> Snapshot.fetched_changeset(files) |> Repo.update!()
+  end
+
+  @doc """
   Records that every file of a snapshot agreed with what its publisher stated.
   """
   @spec verified(Snapshot.t(), map()) :: Snapshot.t()
