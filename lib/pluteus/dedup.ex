@@ -257,6 +257,104 @@ defmodule Pluteus.Dedup do
   # instead of recording a decision it did not carry out.
   defp carry_out(:distinct, _candidate, _principal_id, _now), do: :ok
 
+  @doc """
+  A member saying a work was not made in a place matching recorded for it ([spec-10]
+  §15.1): matching's association is withdrawn, and the pair is recorded as the member's
+  decision that the two are distinct, which no later match overturns ([spec-05] §8.7).
+  """
+  @spec reject_place(Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t(), DateTime.t()) ::
+          {:ok, Candidate.t()} | {:error, term()}
+  def reject_place(work_id, place_id, principal_id, now \\ DateTime.utc_now()) do
+    refinement = Refinements.name!("place-of-capture")
+    [left, right] = Enum.sort([work_id, place_id])
+
+    Repo.transaction(fn ->
+      {1, _} =
+        Repo.delete_all(
+          from a in Association,
+            where: a.subject_id == ^work_id and a.object_id == ^place_id,
+            where: a.refinement == ^refinement and a.provenance == :automatic
+        )
+
+      # A pair already raised — a proposal of this very place from an earlier match — is
+      # the one decided; one pair, one row.
+      pair =
+        Repo.get_by(Candidate, left_id: left, right_id: right) ||
+          %Candidate{}
+          |> Candidate.proposal_changeset(%{
+            left_id: left,
+            right_id: right,
+            signal: :member,
+            detected_at: now,
+            raised_by: principal_id
+          })
+          |> Repo.insert!()
+
+      pair
+      |> Candidate.decision_changeset(%{
+        decision: :distinct,
+        decided_by: principal_id,
+        decided_at: now
+      })
+      |> Repo.update!()
+    end)
+  end
+
+  @doc """
+  Undoes a decision about where a work was made ([spec-10] §15.4), returning what the
+  decision replaced.
+
+  An accepted place is withdrawn and the place matching had recorded is restored; a
+  proposal declined is open again; a member's rejection of a place matching recorded is
+  removed, and that place restored.
+  """
+  @spec reconsider(Ecto.UUID.t()) :: {:ok, :reopened | :withdrawn} | {:error, term()}
+  def reconsider(candidate_id) do
+    candidate = Repo.get!(Candidate, candidate_id)
+    %{place: place, captured: work} = place_and_captured!(candidate)
+    refinement = Refinements.name!("place-of-capture")
+
+    Repo.transaction(fn ->
+      case {candidate.signal, candidate.decision} do
+        {:matching, :place_of_capture} ->
+          {1, _} =
+            Repo.delete_all(
+              from a in Association,
+                where: a.subject_id == ^work and a.object_id == ^place,
+                where: a.refinement == ^refinement and a.provenance == :local
+            )
+
+          restore_matched(work, candidate.match_record_id, refinement)
+          reopen!(candidate)
+
+        {:matching, :distinct} ->
+          reopen!(candidate)
+
+        {:member, :distinct} ->
+          Repo.delete!(candidate)
+          {:ok, _} = Catalog.associate(work, place, refinement, :automatic)
+          :withdrawn
+      end
+    end)
+  end
+
+  defp reopen!(candidate) do
+    candidate |> Candidate.reopened_changeset() |> Repo.update!()
+    :reopened
+  end
+
+  # The place the match that raised the proposal recorded, which accepting the proposal
+  # withdrew.
+  defp restore_matched(work, match_record_id, refinement) do
+    case Repo.get!(Pluteus.Matching.MatchRecord, match_record_id).conclusion do
+      %{"recorded" => %{"place_id" => recorded}} ->
+        {:ok, _} = Catalog.associate(work, recorded, refinement, :automatic)
+
+      %{"recorded" => nil} ->
+        :nothing_was_recorded
+    end
+  end
+
   # The pair is stored in identifier order, so which one is the place is read from the
   # res rather than from the position.
   defp place_and_captured!(%Candidate{left_id: left, right_id: right}) do
