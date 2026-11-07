@@ -66,8 +66,12 @@ defmodule Pluteus.Backup do
   # The corpora's database, the same way: published data refetched after loss (spec-05
   # §5.7), and the record of which snapshot of each was held, which describes a copy that
   # is not backed up. A corpus importer's own tables live in schemas of their own, named
-  # here as `schema.table`, and are answered for as they arrive.
-  @corpora ~w(corpus_snapshots schema_migrations)
+  # here as `schema.table`, and are answered for as they arrive. An import's staging
+  # schema exists only while the import runs and holds the same tables.
+  @corpora ~w(
+    corpus_snapshots schema_migrations
+    geonames.places geonames.admin1 geonames.admin2
+  )
 
   @doc """
   Every table of the catalogue's database, classified as backed up whole, backed up in
