@@ -97,13 +97,28 @@
       "acquisition": "fetched",
       "advances": true,
       "fetch": {
-        "for": "The publisher's dump directory and its readme. allCountries is the gazetteer, every feature class of every country. A place's admin1 and admin2 columns are codes, and the two code files are where the publisher names the division each code stands for, with its geonameid.",
+        "for": "The publisher's dump directory and its readme. allCountries is the gazetteer, every feature class of every country. A place's country, admin1 and admin2 columns are codes, and the code files are where the publisher names the country or division each code stands for, with its geonameid.",
         "from": "https://download.geonames.org/export/dump/",
-        "files": ["allCountries.zip", "admin1CodesASCII.txt", "admin2Codes.txt"],
+        "files": ["allCountries.zip", "admin1CodesASCII.txt", "admin2Codes.txt", "countryInfo.txt"],
         "verified_by": "size",
         "verified_by_for": "GeoNames publishes no checksum for any dump file, so a file's size against the Content-Length the server announces is the only check there is.",
         "stated_by": "last_modified",
-        "stated_by_for": "The publisher regenerates the dump daily and states no date beyond each file's Last-Modified. A snapshot's files must all carry the same date, or they are not one snapshot."
+        "stated_by_for": "The publisher regenerates the dump daily and states no date beyond each file's Last-Modified. A snapshot's files must all carry the same date, or they are not one snapshot.",
+        "every_months": 1,
+        "every_months_for": "The dump changes daily, but a newer snapshot makes every match drawn from the older one due again (spec-05 §8.7), and a place changes slowly. A snapshot is due once the one in use is a month old, or where none is."
+      },
+      "reverse_geocoding": {
+        "for": "spec-05 §9.7: a coordinate is recorded at the granularity the evidence supports, and the finer place is a candidate. Every feature class is held; only a populated place (class P, the class the gazetteer indexes by position) answers a coordinate, and the region and country are the ones that place's codes name, since the publisher gives no boundary finer than a country's.",
+        "answering_codes": ["PPL", "PPLA", "PPLA2", "PPLA3", "PPLA4", "PPLA5", "PPLC", "PPLG", "PPLF", "PPLL", "PPLR", "PPLS", "STLMT"],
+        "answering_codes_for": "The populated places someone can be standing in today. Left out: historical (PPLH, PPLCH), abandoned (PPLQ) and destroyed (PPLW) places, which are nowhere anyone stands now, and sections of a populated place (PPLX), which are finer than a locality. Without these exclusions the nearest place to central Paris is a historical quarter.",
+        "locality_accuracy_metres": 100,
+        "locality_accuracy_metres_for": "The horizontal error a device must state, at most, for its coordinate to support a locality. One stating none supports a region.",
+        "locality_within_metres": 5000,
+        "locality_within_metres_for": "How near the nearest populated place must be to be the locality a photograph was taken in, however accurate the coordinate. Further than this, the photograph was taken near it rather than in it.",
+        "agreeing_places": 5,
+        "agreeing_places_for": "How many of the nearest populated places must name one first-order division for the region to be asserted. Near a border they disagree, and the country they share is asserted instead, or nothing where they span two.",
+        "nearby_within_metres": 50000,
+        "nearby_within_metres_for": "How near a populated place must be to say anything at all. With none this near, the gazetteer's answer supports nothing, and the place stays not yet examined (spec-05 §11)."
       }
     },
     "imdb": {
