@@ -77,6 +77,60 @@ defmodule Pluteus.Corpus.Fetch do
     end
   end
 
+  @typedoc """
+  What the publisher announces for a file before any of it is fetched: its length, and
+  when it last changed.
+  """
+  @type announced :: %{length: non_neg_integer(), last_modified: DateTime.t()}
+
+  @doc """
+  Asks what the publisher announces for `url` without fetching it.
+
+  The announced length is what a fetched file is verified against where the publisher
+  publishes no checksum (spec-05 §5.7), and the last-modified time is the date it states
+  for the data. An answer missing either is an error naming which, because a file whose
+  size nobody announced cannot be verified and one with no date cannot be placed in a
+  snapshot.
+  """
+  @spec head(String.t(), keyword()) ::
+          {:ok, announced()}
+          | {:error,
+             {:status, pos_integer()} | {:not_announced, String.t()} | {:transport, term()}}
+  def head(url, options) do
+    user_agent = Keyword.fetch!(options, :user_agent)
+    headers = [{~c"user-agent", String.to_charlist(user_agent)}]
+
+    case :httpc.request(
+           :head,
+           {String.to_charlist(url), headers},
+           [{:timeout, @timeout} | http_options(url)],
+           []
+         ) do
+      {:ok, {{_version, 200, _reason}, headers, _body}} -> announced(headers)
+      {:ok, {{_version, status, _reason}, _headers, _body}} -> {:error, {:status, status}}
+      {:error, reason} -> {:error, {:transport, reason}}
+    end
+  end
+
+  defp announced(headers) do
+    with {:ok, length} <- announced_length(header(headers, "content-length")),
+         {:ok, last_modified} <- announced_date(header(headers, "last-modified")) do
+      {:ok, %{length: length, last_modified: last_modified}}
+    end
+  end
+
+  defp announced_length(nil), do: {:error, {:not_announced, "content-length"}}
+  defp announced_length(length), do: {:ok, String.to_integer(length)}
+
+  defp announced_date(nil), do: {:error, {:not_announced, "last-modified"}}
+
+  defp announced_date(http_date) do
+    {{_y, _mo, _d}, {_h, _mi, _s}} =
+      erl = :httpd_util.convert_request_date(String.to_charlist(http_date))
+
+    {:ok, erl |> NaiveDateTime.from_erl!() |> DateTime.from_naive!("Etc/UTC")}
+  end
+
   defp held(partial) do
     case File.stat(partial) do
       {:ok, %File.Stat{size: size}} -> size
