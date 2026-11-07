@@ -105,7 +105,8 @@ defmodule Pluteus.Matching.Registry do
           from: String.t(),
           files: [String.t()],
           verified_by: :size,
-          stated_by: :last_modified
+          stated_by: :last_modified,
+          every_months: pos_integer()
         }
   def fetch!(corpus) do
     entry = corpus |> corpus() |> Map.fetch!("fetch")
@@ -114,7 +115,33 @@ defmodule Pluteus.Matching.Registry do
       from: Map.fetch!(entry, "from"),
       files: Map.fetch!(entry, "files"),
       verified_by: verified_by(Map.fetch!(entry, "verified_by")),
-      stated_by: stated_by(Map.fetch!(entry, "stated_by"))
+      stated_by: stated_by(Map.fetch!(entry, "stated_by")),
+      every_months: Map.fetch!(entry, "every_months")
+    }
+  end
+
+  @doc """
+  How a gazetteer's answer to a coordinate is recorded at the granularity the evidence
+  supports (§9.7): the feature codes that may answer, the stated accuracy a locality needs,
+  how near it must be, how many neighbours must agree on a region, and how near anything
+  must be to say anything at all.
+  """
+  @spec reverse_geocoding!(String.t()) :: %{
+          answering_codes: [String.t()],
+          locality_accuracy_metres: number(),
+          locality_within_metres: number(),
+          agreeing_places: pos_integer(),
+          nearby_within_metres: number()
+        }
+  def reverse_geocoding!(corpus) do
+    entry = corpus |> corpus() |> Map.fetch!("reverse_geocoding")
+
+    %{
+      answering_codes: Map.fetch!(entry, "answering_codes"),
+      locality_accuracy_metres: Map.fetch!(entry, "locality_accuracy_metres"),
+      locality_within_metres: Map.fetch!(entry, "locality_within_metres"),
+      agreeing_places: Map.fetch!(entry, "agreeing_places"),
+      nearby_within_metres: Map.fetch!(entry, "nearby_within_metres")
     }
   end
 
