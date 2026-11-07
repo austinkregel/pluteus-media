@@ -216,6 +216,69 @@ defmodule Pluteus.Corpus.GeonamesTest do
     end
   end
 
+  describe "§5.7. A snapshot's files are fetched one at a time, each in its own job" do
+    test "each is recorded as it arrives, and the last one verifies the snapshot", %{
+      files: files,
+      origin: origin
+    } do
+      publish(files, "one", [grand_rapids()], ~U[2026-11-06 02:50:44Z])
+      from = "#{origin}/one/"
+
+      assert {:ok, snapshot, announced} = Acquire.begin(@corpus, from: from)
+      assert snapshot.state == :fetching
+      assert [_, _, _, _] = Acquire.outstanding(snapshot, announced)
+
+      [{last_file, last_said} | rest] = Enum.reverse(announced)
+
+      for {file, said} <- rest do
+        assert {:fetched, %{state: :fetching}} =
+                 Acquire.fetch_file(snapshot, file, said, from: from)
+      end
+
+      {:ok, again, _} = Acquire.begin(@corpus, from: from)
+      assert Acquire.outstanding(again, announced) == [{last_file, last_said}]
+
+      assert {:verified, verified} =
+               Acquire.fetch_file(snapshot, last_file, last_said, from: from)
+
+      assert Map.keys(verified.files) |> Enum.sort() ==
+               Enum.sort(Enum.map(announced, &elem(&1, 0)))
+    end
+
+    test "one whose deadline comes first pauses, and is fetched whole by the next", %{
+      files: files,
+      origin: origin
+    } do
+      publish(files, "one", [grand_rapids(), walker()], ~U[2026-11-06 02:50:44Z])
+      from = "#{origin}/one/"
+      {:ok, snapshot, announced} = Acquire.begin(@corpus, from: from)
+      said = :proplists.get_value("allCountries.zip", announced)
+
+      assert :paused =
+               Acquire.fetch_file(snapshot, "allCountries.zip", said,
+                 from: from,
+                 until: System.monotonic_time(:millisecond) - 1
+               )
+
+      assert {:fetched, fetched} =
+               Acquire.fetch_file(snapshot, "allCountries.zip", said, from: from)
+
+      assert fetched.files["allCountries.zip"]["size"] == said.length
+    end
+
+    test "a file of a snapshot refused meanwhile is not fetched", %{files: files, origin: origin} do
+      publish(files, "one", [grand_rapids()], ~U[2026-11-06 02:50:44Z])
+      from = "#{origin}/one/"
+      {:ok, snapshot, [{file, said} | _]} = Acquire.begin(@corpus, from: from)
+      Corpus.refused(snapshot, "size_disagrees", %{})
+
+      assert {:not_fetching, %{state: :refused}} =
+               Acquire.fetch_file(snapshot, file, said, from: from)
+
+      refute File.exists?(Path.join(Corpus.snapshot_directory(@corpus, snapshot.stated_on), file))
+    end
+  end
+
   describe "§5.7. A file is verified before anything reads it" do
     test "a file whose size is not the size announced refuses the snapshot", %{
       files: files,
