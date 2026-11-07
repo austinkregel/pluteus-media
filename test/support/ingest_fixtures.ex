@@ -272,6 +272,9 @@ defmodule Pluteus.IngestFixtures do
 
     * `:flac` — two seconds of tone; `tags:` become container tags, and
       `art: true` embeds a JPEG as cover art
+    * `:cd_flac` — a CD's audio sample for sample: two channels at 44.1 kHz, exactly
+      `sectors:` sectors of 588 samples long, so a cue sheet beside it yields a disc's
+      table of contents; `tags:` become container tags
     * `:mp3` — lossy audio
     * `:m4b` — lossy audio in an MP4 container, which separates several values in
       one tag with a comma where ID3 and Vorbis use a semicolon; `chapters:` are
@@ -304,6 +307,7 @@ defmodule Pluteus.IngestFixtures do
   end
 
   defp output_name(:flac), do: "out.flac"
+  defp output_name(:cd_flac), do: "out.flac"
   defp output_name(:bursts), do: "out.flac"
   defp output_name(:mp3), do: "out.mp3"
   defp output_name(:wav), do: "out.wav"
@@ -329,6 +333,15 @@ defmodule Pluteus.IngestFixtures do
       end
 
     tone(opts) ++ art ++ tags(stated(opts))
+  end
+
+  defp args(:cd_flac, opts, _dir) do
+    samples = Keyword.fetch!(opts, :sectors) * 588
+    seconds = div(samples, 44_100) + 1
+
+    ["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=#{seconds}"] ++
+      ["-ac", "2", "-af", "atrim=end_sample=#{samples}", "-c:a", "flac"] ++
+      tags(opts[:tags] || %{})
   end
 
   defp args(:mp3, opts, _dir),
