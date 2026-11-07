@@ -95,7 +95,16 @@
       "answers": ["geonames"],
       "terms": "CC BY 4.0, which obliges attribution.",
       "acquisition": "fetched",
-      "advances": true
+      "advances": true,
+      "fetch": {
+        "for": "The publisher's dump directory and its readme. allCountries is the gazetteer, every feature class of every country. A place's admin1 and admin2 columns are codes, and the two code files are where the publisher names the division each code stands for, with its geonameid.",
+        "from": "https://download.geonames.org/export/dump/",
+        "files": ["allCountries.zip", "admin1CodesASCII.txt", "admin2Codes.txt"],
+        "verified_by": "size",
+        "verified_by_for": "GeoNames publishes no checksum for any dump file, so a file's size against the Content-Length the server announces is the only check there is.",
+        "stated_by": "last_modified",
+        "stated_by_for": "The publisher regenerates the dump daily and states no date beyond each file's Last-Modified. A snapshot's files must all carry the same date, or they are not one snapshot."
+      }
     },
     "imdb": {
       "answers": ["imdb_title", "imdb_name"],
