@@ -21,7 +21,10 @@ defmodule Pluteus.Repo.Migrations.RaiseACandidateFromMatching do
     end
 
     replace(:signal_must_be_known, "signal", @signals ++ ["matching"])
-    replace(:decision_must_be_known, "decision", @decisions ++ ["place_of_capture"], nullable: true)
+
+    replace(:decision_must_be_known, "decision", @decisions ++ ["place_of_capture"],
+      nullable: true
+    )
 
     create constraint(:duplicate_candidates, :a_matching_candidate_names_its_evidence,
              check:
