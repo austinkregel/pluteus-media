@@ -61,10 +61,30 @@ defmodule Pluteus.Matching.RegistryTest do
       # The publisher states no checksum, so §5.7 leaves the announced size as the check.
       assert %{
                from: "https://download.geonames.org/export/dump/",
-               files: ["allCountries.zip", "admin1CodesASCII.txt", "admin2Codes.txt"],
+               files: [
+                 "allCountries.zip",
+                 "admin1CodesASCII.txt",
+                 "admin2Codes.txt",
+                 "countryInfo.txt"
+               ],
                verified_by: :size,
-               stated_by: :last_modified
+               stated_by: :last_modified,
+               every_months: 1
              } = Registry.fetch!("geonames")
+    end
+
+    test "GeoNames states how its answer to a coordinate is recorded" do
+      # §9.7 gives the rule and not the numbers; the registry holds the numbers.
+      assert %{
+               locality_accuracy_metres: 100,
+               locality_within_metres: 5000,
+               agreeing_places: 5,
+               nearby_within_metres: 50_000,
+               answering_codes: codes
+             } = Registry.reverse_geocoding!("geonames")
+
+      assert "PPL" in codes and "PPLC" in codes
+      refute Enum.any?(~w(PPLH PPLCH PPLQ PPLW PPLX), &(&1 in codes))
     end
 
     test "a corpus whose entry names no address cannot be fetched" do
