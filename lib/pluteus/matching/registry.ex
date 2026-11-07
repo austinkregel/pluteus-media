@@ -53,6 +53,19 @@ defmodule Pluteus.Matching.Registry do
   def check(scheme), do: scheme |> scheme() |> Map.get("check")
 
   @doc """
+  The form a scheme's identifiers take (§4.4), where the phase that reads the scheme has
+  recorded it. A scheme no phase reads yet has none, and asking raises.
+  """
+  @spec syntax!(String.t()) :: :uuid | :isrc | :discid
+  def syntax!(scheme) do
+    case scheme |> scheme() |> Map.fetch!("syntax") do
+      "uuid" -> :uuid
+      "isrc" -> :isrc
+      "discid" -> :discid
+    end
+  end
+
+  @doc """
   The levels a scheme may identify.
   """
   @spec levels() :: [String.t()]
@@ -126,14 +139,19 @@ defmodule Pluteus.Matching.Registry do
   Where a fetched corpus's files are, which files they are, how each is verified, and what
   states the snapshot's date (§5.7, §15).
 
+  A file is verified by its size against the length announced for it, or by its digest
+  against the publisher's checksum file. The date is the last-modified time the files
+  agree on, or the name of the directory a pointer file names, where the publisher keeps
+  each snapshot in a directory of its own.
+
   A corpus whose entry gives none of this is not yet acquirable, and asking raises rather
   than guessing at an address.
   """
   @spec fetch!(String.t()) :: %{
           from: String.t(),
           files: [String.t()],
-          verified_by: :size,
-          stated_by: :last_modified,
+          verified_by: :size | {:sha256, String.t()},
+          stated_by: :last_modified | {:pointer, String.t()},
           every_months: pos_integer()
         }
   def fetch!(corpus) do
@@ -142,9 +160,23 @@ defmodule Pluteus.Matching.Registry do
     %{
       from: Map.fetch!(entry, "from"),
       files: Map.fetch!(entry, "files"),
-      verified_by: verified_by(Map.fetch!(entry, "verified_by")),
-      stated_by: stated_by(Map.fetch!(entry, "stated_by")),
+      verified_by: verified_by(Map.fetch!(entry, "verified_by"), entry),
+      stated_by: stated_by(Map.fetch!(entry, "stated_by"), entry),
       every_months: Map.fetch!(entry, "every_months")
+    }
+  end
+
+  @doc """
+  What is held of a corpus published as a database dump: the schema sequence the held
+  tables are written for, and the tables, in the order they are loaded.
+  """
+  @spec dump!(String.t()) :: %{schema_sequence: pos_integer(), tables: [String.t()]}
+  def dump!(corpus) do
+    entry = corpus |> corpus() |> Map.fetch!("dump")
+
+    %{
+      schema_sequence: Map.fetch!(entry, "schema_sequence"),
+      tables: Map.fetch!(entry, "tables")
     }
   end
 
@@ -173,10 +205,11 @@ defmodule Pluteus.Matching.Registry do
     }
   end
 
-  # A publisher that states a checksum gets a clause of its own when its corpus is built.
-  defp verified_by("size"), do: :size
+  defp verified_by("size", _entry), do: :size
+  defp verified_by("sha256", entry), do: {:sha256, Map.fetch!(entry, "checksums")}
 
-  defp stated_by("last_modified"), do: :last_modified
+  defp stated_by("last_modified", _entry), do: :last_modified
+  defp stated_by("pointer", entry), do: {:pointer, Map.fetch!(entry, "pointer")}
 
   @doc """
   The order of evidence rank the deployment applies (§5.3).
