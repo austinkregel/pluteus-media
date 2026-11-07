@@ -300,6 +300,25 @@ defmodule Pluteus.Matching.GeocodingTest do
       assert captured_at(work) == [{place(4_994_358), :automatic}]
     end
 
+    test "a place a member said is wrong is not written again by a newer snapshot", %{
+      inbox: inbox
+    } do
+      %{work: work} = photograph!(inbox, located(5))
+      run_stages!()
+      member = Principals.system!().id
+
+      {:ok, _} =
+        Pluteus.Actor.as(member, fn -> Dedup.reject_place(work, place(4_994_358), member) end)
+
+      assert captured_at(work) == []
+
+      "geonames" |> Corpus.begin(~D[2026-12-06]) |> Corpus.verified(%{}) |> Corpus.imported()
+      run_stages!()
+
+      assert captured_at(work) == []
+      assert %{"declined" => %{"geonameid" => 4_994_358}} = current_record(work).conclusion
+    end
+
     test "an answer that changes replaces matching's own place of capture", %{inbox: inbox} do
       %{work: work} = photograph!(inbox, located(5))
       run_stages!()
