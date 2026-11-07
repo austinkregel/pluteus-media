@@ -46,6 +46,10 @@ defmodule Pluteus.Matching.MatchRecord do
   @doc """
   A record keyed with what a holding carries, or found empty where it carried nothing.
 
+  An empty record asked nothing, so its query is empty; where something was examined and
+  no key could be made of it — a cue sheet whose disc has its data track first — the
+  conclusion says why.
+
   A successor to a superseded record is given its identifier before it is written, so
   the record it supersedes can point at it first.
   """
@@ -60,7 +64,8 @@ defmodule Pluteus.Matching.MatchRecord do
       :rank,
       :rank_order,
       :query,
-      :state
+      :state,
+      :conclusion
     ])
     |> validate_required([:res_id, :source_kind, :source, :rank, :rank_order, :query, :state])
     |> validate_inclusion(:state, [:keyed, :empty])
