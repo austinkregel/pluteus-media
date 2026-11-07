@@ -1,7 +1,8 @@
 defmodule PluteusWeb.Notices do
   @moduledoc """
   The third-party material vendored into this repository, and what each one's licence
-  obliges.
+  obliges; and the published data the household holds a copy of, credited as its terms
+  oblige.
 
   Annex A.8.1 states the obligation for the glyph set in full: "The copyright notice
   and permission notice MUST travel with the vendored copies and with any glyph derived
@@ -20,9 +21,11 @@ defmodule PluteusWeb.Notices do
   filled in from somewhere else.
   """
 
+  alias Pluteus.Corpus
   alias Pluteus.Design.Faces
   alias Pluteus.Design.Icons
   alias Pluteus.Design.Schema
+  alias Pluteus.Matching.Registry
 
   @heroicons_licence Path.join(Icons.root(), "LICENSE")
   @dtcg Path.join(Schema.root("2025.10"), "SOURCES.json")
@@ -92,4 +95,22 @@ defmodule PluteusWeb.Notices do
   """
   @spec all() :: [map()]
   def all, do: @faces ++ @notices
+
+  @doc """
+  Every corpus the household holds a snapshot of, credited as its terms oblige
+  ([spec-05] §6.4).
+
+  A corpus is data the deployment fetched rather than material committed here, so it is
+  listed once a snapshot of it is held and not before, with the date of the snapshot the
+  household reads. One held whose registry entry states no attribution raises rather
+  than going uncredited.
+  """
+  @spec corpora() :: [map()]
+  def corpora do
+    for corpus <- Registry.corpora(), snapshot = Corpus.current(corpus) do
+      corpus
+      |> Registry.attribution!()
+      |> Map.merge(%{name: Registry.name!(corpus), snapshot: snapshot.stated_on})
+    end
+  end
 end
