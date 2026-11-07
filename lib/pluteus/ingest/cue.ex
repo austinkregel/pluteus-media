@@ -9,11 +9,24 @@ defmodule Pluteus.Ingest.Cue do
   Cue sheet time is minutes, seconds and frames of 1/75 second. A track starts
   at its `INDEX 01`; the pregap before it, `INDEX 00`, belongs to the track
   before, as players treat it.
+
+  Each track keeps what a disc's table of contents is computed from (spec-05 §9.1):
+  its start in whole frames, relative to the start of the file it is in; that file; its
+  type — `AUDIO`, or a data mode such as `MODE1/2352`; and the length of any `PREGAP`,
+  silence that was on the disc and is not in the file.
   """
 
   @frames_per_second 75
 
-  @type track :: %{number: pos_integer(), title: String.t() | nil, start_ms: non_neg_integer()}
+  @type track :: %{
+          number: pos_integer(),
+          title: String.t() | nil,
+          start_ms: non_neg_integer(),
+          start_frames: non_neg_integer(),
+          file: String.t() | nil,
+          type: String.t() | nil,
+          pregap_frames: non_neg_integer()
+        }
   @type t :: %{
           file: String.t() | nil,
           title: String.t() | nil,
@@ -32,17 +45,45 @@ defmodule Pluteus.Ingest.Cue do
     |> String.normalize(:nfc)
     |> String.split(~r/\r?\n/)
     |> Enum.map(&String.trim/1)
-    |> Enum.reduce(%{file: nil, title: nil, performer: nil, tracks: []}, &line/2)
+    |> Enum.reduce(
+      %{file: nil, current_file: nil, title: nil, performer: nil, tracks: []},
+      &line/2
+    )
+    |> Map.delete(:current_file)
     |> Map.update!(:tracks, fn tracks -> tracks |> Enum.reverse() |> Enum.map(&started!/1) end)
   end
 
-  defp line("FILE " <> rest, sheet), do: %{sheet | file: sheet.file || quoted(rest, :token)}
+  defp line("FILE " <> rest, sheet) do
+    file = quoted(rest, :token)
+    %{sheet | file: sheet.file || file, current_file: file}
+  end
 
   defp line("TRACK " <> rest, sheet) do
-    [number | _] = String.split(rest)
+    # A track's type is what a table of contents needs and placement does not, so a sheet
+    # stating none still places its tracks, and its type is nil.
+    [number, type] =
+      case String.split(rest) do
+        [number, type | _] -> [number, String.upcase(type)]
+        [number] -> [number, nil]
+      end
+
     {number, ""} = Integer.parse(number)
-    %{sheet | tracks: [%{number: number, title: nil, start_ms: nil} | sheet.tracks]}
+
+    track = %{
+      number: number,
+      title: nil,
+      start_ms: nil,
+      start_frames: nil,
+      file: sheet.current_file,
+      type: type,
+      pregap_frames: 0
+    }
+
+    %{sheet | tracks: [track | sheet.tracks]}
   end
+
+  defp line("PREGAP " <> time, %{tracks: [track | earlier]} = sheet),
+    do: %{sheet | tracks: [%{track | pregap_frames: frames(time)} | earlier]}
 
   defp line("TITLE " <> rest, %{tracks: []} = sheet), do: %{sheet | title: quoted(rest, :line)}
 
@@ -52,8 +93,10 @@ defmodule Pluteus.Ingest.Cue do
   defp line("PERFORMER " <> rest, %{tracks: []} = sheet),
     do: %{sheet | performer: quoted(rest, :line)}
 
-  defp line("INDEX 01 " <> time, %{tracks: [track | earlier]} = sheet),
-    do: %{sheet | tracks: [%{track | start_ms: milliseconds(time)} | earlier]}
+  defp line("INDEX 01 " <> time, %{tracks: [track | earlier]} = sheet) do
+    started = %{track | start_ms: milliseconds(time), start_frames: frames(time)}
+    %{sheet | tracks: [started | earlier]}
+  end
 
   defp line(_other, sheet), do: sheet
 
@@ -73,10 +116,12 @@ defmodule Pluteus.Ingest.Cue do
     end
   end
 
-  defp milliseconds(time) do
+  defp milliseconds(time), do: div(frames(time) * 1000, @frames_per_second)
+
+  defp frames(time) do
     [minutes, seconds, frames] =
       time |> String.trim() |> String.split(":") |> Enum.map(&String.to_integer/1)
 
-    div((minutes * 60 + seconds) * 1000 * @frames_per_second + frames * 1000, @frames_per_second)
+    (minutes * 60 + seconds) * @frames_per_second + frames
   end
 end
