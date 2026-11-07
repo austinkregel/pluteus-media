@@ -717,10 +717,16 @@ defmodule Pluteus.Assets.ConformanceTest do
              ]
     end
 
-    test "an association is proposed by matching, and decided only as proposed or distinct" do
-      # §8.3: a candidate proposing an association is decided as proposed or as distinct,
-      # and as nothing else.
-      assert Ecto.Enum.values(Candidate, :proposed) == [:place_of_capture]
+    test "what matching proposes is an association or a level of sameness, decided as proposed" do
+      # §8.3 and [spec-05] §8.5: the decision a candidate from matching proposes is one of
+      # the associations §8.3 lists, or the level of sameness of an equation matching
+      # carries out through this mechanism (spec-05 §8.4); either is decided as proposed or
+      # as distinct, and as nothing else, which the column's check constraint holds.
+      assert Ecto.Enum.values(Candidate, :proposed) == [
+               :place_of_capture,
+               :same_expression,
+               :same_work
+             ]
     end
   end
 
