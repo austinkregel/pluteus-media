@@ -593,6 +593,14 @@ individual's variant is the marked case. Because the deployment *is* the
 household (§10.2), a collective agent row representing it would partition
 nothing.
 
+**A source's names are everyone's.** A name a source supplies carries the source
+as its assigner ([spec-05] §3.1), and a source is an organization naming the thing
+for everyone rather than one person's word for it. Every profile sees it. The
+household's own names refine a source's rather than replacing it: where the
+household has given a name it is preferred, and where it has not, the source's
+name is the one shown. The order is a person's own variant, then the household's
+name, then the source's.
+
 A term migrating from one person's use into household use is recorded as a new
 nomen with a null assigner, linked to the original via LRM-R15
 (`is equivalent to`). The personal nomen is not removed.
@@ -635,7 +643,8 @@ expressing no preference asks for. A deployment MUST NOT represent the absence o
 a language preference as a wildcard range.
 
 Resolution MUST always return a nomen. Where several are visible, the terminal
-fallback is the nomen with a null assigner.
+fallback is the nomen with a null assigner, and where none has one, the name a
+source supplied (§7.3).
 
 There is no fallback to the primary identifier. §6.1 requires every res
 resolution is called on to carry at least one nomen, and a res exempt from that
