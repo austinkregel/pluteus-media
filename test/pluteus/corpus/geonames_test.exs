@@ -231,15 +231,13 @@ defmodule Pluteus.Corpus.GeonamesTest do
       [{last_file, last_said} | rest] = Enum.reverse(announced)
 
       for {file, said} <- rest do
-        assert {:fetched, %{state: :fetching}} =
-                 Acquire.fetch_file(snapshot, file, said, from: from)
+        assert {:fetched, %{state: :fetching}} = Acquire.fetch_file(snapshot, file, said)
       end
 
       {:ok, again, _} = Acquire.begin(@corpus, from: from)
       assert Acquire.outstanding(again, announced) == [{last_file, last_said}]
 
-      assert {:verified, verified} =
-               Acquire.fetch_file(snapshot, last_file, last_said, from: from)
+      assert {:verified, verified} = Acquire.fetch_file(snapshot, last_file, last_said)
 
       assert Map.keys(verified.files) |> Enum.sort() ==
                Enum.sort(Enum.map(announced, &elem(&1, 0)))
@@ -256,12 +254,10 @@ defmodule Pluteus.Corpus.GeonamesTest do
 
       assert :paused =
                Acquire.fetch_file(snapshot, "allCountries.zip", said,
-                 from: from,
                  until: System.monotonic_time(:millisecond) - 1
                )
 
-      assert {:fetched, fetched} =
-               Acquire.fetch_file(snapshot, "allCountries.zip", said, from: from)
+      assert {:fetched, fetched} = Acquire.fetch_file(snapshot, "allCountries.zip", said)
 
       assert fetched.files["allCountries.zip"]["size"] == said.length
     end
@@ -272,8 +268,7 @@ defmodule Pluteus.Corpus.GeonamesTest do
       {:ok, snapshot, [{file, said} | _]} = Acquire.begin(@corpus, from: from)
       Corpus.refused(snapshot, "size_disagrees", %{})
 
-      assert {:not_fetching, %{state: :refused}} =
-               Acquire.fetch_file(snapshot, file, said, from: from)
+      assert {:not_fetching, %{state: :refused}} = Acquire.fetch_file(snapshot, file, said)
 
       refute File.exists?(Path.join(Corpus.snapshot_directory(@corpus, snapshot.stated_on), file))
     end
