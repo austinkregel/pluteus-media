@@ -14,9 +14,14 @@ defmodule Pluteus.Corpus.MusicBrainzTest do
 
   use Pluteus.DataCase, async: false
 
+  import Pluteus.MusicBrainzFixtures
+
   alias Pluteus.Corpus
   alias Pluteus.Corpus.Acquire
+  alias Pluteus.Corpus.MusicBrainz
+  alias Pluteus.Corpus.Repo, as: CorpusRepo
   alias Pluteus.Ingest
+  alias Pluteus.Matching.Registry
 
   @corpus "musicbrainz"
   @archive "mbdump.tar.bz2"
@@ -156,6 +161,86 @@ defmodule Pluteus.Corpus.MusicBrainzTest do
       assert {:verified, verified} = Acquire.fetch_file(snapshot, @archive, said)
       assert verified.stated_on == ~D[2026-11-04]
       assert verified.files[@archive]["sha256"] == sha256("the archive")
+    end
+  end
+
+  @earlier "f3d4c7a2-1b0e-4c5d-8e9f-0a1b2c3d4e5f"
+  @later "0b1c2d3e-4f50-4a6b-9c7d-8e9fa0b1c2d3"
+
+  # A name holding the characters PostgreSQL's text format escapes.
+  @escaped "Tab\there, back\\slash"
+
+  defp rows(recording_gid, name) do
+    %{
+      "recording" => [recording(1, recording_gid, name)],
+      "cdtoc" => [cdtoc(7, "49HHV7Eb8UKF3aQiNmu1GR8vKTY-", 95_462, [150, 15_363, 32_314])]
+    }
+  end
+
+  defp recordings,
+    do: CorpusRepo.query!("SELECT gid::text, name FROM musicbrainz.recording ORDER BY id").rows
+
+  describe "§5.7. An import makes a whole snapshot the one lookups read, a step at a time" do
+    test "the tables are taken out, each loaded in a step of its own, then exchanged" do
+      snapshot = rows(@earlier, @escaped) |> dump() |> verified(~D[2026-11-04])
+      directory = Corpus.snapshot_directory(@corpus, ~D[2026-11-04])
+
+      assert MusicBrainz.import_snapshot(snapshot) == {:continuing, :extracted}
+
+      for table <- Registry.dump!(@corpus).tables do
+        assert MusicBrainz.import_snapshot(snapshot) == {:continuing, {:loaded, table}}
+      end
+
+      assert %{state: :imported} = imported = MusicBrainz.import_snapshot(snapshot)
+      assert Corpus.current(@corpus).id == imported.id
+
+      assert recordings() == [[@earlier, @escaped]]
+
+      assert CorpusRepo.query!(
+               "SELECT discid, leadout_offset, track_offset FROM musicbrainz.cdtoc"
+             ).rows ==
+               [["49HHV7Eb8UKF3aQiNmu1GR8vKTY-", 95_462, [150, 15_363, 32_314]]]
+
+      refute File.exists?(directory)
+    end
+
+    test "a lookup reads the snapshot in use until the exchange, and the new one after" do
+      held!(rows(@earlier, "Earlier"), ~D[2026-10-04])
+      later = rows(@later, "Later") |> dump() |> verified(~D[2026-11-04])
+
+      for _step <- 0..length(Registry.dump!(@corpus).tables) do
+        assert {:continuing, _step} = MusicBrainz.import_snapshot(later)
+        assert recordings() == [[@earlier, "Earlier"]]
+      end
+
+      assert %{state: :imported} = MusicBrainz.import_snapshot(later)
+      assert recordings() == [[@later, "Later"]]
+    end
+
+    test "a dump in another schema is refused, and the snapshot in use stays in use" do
+      held = held!(rows(@earlier, "Earlier"), ~D[2026-10-04])
+      other = rows(@later, "Later") |> dump(30) |> verified(~D[2026-11-04])
+
+      assert %{state: :refused, refused_because: "schema_sequence_differs"} =
+               MusicBrainz.import_snapshot(other)
+
+      assert Corpus.current(@corpus).id == held.id
+      assert recordings() == [[@earlier, "Earlier"]]
+
+      assert [finding] = Enum.filter(Ingest.open_findings(), &(&1.corpus == @corpus))
+      assert %{"stated" => "30", "held_for" => 31} = finding.detail
+    end
+
+    test "a staging schema another snapshot's import made is not continued" do
+      first = rows(@earlier, "Earlier") |> dump() |> verified(~D[2026-10-04])
+      second = rows(@later, "Later") |> dump() |> verified(~D[2026-11-04])
+
+      assert {:continuing, :extracted} = MusicBrainz.import_snapshot(first)
+      assert {:continuing, :extracted} = MusicBrainz.import_snapshot(second)
+
+      assert_raise RuntimeError, ~r/belongs to snapshot/, fn ->
+        MusicBrainz.import_snapshot(first)
+      end
     end
   end
 end
