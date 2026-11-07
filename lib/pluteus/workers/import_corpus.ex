@@ -5,6 +5,11 @@ defmodule Pluteus.Workers.ImportCorpus do
   **An import that raises is recorded as a finding** against the corpus, and the corpus is
   not due again until a person clears it: the verified files are still there to import
   from.
+
+  An importer whose corpus is too large to import within one job's run takes one step per
+  run and answers which; the job snoozes and takes the next, a snooze consuming no
+  attempt. A snapshot its importer refuses is finished with, the refusal being the
+  finding.
   """
 
   use Oban.Worker,
@@ -13,6 +18,7 @@ defmodule Pluteus.Workers.ImportCorpus do
     unique: [keys: [:snapshot_id], states: :incomplete, period: :infinity]
 
   alias Pluteus.Corpus.Geonames
+  alias Pluteus.Corpus.MusicBrainz
   alias Pluteus.Corpus.Repo, as: CorpusRepo
   alias Pluteus.Corpus.Snapshot
   alias Pluteus.Ingest
@@ -32,13 +38,16 @@ defmodule Pluteus.Workers.ImportCorpus do
 
         case Ingest.isolated(:corpus, %{corpus: corpus}, importing) do
           %Snapshot{state: :imported} -> :ok
+          %Snapshot{state: :refused} -> :ok
+          {:continuing, _step} -> {:snooze, 1}
           {:crashed, message} -> {:error, message}
         end
 
-      %Snapshot{state: :imported} ->
+      %Snapshot{state: state} when state in [:imported, :refused] ->
         :ok
     end
   end
 
   defp importer("geonames"), do: Geonames
+  defp importer("musicbrainz"), do: MusicBrainz
 end
