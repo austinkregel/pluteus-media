@@ -97,6 +97,29 @@
         "every_months": 1,
         "every_months_for": "The publisher exports twice a week, but a newer snapshot makes every match drawn from the older one due again (spec-05 §8.7), and an identifier, once assigned, is redirected rather than changed when it is merged. A snapshot is due once the one in use is a month old, or where none is."
       },
+      "keys": {
+        "for": "Where a holding carries each identifier MusicBrainz answers (spec-05 §9.1), as Picard writes them and ffprobe reports them, keys lowercased. In Vorbis comments MUSICBRAINZ_TRACKID is the recording and MUSICBRAINZ_RELEASETRACKID the track; in MP4 and ID3 TXXX frames, `MusicBrainz Track Id` is the recording and `MusicBrainz Release Track Id` the track. An MP3's recording identifier is in an ID3 UFID frame under the owner below, and its ISRC in TSRC, neither of which ffprobe reports. A value tagged twice is joined by ffprobe with `;`.",
+        "tags": {
+          "musicbrainz_recording": ["musicbrainz_trackid", "musicbrainz track id"],
+          "musicbrainz_track": ["musicbrainz_releasetrackid", "musicbrainz release track id"],
+          "musicbrainz_release": ["musicbrainz_albumid", "musicbrainz album id"],
+          "musicbrainz_release_group": ["musicbrainz_releasegroupid", "musicbrainz release group id"],
+          "musicbrainz_work": ["musicbrainz_workid", "musicbrainz work id"],
+          "musicbrainz_disc": ["musicbrainz_discid", "musicbrainz disc id"],
+          "isrc": ["isrc", "tsrc"]
+        },
+        "id3": {
+          "ufid_owner": "http://musicbrainz.org",
+          "ufid_scheme": "musicbrainz_recording",
+          "text": { "TSRC": "isrc" }
+        },
+        "disc": {
+          "for": "A disc ID is computed from a cue sheet only for a file that is a CD's audio sample for sample: two channels at 44.1 kHz, in a codec that keeps every sample. A lossy file's length is not the disc's, and its table of contents would name another disc.",
+          "sample_rate": 44100,
+          "channels": 2,
+          "codecs": ["flac", "alac", "wavpack", "ape", "tta", "pcm_s16le", "pcm_s16be"]
+        }
+      },
       "dump": {
         "for": "What is held of the core dump: the tables matching reads, loaded whole from the archive's mbdump/ directory in the column order of the schema the dump is written in. An archive stating another schema sequence is not imported, since its columns are not the ones these tables were written for.",
         "schema_sequence": 31,
