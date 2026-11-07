@@ -46,7 +46,18 @@ config :pluteus, Oban,
   # file, so the bound here is the disks' rather than the scheduler's.
   # One corpus at a time: an import is a bulk load into one database, and two at once
   # would contend for its disk and gain nothing.
-  queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2, presentation: 2, corpora: 1],
+  # spec-05 §7: each matching stage's concurrency is set here and nowhere beneath it. One
+  # at a time, so a place or a source's agent is made once however many photographs were
+  # taken there.
+  queues: [
+    integrity: 2,
+    lifecycle: 1,
+    ingest: 1,
+    analysis: 2,
+    presentation: 2,
+    corpora: 1,
+    matching: 1
+  ],
   # Finished jobs are kept a week for inspection, then pruned. Nothing is known
   # only to a job: a failure a person must act on is a finding.
   pruner: [max_age: {7, :days}],
@@ -79,7 +90,12 @@ config :pluteus, Oban,
       # spec-05 §5.7: a fetched corpus is fetched on a schedule. Daily, after GeoNames
       # regenerates its dump at about 02:50 UTC; the worker asks the publisher nothing on
       # a day the corpus is not due.
-      {"0 5 * * *", Pluteus.Workers.AcquireCorpus, args: %{corpus: "geonames"}}
+      {"0 5 * * *", Pluteus.Workers.AcquireCorpus, args: %{corpus: "geonames"}},
+      # spec-05 §7: matching runs on a schedule over the catalog, never because of a render
+      # or a search (§14).
+      {"*/5 * * * *", Pluteus.Workers.KeyPositions},
+      {"1-59/5 * * * *", Pluteus.Workers.ResolvePositions},
+      {"2-59/5 * * * *", Pluteus.Workers.ApplyPositions}
     ]
   ]
 
