@@ -19,17 +19,23 @@
   },
 
   "schemes": {
-    "for": "Per scheme, from spec-05 §4.1, §4.4 and §5.4: the level it identifies, the check-digit algorithm where one exists, and whether one res may carry several at one level. A scheme's syntax is recorded with the phase that first reads it.",
-    "musicbrainz_work": { "level": "work", "several": false },
-    "musicbrainz_release_group": { "level": "aggregating_work", "several": false },
-    "musicbrainz_recording": { "level": "expression", "several": false },
-    "musicbrainz_release": { "level": "release_manifestation", "several": false },
-    "musicbrainz_disc": { "level": "medium_manifestation", "several": false },
-    "musicbrainz_track": { "level": "track_manifestation", "several": false },
-    "musicbrainz_artist": { "level": "agent", "several": false },
+    "for": "Per scheme, from spec-05 §4.1, §4.4 and §5.4: the level it identifies, the check-digit algorithm where one exists, and whether one res may carry several at one level. A scheme's syntax is recorded with the phase that first reads it: `uuid` is the 8-4-4-4-12 hexadecimal form, `isrc` the 12 characters §4.4 describes, and `discid` the 28 characters of MusicBrainz's base64 alphabet, the last of them its padding.",
+    "musicbrainz_work": { "level": "work", "several": false, "syntax": "uuid" },
+    "musicbrainz_release_group": { "level": "aggregating_work", "several": false, "syntax": "uuid" },
+    "musicbrainz_recording": { "level": "expression", "several": false, "syntax": "uuid" },
+    "musicbrainz_release": { "level": "release_manifestation", "several": false, "syntax": "uuid" },
+    "musicbrainz_disc": {
+      "level": "medium_manifestation",
+      "several": false,
+      "syntax": "discid",
+      "for": "spec-05 §9.1: a disc ID encodes the audio tracks of one session and nothing of a data track, so a disc whose data track comes first yields none that names it, and none is computed from part of the disc."
+    },
+    "musicbrainz_track": { "level": "track_manifestation", "several": false, "syntax": "uuid" },
+    "musicbrainz_artist": { "level": "agent", "several": false, "syntax": "uuid" },
     "isrc": {
       "level": "expression",
       "several": true,
+      "syntax": "isrc",
       "for": "spec-05 §5.4 and §9.1: distributors assign their own ISRCs to one recording, so several on one expression are ordinary."
     },
     "iswc": { "level": "work", "several": false, "check": "mod10" },
@@ -57,6 +63,7 @@
   "corpora": {
     "for": "Per corpus, from spec-05 §5.5 and §5.7: the schemes it answers, its terms, how it is acquired, and whether its snapshot advances. AcousticBrainz is not held: it is derived data nothing here reads yet.",
     "musicbrainz": {
+      "name": "MusicBrainz",
       "answers": [
         "musicbrainz_work",
         "musicbrainz_release_group",
@@ -64,13 +71,52 @@
         "musicbrainz_release",
         "musicbrainz_disc",
         "musicbrainz_track",
-        "musicbrainz_artist",
-        "isrc",
-        "iswc"
+        "isrc"
       ],
-      "terms": "The core data is CC0. The cover art, edit, editor, derived and statistics dumps are CC BY-NC-SA 3.0 and are not held.",
-      "acquisition": "replicated",
-      "advances": true
+      "terms": "The core data is CC0. The cover art, edit, editor, derived and statistics dumps, and the replication packets, are CC BY-NC-SA 3.0 and are not held.",
+      "attribution": {
+        "for": "CC0 obliges no credit. The household credits every corpus it holds, so that what a page says came from outside the house can be traced to where.",
+        "what": "Which recording, track, release, release group and work a piece of music is, and which release a ripped disc is, read from the household's own copy.",
+        "link": "https://musicbrainz.org/",
+        "licence": "CC0 1.0 Universal",
+        "licence_link": "https://creativecommons.org/publicdomain/zero/1.0/"
+      },
+      "acquisition": "fetched",
+      "acquisition_for": "The core dump, fetched, rather than the database replicated: replication asks for a token that identifies the deployment on every packet (spec-05 §5.7), and its packets are CC BY-NC-SA where the core is CC0. Matching reads identifiers, which a dump a few weeks old answers as well as one an hour old.",
+      "advances": true,
+      "fetch": {
+        "for": "The publisher's full exports. It keeps the two most recent, each in a directory named for the time the export began, and `LATEST` names the newer one. mbdump.tar.bz2 is the CC0 core, the only one of an export's archives the household reads.",
+        "from": "https://data.metabrainz.org/pub/musicbrainz/data/fullexport/",
+        "files": ["mbdump.tar.bz2"],
+        "pointer": "LATEST",
+        "verified_by": "sha256",
+        "checksums": "SHA256SUMS",
+        "verified_by_for": "Each export publishes SHA256SUMS beside its archives, one `<digest> *<file>` line per archive, so a file is verified by its SHA-256 against the line naming it.",
+        "stated_by": "pointer",
+        "stated_by_for": "The directory `LATEST` names is the time the export began, and the archives are of the database as it stood then; the snapshot is dated by it.",
+        "every_months": 1,
+        "every_months_for": "The publisher exports twice a week, but a newer snapshot makes every match drawn from the older one due again (spec-05 §8.7), and an identifier, once assigned, is redirected rather than changed when it is merged. A snapshot is due once the one in use is a month old, or where none is."
+      },
+      "dump": {
+        "for": "What is held of the core dump: the tables matching reads, loaded whole from the archive's mbdump/ directory in the column order of the schema the dump is written in. An archive stating another schema sequence is not imported, since its columns are not the ones these tables were written for.",
+        "schema_sequence": 31,
+        "tables": [
+          "recording",
+          "recording_gid_redirect",
+          "track",
+          "track_gid_redirect",
+          "medium",
+          "medium_cdtoc",
+          "cdtoc",
+          "release",
+          "release_gid_redirect",
+          "release_group",
+          "release_group_gid_redirect",
+          "work",
+          "work_gid_redirect",
+          "isrc"
+        ]
+      }
     },
     "discogs": {
       "answers": ["discogs_master", "discogs_release", "discogs_artist"],
