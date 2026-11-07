@@ -16,6 +16,11 @@ defmodule Pluteus.Dedup.Candidate do
   A candidate matching raised carries what [spec-05] §8.5 requires of one: the decision
   it proposes, the source that suggested it, the match record holding the evidence, and
   the source's own score where it gave one. It is decided as proposed or as distinct.
+
+  A level of sameness is proposed where matching equates two res itself ([spec-05]
+  §8.4): the pair is the one the equation was carried out through, decided as proposed by
+  the System principal, so that it is a decided pair like any other and a member's later
+  decision that the two are distinct is recorded on the same row.
   """
 
   use Ecto.Schema
@@ -24,7 +29,7 @@ defmodule Pluteus.Dedup.Candidate do
 
   @signals ~w(digest perceptual external_identifier member matching)a
   @decisions ~w(same_holding same_manifestation same_expression same_work place_of_capture distinct)a
-  @proposals ~w(place_of_capture)a
+  @proposals ~w(place_of_capture same_expression same_work)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
