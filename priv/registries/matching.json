@@ -95,6 +95,13 @@
       "name": "GeoNames",
       "answers": ["geonames"],
       "terms": "CC BY 4.0, which obliges attribution.",
+      "attribution": {
+        "for": "CC BY 4.0 obliges credit, and the publisher asks for it with a link or another reference to GeoNames.",
+        "what": "Where a photograph was taken: the places, divisions and countries a position is answered with, read from the household's own copy.",
+        "link": "https://www.geonames.org/",
+        "licence": "Creative Commons Attribution 4.0 International",
+        "licence_link": "https://creativecommons.org/licenses/by/4.0/"
+      },
       "acquisition": "fetched",
       "advances": true,
       "fetch": {
