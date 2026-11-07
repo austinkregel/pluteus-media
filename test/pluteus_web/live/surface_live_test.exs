@@ -14,10 +14,13 @@ defmodule PluteusWeb.SurfaceLiveTest do
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Credit
   alias Pluteus.Catalog.DigitalItem
+  alias Pluteus.Dedup.Candidate
   alias Pluteus.Ingest
   alias Pluteus.Ingest.Normalize
   alias Pluteus.Ingest.Place
   alias Pluteus.Lifecycle
+  alias Pluteus.Matching.MatchRecord
+  alias Pluteus.Matching.Registry, as: Matching
   alias Pluteus.Paging
   alias Pluteus.Presentation.Generate
   alias Pluteus.Presentation.Geometry
@@ -355,6 +358,265 @@ defmodule PluteusWeb.SurfaceLiveTest do
       refute html =~ ~s|id="player-transport"|
       assert html =~ ~s|id="transport-live"|
     end
+  end
+
+  describe "§5.3, §15.3, §15.4. Where a photograph was taken, and the finer place proposed" do
+    setup do
+      photo = named("A photograph", "photograph")
+      system = Principals.system!().id
+
+      {michigan, united_states, grand_rapids, candidate} =
+        Pluteus.Actor.as(system, fn ->
+          united_states = a_place("United States")
+          michigan = a_place("Michigan")
+          grand_rapids = a_place("Grand Rapids")
+
+          {:ok, _} = Catalog.associate(michigan, united_states, "place-within-place", :automatic)
+          {:ok, _} = Catalog.associate(grand_rapids, michigan, "place-within-place", :automatic)
+          {:ok, _} = Catalog.associate(photo, michigan, "place-of-capture", :automatic)
+
+          {michigan, united_states, grand_rapids, proposed!(photo, grand_rapids, michigan)}
+        end)
+
+      %{
+        photo: photo,
+        michigan: michigan,
+        united_states: united_states,
+        grand_rapids: grand_rapids,
+        candidate: candidate
+      }
+    end
+
+    test "the place recorded is said with what contains it, and who put it there", %{
+      conn: conn,
+      photo: photo,
+      michigan: michigan,
+      candidate: candidate
+    } do
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      assert html =~ ~s|id="viewer-place-#{michigan}"|
+      assert html =~ "Taken in"
+      # §7: each name isolated in its own direction.
+      assert html =~ said(["Michigan", "United States"])
+      assert html =~ "Matched from the photograph&#39;s own location"
+      # §15.1: correctable where it is shown.
+      assert html =~ ~s|id="viewer-wrong-place-#{michigan}"|
+
+      assert html =~ "Possibly taken in " <> said(["Grand Rapids"])
+      assert html =~ ~s|id="viewer-taken-here-#{candidate}"|
+      assert html =~ ~s|id="viewer-not-here-#{candidate}"|
+    end
+
+    test "taking the proposal records the finer place as the household's own, and undoes", %{
+      conn: conn,
+      photo: photo,
+      michigan: michigan,
+      grand_rapids: grand_rapids,
+      candidate: candidate
+    } do
+      {:ok, live, _html} = live(conn, ~p"/works/#{photo}/view")
+
+      html = live |> element("#viewer-taken-here-#{candidate}") |> render_click()
+
+      assert html =~ ~s|id="viewer-place-#{grand_rapids}"|
+      assert html =~ said(["Grand Rapids", "Michigan", "United States"])
+      assert html =~ "Confirmed by the household"
+      refute html =~ "Matched from the photograph&#39;s own location"
+      refute html =~ "Possibly taken in"
+      assert Repo.get!(Candidate, candidate).decision == :place_of_capture
+
+      # §15.4: the decision is undone where it is shown, and what it replaced comes back.
+      html = live |> element("#viewer-undo-#{candidate}") |> render_click()
+
+      assert html =~ ~s|id="viewer-place-#{michigan}"|
+      assert html =~ "Matched from the photograph&#39;s own location"
+      assert html =~ "Possibly taken in " <> said(["Grand Rapids"])
+      assert Repo.get!(Candidate, candidate).decision == nil
+    end
+
+    test "declining it keeps what was matched, says so, and undoes", %{
+      conn: conn,
+      photo: photo,
+      candidate: candidate
+    } do
+      {:ok, live, _html} = live(conn, ~p"/works/#{photo}/view")
+
+      html = live |> element("#viewer-not-here-#{candidate}") |> render_click()
+
+      assert html =~ said(["Michigan", "United States"])
+      refute html =~ "Possibly taken in"
+      assert html =~ "Not taken in " <> said(["Grand Rapids"])
+      assert Repo.get!(Candidate, candidate).decision == :distinct
+
+      html = live |> element("#viewer-undo-#{candidate}") |> render_click()
+
+      assert html =~ "Possibly taken in " <> said(["Grand Rapids"])
+      refute html =~ "Not taken in"
+    end
+
+    test "§15.1: a matched place said to be wrong is withdrawn, stays declined, and undoes", %{
+      conn: conn,
+      photo: photo,
+      michigan: michigan
+    } do
+      {:ok, live, _html} = live(conn, ~p"/works/#{photo}/view")
+
+      html = live |> element("#viewer-wrong-place-#{michigan}") |> render_click()
+
+      refute html =~ ~s|id="viewer-place-#{michigan}"|
+      assert html =~ ~s|id="viewer-place-absent"|
+      assert html =~ "not yet examined"
+      assert html =~ "Not taken in " <> said(["Michigan"])
+
+      [left, right] = Enum.sort([photo, michigan])
+      rejection = Repo.get_by!(Candidate, left_id: left, right_id: right)
+      assert {rejection.signal, rejection.decision} == {:member, :distinct}
+
+      html = live |> element("#viewer-undo-#{rejection.id}") |> render_click()
+
+      assert html =~ ~s|id="viewer-place-#{michigan}"|
+      refute html =~ "Not taken in " <> said(["Michigan"])
+    end
+
+    test "a place no name of which this profile may see is still named, not dropped", %{
+      conn: conn
+    } do
+      # Matching names a place with GeoNames as the assigner, which resolution shows to no
+      # profile; §5.3 names such a res by §6.3's composed name rather than failing.
+      photo = named("A photograph taken somewhere", "photograph")
+
+      place =
+        Pluteus.Actor.as(Principals.system!().id, fn ->
+          {:ok, %{res: source}} =
+            Catalog.create_named_res(:collective_agent, %{
+              nomen_string: "GeoNames",
+              provenance: :automatic
+            })
+
+          {:ok, place} = Catalog.create_res(%{kind: :place})
+
+          {:ok, _} =
+            Catalog.create_nomen(%{
+              res_id: place.id,
+              nomen_string: "Michigan",
+              provenance: :automatic,
+              assigner_id: source.id,
+              language_unknown: true
+            })
+
+          {:ok, _} = Catalog.associate(photo, place.id, "place-of-capture", :automatic)
+          place.id
+        end)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      assert html =~ ~s|id="viewer-place-#{place}"|
+      assert html =~ "Taken in"
+    end
+
+    test "spec-01 §7.3: a name a source gave is everyone's to see", %{conn: conn} do
+      photo = named("A photograph taken in Michigan", "photograph")
+
+      Pluteus.Actor.as(Principals.system!().id, fn ->
+        {:ok, %{res: source}} =
+          Catalog.create_named_res(:collective_agent, %{
+            nomen_string: "GeoNames",
+            provenance: :automatic
+          })
+
+        Repo.insert!(%Pluteus.Matching.SourceAgent{source: "geonames", agent_id: source.id})
+        {:ok, place} = Catalog.create_res(%{kind: :place})
+
+        {:ok, _} =
+          Catalog.create_nomen(%{
+            res_id: place.id,
+            nomen_string: "Michigan",
+            provenance: :automatic,
+            assigner_id: source.id,
+            language_unknown: true
+          })
+
+        {:ok, _} = Catalog.associate(photo, place.id, "place-of-capture", :automatic)
+      end)
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      assert html =~ "<bdi>Michigan</bdi>"
+    end
+
+    test "§5.2: a photograph with no place recorded says the state of the field", %{conn: conn} do
+      photo = named("Another photograph", "photograph")
+
+      {:ok, _live, html} = live(conn, ~p"/works/#{photo}/view")
+
+      assert html =~ ~s|id="viewer-place-absent"|
+      assert html =~ "Taken in"
+      assert html =~ "not yet examined"
+    end
+  end
+
+  # A place's names as the viewer says them: each isolated in its own direction ([spec-10]
+  # §7), separated by a comma.
+  defp said(names) do
+    {init, [last]} = Enum.split(names, -1)
+    Enum.map_join(init, &"<span><bdi>#{&1}</bdi>, </span>") <> "<span><bdi>#{last}</bdi></span>"
+  end
+
+  defp a_place(name) do
+    {:ok, place} = Catalog.create_res(%{kind: :place})
+
+    {:ok, _} =
+      Catalog.create_nomen(%{res_id: place.id, nomen_string: name, provenance: :automatic})
+
+    place.id
+  end
+
+  # A finer place matching raised for a photograph, with the match record holding why: the
+  # coarser place it recorded, as Apply concludes one.
+  defp proposed!(photo, place, recorded) do
+    record =
+      %MatchRecord{}
+      |> MatchRecord.keyed_changeset(%{
+        res_id: photo,
+        scheme: "geonames",
+        source_kind: :corpus,
+        source: "geonames",
+        rank: "corpus",
+        rank_order: Matching.rank_order(),
+        query: %{"latitude" => 42.96, "longitude" => -85.67, "accuracy" => nil},
+        state: :keyed
+      })
+      |> Repo.insert!()
+      |> MatchRecord.resolved_changeset(%{
+        response: %{"neighbours" => []},
+        basis: :resemblance,
+        snapshot_on: ~D[2026-11-06],
+        state: :resolved
+      })
+      |> Repo.update!()
+      |> MatchRecord.concluded_changeset(%{
+        state: :applied,
+        conclusion: %{
+          "recorded" => %{"place_id" => recorded},
+          "candidate" => %{"place_id" => place}
+        }
+      })
+      |> Repo.update!()
+
+    [left, right] = Enum.sort([photo, place])
+
+    %Candidate{}
+    |> Candidate.raised_changeset(%{
+      left_id: left,
+      right_id: right,
+      detected_at: DateTime.utc_now(),
+      proposed: :place_of_capture,
+      source: "geonames",
+      match_record_id: record.id
+    })
+    |> Repo.insert!()
+    |> Map.fetch!(:id)
   end
 
   describe "§12.1, §11.5. A publication is read a division at a time" do
