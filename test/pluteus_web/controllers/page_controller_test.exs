@@ -73,6 +73,30 @@ defmodule PluteusWeb.PageControllerTest do
     end
   end
 
+  test "GET /notices credits a corpus the household holds, as its terms oblige", %{conn: conn} do
+    # spec-05 §6.4: GeoNames is CC BY 4.0, and its publisher asks for credit with a link.
+    "geonames"
+    |> Pluteus.Corpus.begin(~D[2026-11-06])
+    |> Pluteus.Corpus.verified(%{})
+    |> Pluteus.Corpus.imported()
+
+    html = conn |> get(~p"/notices") |> html_response(200)
+
+    assert html =~ "Data held locally"
+    assert html =~ "GeoNames"
+    assert html =~ ~s(href="https://www.geonames.org/")
+    assert html =~ ~s(href="https://creativecommons.org/licenses/by/4.0/")
+    assert html =~ "Creative Commons Attribution 4.0 International"
+    assert html =~ "2026-11-06"
+  end
+
+  test "GET /notices credits no corpus the household does not hold", %{conn: conn} do
+    html = conn |> get(~p"/notices") |> html_response(200)
+
+    refute html =~ "Data held locally"
+    refute html =~ "geonames.org"
+  end
+
   test "GET /design links to the notices, since a page nothing reaches discharges nothing",
        %{conn: conn} do
     assert conn |> get(~p"/design") |> html_response(200) =~ ~s(href="/notices")
