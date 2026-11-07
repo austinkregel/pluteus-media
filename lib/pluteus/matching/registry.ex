@@ -167,6 +167,36 @@ defmodule Pluteus.Matching.Registry do
   end
 
   @doc """
+  Where a holding carries each identifier a corpus answers: the tag keys per scheme, the
+  ID3 frames an MP3 carries them in, and what a file must be for a disc ID to be computed
+  from its cue sheet.
+  """
+  @spec keys!(String.t()) :: %{
+          tags: %{String.t() => [String.t()]},
+          ufid_owner: String.t(),
+          ufid_scheme: String.t(),
+          id3_text: %{String.t() => String.t()},
+          disc: %{sample_rate: pos_integer(), channels: pos_integer(), codecs: [String.t()]}
+        }
+  def keys!(corpus) do
+    entry = corpus |> corpus() |> Map.fetch!("keys")
+    id3 = Map.fetch!(entry, "id3")
+    disc = Map.fetch!(entry, "disc")
+
+    %{
+      tags: Map.fetch!(entry, "tags"),
+      ufid_owner: Map.fetch!(id3, "ufid_owner"),
+      ufid_scheme: Map.fetch!(id3, "ufid_scheme"),
+      id3_text: Map.fetch!(id3, "text"),
+      disc: %{
+        sample_rate: Map.fetch!(disc, "sample_rate"),
+        channels: Map.fetch!(disc, "channels"),
+        codecs: Map.fetch!(disc, "codecs")
+      }
+    }
+  end
+
+  @doc """
   What is held of a corpus published as a database dump: the schema sequence the held
   tables are written for, and the tables, in the order they are loaded.
   """
