@@ -320,6 +320,18 @@ A decision names the level at which the two are one:
 | *same work* | one work | move the expressions under one work |
 | *distinct* | not the same | recorded, and not asked again |
 
+A candidate matching raises from a resemblance MAY instead propose an association
+between the two ([spec-05] §8.5) — that a photograph was taken in a place, where
+the evidence supports only somewhere coarser. Such a candidate carries the decision
+it proposes and is decided as proposed or as *distinct*, and as nothing else:
+
+| Decision | Means | Resolution |
+| --- | --- | --- |
+| *place of capture* | the work was made in the place | the association is written as the household's own, and the automatic place of capture it refines is withdrawn |
+
+Accepting one moves nothing and recycles nothing. It records what the household
+now asserts, which no later automatic answer overturns ([spec-05] §8.7).
+
 The vocabulary names a level because the decision is only ever about one. Two
 scans of a letter are the same expression and remain two manifestations; two
 pressings of a record are the same expression and two releases; two files of one
