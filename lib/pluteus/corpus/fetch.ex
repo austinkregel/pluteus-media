@@ -49,11 +49,17 @@ defmodule Pluteus.Corpus.Fetch do
     * `:user_agent` — required; how the deployment names itself to the publisher.
     * `:digests` — the algorithms to digest the whole file with, such as `[:sha256]` or
       `[:md5]`, whichever the publisher states its checksums in.
+    * `:until` — a deadline on the monotonic clock in milliseconds. The fetch stops at the
+      first chunk that arrives after it and answers `{:paused, held}`, keeping what has
+      arrived so the next call resumes from there. A file can take longer to arrive than
+      any one job may run, and this is how it arrives over several.
   """
-  @spec file(String.t(), Path.t(), keyword()) :: {:ok, arrived()} | {:error, stopped()}
+  @spec file(String.t(), Path.t(), keyword()) ::
+          {:ok, arrived()} | {:paused, non_neg_integer()} | {:error, stopped()}
   def file(url, destination, options) do
     user_agent = Keyword.fetch!(options, :user_agent)
     algorithms = Keyword.get(options, :digests, [])
+    deadline = Keyword.get(options, :until)
     partial = destination <> ".partial"
 
     File.mkdir_p!(Path.dirname(destination))
@@ -71,7 +77,7 @@ defmodule Pluteus.Corpus.Fetch do
         body_format: :binary
       )
 
-    with :ok <- receive_body(request, partial, held) do
+    with :ok <- receive_body(request, partial, held, deadline) do
       File.rename!(partial, destination)
       {:ok, %{size: File.stat!(destination).size, digests: digests(destination, algorithms)}}
     end
@@ -141,11 +147,11 @@ defmodule Pluteus.Corpus.Fetch do
   defp range(0), do: []
   defp range(held), do: [{~c"range", String.to_charlist("bytes=#{held}-")}]
 
-  defp receive_body(request, partial, held) do
+  defp receive_body(request, partial, held, deadline) do
     receive do
       {:http, {^request, :stream_start, headers, stream}} ->
         with {:ok, from, total} <- starting_at(headers, held) do
-          write(request, stream, partial, from, total)
+          write(request, stream, partial, {from, total}, deadline)
         end
 
       # A complete answer rather than a stream: anything but a 200 or a 206. A range past
@@ -201,13 +207,13 @@ defmodule Pluteus.Corpus.Fetch do
   end
 
   # Starting from nothing empties whatever was held; continuing appends to it.
-  defp write(request, stream, partial, from, total) do
+  defp write(request, stream, partial, {from, total}, deadline) do
     file = File.open!(partial, if(from == 0, do: [:write, :binary], else: [:append, :binary]))
 
     received =
       try do
         :ok = :httpc.stream_next(stream)
-        chunks(request, stream, file)
+        chunks(request, stream, file, deadline)
       after
         File.close(file)
       end
@@ -215,12 +221,19 @@ defmodule Pluteus.Corpus.Fetch do
     complete(received, partial, total)
   end
 
-  defp chunks(request, stream, file) do
+  defp chunks(request, stream, file, deadline) do
     receive do
       {:http, {^request, :stream, chunk}} ->
         :ok = IO.binwrite(file, chunk)
-        :ok = :httpc.stream_next(stream)
-        chunks(request, stream, file)
+
+        if past?(deadline) do
+          :httpc.cancel_request(request)
+          flush(request)
+          :paused
+        else
+          :ok = :httpc.stream_next(stream)
+          chunks(request, stream, file, deadline)
+        end
 
       {:http, {^request, :stream_end, _headers}} ->
         :ok
@@ -234,8 +247,23 @@ defmodule Pluteus.Corpus.Fetch do
     end
   end
 
+  # httpc may already have sent what a cancelled request had in flight; none of it is read.
+  defp flush(request) do
+    receive do
+      {:http, {^request, _message}} -> flush(request)
+      {:http, {^request, _message, _headers}} -> flush(request)
+      {:http, {^request, _message, _headers, _stream}} -> flush(request)
+    after
+      0 -> :ok
+    end
+  end
+
+  defp past?(nil), do: false
+  defp past?(deadline), do: System.monotonic_time(:millisecond) >= deadline
+
   # A server that stated no length has nothing to fall short of; one that did is held to it.
   defp complete({:error, _} = stopped, _partial, _total), do: stopped
+  defp complete(:paused, partial, _total), do: {:paused, File.stat!(partial).size}
   defp complete(:ok, _partial, nil), do: :ok
 
   defp complete(:ok, partial, total) do
