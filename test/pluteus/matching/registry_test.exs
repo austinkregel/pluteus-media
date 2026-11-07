@@ -30,6 +30,17 @@ defmodule Pluteus.Matching.RegistryTest do
       assert Registry.check("musicbrainz_recording") == nil
     end
 
+    test "every scheme MusicBrainz answers states the form its identifiers take" do
+      # §4.4: the form is checked before an identifier is recorded or used as a key.
+      for scheme <- Registry.answers("musicbrainz") do
+        assert Registry.syntax!(scheme) in [:uuid, :isrc, :discid]
+      end
+
+      assert Registry.syntax!("isrc") == :isrc
+      assert Registry.syntax!("musicbrainz_disc") == :discid
+      assert_raise KeyError, fn -> Registry.syntax!("isbn") end
+    end
+
     test "a writer naming a scheme the registry does not hold raises" do
       assert Registry.scheme!("musicbrainz_artist") == "musicbrainz_artist"
       assert_raise KeyError, fn -> Registry.scheme!("musicbrainz") end
@@ -85,6 +96,27 @@ defmodule Pluteus.Matching.RegistryTest do
 
       assert "PPL" in codes and "PPLC" in codes
       refute Enum.any?(~w(PPLH PPLCH PPLQ PPLW PPLX), &(&1 in codes))
+    end
+
+    test "MusicBrainz's core dump is fetched from the export LATEST names, by its checksum" do
+      # §5.7: the publisher states a checksum, so the file's digest is compared with it.
+      assert Registry.acquisition("musicbrainz") == :fetched
+
+      assert %{
+               from: "https://data.metabrainz.org/pub/musicbrainz/data/fullexport/",
+               files: ["mbdump.tar.bz2"],
+               verified_by: {:sha256, "SHA256SUMS"},
+               stated_by: {:pointer, "LATEST"},
+               every_months: 1
+             } = Registry.fetch!("musicbrainz")
+    end
+
+    test "MusicBrainz holds the tables matching reads, for the schema they were written for" do
+      assert %{schema_sequence: 31, tables: tables} = Registry.dump!("musicbrainz")
+
+      for table <- ~w(recording track medium medium_cdtoc cdtoc release release_group work isrc) do
+        assert table in tables
+      end
     end
 
     test "a corpus whose entry names no address cannot be fetched" do
