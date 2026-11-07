@@ -235,7 +235,12 @@ defmodule Pluteus.Browse.CountsTest do
       Catalog.create_named_res(:time_span, %{nomen_string: date, provenance: :automatic})
 
     {:ok, _} =
-      Catalog.associate(manifestation.id, span.id, "time-of-publication-or-manufacture")
+      Catalog.associate(
+        manifestation.id,
+        span.id,
+        "time-of-publication-or-manufacture",
+        :automatic
+      )
 
     work_id
   end
