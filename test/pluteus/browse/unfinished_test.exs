@@ -144,7 +144,12 @@ defmodule Pluteus.Browse.UnfinishedTest do
       Catalog.create_named_res(:time_span, %{nomen_string: "1959", provenance: :automatic})
 
     {:ok, _} =
-      Catalog.associate(manifestation.id, span.id, "time-of-publication-or-manufacture")
+      Catalog.associate(
+        manifestation.id,
+        span.id,
+        "time-of-publication-or-manufacture",
+        :automatic
+      )
 
     work_id
   end
