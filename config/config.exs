@@ -44,7 +44,9 @@ config :pluteus, Oban,
   repo: Pluteus.Jobs.Repo,
   # Two derivatives at a time: generating one reads a whole master and writes a new
   # file, so the bound here is the disks' rather than the scheduler's.
-  queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2, presentation: 2],
+  # One corpus at a time: an import is a bulk load into one database, and two at once
+  # would contend for its disk and gain nothing.
+  queues: [integrity: 2, lifecycle: 1, ingest: 1, analysis: 2, presentation: 2, corpora: 1],
   # Finished jobs are kept a week for inspection, then pruned. Nothing is known
   # only to a job: a failure a person must act on is a finding.
   pruner: [max_age: {7, :days}],
@@ -73,7 +75,11 @@ config :pluteus, Oban,
       # pass that records having run.
       {"20 * * * *", Pluteus.Workers.EvictPresentationAssets},
       # spec-01 §14.1: the recycle-bin window closes on its own.
-      {"0 3 * * *", Pluteus.Workers.PurgeExpired}
+      {"0 3 * * *", Pluteus.Workers.PurgeExpired},
+      # spec-05 §5.7: a fetched corpus is fetched on a schedule. Daily, after GeoNames
+      # regenerates its dump at about 02:50 UTC; the worker asks the publisher nothing on
+      # a day the corpus is not due.
+      {"0 5 * * *", Pluteus.Workers.AcquireCorpus, args: %{corpus: "geonames"}}
     ]
   ]
 
