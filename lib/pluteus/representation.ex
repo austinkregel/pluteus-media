@@ -46,6 +46,7 @@ defmodule Pluteus.Representation do
   alias Pluteus.Catalog.WorkCreator
   alias Pluteus.Catalog.WorkPart
   alias Pluteus.Ingest.Place
+  alias Pluteus.Places
   alias Pluteus.Presentation.Geometry
   alias Pluteus.Repo
   alias Pluteus.Representation.Absence
@@ -203,7 +204,10 @@ defmodule Pluteus.Representation do
       "wholes" =>
         field(ids(from p in WorkPart, where: p.part_id == ^id, select: p.whole_id), context,
           as: "wholes"
-        )
+        ),
+      # spec-01 §6.3's place of capture: where the work was made, a person's first.
+      "place_of_capture" =>
+        field(Enum.map(Places.captured(id), & &1.place_id), context, as: "place_of_capture")
     }
   end
 
