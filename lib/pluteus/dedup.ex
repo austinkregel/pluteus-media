@@ -26,11 +26,13 @@ defmodule Pluteus.Dedup do
 
   alias Pluteus.Catalog
   alias Pluteus.Catalog.Asset
+  alias Pluteus.Catalog.Association
   alias Pluteus.Catalog.DigitalItem
   alias Pluteus.Catalog.Embodiment
   alias Pluteus.Catalog.Expression
   alias Pluteus.Catalog.Manifestation
   alias Pluteus.Catalog.Nomen
+  alias Pluteus.Catalog.Refinements
   alias Pluteus.Catalog.Res
   alias Pluteus.Dedup.Candidate
   alias Pluteus.Lifecycle
@@ -169,7 +171,12 @@ defmodule Pluteus.Dedup do
   """
   @spec decide(
           Ecto.UUID.t(),
-          :same_holding | :same_manifestation | :same_expression | :same_work | :distinct,
+          :same_holding
+          | :same_manifestation
+          | :same_expression
+          | :same_work
+          | :place_of_capture
+          | :distinct,
           Ecto.UUID.t(),
           DateTime.t()
         ) :: {:ok, Candidate.t()} | {:error, term()}
@@ -225,10 +232,39 @@ defmodule Pluteus.Dedup do
     end
   end
 
+  # A member accepting where a photograph was taken asserts it: the association is the
+  # household's own, and no later answer from a gazetteer replaces it ([spec-05] §8.7).
+  # Matching's own coarser answer is what the member has just answered more finely, so it
+  # goes; nothing a member wrote is touched.
+  defp carry_out(:place_of_capture, candidate, _principal_id, _now) do
+    %{place: place, captured: captured} = place_and_captured!(candidate)
+    refinement = Refinements.name!("place-of-capture")
+
+    Repo.delete_all(
+      from a in Association,
+        where: a.subject_id == ^captured and a.refinement == ^refinement,
+        where: a.provenance == :automatic
+    )
+
+    case Catalog.associate(captured, place, refinement, :local) do
+      {:ok, _association} -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
   # The row records it and there is nothing to move. Stated rather than left to a
   # catch-all, so a level added to the vocabulary without a clause here raises
   # instead of recording a decision it did not carry out.
   defp carry_out(:distinct, _candidate, _principal_id, _now), do: :ok
+
+  # The pair is stored in identifier order, so which one is the place is read from the
+  # res rather than from the position.
+  defp place_and_captured!(%Candidate{left_id: left, right_id: right}) do
+    case {Repo.get!(Res, left).kind, Repo.get!(Res, right).kind} do
+      {:place, _other} -> %{place: left, captured: right}
+      {_other, :place} -> %{place: right, captured: left}
+    end
+  end
 
   defp resolve_same_holding(
          %Candidate{left_id: first_id, right_id: second_id},
