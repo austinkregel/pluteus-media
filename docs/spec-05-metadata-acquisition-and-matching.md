@@ -777,6 +777,10 @@ gave one, labelled as that source's number and never compared with another's
 A candidate matching raised and a candidate a member proposed are one kind of
 thing and appear in one place.
 
+The decision a candidate proposes is a level of sameness, or one of the
+associations spec-03 §8.3 lists — a place of capture (§9.7) among them. A
+candidate proposing an association is decided as proposed or as *distinct*.
+
 Matching MUST NOT raise a candidate a member has already decided. A decided pair
 is settled, and re-raising it is how a correction mechanism becomes something
 people turn off.
@@ -1412,7 +1416,8 @@ obligations they place on the deployment (§6.4).
 
 **The source rank order** a deployment applies (§5.3).
 
-**The decision vocabulary** of §8.4, shared with spec-03 §8.3.
+**The decision vocabulary** of §8.4, shared with spec-03 §8.3, together with the
+associations a candidate from matching may propose (§8.5).
 
 **Association refinements** this document writes, which spec-01 §6.3 carries:
 
