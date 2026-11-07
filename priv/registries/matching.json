@@ -92,6 +92,7 @@
       "advances": true
     },
     "geonames": {
+      "name": "GeoNames",
       "answers": ["geonames"],
       "terms": "CC BY 4.0, which obliges attribution.",
       "acquisition": "fetched",
