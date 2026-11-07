@@ -72,6 +72,27 @@ defmodule Pluteus.Matching.Registry do
   def name!(corpus), do: corpus |> corpus() |> Map.fetch!("name")
 
   @doc """
+  How a corpus is credited where its terms oblige it (§6.4): what the household uses it
+  for, a link to its publisher, and its licence with a link to the licence.
+  """
+  @spec attribution!(String.t()) :: %{
+          what: String.t(),
+          link: String.t(),
+          licence: String.t(),
+          licence_link: String.t()
+        }
+  def attribution!(corpus) do
+    entry = corpus |> corpus() |> Map.fetch!("attribution")
+
+    %{
+      what: Map.fetch!(entry, "what"),
+      link: Map.fetch!(entry, "link"),
+      licence: Map.fetch!(entry, "licence"),
+      licence_link: Map.fetch!(entry, "licence_link")
+    }
+  end
+
+  @doc """
   The schemes a corpus answers.
   """
   @spec answers(String.t()) :: [String.t()]
