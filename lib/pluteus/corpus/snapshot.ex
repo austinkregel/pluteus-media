@@ -46,6 +46,11 @@ defmodule Pluteus.Corpus.Snapshot do
   end
 
   @doc """
+  A snapshot still being fetched, with the files that have arrived and verified so far.
+  """
+  def fetched_changeset(snapshot, files), do: change(snapshot, files: files)
+
+  @doc """
   A snapshot whose every file agreed with what its publisher stated.
   """
   def verified_changeset(snapshot, files) do
