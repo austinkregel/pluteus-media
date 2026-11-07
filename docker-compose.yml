@@ -1,6 +1,14 @@
 services:
+  # Every service the app depends on restarts with the host, as the app does. Docker's
+  # restart policy does not consult depends_on — only `docker compose up` does — so an app
+  # that comes back alone after a reboot finds nothing to connect to and restarts once a
+  # minute, its boot taking most of the host's cores each time.
+  #
+  # None of the databases publishes a port. They are reached only on the compose network,
+  # and this host is a production server whose own Postgres already holds 5432.
   db:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -23,6 +31,7 @@ services:
   # what it is due to do.
   jobs-db:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -43,6 +52,7 @@ services:
   # (spec-05 §5.7).
   corpus-db:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -64,6 +74,11 @@ services:
     # that comes back some minutes after this host does is waited out rather than
     # needing a hand.
     restart: unless-stopped
+    # No search domain. Docker copies the host's, and on this host `kregel.host` turns a
+    # bare `db` into db.kregel.host — another machine's Postgres — whenever this project's
+    # own db is not running. Without one, a missing service is a name that does not
+    # resolve, and nothing is sent to a host on the LAN.
+    dns_search: .
     depends_on:
       db:
         condition: service_healthy
@@ -132,6 +147,7 @@ services:
   sidecar:
     build:
       context: ./sidecar
+    restart: unless-stopped
     environment:
       ALLOWED_ROOTS: /app/storage:/app/tmp/storage
     volumes:
