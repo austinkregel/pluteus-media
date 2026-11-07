@@ -60,6 +60,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libarchive-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# lbzip2 decompresses one bzip2 stream across every core, which bzip2 does on one.
+# spec-05 §5.7's MusicBrainz core dump is a single 7.7 GB stream, and every import reads
+# all of it: measured on this host, bzip2 took 675 seconds over it and lbzip2 20, the
+# difference between an extraction that nears one job's time and one that does not.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends lbzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Annex A.3.5 self-hosts the interface's faces and makes subsetting the larger saving:
 # measured there, a Latin subset against an unsubset variable face differed roughly
 # sevenfold, several times what variability saves. fonttools subsets and instances the
