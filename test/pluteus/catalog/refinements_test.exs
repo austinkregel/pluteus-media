@@ -99,7 +99,7 @@ defmodule Pluteus.Catalog.RefinementsTest do
       %{local: subject, seeded: object} = two_res()
 
       assert_raise ArgumentError, ~r/not an association refinement this release ships/, fn ->
-        Catalog.associate(subject.id, object.id, "time-of-work-conception")
+        Catalog.associate(subject.id, object.id, "time-of-work-conception", :automatic)
       end
     end
 
@@ -108,7 +108,7 @@ defmodule Pluteus.Catalog.RefinementsTest do
 
       message =
         assert_raise ArgumentError, fn ->
-          Catalog.associate(subject.id, object.id, "invented")
+          Catalog.associate(subject.id, object.id, "invented", :automatic)
         end
 
       for name <- Refinements.names(), do: assert(message.message =~ name)
@@ -118,7 +118,39 @@ defmodule Pluteus.Catalog.RefinementsTest do
       %{local: subject, seeded: object} = two_res()
 
       assert {:ok, _association} =
-               Catalog.associate(subject.id, object.id, "time-of-publication-or-manufacture")
+               Catalog.associate(
+                 subject.id,
+                 object.id,
+                 "time-of-publication-or-manufacture",
+                 :automatic
+               )
+    end
+  end
+
+  describe "spec-05 §3.2. An association says which layer it belongs to" do
+    test "the layer it was written in is the layer it is read back in" do
+      %{local: subject, seeded: object} = two_res()
+
+      {:ok, written} = Catalog.associate(subject.id, object.id, "place-of-capture", :local)
+
+      assert Repo.get_by!(Association, subject_id: subject.id, object_id: object.id).provenance ==
+               :local
+
+      assert written.provenance == :local
+    end
+
+    test "one written without a layer is refused" do
+      %{local: subject, seeded: object} = two_res()
+
+      changeset =
+        Association.changeset(%Association{}, %{
+          subject_id: subject.id,
+          object_id: object.id,
+          refinement: "place-of-capture"
+        })
+
+      refute changeset.valid?
+      assert {"can't be blank", _} = changeset.errors[:provenance]
     end
   end
 
