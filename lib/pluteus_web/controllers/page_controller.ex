@@ -44,7 +44,11 @@ defmodule PluteusWeb.PageController do
   the other half here, so this is a surface the licence requires rather than a courtesy.
   """
   def notices(conn, _params) do
-    render(conn, :notices, page_title: "Third-party notices", notices: Notices.all())
+    render(conn, :notices,
+      page_title: "Third-party notices",
+      notices: Notices.all(),
+      corpora: Notices.corpora()
+    )
   end
 
   # Each drawn glyph beside the base-set glyph A.8.6 says it is hardest to tell from, at
