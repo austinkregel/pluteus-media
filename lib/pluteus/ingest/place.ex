@@ -854,7 +854,7 @@ defmodule Pluteus.Ingest.Place do
     refinement = Refinements.name!("time-of-publication-or-manufacture")
 
     unless time_span_id in Catalog.associated(manifestation_id, refinement) do
-      {:ok, _} = Catalog.associate(manifestation_id, time_span_id, refinement)
+      {:ok, _} = Catalog.associate(manifestation_id, time_span_id, refinement, :automatic)
     end
 
     :ok
@@ -1140,7 +1140,7 @@ defmodule Pluteus.Ingest.Place do
         end_ms: finish
       })
 
-    {:ok, _} = Catalog.associate(extent.id, track.id, "extent-of")
+    {:ok, _} = Catalog.associate(extent.id, track.id, "extent-of", :automatic)
 
     # The track's own length, which is what spec-01 §8.4's recorded figure is for. The
     # address says where in the release the track sits; it does not say how long the
@@ -1265,7 +1265,7 @@ defmodule Pluteus.Ingest.Place do
     unless Catalog.associated(subject, refinement) != [] do
       case described_by(companion, media) do
         {:ok, object} ->
-          {:ok, _} = Catalog.associate(subject, object, refinement)
+          {:ok, _} = Catalog.associate(subject, object, refinement, :automatic)
 
         :none ->
           :ok
