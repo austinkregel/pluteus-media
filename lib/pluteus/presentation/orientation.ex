@@ -27,26 +27,24 @@ defmodule Pluteus.Presentation.Orientation do
   reason to refuse to make a thumbnail of it.
   """
 
-  @values 1..8
-
-  # A JPEG's EXIF sits in an APP1 segment near the front of the file. Reading more
-  # than this to find it would be reading the image.
-  @head_bytes 65_536
+  alias Pluteus.Exif
 
   @doc """
   How much of a file's head carries the orientation, where one is stated.
   """
   @spec head_bytes() :: pos_integer()
-  def head_bytes, do: @head_bytes
+  def head_bytes, do: Exif.head_bytes()
 
   @doc """
-  The orientation these bytes state, from 1 to 8, or nil where they state none.
+  The orientation these bytes state, from 1 to 8, or nil where they state none or state
+  one that cannot be read.
   """
   @spec of(binary()) :: 1..8 | nil
   def of(bytes) when is_binary(bytes) do
-    case tiff_block(bytes) do
-      nil -> nil
-      tiff -> orientation_in(tiff)
+    case Exif.orientation(bytes) do
+      {:ok, stated} -> stated
+      :none -> nil
+      {:error, _unreadable} -> nil
     end
   end
 
@@ -58,87 +56,4 @@ defmodule Pluteus.Presentation.Orientation do
   """
   @spec turns?(1..8 | nil) :: boolean()
   def turns?(orientation), do: orientation in 5..8
-
-  # A JPEG announces itself, and a TIFF is its own EXIF container.
-  defp tiff_block(<<0xFF, 0xD8, rest::binary>>), do: app1(rest)
-  defp tiff_block(<<"II", 0x2A, 0x00, _::binary>> = tiff), do: tiff
-  defp tiff_block(<<"MM", 0x00, 0x2A, _::binary>> = tiff), do: tiff
-  defp tiff_block(_not_an_image_with_exif), do: nil
-
-  # Walking the marker segments to APP1. Image data begins at SOS, so anything not
-  # found by then is not there.
-  defp app1(<<0xFF, 0xDA, _::binary>>), do: nil
-  defp app1(<<0xFF, 0xD9, _::binary>>), do: nil
-
-  defp app1(<<0xFF, 0xFF, rest::binary>>), do: app1(<<0xFF, rest::binary>>)
-
-  defp app1(<<0xFF, marker, rest::binary>>) when marker in 0xD0..0xD8, do: app1(rest)
-
-  defp app1(<<0xFF, 0xE1, length::16, rest::binary>>) do
-    case payload(rest, length) do
-      {<<"Exif", 0, 0, tiff::binary>>, _after} -> tiff
-      {_other_app1, after_it} -> app1(after_it)
-      nil -> nil
-    end
-  end
-
-  defp app1(<<0xFF, _marker, length::16, rest::binary>>) do
-    case payload(rest, length) do
-      {_skipped, after_it} -> app1(after_it)
-      nil -> nil
-    end
-  end
-
-  defp app1(_truncated), do: nil
-
-  defp payload(rest, length) do
-    size = max(length - 2, 0)
-
-    if byte_size(rest) < size do
-      nil
-    else
-      <<segment::binary-size(size), after_it::binary>> = rest
-      {segment, after_it}
-    end
-  end
-
-  defp orientation_in(<<"II", 0x2A, 0x00, offset::little-32, _::binary>> = tiff),
-    do: entry(tiff, offset, :little)
-
-  defp orientation_in(<<"MM", 0x00, 0x2A, offset::big-32, _::binary>> = tiff),
-    do: entry(tiff, offset, :big)
-
-  defp orientation_in(_no_tiff_header), do: nil
-
-  # IFD0 is a count and then fixed-width entries: tag, type, count, value. Tag
-  # 0x0112 is the orientation, and a SHORT's value sits in the first two bytes of
-  # the entry's value field.
-  defp entry(tiff, offset, endian) do
-    with true <- offset >= 8 and offset + 2 <= byte_size(tiff),
-         count = read16(tiff, offset, endian),
-         true <- count > 0 and offset + 2 + count * 12 <= byte_size(tiff),
-         stated when stated in @values <- orientation_tag(tiff, offset, count, endian) do
-      stated
-    else
-      _stating_none -> nil
-    end
-  end
-
-  defp orientation_tag(tiff, offset, count, endian) do
-    Enum.find_value(0..(count - 1)//1, fn index ->
-      at = offset + 2 + index * 12
-
-      if read16(tiff, at, endian) == 0x0112, do: read16(tiff, at + 8, endian)
-    end)
-  end
-
-  defp read16(binary, at, :big) do
-    <<value::big-16>> = binary_part(binary, at, 2)
-    value
-  end
-
-  defp read16(binary, at, :little) do
-    <<value::little-16>> = binary_part(binary, at, 2)
-    value
-  end
 end
