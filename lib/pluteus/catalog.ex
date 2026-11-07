@@ -604,10 +604,13 @@ defmodule Pluteus.Catalog do
   explicit that a relation recorded without one cannot be classified afterwards —
   nothing recorded which kind it would have been — so the row would not be a row to
   repair later but a row whose meaning is already gone.
+
+  The caller states which layer the association belongs to: `:automatic` for what
+  placement or matching concluded, `:local` for what a member asserted.
   """
-  @spec associate(Ecto.UUID.t(), Ecto.UUID.t(), String.t()) ::
+  @spec associate(Ecto.UUID.t(), Ecto.UUID.t(), String.t(), :seeded | :automatic | :local) ::
           {:ok, Association.t()} | {:error, Ecto.Changeset.t()}
-  def associate(subject_id, object_id, refinement) do
+  def associate(subject_id, object_id, refinement, provenance) do
     unless Refinements.known?(refinement) do
       raise ArgumentError, Refinements.unknown(refinement)
     end
@@ -616,7 +619,8 @@ defmodule Pluteus.Catalog do
     |> Association.changeset(%{
       subject_id: subject_id,
       object_id: object_id,
-      refinement: refinement
+      refinement: refinement,
+      provenance: provenance
     })
     |> Repo.insert()
   end
