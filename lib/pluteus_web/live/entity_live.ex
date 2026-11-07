@@ -76,7 +76,8 @@ defmodule PluteusWeb.EntityLive do
     "creators" => "Created by",
     "created" => "Created",
     "credited_as" => "Credited on",
-    "names" => "Names"
+    "names" => "Names",
+    "place_of_capture" => "Taken in"
   }
 
   @doc """
