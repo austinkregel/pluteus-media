@@ -168,10 +168,11 @@ defmodule Pluteus.Matching.Equation do
   end
 
   defp report!(record, moved) do
+    # It stands until a person has seen it: no later pass records it again.
     Ingest.record_finding(%{
       stage: :match,
       kind: "equated",
-      permanent: false,
+      permanent: true,
       digital_item_id: Repo.get!(Asset, record.asset_id).digital_item_id,
       detail: Map.put(moved, "match_record", record.id)
     })
