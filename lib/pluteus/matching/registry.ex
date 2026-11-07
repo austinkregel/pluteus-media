@@ -65,6 +65,13 @@ defmodule Pluteus.Matching.Registry do
   def corpora, do: "corpora" |> section() |> Map.delete("for") |> Map.keys() |> Enum.sort()
 
   @doc """
+  The name a corpus's publisher gives it, which is the name its collective agent is
+  known by (§3.1). A corpus whose entry gives none has not yet supplied anything to name.
+  """
+  @spec name!(String.t()) :: String.t()
+  def name!(corpus), do: corpus |> corpus() |> Map.fetch!("name")
+
+  @doc """
   The schemes a corpus answers.
   """
   @spec answers(String.t()) :: [String.t()]
