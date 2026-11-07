@@ -1400,7 +1400,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "they are linked rather than merged, in either direction" do
       %{local: local, seeded: seeded} = a_place_the_household_named_first()
 
-      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing())
+      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing(), :local)
 
       assert Catalog.associated(local.id, Association.same_thing()) == [seeded.id]
       assert Catalog.associated(seeded.id, Association.same_thing()) == [local.id]
@@ -1409,7 +1409,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "resolution over either row returns the household's own name" do
       %{local: local, seeded: seeded} = a_place_the_household_named_first()
 
-      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing())
+      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing(), :local)
 
       assert Resolution.resolve(local.id, %Profile{}).nomen_string == "Grandma's house"
       assert Resolution.resolve(seeded.id, %Profile{}).nomen_string == "Grandma's house"
@@ -1425,7 +1425,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "the shipped name is not mutated by the link" do
       %{local: local, seeded: seeded} = a_place_the_household_named_first()
 
-      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing())
+      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing(), :local)
 
       assert [%Nomen{provenance: :seeded, nomen_string: "Kregel Residence, Grand Rapids"}] =
                Catalog.nomens_for(seeded.id)
@@ -1435,7 +1435,7 @@ defmodule Pluteus.Catalog.ConformanceTest do
       %{local: local} = a_place_the_household_named_first()
 
       assert {:error, changeset} =
-               Catalog.associate(local.id, local.id, Association.same_thing())
+               Catalog.associate(local.id, local.id, Association.same_thing(), :local)
 
       assert %{object_id: [_ | _]} = errors_on(changeset)
     end
@@ -1443,10 +1443,10 @@ defmodule Pluteus.Catalog.ConformanceTest do
     test "the same link is not recorded twice" do
       %{local: local, seeded: seeded} = a_place_the_household_named_first()
 
-      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing())
+      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing(), :local)
 
       assert {:error, changeset} =
-               Catalog.associate(local.id, seeded.id, Association.same_thing())
+               Catalog.associate(local.id, seeded.id, Association.same_thing(), :local)
 
       assert %{subject_id: [_ | _]} = errors_on(changeset)
     end
