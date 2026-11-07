@@ -103,6 +103,12 @@ defmodule Pluteus.Dedup.Candidate do
     |> foreign_key_constraint(:match_record_id)
   end
 
+  @doc """
+  A decision withdrawn by the person it is theirs to make, which leaves the pair open.
+  """
+  def reopened_changeset(candidate),
+    do: change(candidate, decision: nil, decided_by: nil, decided_at: nil)
+
   def decision_changeset(candidate, attrs) do
     candidate
     |> cast(attrs, [:decision, :decided_by, :decided_at])
