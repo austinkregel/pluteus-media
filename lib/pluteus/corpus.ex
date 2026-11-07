@@ -26,6 +26,13 @@ defmodule Pluteus.Corpus do
   def directory, do: :pluteus |> Application.fetch_env!(__MODULE__) |> Keyword.fetch!(:directory)
 
   @doc """
+  How the deployment names itself to a corpus's publisher: the application and its
+  version, and nothing about the household.
+  """
+  @spec user_agent() :: String.t()
+  def user_agent, do: "Pluteus/" <> (:pluteus |> Application.spec(:vsn) |> to_string())
+
+  @doc """
   Where one snapshot's files are kept until it is imported.
   """
   @spec snapshot_directory(String.t(), Date.t()) :: Path.t()
