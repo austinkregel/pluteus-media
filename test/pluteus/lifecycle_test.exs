@@ -282,7 +282,7 @@ defmodule Pluteus.LifecycleTest do
           provenance: :seeded
         })
 
-      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing())
+      {:ok, _} = Catalog.associate(local.id, seeded.id, Association.same_thing(), :local)
       assert Resolution.resolve(seeded.id, %Profile{}).nomen_string == "Grandma's house"
 
       {:ok, _} = Lifecycle.recycle(local.id, ada.id)
