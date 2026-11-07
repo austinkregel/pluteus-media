@@ -19,7 +19,7 @@ defmodule Pluteus.Ingest.Finding do
 
   import Ecto.Changeset
 
-  @stages ~w(acquire examine identify place normalize analyse purge credit corpus)a
+  @stages ~w(acquire examine identify place normalize analyse purge credit corpus match)a
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
