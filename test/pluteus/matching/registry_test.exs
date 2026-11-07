@@ -56,6 +56,20 @@ defmodule Pluteus.Matching.RegistryTest do
         assert Registry.acquisition(corpus) == :dropped
       end
     end
+
+    test "GeoNames is fetched from its dump directory and verified by size alone" do
+      # The publisher states no checksum, so §5.7 leaves the announced size as the check.
+      assert %{
+               from: "https://download.geonames.org/export/dump/",
+               files: ["allCountries.zip", "admin1CodesASCII.txt", "admin2Codes.txt"],
+               verified_by: :size,
+               stated_by: :last_modified
+             } = Registry.fetch!("geonames")
+    end
+
+    test "a corpus whose entry names no address cannot be fetched" do
+      assert_raise KeyError, fn -> Registry.fetch!("discogs") end
+    end
   end
 
   describe "§5.3. A member's assertion ranks first" do
