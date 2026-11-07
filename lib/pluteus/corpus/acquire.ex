@@ -20,6 +20,7 @@ defmodule Pluteus.Corpus.Acquire do
 
   alias Pluteus.Corpus
   alias Pluteus.Corpus.Fetch
+  alias Pluteus.Corpus.Repo, as: CorpusRepo
   alias Pluteus.Corpus.Snapshot
   alias Pluteus.Ingest.Finding
   alias Pluteus.Matching.Registry
@@ -54,33 +55,123 @@ defmodule Pluteus.Corpus.Acquire do
     Repo.exists?(from f in Finding, where: f.corpus == ^corpus and is_nil(f.cleared_at))
   end
 
-  @doc """
-  Fetches the snapshot a corpus's publisher currently announces, and verifies it.
+  @typedoc "Each file of a snapshot, and what its publisher announced for it."
+  @type announcement :: [{String.t(), Fetch.announced()}]
 
-  Returns the snapshot verified, or already imported where the household holds it; the
-  snapshot refused where a file did not verify; or why the fetch stopped, where it can be
-  tried again and what arrived is kept to resume from.
+  @doc """
+  Asks the publisher what it announces for every file of a corpus, and begins the
+  snapshot those files are dated to.
+
+  Answers the snapshot — new, part fetched, or already verified, imported or refused —
+  with the announcement its files are fetched against; files dated differently, or a
+  question the publisher did not answer, stop here and nothing is begun.
 
   Options:
 
     * `:from` — the address the files are under, where it is not the registry's.
   """
+  @spec begin(String.t(), keyword()) ::
+          {:ok, Snapshot.t(), announcement()}
+          | {:error, {:dates_disagree, %{String.t() => Date.t()}}}
+          | {:error, {String.t(), term()}}
+  def begin(corpus, options \\ []) do
+    %{files: files, verified_by: :size, stated_by: :last_modified} = Registry.fetch!(corpus)
+
+    with {:ok, announced} <- announce(address(corpus, options), files),
+         {:ok, stated_on} <- one_date(announced) do
+      {:ok, Corpus.begin(corpus, stated_on), announced}
+    end
+  end
+
+  @doc """
+  The files of a snapshot still to fetch: announced, and not yet recorded on it.
+  """
+  @spec outstanding(Snapshot.t(), announcement()) :: announcement()
+  def outstanding(%Snapshot{files: files}, announced),
+    do: Enum.reject(announced, fn {file, _said} -> Map.has_key?(files, file) end)
+
+  @doc """
+  Fetches one file of a snapshot being fetched, and records it on the snapshot once it is
+  whole and the size announced.
+
+  Answers `{:verified, snapshot}` where it was the last file the snapshot lacked,
+  `{:fetched, snapshot}` where others remain, `:paused` where the deadline came first
+  and what arrived is kept to resume from, the snapshot refused where the file is not the
+  size announced, or why the fetch stopped. A snapshot no longer being fetched — refused
+  meanwhile, or already verified — is answered as it is, and nothing is fetched.
+
+  Options:
+
+    * `:from` — the address the files are under, where it is not the registry's.
+    * `:until` — the deadline `Pluteus.Corpus.Fetch.file/3` stops at.
+  """
+  @spec fetch_file(Snapshot.t(), String.t(), Fetch.announced(), keyword()) ::
+          {:verified | :fetched, Snapshot.t()}
+          | :paused
+          | {:refused, Snapshot.t()}
+          | {:not_fetching, Snapshot.t()}
+          | {:error, Fetch.stopped()}
+  def fetch_file(%Snapshot{} = snapshot, file, said, options \\ []) do
+    snapshot = CorpusRepo.reload!(snapshot)
+    directory = Corpus.snapshot_directory(snapshot.corpus, snapshot.stated_on)
+    url = address(snapshot.corpus, options) <> file
+
+    case snapshot.state do
+      :fetching ->
+        case fetched(url, Path.join(directory, file), said.length, options[:until]) do
+          :ok ->
+            record(snapshot, file, said)
+
+          {:paused, _held} ->
+            :paused
+
+          {:disagrees, size} ->
+            detail = %{"file" => file, "announced" => said.length, "fetched" => size}
+            {:refused, Corpus.refused(snapshot, "size_disagrees", detail)}
+
+          {:error, _stopped} = stopped ->
+            stopped
+        end
+
+      _not_fetching ->
+        {:not_fetching, snapshot}
+    end
+  end
+
+  @doc """
+  Fetches every outstanding file of the snapshot a corpus's publisher announces, one after
+  another and with no deadline, and verifies it: `begin/2` and `fetch_file/4` in turn, for
+  a fetch that is not run as scheduled jobs.
+  """
   @spec fetch(String.t(), keyword()) ::
           {:ok, Snapshot.t()}
           | {:refused, Snapshot.t()}
-          | {:error, {:dates_disagree, %{String.t() => Date.t()}}}
-          | {:error, {String.t(), Fetch.stopped() | term()}}
+          | {:error, term()}
   def fetch(corpus, options \\ []) do
-    %{files: files, verified_by: :size, stated_by: :last_modified} =
-      entry = Registry.fetch!(corpus)
-
-    from = Keyword.get(options, :from, entry.from)
-
-    with {:ok, announced} <- announce(from, files),
-         {:ok, stated_on} <- one_date(announced) do
-      corpus |> Corpus.begin(stated_on) |> continue(from, announced)
+    with {:ok, snapshot, announced} <- begin(corpus, options) do
+      fetch_all(snapshot, outstanding(snapshot, announced), options)
     end
   end
+
+  defp fetch_all(%Snapshot{state: :refused} = snapshot, _outstanding, _options),
+    do: {:refused, snapshot}
+
+  defp fetch_all(%Snapshot{state: :fetching} = snapshot, [], _options),
+    do: {:ok, CorpusRepo.reload!(snapshot)}
+
+  defp fetch_all(%Snapshot{state: :fetching} = snapshot, [{file, said} | rest], options) do
+    case fetch_file(snapshot, file, said, options) do
+      {:fetched, snapshot} -> fetch_all(snapshot, rest, options)
+      {:verified, snapshot} -> {:ok, snapshot}
+      {:refused, snapshot} -> {:refused, snapshot}
+      {:error, stopped} -> {:error, {file, stopped}}
+    end
+  end
+
+  defp fetch_all(%Snapshot{} = snapshot, _outstanding, _options), do: {:ok, snapshot}
+
+  defp address(corpus, options),
+    do: Keyword.get_lazy(options, :from, fn -> Registry.fetch!(corpus).from end)
 
   defp announce(from, files) do
     Enum.reduce_while(files, {:ok, []}, fn file, {:ok, announced} ->
@@ -105,48 +196,39 @@ defmodule Pluteus.Corpus.Acquire do
     end
   end
 
-  defp continue(%Snapshot{state: :fetching} = snapshot, from, announced) do
-    directory = Corpus.snapshot_directory(snapshot.corpus, snapshot.stated_on)
-
-    announced
-    |> Enum.reduce_while({:ok, %{}}, fn {file, said}, {:ok, files} ->
-      case fetch_file(from <> file, Path.join(directory, file), said.length) do
-        :ok ->
-          {:cont, {:ok, Map.put(files, file, recorded(said))}}
-
-        {:disagrees, size} ->
-          {:halt, {:disagrees, %{"file" => file, "announced" => said.length, "fetched" => size}}}
-
-        {:error, stopped} ->
-          {:halt, {:error, {file, stopped}}}
-      end
-    end)
-    |> case do
-      {:ok, files} -> {:ok, Corpus.verified(snapshot, files)}
-      {:disagrees, detail} -> {:refused, Corpus.refused(snapshot, "size_disagrees", detail)}
-      {:error, _stopped} = stopped -> stopped
-    end
-  end
-
-  defp continue(%Snapshot{state: state} = snapshot, _from, _announced)
-       when state in [:verified, :imported],
-       do: {:ok, snapshot}
-
-  defp continue(%Snapshot{state: :refused} = snapshot, _from, _announced),
-    do: {:refused, snapshot}
-
-  defp fetch_file(url, destination, length) do
+  defp fetched(url, destination, length, deadline) do
     case File.stat(destination) do
       {:ok, %File.Stat{size: ^length}} ->
         :ok
 
       _not_whole ->
-        case Fetch.file(url, destination, user_agent: Corpus.user_agent()) do
+        case Fetch.file(url, destination, user_agent: Corpus.user_agent(), until: deadline) do
           {:ok, %{size: ^length}} -> :ok
           {:ok, %{size: size}} -> {:disagrees, size}
+          {:paused, _held} = paused -> paused
           {:error, _stopped} = stopped -> stopped
         end
     end
+  end
+
+  # The snapshot is read again under a lock, so that two files finishing at once cannot
+  # each record itself over the other; the last one the registry names verifies it.
+  defp record(snapshot, file, said) do
+    {:ok, recorded} =
+      CorpusRepo.transaction(fn ->
+        held =
+          CorpusRepo.one!(from s in Snapshot, where: s.id == ^snapshot.id, lock: "FOR UPDATE")
+
+        files = Map.put(held.files, file, recorded(said))
+
+        if Enum.all?(Registry.fetch!(held.corpus).files, &Map.has_key?(files, &1)) do
+          {:verified, Corpus.verified(held, files)}
+        else
+          {:fetched, Corpus.fetched(held, files)}
+        end
+      end)
+
+    recorded
   end
 
   defp recorded(said) do
