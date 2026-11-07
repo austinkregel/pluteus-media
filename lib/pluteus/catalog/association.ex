@@ -11,6 +11,10 @@ defmodule Pluteus.Catalog.Association do
   The refinement vocabulary is seed data (§17), so nothing here constrains its
   values. The one refinement this module names is the one §7.5 makes normative:
   its effect on resolution is specified, not configured.
+
+  An association says which layer it belongs to, as a nomen does: seeded, automatic or
+  local. spec-05 lets matching replace an association it wrote and forbids it touching
+  one a member asserted, and the layer is how the two are told apart.
   """
 
   use Ecto.Schema
@@ -29,6 +33,7 @@ defmodule Pluteus.Catalog.Association do
     field :subject_id, UUIDv7
     field :object_id, UUIDv7
     field :refinement, :string
+    field :provenance, Ecto.Enum, values: [:seeded, :automatic, :local]
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -51,9 +56,10 @@ defmodule Pluteus.Catalog.Association do
 
   def changeset(association, attrs) do
     association
-    |> cast(attrs, [:subject_id, :object_id, :refinement])
-    |> validate_required([:subject_id, :object_id, :refinement])
+    |> cast(attrs, [:subject_id, :object_id, :refinement, :provenance])
+    |> validate_required([:subject_id, :object_id, :refinement, :provenance])
     |> check_constraint(:object_id, name: :res_is_not_associated_with_itself)
+    |> check_constraint(:provenance, name: :association_provenance_is_known)
     |> unique_constraint([:subject_id, :object_id, :refinement],
       name: :associations_triple_index
     )
