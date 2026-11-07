@@ -33,15 +33,16 @@ defmodule Pluteus.Workers.FetchCorpusFile do
   @doc """
   The job fetching `file` of `snapshot`, carrying what its publisher announced for it.
   """
-  @spec new_for(Snapshot.t(), String.t(), Pluteus.Corpus.Fetch.announced()) ::
-          Oban.Job.changeset()
+  @spec new_for(Snapshot.t(), String.t(), Acquire.said()) :: Oban.Job.changeset()
   def new_for(%Snapshot{} = snapshot, file, said) do
     new(%{
       corpus: snapshot.corpus,
       snapshot_id: snapshot.id,
       file: file,
+      url: said.url,
       length: said.length,
-      last_modified: DateTime.to_iso8601(said.last_modified)
+      last_modified: DateTime.to_iso8601(said.last_modified),
+      sha256: said.sha256
     })
   end
 
@@ -49,7 +50,14 @@ defmodule Pluteus.Workers.FetchCorpusFile do
   def perform(%Oban.Job{args: args} = job) do
     snapshot = CorpusRepo.get!(Snapshot, args["snapshot_id"])
     {:ok, last_modified, 0} = DateTime.from_iso8601(args["last_modified"])
-    said = %{length: args["length"], last_modified: last_modified}
+
+    said = %{
+      url: Map.fetch!(args, "url"),
+      length: Map.fetch!(args, "length"),
+      last_modified: last_modified,
+      sha256: Map.fetch!(args, "sha256")
+    }
+
     deadline = System.monotonic_time(:millisecond) + @budget_ms
 
     case Acquire.fetch_file(snapshot, args["file"], said, until: deadline) do
