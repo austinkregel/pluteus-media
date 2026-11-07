@@ -527,6 +527,71 @@ defmodule Pluteus.IngestFixtures do
   end
 
   @doc """
+  A JPEG whose EXIF carries a GPS block holding the tags given, in the byte order given.
+
+  Each tag is `{tag, :ascii | :short | :long | :rational, value}`: a string, an integer,
+  or a list of `{numerator, denominator}`. IFD0 holds one entry, the GPS block's offset,
+  and a value longer than four bytes is written after the block and pointed to, as a
+  camera writes it. The pixels are `still/0`'s.
+  """
+  @spec located_jpeg([{non_neg_integer(), atom(), term()}], :big | :little) :: binary()
+  def located_jpeg(gps, endian \\ :big) do
+    <<0xFF, 0xD8, rest::binary>> = media!(:jpeg)
+
+    gps_offset = 8 + 2 + 12 + 4
+    data_offset = gps_offset + 2 + 12 * length(gps) + 4
+
+    {entries, data} =
+      Enum.reduce(gps, {"", ""}, fn {tag, type, value}, {entries, data} ->
+        {type_number, count, bytes} = tiff_value(type, value, endian)
+
+        {field, data} =
+          if byte_size(bytes) <= 4 do
+            {bytes <> :binary.copy(<<0>>, 4 - byte_size(bytes)), data}
+          else
+            {tiff_int(data_offset + byte_size(data), 32, endian), data <> bytes}
+          end
+
+        entry =
+          tiff_int(tag, 16, endian) <>
+            tiff_int(type_number, 16, endian) <> tiff_int(count, 32, endian) <> field
+
+        {entries <> entry, data}
+      end)
+
+    order = if endian == :big, do: "MM" <> <<0x00, 0x2A>>, else: "II" <> <<0x2A, 0x00>>
+
+    tiff =
+      order <>
+        tiff_int(8, 32, endian) <>
+        tiff_int(1, 16, endian) <>
+        tiff_int(0x8825, 16, endian) <>
+        tiff_int(4, 16, endian) <>
+        tiff_int(1, 32, endian) <>
+        tiff_int(gps_offset, 32, endian) <>
+        tiff_int(0, 32, endian) <>
+        tiff_int(length(gps), 16, endian) <> entries <> tiff_int(0, 32, endian) <> data
+
+    exif = "Exif" <> <<0, 0>> <> tiff
+
+    <<0xFF, 0xD8>> <> <<0xFF, 0xE1, byte_size(exif) + 2::16>> <> exif <> rest
+  end
+
+  defp tiff_value(:ascii, string, _endian), do: {2, byte_size(string) + 1, string <> <<0>>}
+  defp tiff_value(:short, value, endian), do: {3, 1, tiff_int(value, 16, endian)}
+  defp tiff_value(:long, value, endian), do: {4, 1, tiff_int(value, 32, endian)}
+
+  defp tiff_value(:rational, pairs, endian) do
+    {5, length(pairs),
+     Enum.map_join(pairs, fn {numerator, denominator} ->
+       tiff_int(numerator, 32, endian) <> tiff_int(denominator, 32, endian)
+     end)}
+  end
+
+  defp tiff_int(value, bits, :big), do: <<value::big-size(bits)>>
+  defp tiff_int(value, bits, :little), do: <<value::little-size(bits)>>
+
+  @doc """
   A cartridge dump in the iNES container: the four magic bytes, the twelve-byte
   header giving one 16 KiB program bank and one 8 KiB character bank, and banks
   of that size holding nothing.
