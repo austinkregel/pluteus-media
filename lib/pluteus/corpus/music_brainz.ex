@@ -90,7 +90,11 @@ defmodule Pluteus.Corpus.MusicBrainz do
     members = ["SCHEMA_SEQUENCE" | Enum.map(tables, &("mbdump/" <> &1))]
     archive = Path.join(directory, @archive)
 
-    case System.cmd("tar", ["-xjf", archive, "-C", extracting | members], stderr_to_stdout: true) do
+    # lbzip2 reads the one bzip2 stream across every core; bzip2 reads it on one, and every
+    # import reads all of it.
+    tar = ["--use-compress-program=lbzip2", "-xf", archive, "-C", extracting | members]
+
+    case System.cmd("tar", tar, stderr_to_stdout: true) do
       {_output, 0} -> :ok
       {output, status} -> raise "extracting #{archive} exited #{status}: #{output}"
     end
